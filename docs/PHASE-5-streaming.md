@@ -16,14 +16,14 @@ Wire opencode's stdout into the `review_chunks` table as it streams, and have th
 1. **Worker streaming** — replace the buffer-until-end logic from Phase 4. As opencode emits stdout, write each chunk into `review_chunks` with an incrementing `seq`. Batch tiny chunks (e.g., 100ms or 256 bytes, whichever first) to avoid hammering Postgres.
 
 2. **Final-output handling** — opencode's structured JSON arrives at end-of-stream. Strategy depends on what we learned in Phase 4:
-   - If opencode emits a single JSON blob: parse only after stream end; the streamed chunks are an "in-progress" preview that gets *replaced* by the rendered review when finalized.
+   - If opencode emits a single JSON blob: parse only after stream end; the streamed chunks are an "in-progress" preview that gets _replaced_ by the rendered review when finalized.
    - If opencode emits structured events incrementally: parse as we go; chunks are the structured updates themselves.
-   Pick during planning; both are workable.
+     Pick during planning; both are workable.
 
 3. **Frontend partial rendering** — `/jobs/:id` page subscribes to:
    - `review_jobs` row updates (status changes).
    - `review_chunks` inserts for that `job_id`.
-   Buffers chunks ordered by `seq`. Renders a "live preview" view while `status='running'`. Once `status='done'` and the `reviews` row exists, swaps to the rendered chapter UI (Phase 6).
+     Buffers chunks ordered by `seq`. Renders a "live preview" view while `status='running'`. Once `status='done'` and the `reviews` row exists, swaps to the rendered chapter UI (Phase 6).
 
 4. **Reload resilience** — on page mount, fetch all existing `review_chunks` for the job up to current, then subscribe for new ones starting from `seq > last_seen`. No gap, no duplicate.
 

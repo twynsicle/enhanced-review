@@ -32,8 +32,24 @@ A "review target" is one of:
 
 ```ts
 type ReviewTarget =
-  | { kind: 'pr'; owner: string; repo: string; number: number; headSha: string; baseSha: string; title: string }
-  | { kind: 'branch'; owner: string; repo: string; ref: string; headSha: string; baseRef: string; baseSha: string };
+  | {
+      kind: 'pr';
+      owner: string;
+      repo: string;
+      number: number;
+      headSha: string;
+      baseSha: string;
+      title: string;
+    }
+  | {
+      kind: 'branch';
+      owner: string;
+      repo: string;
+      ref: string;
+      headSha: string;
+      baseRef: string;
+      baseSha: string;
+    };
 ```
 
 The base ref for a branch target = the repo's default branch (resolved at selection time).
@@ -42,7 +58,7 @@ The base ref for a branch target = the repo's default branch (resolved at select
 
 - Persisting the target — happens in Phase 3 when "Review" creates a `review_jobs` row.
 - Caching repo/PR lists in Postgres — pure pass-through to GitHub API for now.
-- Repo browsing for repos the user *doesn't* own (e.g., orgs they collaborate on) — should "just work" via OAuth scopes, but we'll verify here.
+- Repo browsing for repos the user _doesn't_ own (e.g., orgs they collaborate on) — should "just work" via OAuth scopes, but we'll verify here.
 
 ## Open questions to resolve before planning
 

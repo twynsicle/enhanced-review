@@ -55,7 +55,12 @@ Define a worker-internal interface:
 ```ts
 type ReviewExecutor = {
   name: 'opencode' | 'claude-code';
-  run(input: { cloneDir: string; diff: string; metadata: TargetMetadata; signal: AbortSignal }): Promise<NarrativeReview>;
+  run(input: {
+    cloneDir: string;
+    diff: string;
+    metadata: TargetMetadata;
+    signal: AbortSignal;
+  }): Promise<NarrativeReview>;
 };
 ```
 

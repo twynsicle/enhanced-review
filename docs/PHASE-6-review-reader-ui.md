@@ -31,7 +31,7 @@ Port the POC's narrative review UI — chapter cards, insight callouts, inline d
    - If `pr.head.sha !== review.head_sha`, render a badge: "PR has 3 new commits since this review · Re-run".
    - Badge links to the re-run flow.
 
-6. **Re-run flow** — button creates a new `review_jobs` row at the *current* HEAD SHA (resolved fresh from GitHub) and navigates to `/jobs/:newId`.
+6. **Re-run flow** — button creates a new `review_jobs` row at the _current_ HEAD SHA (resolved fresh from GitHub) and navigates to `/jobs/:newId`.
 
 7. **History list** — `/history` page enriched: target title, requester avatar, status pill, created/completed timestamps, link to review.
 
