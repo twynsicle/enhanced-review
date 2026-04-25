@@ -1,5 +1,7 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getGithubLogin } from '@/lib/auth/allowlist';
 import { createClient } from '@/lib/supabase/server';
@@ -52,8 +54,11 @@ export default async function Home() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            You&apos;re signed in. Phase 1 ends here — repo and PR pickers land in Phase 2.
+            You&apos;re signed in. Pick a repo to start a review.
           </p>
+          <Button asChild className="w-full">
+            <Link href="/picker">Browse repos →</Link>
+          </Button>
           <SignOutButton />
         </CardContent>
       </Card>

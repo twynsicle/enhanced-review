@@ -13,6 +13,11 @@ export function SignInButton() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
+        // `repo` covers public + private repo read access (Phase 2 picker
+        // and Phase 4 worker need both). Existing pre-Phase-2 sessions
+        // were issued without this scope and need to sign out + back in
+        // to upgrade.
+        scopes: 'repo',
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });

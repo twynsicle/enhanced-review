@@ -1,0 +1,45 @@
+# Worker overlay — joins the upstream Supabase stack's default network so
+# the worker can reach `db` (Postgres) and `kong` (Supabase API gateway)
+# by service name.
+#
+# Run alongside the supabase stack:
+#
+#   # 1. Bring up Supabase first.
+#   docker compose -f supabase/docker-compose.yml up -d
+#
+#   # 2. Bring up the worker.
+#   docker compose -f docker-compose.worker.yml up -d --build
+#
+# Variables come from the host environment or a local .env file. The
+# defaults below match supabase/.env's defaults.
+
+name: enhanced-review-worker
+
+services:
+  worker:
+    container_name: enhanced-review-worker
+    build:
+      context: .
+      dockerfile: packages/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      # Postgres LISTEN/NOTIFY connection. Inside the supabase network the
+      # db container is reachable as `db:5432`. Use the postgres superuser
+      # because it bypasses RLS for the worker's writes.
+      DATABASE_URL: ${WORKER_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-postgres}}
+      # Supabase REST endpoint used by supabase-js for chunk inserts and
+      # the final reviews row. Kong is the gateway alias on this network.
+      SUPABASE_URL: ${WORKER_SUPABASE_URL:-http://kong:8000}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY:?SERVICE_ROLE_KEY must be set}
+      # Optional knobs.
+      WORKER_RECONNECT_MIN_MS: ${WORKER_RECONNECT_MIN_MS:-1000}
+      WORKER_RECONNECT_MAX_MS: ${WORKER_RECONNECT_MAX_MS:-30000}
+      WORKER_STUB_CHUNK_DELAY_MS: ${WORKER_STUB_CHUNK_DELAY_MS:-1000}
+    networks:
+      - supabase
+    depends_on: []
+
+networks:
+  supabase:
+    external: true
+    name: supabase_default

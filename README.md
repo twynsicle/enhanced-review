@@ -72,7 +72,10 @@ Studio dashboard credentials are `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD` fro
 ./scripts/db-migrate.sh
 ```
 
-This creates the `allowed_users` table and seeds the operator (`twynsicle`).
+Migrations:
+
+- `0001_allowed_users.sql` — invite-only allowlist (Phase 1).
+- `0002_review_jobs.sql` — review job lifecycle tables, RLS, NOTIFY trigger, Realtime publication (Phase 3).
 
 ### 5. Configure Next.js env
 
@@ -90,19 +93,40 @@ npm run dev
 
 Open <http://localhost:3000>.
 
+### 7. Run the review worker (Phase 3+)
+
+The worker is a separate Node process that picks up `review_jobs` rows
+and produces output. It can run two ways:
+
+```bash
+# Dev: tsx watch with hot reload, against the host-exposed Supabase ports.
+cp packages/worker/.env.example packages/worker/.env
+# fill DATABASE_URL with supabase/.env's POSTGRES_PASSWORD,
+# fill SUPABASE_SERVICE_ROLE_KEY with supabase/.env's SERVICE_ROLE_KEY.
+npm run dev --workspace @enhanced-review/worker
+
+# Compose: build the worker image and join the supabase docker network.
+docker compose -f docker-compose.worker.yml up -d --build
+```
+
+Only one worker should run at a time during Phase 3 — the boot sweep
+("reset all running jobs to pending") assumes a single-worker invariant.
+Phase 7 introduces heartbeat-based recovery for multiple workers.
+
 ## Common scripts
 
-| Script                    | What                                       |
-| ------------------------- | ------------------------------------------ |
-| `npm run dev`             | Next.js dev server (Turbopack)             |
-| `npm run build`           | Production build                           |
-| `npm run lint`            | ESLint                                     |
-| `npm run typecheck`       | `tsc --noEmit`                             |
-| `npm run format`          | Prettier write                             |
-| `npm run format:check`    | Prettier check (CI)                        |
-| `npm test`                | Vitest run                                 |
-| `npm run test:watch`      | Vitest watch                               |
-| `./scripts/db-migrate.sh` | Apply `supabase/migrations/*.sql` in order |
+| Script                       | What                                               |
+| ---------------------------- | -------------------------------------------------- |
+| `npm run dev`                | Next.js dev server (Turbopack)                     |
+| `npm run build`              | Production build                                   |
+| `npm run lint`               | ESLint                                             |
+| `npm run typecheck`          | `tsc --noEmit`                                     |
+| `npm run format`             | Prettier write                                     |
+| `npm run format:check`       | Prettier check (CI)                                |
+| `npm test`                   | Vitest run                                         |
+| `npm run test:watch`         | Vitest watch                                       |
+| `./scripts/db-migrate.sh`    | Apply `supabase/migrations/*.sql` in order         |
+| `./scripts/run-rls-tests.sh` | Run the Phase 3 RLS smoke tests against the dev DB |
 
 ## Stopping & resetting
 
