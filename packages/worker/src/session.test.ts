@@ -16,11 +16,16 @@ class FakePg extends EventEmitter {
   // happened before the LISTEN.
   resetRunningCount = 0;
   listenCount = 0;
+  cancelListenCount = 0;
 
   query = vi.fn(async (sql: string, params?: unknown[]) => {
     this.queryLog.push({ sql, params });
-    if (sql.startsWith('LISTEN')) {
+    if (sql.startsWith('LISTEN review_jobs_pending')) {
       this.listenCount++;
+      return { rows: [], rowCount: 0 };
+    }
+    if (sql.startsWith('LISTEN review_jobs_cancel')) {
+      this.cancelListenCount++;
       return { rows: [], rowCount: 0 };
     }
     if (sql.includes("status = 'pending'") && sql.includes("set status = 'pending'")) {
@@ -38,6 +43,10 @@ class FakePg extends EventEmitter {
 
   fireNotify(jobId: string) {
     this.emit('notification', { channel: 'review_jobs_pending', payload: jobId });
+  }
+
+  fireCancel(jobId: string) {
+    this.emit('notification', { channel: 'review_jobs_cancel', payload: jobId });
   }
 
   endConnection() {
@@ -58,7 +67,7 @@ describe('runSession', () => {
     pg.pendingClaims = [claimed];
 
     const ran: string[] = [];
-    const runJob = vi.fn(async (job: ClaimedJob) => {
+    const runJob = vi.fn(async (job: ClaimedJob, _signal: AbortSignal) => {
       ran.push(job.id);
     });
 
@@ -87,7 +96,7 @@ describe('runSession', () => {
   it('claims and runs jobs delivered via NOTIFY', async () => {
     const pg = new FakePg();
     const ran: string[] = [];
-    const runJob = vi.fn(async (job: ClaimedJob) => {
+    const runJob = vi.fn(async (job: ClaimedJob, _signal: AbortSignal) => {
       ran.push(job.id);
     });
 
@@ -123,10 +132,66 @@ describe('runSession', () => {
     await session;
   });
 
+  it('routes a review_jobs_cancel NOTIFY to the in-flight job AbortController', async () => {
+    const pg = new FakePg();
+
+    let started = 0;
+    let aborted = false;
+    const runJob = vi.fn(async (_job: ClaimedJob, signal: AbortSignal) => {
+      started += 1;
+      // Resolve only when the abort fires.
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) {
+          aborted = true;
+          resolve();
+          return;
+        }
+        signal.addEventListener('abort', () => {
+          aborted = true;
+          resolve();
+        });
+      });
+    });
+
+    const session = runSession({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pg: pg as any,
+      workerId: 'w-1',
+      runJob,
+      log: () => {},
+    });
+
+    pg.pendingClaims.push({
+      id: 'job-X',
+      user_id: 'u',
+      github_login: 'a',
+      target: {},
+      head_sha: 's',
+    });
+    pg.fireNotify('job-X');
+
+    // Let runJob start.
+    for (let i = 0; i < 3; i++) await new Promise((r) => setImmediate(r));
+    expect(started).toBe(1);
+    expect(aborted).toBe(false);
+
+    // Now fire the cancel for the running job.
+    pg.fireCancel('job-X');
+    for (let i = 0; i < 3; i++) await new Promise((r) => setImmediate(r));
+    expect(aborted).toBe(true);
+
+    // Both LISTENs ran exactly once.
+    expect(pg.listenCount).toBe(1);
+    expect(pg.cancelListenCount).toBe(1);
+
+    pg.endConnection();
+    await session;
+  });
+
   it('drains multiple queued jobs after a single notify', async () => {
     const pg = new FakePg();
     const ran: string[] = [];
-    const runJob = vi.fn(async (job: ClaimedJob) => {
+    const runJob = vi.fn(async (job: ClaimedJob, _signal: AbortSignal) => {
       ran.push(job.id);
     });
 

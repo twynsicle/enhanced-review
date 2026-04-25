@@ -3,6 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createClient } from '@supabase/supabase-js';
 import { Client } from 'pg';
 import { readConfigFromEnv } from './config';
+import { runOpencodeJob } from './opencode-job';
 import { runSession } from './session';
 import { runStubJob } from './stub';
 
@@ -47,16 +48,27 @@ async function main(): Promise<void> {
       await runSession({
         workerId,
         pg,
-        runJob: (job) =>
-          runStubJob(
-            {
-              pg,
-              supabase,
-              sleep: (ms) => delay(ms),
-              chunkDelayMs: config.stubChunkDelayMs,
-            },
+        runJob: (job, signal) => {
+          if (config.executor === 'stub') {
+            // Stub polls status between chunks rather than honouring signal;
+            // it predates the cancel-channel rework. Kept available behind
+            // REVIEW_EXECUTOR=stub for tests.
+            return runStubJob(
+              {
+                pg,
+                supabase,
+                sleep: (ms) => delay(ms),
+                chunkDelayMs: config.stubChunkDelayMs,
+              },
+              job,
+            ).then(() => undefined);
+          }
+          return runOpencodeJob(
+            { supabase, model: config.reviewModel },
             job,
-          ).then(() => undefined),
+            signal,
+          ).then(() => undefined);
+        },
       });
     } catch (err) {
       console.error('[worker] session crashed', err);

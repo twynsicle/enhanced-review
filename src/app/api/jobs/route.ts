@@ -2,6 +2,7 @@ import 'server-only';
 import { GithubAuthError, isAuthError, type ReviewTarget } from '@enhanced-review/github-client';
 import { NextResponse } from 'next/server';
 import { getGithubLogin } from '@/lib/auth/allowlist';
+import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
 import { ReviewTargetSchema } from '@/lib/jobs/target';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -94,23 +95,38 @@ export async function POST(request: Request) {
     );
   }
 
-  // 4. Insert via service role.
-  const admin = createAdminClient();
-  const { data: row, error: insertError } = await admin
-    .from('review_jobs')
-    .insert({
-      user_id: user.id,
-      github_login: githubLogin,
-      target,
-      head_sha: headSha,
-    })
-    .select('id')
-    .single();
+  // 4. Pull the GitHub token off the session — the worker needs it to
+  // clone the user's repo. Stored encrypted on the job row via pgsodium
+  // (see migration 0003) and NULLed by the worker as soon as the clone
+  // returns. Missing token => same 401 shape the picker handles.
+  let providerToken: string;
+  try {
+    providerToken = await getGithubToken();
+  } catch (error) {
+    if (error instanceof MissingProviderTokenError) {
+      return NextResponse.json(
+        { reason: 'github_token_invalid', message: 'GitHub token is invalid; please re-link.' },
+        { status: 401 },
+      );
+    }
+    throw error;
+  }
 
-  if (insertError || !row) {
+  // 5. Insert via service role using the encrypt-and-create RPC so the
+  // row is never visible without its token.
+  const admin = createAdminClient();
+  const { data: jobId, error: insertError } = await admin.rpc('create_review_job_with_token', {
+    p_user_id: user.id,
+    p_github_login: githubLogin,
+    p_target: target,
+    p_head_sha: headSha,
+    p_token: providerToken,
+  });
+
+  if (insertError || !jobId) {
     console.error('[api/jobs] insert failed', insertError);
     return NextResponse.json({ message: 'failed to create job' }, { status: 500 });
   }
 
-  return NextResponse.json({ id: row.id });
+  return NextResponse.json({ id: jobId });
 }

@@ -3,6 +3,8 @@
  * so a misconfigured deploy fails loudly instead of silently looping.
  */
 
+export type ReviewExecutorKind = 'opencode' | 'stub';
+
 export interface WorkerConfig {
   databaseUrl: string;
   supabaseUrl: string;
@@ -12,9 +14,17 @@ export interface WorkerConfig {
   reconnectMaxMs: number;
   /** Stub-mode pause between fake chunks. */
   stubChunkDelayMs: number;
+  /** Which executor to run jobs through. Default: `opencode`. */
+  executor: ReviewExecutorKind;
+  /** Model id for opencode runs (`<provider>/<model>`). */
+  reviewModel: string;
 }
 
 export function readConfigFromEnv(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
+  const executorRaw = env.REVIEW_EXECUTOR ?? 'opencode';
+  if (executorRaw !== 'opencode' && executorRaw !== 'stub') {
+    throw new Error(`worker: REVIEW_EXECUTOR must be 'opencode' or 'stub', got '${executorRaw}'`);
+  }
   return {
     databaseUrl: required(env, 'DATABASE_URL'),
     supabaseUrl: required(env, 'SUPABASE_URL'),
@@ -22,6 +32,8 @@ export function readConfigFromEnv(env: NodeJS.ProcessEnv = process.env): WorkerC
     reconnectMinMs: Number(env.WORKER_RECONNECT_MIN_MS ?? 1000),
     reconnectMaxMs: Number(env.WORKER_RECONNECT_MAX_MS ?? 30_000),
     stubChunkDelayMs: Number(env.WORKER_STUB_CHUNK_DELAY_MS ?? 1000),
+    executor: executorRaw,
+    reviewModel: env.REVIEW_MODEL ?? 'opencode-zen/glm-4.7',
   };
 }
 

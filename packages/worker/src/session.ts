@@ -9,19 +9,26 @@ import type { ClaimedJob } from './types';
  *
  * Sequence:
  *   1. Crash recovery sweep (single-worker invariant).
- *   2. Subscribe to NOTIFY before the drain pass so a new insert during
- *      the drain isn't missed.
+ *   2. Subscribe to NOTIFY channels (pending + cancel) before the drain
+ *      pass so a new insert during the drain isn't missed.
  *   3. Drain pass: claim every pending row in turn.
  *   4. Wait until the connection ends (an external event) and resolve.
  *
  * Concurrency: claim+run runs serially in this session — at most one
  * job runs at a time. Phase 7 introduces parallel execution.
+ *
+ * Cancellation: the session subscribes to `review_jobs_cancel` and
+ * routes those notifications to a per-job AbortController. The runJob
+ * callback receives the signal and is expected to honour it (kill its
+ * subprocess, etc.). A NOTIFY missed during a pg reconnect is harmless
+ * because the cancelled status is durable in the DB; after reconnect
+ * a re-claim or completion-time check will surface it.
  */
 
 export interface SessionDeps {
   workerId: string;
   pg: Client;
-  runJob: (job: ClaimedJob) => Promise<void>;
+  runJob: (job: ClaimedJob, signal: AbortSignal) => Promise<void>;
   /** Callback for non-fatal logs. Tests pass () => {}. */
   log?: (msg: string, meta?: unknown) => void;
 }
@@ -36,9 +43,10 @@ export async function runSession(deps: SessionDeps): Promise<void> {
   if (reset > 0)
     log(`[worker ${workerId}] crash recovery: reset ${reset} running job(s) to pending`);
 
-  // A simple serializer so NOTIFYs that arrive while a previous claim is
-  // still in flight don't trigger overlapping queries on the same pg
-  // Client (which would interleave responses and confuse pg-protocol).
+  // Active job → AbortController. NOTIFY 'review_jobs_cancel' arrives with
+  // payload = job id; we abort the matching controller (if any).
+  const activeControllers = new Map<string, AbortController>();
+
   let working: Promise<void> = Promise.resolve();
   let dirty = false;
   const trigger = () => {
@@ -51,38 +59,46 @@ export async function runSession(deps: SessionDeps): Promise<void> {
   async function drain(): Promise<void> {
     while (dirty) {
       dirty = false;
-      // Inner loop: keep claiming until the queue is empty. A single
-      // NOTIFY may correspond to multiple inserts during the wake-up
-      // window (especially after reconnect).
       for (;;) {
         const job = await claimNext(pg, workerId);
         if (!job) break;
         log(`[worker ${workerId}] claimed job ${job.id}`);
-        await runJob(job);
+        const controller = new AbortController();
+        activeControllers.set(job.id, controller);
+        try {
+          await runJob(job, controller.signal);
+        } finally {
+          activeControllers.delete(job.id);
+        }
       }
     }
   }
 
   pg.on('notification', (msg: Notification) => {
-    if (msg.channel === 'review_jobs_pending') trigger();
+    if (msg.channel === 'review_jobs_pending') {
+      trigger();
+      return;
+    }
+    if (msg.channel === 'review_jobs_cancel' && msg.payload) {
+      const controller = activeControllers.get(msg.payload);
+      if (controller) {
+        log(`[worker ${workerId}] cancel signal for job ${msg.payload}`);
+        controller.abort();
+      }
+    }
   });
 
   await pg.query('LISTEN review_jobs_pending');
+  await pg.query('LISTEN review_jobs_cancel');
 
-  // Drain anything already pending. After this, the on-notification
-  // handler keeps the queue moving.
   trigger();
 
-  // Wait for the connection to die — `runSession` returns and the outer
-  // loop reconnects.
   await new Promise<void>((resolve) => {
     const done = () => resolve();
     pg.once('end', done);
     pg.once('error', done);
   });
 
-  // Let any in-flight drain finish before returning so we don't leave a
-  // half-completed claim orphaned. Errors here are already logged above.
   try {
     await working;
   } catch {

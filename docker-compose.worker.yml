@@ -35,6 +35,12 @@ services:
       WORKER_RECONNECT_MIN_MS: ${WORKER_RECONNECT_MIN_MS:-1000}
       WORKER_RECONNECT_MAX_MS: ${WORKER_RECONNECT_MAX_MS:-30000}
       WORKER_STUB_CHUNK_DELAY_MS: ${WORKER_STUB_CHUNK_DELAY_MS:-1000}
+      # Phase 4: real executor + opencode-zen credentials. Set
+      # OPENCODE_ZEN_API_KEY in your host env or .env file. REVIEW_MODEL
+      # defaults to opencode-zen/glm-4.7; override per-deploy if needed.
+      REVIEW_EXECUTOR: ${REVIEW_EXECUTOR:-opencode}
+      REVIEW_MODEL: ${REVIEW_MODEL:-opencode-zen/glm-4.7}
+      OPENCODE_ZEN_API_KEY: ${OPENCODE_ZEN_API_KEY:?OPENCODE_ZEN_API_KEY must be set}
     networks:
       - supabase
     depends_on: []

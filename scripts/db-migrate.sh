@@ -53,12 +53,16 @@ if [ ${#migrations[@]} -eq 0 ]; then
   exit 0
 fi
 
+# Migrations run as `supabase_admin` (the actual superuser in this image) so
+# they can touch pgsodium-protected resources. The vendored postgres role is
+# deliberately non-superuser; matching upstream Supabase behaviour by using
+# supabase_admin for schema work keeps us aligned with their patterns.
 for f in "${migrations[@]}"; do
   echo ">> Applying $(basename "$f")"
   docker exec -i \
     -e PGPASSWORD="$POSTGRES_PASSWORD" \
     supabase-db \
-    psql -v ON_ERROR_STOP=1 -U postgres -d "$POSTGRES_DB" < "$f"
+    psql -v ON_ERROR_STOP=1 -U supabase_admin -d "$POSTGRES_DB" < "$f"
 done
 
 echo "All migrations applied."

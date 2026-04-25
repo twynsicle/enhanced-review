@@ -27,12 +27,14 @@ export async function finalizeAsDone(
   supabase: SupabaseClient,
   jobId: string,
   content: NarrativeReview,
+  options: { diffTruncated?: boolean } = {},
 ): Promise<void> {
   // Insert the review row first so a subscriber that observes status='done'
   // is guaranteed to find the corresponding reviews row.
   const { error: insertError } = await supabase.from('reviews').insert({
     job_id: jobId,
     content,
+    diff_truncated: options.diffTruncated ?? false,
   });
   if (insertError) {
     throw new Error(`finalize(${jobId}) reviews insert failed: ${insertError.message}`);
