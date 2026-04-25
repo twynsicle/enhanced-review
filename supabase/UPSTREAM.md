@@ -17,6 +17,16 @@ so we can pull upstream fixes with a clean diff.
   (gitignored)
 - This file (`UPSTREAM.md`)
 
+## Local edits to vendored files
+
+Tracked here so upstream merges can re-apply them. Each edit is grep-able
+in the file via the `Local edit (see supabase/UPSTREAM.md)` marker.
+
+- **`docker-compose.yml`** (around the `auth:` service env block, ~line 197):
+  uncommented the four `GOTRUE_EXTERNAL_GITHUB_*` lines. This is the
+  documented step for enabling the GitHub OAuth provider per
+  `.env.example`'s instructions.
+
 ## Updating
 
 To pull upstream changes:
