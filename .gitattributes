@@ -1,0 +1,35 @@
+# Enforce LF line endings for files that must run inside Linux containers
+# (Docker entrypoints, SQL migrations, shell scripts) regardless of the
+# host OS or git autocrlf setting.
+#
+# Without this, Windows clones with `core.autocrlf=true` will write CRLF
+# into shell scripts, which makes them fail at exec with
+# "exec /path/script: no such file or directory" because the shebang
+# becomes `#!/bin/sh\r`.
+
+* text=auto
+
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.sql       text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.exs       text eol=lf
+*.ex        text eol=lf
+*.conf      text eol=lf
+Dockerfile  text eol=lf
+*.dockerfile text eol=lf
+
+# Lock files and minified output
+*.lock      text eol=lf
+*.lockfile  text eol=lf
+
+# Binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary

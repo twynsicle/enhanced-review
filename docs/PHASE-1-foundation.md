@@ -16,7 +16,7 @@ Stand up the project skeleton: a Next.js app, self-hosted Supabase via `docker-c
 
 1. **Scaffold Next.js project** in `enhanced-review/` using `npm` and `create-next-app` (App Router, TypeScript strict, ESLint, Prettier, `src/app` directory layout).
 2. **Set up styling** with **Tailwind CSS + shadcn/ui** (initialize via `shadcn` CLI, neutral base color). Add the handful of primitives we'll need for the auth shell (button, card).
-3. **`docker-compose.yml`** based on the official `supabase/supabase` self-host stack (postgres, GoTrue, Realtime, Storage, Studio, Kong gateway), used as-is so upstream fixes can be merged later. Persist data in a named volume so restarts don't wipe accounts. Pin Studio off port 3000 so it doesn't collide with `next dev`.
+3. **`docker-compose.yml`** based on the official `supabase/supabase` self-host stack (postgres, GoTrue, Realtime, Storage, Studio, Kong gateway), used as-is so upstream fixes can be merged later. Persist data in a named volume so restarts don't wipe accounts. Studio is reached via Kong on `:8000`, so there's no conflict with `next dev` on `:3000`.
 4. **Configure GitHub OAuth provider** in Supabase (callback URL, client ID/secret via env). Document how to register a GitHub OAuth app for local dev.
 5. **`allowed_users` table** with `github_login` (text) primary key + `created_at`. Seed with `twynsicle` via a SQL migration in `supabase/migrations/`.
 6. **Allowlist enforcement via Next.js middleware** — after a user completes Supabase OAuth, middleware looks up their `github_login` in `allowed_users`; if missing, calls `supabase.auth.signOut()` and redirects to `/denied`. (Auth Hook / Edge Function approach was considered and rejected for Phase 1 in favor of easier debugging.)
@@ -61,5 +61,4 @@ RLS: `allowed_users` is server-only (no client reads). Enforcement happens in a 
 
 - Supabase self-host compose has a lot of moving parts (Kong, Studio, GoTrue, Realtime, Storage). Easy to spend a day on env-var alignment. Budget for this.
 - GitHub OAuth callback URL must match exactly — common source of "redirect_uri mismatch" pain. Document it.
-- Default Supabase Studio exposes port 3000, which collides with `next dev`. Remap Studio (or Kong's Studio route) before first boot.
 - Middleware-based allowlist enforcement means a denied user briefly holds a Supabase session between OAuth callback and the middleware redirect. Acceptable for an invite-only beta but worth re-evaluating if the threat model changes.

@@ -7,3 +7,7 @@ coverage
 public
 package-lock.json
 src/components/ui
+
+# Vendored upstream — formatting is upstream's call, not ours
+supabase
+!supabase/migrations
