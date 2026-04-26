@@ -31,16 +31,16 @@ Captured for future readers — full discussion will be out of context by then.
 
 ## Decisions made (don't relitigate)
 
-| Decision | Why |
-| -------- | --- |
-| PocketBase, not AWS-native (Cognito/RDS/S3) | Want admin UI + bundled auth+CRUD+realtime; Cognito DX is rough |
-| Fold worker into Next.js, do not keep separate process | 5 concurrent jobs; eliminates one process and the API↔worker contract |
-| Drop SQS / queue between API and worker | At this scale the API can just call the runner in-process; HMR-restart-during-job is acceptable in dev |
-| Drop GitHub token encryption (`pgsodium`) entirely | Token is only needed in memory during a job; never persist it |
-| Drop `pg_notify` / `LISTEN` worker pickup | No worker, no pickup |
-| Use PB realtime SSE for live view | Direct replacement for Supabase `postgres_changes` |
-| SQLite for `pb_data/`, not Postgres | Default PB story; adequate for this scale |
-| No incremental cutover (no dual-running) | App is pre-launch; big-bang per phase is simpler |
+| Decision                                               | Why                                                                                                    |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| PocketBase, not AWS-native (Cognito/RDS/S3)            | Want admin UI + bundled auth+CRUD+realtime; Cognito DX is rough                                        |
+| Fold worker into Next.js, do not keep separate process | 5 concurrent jobs; eliminates one process and the API↔worker contract                                  |
+| Drop SQS / queue between API and worker                | At this scale the API can just call the runner in-process; HMR-restart-during-job is acceptable in dev |
+| Drop GitHub token encryption (`pgsodium`) entirely     | Token is only needed in memory during a job; never persist it                                          |
+| Drop `pg_notify` / `LISTEN` worker pickup              | No worker, no pickup                                                                                   |
+| Use PB realtime SSE for live view                      | Direct replacement for Supabase `postgres_changes`                                                     |
+| SQLite for `pb_data/`, not Postgres                    | Default PB story; adequate for this scale                                                              |
+| No incremental cutover (no dual-running)               | App is pre-launch; big-bang per phase is simpler                                                       |
 
 ## Target architecture
 
@@ -73,7 +73,7 @@ configured. App still broken; this phase touches no app code.
 
 - [x] Add `tools/pocketbase/` (gitignored) and `scripts/pb-install.mjs`
       that downloads the matching PB release. Used `.mjs` instead of `.ps1`
-      so the script works in PowerShell *and* Git Bash. Pinned to v0.37.3.
+      so the script works in PowerShell _and_ Git Bash. Pinned to v0.37.3.
 - [x] Add `npm run pb` and `npm run pb:install` scripts. PB starts at
       `http://127.0.0.1:8090` with `pb_data/` (gitignored) at the repo
       root. Launcher passes explicit `--dir` / `--migrationsDir` flags
@@ -113,6 +113,7 @@ a manual operator step (see `RUNNING-pocketbase.md` §5) since secrets must
 not be committed.
 
 **Phase 1 surprises worth noting for later phases:**
+
 - PB v0.37 does **not** auto-add `created` / `updated` system fields; you
   add them explicitly as `autodate` fields. Already done in the migration.
 - PB resolves `--dir` / `--migrationsDir` relative to the **binary's**
@@ -175,14 +176,14 @@ components. CRUD reads still broken (next phase).
       expected Phase 2 state.
   - `src/app/login/sign-in-button.tsx`, `src/app/relink/relink-button.tsx`
     — `pb.collection('users').authWithOAuth2({ provider: 'github',
-    scopes: ['repo'] })`, then POST `meta.accessToken` + `meta.username`
+scopes: ['repo'] })`, then POST `meta.accessToken` + `meta.username`
     to `/api/auth/post-signin`, then `window.location.href = '/'`.
   - `src/proxy.ts` — full rewrite (above).
   - `src/components/topbar/user-menu.tsx` — `pbBrowser().authStore.clear()`
     plus a fetch to `/api/auth/sign-out` (clears the HttpOnly token).
   - `src/app/{layout,page,login/page,history/page,jobs/[id]/page,reviews/[id]/page}.tsx`
-    + `src/components/home/recent-reviews.tsx` —
-    `await getCurrentUser()` returning a typed `UserRecord`.
+    - `src/components/home/recent-reviews.tsx` —
+      `await getCurrentUser()` returning a typed `UserRecord`.
   - `src/app/api/jobs/route.ts`, `.../[id]/cancel/route.ts`,
     `.../[id]/rerun/route.ts`, `src/app/api/github/file/route.ts` —
     `await getCurrentUser()` for auth, Supabase still for data.
@@ -204,6 +205,7 @@ allowlist check works (denies non-allowlisted users); sign-out clears the
 session. CRUD pages render but show no data (Phase 3 fixes).
 
 **Phase 2 surprises worth noting for later phases:**
+
 - PB `authWithOAuth2` does popup-based OAuth automatically — no app-side
   callback route needed. The PB-side callback URL
   `http://127.0.0.1:8090/api/oauth2-redirect` is internal to PB.
@@ -216,7 +218,7 @@ session. CRUD pages render but show no data (Phase 3 fixes).
 - PB SDK's browser `LocalAuthStore` writes only to `localStorage` by
   default; SSR needs a cookie. `pbBrowser()` subscribes to
   `authStore.onChange` and mirrors via `document.cookie =
-  pb.authStore.exportToCookie({ httpOnly: false, ... })`.
+pb.authStore.exportToCookie({ httpOnly: false, ... })`.
 - PB v0.23+ uses `_superusers` collection (not `pb.admins`) for admin
   auth. `pb.collection('_superusers').authWithPassword(email, password)`.
 - Splitting `pb/browser.ts` from `pb/client.ts` (server) is mandatory:
@@ -276,6 +278,7 @@ sourced from PB. Submitting a job creates a `review_jobs` row in PB but
 the row stays at `pending` (no runner yet).
 
 **Phase 3 surprises worth noting for later phases:**
+
 - PB IDs default to 15 alphanumeric chars (`[a-zA-Z0-9]{15}`), not UUIDs
   — any route handler that validates an id must accept this shape.
 - PB filter datetime comparisons want space-separated form
@@ -284,7 +287,7 @@ the row stays at `pending` (no runner yet).
 - PB obscures rule failures on `update` / `delete` as 404 (so rule-vs-not-found
   is indistinguishable). The cancel handler maps that 404 → 409 because
   the user-facing meaning is "not in a cancellable state, or not yours".
-- `createRule: null` means *no one* can create through the public API —
+- `createRule: null` means _no one_ can create through the public API —
   even an authenticated user. All inserts (jobs, rerun) go through
   `pbAdmin()`. Cancellation is the only user-driven write and uses
   `pbServer()` because its `updateRule` is non-null.
@@ -370,13 +373,13 @@ These were flagged as "I don't actually know the current PB behavior"
 during planning. Resolve via PB docs (use Context7) or a 5-minute spike
 before designing the affected code:
 
-| Item | Affects | When to resolve |
-| ---- | ------- | --------------- |
-| PB's exact OAuth flow with Next 16 — does the app call `/api/oauth2-redirect`, or does PB redirect back to a URL we control with a code? | Phase 1 (callback URL), Phase 2 (auth/callback route) | Before Phase 1 |
-| PB's SSR cookie name + serialization format with Next 16's async `cookies()` | Phase 2 (`pbServer()` design) | Before Phase 2 |
-| How PB exposes the upstream GitHub provider token (or whether we have to do the OAuth handshake ourselves) | Phase 2 (`token.ts` rewrite); changes the threat model if we end up storing it | Before Phase 2 |
-| PB realtime SSE behavior on reconnect — does it send a snapshot or just live events? Does it preserve `seq` ordering? | Phase 4 (chunk dedup logic) | Before Phase 4 |
-| PB's behavior under concurrent admin-client writes from multiple in-flight jobs (we'll have ~5 jobs writing chunks simultaneously) | Phase 4 (runner concurrency) | Before Phase 4 |
+| Item                                                                                                                                     | Affects                                                                        | When to resolve |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------- |
+| PB's exact OAuth flow with Next 16 — does the app call `/api/oauth2-redirect`, or does PB redirect back to a URL we control with a code? | Phase 1 (callback URL), Phase 2 (auth/callback route)                          | Before Phase 1  |
+| PB's SSR cookie name + serialization format with Next 16's async `cookies()`                                                             | Phase 2 (`pbServer()` design)                                                  | Before Phase 2  |
+| How PB exposes the upstream GitHub provider token (or whether we have to do the OAuth handshake ourselves)                               | Phase 2 (`token.ts` rewrite); changes the threat model if we end up storing it | Before Phase 2  |
+| PB realtime SSE behavior on reconnect — does it send a snapshot or just live events? Does it preserve `seq` ordering?                    | Phase 4 (chunk dedup logic)                                                    | Before Phase 4  |
+| PB's behavior under concurrent admin-client writes from multiple in-flight jobs (we'll have ~5 jobs writing chunks simultaneously)       | Phase 4 (runner concurrency)                                                   | Before Phase 4  |
 
 ## Out of scope
 

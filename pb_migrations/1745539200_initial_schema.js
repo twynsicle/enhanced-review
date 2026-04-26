@@ -119,9 +119,7 @@ migrate(
         { name: 'diff_truncated', type: 'bool' },
         { name: 'created', type: 'autodate', onCreate: true },
       ],
-      indexes: [
-        'CREATE UNIQUE INDEX idx_reviews_job ON reviews (job)',
-      ],
+      indexes: ['CREATE UNIQUE INDEX idx_reviews_job ON reviews (job)'],
     });
     app.save(reviews);
 
@@ -151,9 +149,7 @@ migrate(
         { name: 'content', type: 'text', required: true, max: 65536 },
         { name: 'created', type: 'autodate', onCreate: true },
       ],
-      indexes: [
-        'CREATE UNIQUE INDEX idx_review_chunks_job_seq ON review_chunks (job, seq)',
-      ],
+      indexes: ['CREATE UNIQUE INDEX idx_review_chunks_job_seq ON review_chunks (job, seq)'],
     });
     app.save(reviewChunks);
   },

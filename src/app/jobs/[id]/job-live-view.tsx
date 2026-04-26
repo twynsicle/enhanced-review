@@ -88,7 +88,9 @@ export function JobLiveView({
       }
     }
 
-    setup().catch(() => { /* swallowed */ });
+    setup().catch(() => {
+      /* swallowed */
+    });
 
     return () => {
       mounted = false;
@@ -208,17 +210,10 @@ function derivePhases(args: {
 }): Phase[] {
   const { status, startedAt, completedAt, chunkCount, snapshot } = args;
 
-  const setupState: PhaseState =
-    status === 'pending'
-      ? 'active'
-      : 'done';
+  const setupState: PhaseState = status === 'pending' ? 'active' : 'done';
 
   const readingState: PhaseState =
-    status === 'pending'
-      ? 'pending'
-      : (status === 'running' && chunkCount === 0)
-        ? 'active'
-        : 'done';
+    status === 'pending' ? 'pending' : status === 'running' && chunkCount === 0 ? 'active' : 'done';
 
   const writingState: PhaseState = (() => {
     if (status === 'pending') return 'pending';
@@ -243,7 +238,10 @@ function derivePhases(args: {
 
   const totalSec =
     startedAt && completedAt
-      ? Math.max(0, Math.floor((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 1000))
+      ? Math.max(
+          0,
+          Math.floor((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 1000),
+        )
       : null;
 
   const phases: Phase[] = [
@@ -290,9 +288,11 @@ function writingPhaseDetail(state: PhaseState, chunkCount: number, titleCount: n
     if (titleCount === 0) return 'Streaming chapter titles…';
     return `${titleCount.toString()} chapter${titleCount === 1 ? '' : 's'} so far.`;
   }
-  if (state === 'done') return `${chunkCount.toString()} chunk${chunkCount === 1 ? '' : 's'} streamed.`;
+  if (state === 'done')
+    return `${chunkCount.toString()} chunk${chunkCount === 1 ? '' : 's'} streamed.`;
   if (state === 'error') return 'Streaming halted — see error below.';
-  if (state === 'cancelled') return chunkCount > 0 ? 'Cancelled · partial output preserved.' : 'Cancelled.';
+  if (state === 'cancelled')
+    return chunkCount > 0 ? 'Cancelled · partial output preserved.' : 'Cancelled.';
   return '';
 }
 
@@ -368,7 +368,9 @@ function Timeline({ phases }: { phases: Phase[] }) {
                 >
                   {t.state === 'done' ? '✓' : '◦'} {t.text}
                   {t.state === 'active' && (
-                    <span aria-hidden className="ml-1 inline-block animate-pulse">▍</span>
+                    <span aria-hidden className="ml-1 inline-block animate-pulse">
+                      ▍
+                    </span>
                   )}
                 </span>
               ))}
@@ -381,12 +383,14 @@ function Timeline({ phases }: { phases: Phase[] }) {
 }
 
 function PhaseMarker({ state }: { state: PhaseState }) {
-  const symbol =
-    state === 'done' ? '✓' : state === 'active' ? '●' : state === 'error' ? '!' : '';
+  const symbol = state === 'done' ? '✓' : state === 'active' ? '●' : state === 'error' ? '!' : '';
   const styles = (() => {
-    if (state === 'pending') return { bg: 'var(--background)', border: 'var(--border)', fg: 'var(--iris)' };
-    if (state === 'active') return { bg: 'var(--iris)', border: 'var(--iris)', fg: 'var(--background)' };
-    if (state === 'error') return { bg: 'var(--destructive)', border: 'var(--destructive)', fg: 'var(--background)' };
+    if (state === 'pending')
+      return { bg: 'var(--background)', border: 'var(--border)', fg: 'var(--iris)' };
+    if (state === 'active')
+      return { bg: 'var(--iris)', border: 'var(--iris)', fg: 'var(--background)' };
+    if (state === 'error')
+      return { bg: 'var(--destructive)', border: 'var(--destructive)', fg: 'var(--background)' };
     return { bg: 'var(--surface-2)', border: 'var(--iris)', fg: 'var(--iris)' };
   })();
   return (

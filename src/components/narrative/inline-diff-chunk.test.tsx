@@ -99,9 +99,7 @@ describe('<InlineDiffChunk />', () => {
     render(<InlineDiffChunk {...PROPS} />);
 
     await waitFor(() =>
-      expect(
-        screen.queryByText(/don't have access to this repo on GitHub/i),
-      ).not.toBeNull(),
+      expect(screen.queryByText(/don't have access to this repo on GitHub/i)).not.toBeNull(),
     );
 
     // No Show full file toggle in the error state.
@@ -109,15 +107,11 @@ describe('<InlineDiffChunk />', () => {
   });
 
   it('renders a too-large message when the file exceeds 1MB', async () => {
-    fetchMock.mockImplementation(
-      fetchAlways(200, { ok: false, error: { kind: 'too-large' } }),
-    );
+    fetchMock.mockImplementation(fetchAlways(200, { ok: false, error: { kind: 'too-large' } }));
 
     render(<InlineDiffChunk {...PROPS} />);
 
-    await waitFor(() =>
-      expect(screen.queryByText(/too large to preview/i)).not.toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByText(/too large to preview/i)).not.toBeNull());
   });
 
   it('treats one-side-404 as a legitimate empty file (added or deleted)', async () => {
@@ -153,8 +147,6 @@ describe('<InlineDiffChunk />', () => {
 
     render(<InlineDiffChunk {...PROPS} />);
 
-    await waitFor(() =>
-      expect(screen.queryByText(/GitHub returned 404/i)).not.toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByText(/GitHub returned 404/i)).not.toBeNull());
   });
 });

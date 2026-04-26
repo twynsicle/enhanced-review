@@ -1,14 +1,8 @@
-import type {
-  Insight,
-  NarrativeReview,
-  ResolvedDiffHunk,
-} from '@enhanced-review/review-types';
+import type { Insight, NarrativeReview, ResolvedDiffHunk } from '@enhanced-review/review-types';
 
 import type { DiffHunkIndex } from './diff-hunk-catalog';
 
-export type ParseResult =
-  | { ok: true; data: NarrativeReview }
-  | { ok: false; error: string };
+export type ParseResult = { ok: true; data: NarrativeReview } | { ok: false; error: string };
 
 function extractHunksFromHunkIds(
   chunk: Record<string, unknown>,
@@ -38,10 +32,7 @@ function extractHunksFromHunkIds(
   return [...dedupedHunks.values()].sort((a, b) => a.fileOrder - b.fileOrder);
 }
 
-export function parseNarrativeReview(
-  text: string,
-  hunkIndex?: DiffHunkIndex,
-): ParseResult {
+export function parseNarrativeReview(text: string, hunkIndex?: DiffHunkIndex): ParseResult {
   const startTag = '<narrative_review>';
   const endTag = '</narrative_review>';
   const startIdx = text.indexOf(startTag);

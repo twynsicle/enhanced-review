@@ -22,36 +22,36 @@ function fakePb(rows: HealthRows) {
   // the oldest-pending lookup.
   return {
     collection: vi.fn(() => ({
-      getList: vi.fn((page: number, perPage: number, options: { filter?: string; sort?: string }) => {
-        const filter = options.filter ?? '';
-        if (filter.includes('completed_at')) {
+      getList: vi.fn(
+        (page: number, perPage: number, options: { filter?: string; sort?: string }) => {
+          const filter = options.filter ?? '';
+          if (filter.includes('completed_at')) {
+            return Promise.resolve({
+              page,
+              perPage,
+              totalItems: rows.errorCount ?? 0,
+              totalPages: 1,
+              items: [],
+            });
+          }
+          if (options.sort === 'created') {
+            return Promise.resolve({
+              page,
+              perPage,
+              totalItems: rows.oldestPendingCreated ? 1 : 0,
+              totalPages: 1,
+              items: rows.oldestPendingCreated ? [{ created: rows.oldestPendingCreated }] : [],
+            });
+          }
           return Promise.resolve({
             page,
             perPage,
-            totalItems: rows.errorCount ?? 0,
+            totalItems: rows.pendingCount ?? 0,
             totalPages: 1,
             items: [],
           });
-        }
-        if (options.sort === 'created') {
-          return Promise.resolve({
-            page,
-            perPage,
-            totalItems: rows.oldestPendingCreated ? 1 : 0,
-            totalPages: 1,
-            items: rows.oldestPendingCreated
-              ? [{ created: rows.oldestPendingCreated }]
-              : [],
-          });
-        }
-        return Promise.resolve({
-          page,
-          perPage,
-          totalItems: rows.pendingCount ?? 0,
-          totalPages: 1,
-          items: [],
-        });
-      }),
+        },
+      ),
     })),
   } as unknown as Awaited<ReturnType<typeof pbAdmin>>;
 }

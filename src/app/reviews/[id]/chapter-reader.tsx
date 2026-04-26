@@ -73,9 +73,7 @@ export function ChapterReader({
 
   const activeChapter = review.chapters.find((ch) => ch.id === activeId) ?? null;
   const isSummary = activeId === SUMMARY_SECTION_ID;
-  const activeIndex = isSummary
-    ? 0
-    : review.chapters.findIndex((ch) => ch.id === activeId) + 1;
+  const activeIndex = isSummary ? 0 : review.chapters.findIndex((ch) => ch.id === activeId) + 1;
 
   return (
     <div className="grid gap-10 lg:grid-cols-[14rem_minmax(0,1fr)_12rem]">
@@ -88,10 +86,7 @@ export function ChapterReader({
         />
       </aside>
 
-      <section
-        aria-live="polite"
-        className="min-w-0"
-      >
+      <section aria-live="polite" className="min-w-0">
         {isSummary || !activeChapter ? (
           <SummaryCard
             review={review}
@@ -125,10 +120,7 @@ export function ChapterReader({
   );
 }
 
-function isKnownId(
-  raw: string | null,
-  chapters: NarrativeReview['chapters'],
-): boolean {
+function isKnownId(raw: string | null, chapters: NarrativeReview['chapters']): boolean {
   if (raw === null) return true;
   if (raw === SUMMARY_SECTION_ID) return true;
   return chapters.some((ch) => ch.id === raw);

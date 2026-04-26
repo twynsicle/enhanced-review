@@ -79,9 +79,7 @@ export function ChapterPageRail({
             />
           </div>
           <p className="text-[11px] text-muted-foreground">
-            {isSummary
-              ? 'Summary'
-              : `Chapter ${activeIndex.toString()} of ${total.toString()}`}
+            {isSummary ? 'Summary' : `Chapter ${activeIndex.toString()} of ${total.toString()}`}
           </p>
         </div>
       )}

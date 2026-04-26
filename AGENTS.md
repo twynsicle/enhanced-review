@@ -83,13 +83,13 @@ test/                          server-only.shim.ts (Vitest alias for next/server
 
 ## PocketBase collections (see `pb_migrations/1745539200_initial_schema.js`)
 
-| Collection                  | Rules                                                                         | Notes                                                                 |
-| --------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `users` (auth, PB built-in) | default                                                                       | Extended by migrations to add `github_login`.                         |
-| `allowed_users`             | all `null`                                                                    | Admin-only. Unique index on `github_login`.                           |
-| `review_jobs`               | list/view: any auth; update: owner while pending/running; create/delete: null | Status enum: pending, running, done, error, cancelled.                |
-| `reviews`                   | list/view: any auth; mutations null                                           | One per completed job (unique index on `job`).                        |
-| `review_chunks`             | list/view: any auth; mutations null                                           | Streamed partials. Unique on `(job, seq)`.                            |
+| Collection                  | Rules                                                                         | Notes                                                  |
+| --------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `users` (auth, PB built-in) | default                                                                       | Extended by migrations to add `github_login`.          |
+| `allowed_users`             | all `null`                                                                    | Admin-only. Unique index on `github_login`.            |
+| `review_jobs`               | list/view: any auth; update: owner while pending/running; create/delete: null | Status enum: pending, running, done, error, cancelled. |
+| `reviews`                   | list/view: any auth; mutations null                                           | One per completed job (unique index on `job`).         |
+| `review_chunks`             | list/view: any auth; mutations null                                           | Streamed partials. Unique on `(job, seq)`.             |
 
 All status writes from the runner use `pbAdmin()` to bypass rules.
 

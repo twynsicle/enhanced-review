@@ -21,7 +21,9 @@ const binaryPath = path.join(repoRoot, 'tools', 'pocketbase', binaryName);
 
 if (!existsSync(binaryPath)) {
   console.log('PocketBase binary not found; running pb:install first.');
-  const install = spawnSync(process.execPath, [path.join(__dirname, 'pb-install.mjs')], { stdio: 'inherit' });
+  const install = spawnSync(process.execPath, [path.join(__dirname, 'pb-install.mjs')], {
+    stdio: 'inherit',
+  });
   if (install.status !== 0) {
     process.exit(install.status ?? 1);
   }
@@ -31,13 +33,14 @@ if (!existsSync(binaryPath)) {
 // so we always pass absolute paths for pb_data and pb_migrations to keep them
 // at the repo root (matching what's gitignored / committed).
 const passthrough = process.argv.slice(2);
-const args = passthrough.length > 0
-  ? passthrough
-  : [
-      'serve',
-      `--dir=${path.join(repoRoot, 'pb_data')}`,
-      `--migrationsDir=${path.join(repoRoot, 'pb_migrations')}`,
-    ];
+const args =
+  passthrough.length > 0
+    ? passthrough
+    : [
+        'serve',
+        `--dir=${path.join(repoRoot, 'pb_data')}`,
+        `--migrationsDir=${path.join(repoRoot, 'pb_migrations')}`,
+      ];
 
 const result = spawnSync(binaryPath, args, {
   stdio: 'inherit',

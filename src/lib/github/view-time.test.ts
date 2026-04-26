@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  getBranchHead,
-  getCommitsAhead,
-  getFileAtRef,
-  getPullMetadata,
-} from './view-time';
+import { getBranchHead, getCommitsAhead, getFileAtRef, getPullMetadata } from './view-time';
 
-function jsonResponse(status: number, body: unknown, headers: Record<string, string> = {}): Response {
+function jsonResponse(
+  status: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json', ...headers },
@@ -64,9 +63,7 @@ describe('getFileAtRef', () => {
     });
 
     const [url, init] = lastCall();
-    expect(url).toBe(
-      'https://api.github.com/repos/acme/widgets/contents/src/main.ts?ref=abc',
-    );
+    expect(url).toBe('https://api.github.com/repos/acme/widgets/contents/src/main.ts?ref=abc');
     const headers = (init as RequestInit).headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer t');
     expect(headers.Accept).toBe('application/vnd.github+json');
@@ -109,9 +106,7 @@ describe('getFileAtRef', () => {
   });
 
   it('maps 403 (with remaining > 0) to a no-access error', async () => {
-    fetchMock.mockResolvedValueOnce(
-      emptyResponse(403, { 'x-ratelimit-remaining': '4998' }),
-    );
+    fetchMock.mockResolvedValueOnce(emptyResponse(403, { 'x-ratelimit-remaining': '4998' }));
     const result = await getFileAtRef({
       owner: 'a',
       repo: 'r',
@@ -123,9 +118,7 @@ describe('getFileAtRef', () => {
   });
 
   it('maps 403 (rate-limit-remaining=0) to rate-limited', async () => {
-    fetchMock.mockResolvedValueOnce(
-      emptyResponse(403, { 'x-ratelimit-remaining': '0' }),
-    );
+    fetchMock.mockResolvedValueOnce(emptyResponse(403, { 'x-ratelimit-remaining': '0' }));
     const result = await getFileAtRef({
       owner: 'a',
       repo: 'r',
@@ -289,9 +282,7 @@ describe('getBranchHead', () => {
   });
 
   it('encodes branch names with slashes', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, { name: 'feat/x', commit: { sha: 's' } }),
-    );
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { name: 'feat/x', commit: { sha: 's' } }));
     await getBranchHead({ owner: 'a', repo: 'r', ref: 'feat/x', token: 't' });
     const [url] = lastCall();
     expect(url).toBe('https://api.github.com/repos/a/r/branches/feat%2Fx');

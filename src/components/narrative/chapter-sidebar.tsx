@@ -20,20 +20,13 @@ interface ChapterSidebarProps {
  * chapter title on the right, iris-coloured border-left on the active
  * row.
  */
-export function ChapterSidebar({
-  chapters,
-  activeId,
-  onSelect,
-  reviewTitle,
-}: ChapterSidebarProps) {
+export function ChapterSidebar({ chapters, activeId, onSelect, reviewTitle }: ChapterSidebarProps) {
   return (
     <nav
       aria-label="Chapters"
       className="sticky top-20 flex max-h-[calc(100vh-6rem)] flex-col gap-4 overflow-y-auto pt-1 pr-2"
     >
-      <p className="text-[10.5px] font-medium uppercase tracking-[0.18em] text-subtle">
-        Chapters
-      </p>
+      <p className="text-[10.5px] font-medium uppercase tracking-[0.18em] text-subtle">Chapters</p>
       <ul className="flex flex-col gap-2">
         <SidebarItem
           id={SUMMARY_SECTION_ID}

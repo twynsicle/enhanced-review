@@ -62,9 +62,7 @@ export default async function ReviewPage({
 
   let review: ReviewRow;
   try {
-    review = await pb
-      .collection('reviews')
-      .getFirstListItem<ReviewRow>(`job = "${id}"`);
+    review = await pb.collection('reviews').getFirstListItem<ReviewRow>(`job = "${id}"`);
   } catch {
     // status=done but no row — should be impossible per Phase 4 guarantees.
     // Send the user back to the live view so they can see whatever state

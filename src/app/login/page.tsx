@@ -32,9 +32,7 @@ export default async function LoginPage() {
               <span className="text-sm font-bold tracking-tight">er</span>
             </span>
             <div className="flex flex-col gap-2">
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                enhanced-review
-              </h1>
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">enhanced-review</h1>
               <p className="text-sm text-muted-foreground">
                 AI code-review that reads like a senior engineer&rsquo;s walkthrough.
               </p>
@@ -46,8 +44,9 @@ export default async function LoginPage() {
                 <Sparkles className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                 <p className="text-sm text-muted-foreground">
                   Invite-only beta. Sign in with the GitHub account that&rsquo;s been added to the
-                  allowlist — we&rsquo;ll need <code className="rounded bg-muted px-1 py-0.5 text-xs">repo</code> read scope to fetch
-                  diffs.
+                  allowlist — we&rsquo;ll need{' '}
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs">repo</code> read scope to
+                  fetch diffs.
                 </p>
               </div>
               <SignInButton />

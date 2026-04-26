@@ -26,9 +26,7 @@ export function SummaryCard({ review, target, pullMetadata, byline, actions }: S
   const authorAvatar =
     pullMetadata?.authorAvatarUrl ?? `https://github.com/${byline.author}.png?size=64`;
   const title =
-    review.prTitle ||
-    pullMetadata?.title ||
-    (target.kind === 'pr' ? target.title : target.ref);
+    review.prTitle || pullMetadata?.title || (target.kind === 'pr' ? target.title : target.ref);
   const sha = byline.sha.slice(0, 7);
 
   const fileWord = pullMetadata?.changedFiles === 1 ? 'file' : 'files';
@@ -110,9 +108,7 @@ export function SummaryCard({ review, target, pullMetadata, byline, actions }: S
 function DropCapMarkdown({ text }: { text: string }) {
   const trimmed = text.trim();
   if (trimmed.length === 0) {
-    return (
-      <p className="text-muted-foreground">No overview was generated for this review.</p>
-    );
+    return <p className="text-muted-foreground">No overview was generated for this review.</p>;
   }
 
   const firstBreak = trimmed.indexOf('\n\n');

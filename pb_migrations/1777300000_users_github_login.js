@@ -25,7 +25,7 @@ migrate(
 
     collection.indexes = [
       ...(collection.indexes || []),
-      'CREATE UNIQUE INDEX `idx_users_github_login` ON `users` (`github_login`) WHERE `github_login` != \'\'',
+      "CREATE UNIQUE INDEX `idx_users_github_login` ON `users` (`github_login`) WHERE `github_login` != ''",
     ];
 
     return app.save(collection);

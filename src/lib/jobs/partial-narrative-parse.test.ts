@@ -10,9 +10,10 @@ describe('extractChapterTitles', () => {
   });
 
   it('returns empty when chapters key has not appeared yet', () => {
-    expect(
-      extractChapterTitles('<narrative_review>{"prTitle":"x","overviewSummary":"y"'),
-    ).toEqual({ titles: [], inProgressTitle: null });
+    expect(extractChapterTitles('<narrative_review>{"prTitle":"x","overviewSummary":"y"')).toEqual({
+      titles: [],
+      inProgressTitle: null,
+    });
   });
 
   it('captures a single completed chapter title', () => {
@@ -71,9 +72,10 @@ describe('extractChapterTitles', () => {
   });
 
   it('treats the chapters key followed by something other than [ as no match', () => {
-    expect(
-      extractChapterTitles('<narrative_review>{"chapters": "not an array yet"}'),
-    ).toEqual({ titles: [], inProgressTitle: null });
+    expect(extractChapterTitles('<narrative_review>{"chapters": "not an array yet"}')).toEqual({
+      titles: [],
+      inProgressTitle: null,
+    });
   });
 
   it('survives whitespace between key/colon/[', () => {

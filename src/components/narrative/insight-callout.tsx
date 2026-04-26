@@ -22,9 +22,7 @@ export function InsightCallout({ insight }: { insight: Insight }) {
   const tone = TYPE_TONE[insight.type];
   return (
     <aside
-      className={cn(
-        'flex flex-col gap-2 rounded-xl border-l-2 border-iris bg-iris-soft px-6 py-5',
-      )}
+      className={cn('flex flex-col gap-2 rounded-xl border-l-2 border-iris bg-iris-soft px-6 py-5')}
     >
       <span className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-iris">
         {tone.glyph} {tone.label}

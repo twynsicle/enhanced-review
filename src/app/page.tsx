@@ -34,8 +34,8 @@ export default async function Home() {
               The reviewer is ready when you are.
             </h1>
             <p className="max-w-[58ch] text-[15px] leading-[1.55] text-muted-foreground text-pretty">
-              Choose a pull request or branch — we&rsquo;ll read every line, write the chapters,
-              and surface the few things that genuinely need a human eye.
+              Choose a pull request or branch — we&rsquo;ll read every line, write the chapters, and
+              surface the few things that genuinely need a human eye.
             </p>
           </div>
           <ReviewComposer userId={user.id} />

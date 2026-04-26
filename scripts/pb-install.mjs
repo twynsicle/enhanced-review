@@ -8,7 +8,14 @@
 // Cross-platform via Node + bsdtar (built into Windows 10 1803+, macOS,
 // and standard on Linux). No PowerShell or unzip dependency.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, createWriteStream } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  createWriteStream,
+} from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
@@ -42,7 +49,9 @@ const binaryName = os.platform() === 'win32' ? 'pocketbase.exe' : 'pocketbase';
 const binaryPath = path.join(pbDir, binaryName);
 const versionMarker = path.join(pbDir, '.version');
 
-const installedVersion = existsSync(versionMarker) ? readFileSync(versionMarker, 'utf8').trim() : null;
+const installedVersion = existsSync(versionMarker)
+  ? readFileSync(versionMarker, 'utf8').trim()
+  : null;
 if (existsSync(binaryPath) && installedVersion === PB_VERSION) {
   console.log(`PocketBase v${PB_VERSION} already installed at ${binaryPath}`);
   process.exit(0);
@@ -81,7 +90,9 @@ try {
     execFileSync('unzip', ['-o', zipPath, '-d', pbDir], { stdio: 'inherit' });
   }
 } catch (err) {
-  console.error('Extraction failed. On Windows this uses PowerShell Expand-Archive; on macOS/Linux, `unzip`.');
+  console.error(
+    'Extraction failed. On Windows this uses PowerShell Expand-Archive; on macOS/Linux, `unzip`.',
+  );
   console.error(err.message);
   process.exit(1);
 }

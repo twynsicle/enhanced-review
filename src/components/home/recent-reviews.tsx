@@ -88,10 +88,7 @@ export async function RecentReviews() {
 function RecentRow({ job, first }: { job: ReviewJobRow; first: boolean }) {
   const target = job.target;
   const href = job.status === 'done' ? `/reviews/${job.id}` : `/jobs/${job.id}`;
-  const title =
-    target.kind === 'pr'
-      ? target.title
-      : target.ref;
+  const title = target.kind === 'pr' ? target.title : target.ref;
   const sub = `${target.owner}/${target.repo} · @${job.github_login} · ${job.head_sha.slice(0, 7)} · ${timeAgo(job.created)}`;
 
   return (

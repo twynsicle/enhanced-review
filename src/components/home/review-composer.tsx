@@ -232,122 +232,116 @@ export function ReviewComposer({ userId }: { userId: string }) {
       className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_0_rgba(140,100,255,0.04),0_18px_50px_-28px_rgba(140,100,255,0.55)]"
     >
       <div className="grid gap-5 p-6 sm:grid-cols-[1.3fr_auto_1.2fr] sm:items-end sm:gap-6">
-          <Field label="Repository">
-            {reposError ? (
-              <div className="flex h-10 items-center rounded-lg border border-destructive/40 bg-destructive/10 px-3 text-sm text-destructive">
-                <span className="truncate">{reposError}</span>
-              </div>
-            ) : (
-              <Combobox<RepoSummary>
-                items={repos}
-                value={repo}
-                onChange={onChangeRepo}
-                getKey={(r) => r.fullName}
-                getSearchValue={(r) =>
-                  `${r.fullName} ${r.description ?? ''}`.toLowerCase()
-                }
-                renderItem={(r) => (
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate font-medium">{r.fullName}</span>
-                    {r.private && (
-                      <Lock className="size-3 shrink-0 text-muted-foreground" aria-label="private" />
-                    )}
-                    {r.archived && (
-                      <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
-                        archived
+        <Field label="Repository">
+          {reposError ? (
+            <div className="flex h-10 items-center rounded-lg border border-destructive/40 bg-destructive/10 px-3 text-sm text-destructive">
+              <span className="truncate">{reposError}</span>
+            </div>
+          ) : (
+            <Combobox<RepoSummary>
+              items={repos}
+              value={repo}
+              onChange={onChangeRepo}
+              getKey={(r) => r.fullName}
+              getSearchValue={(r) => `${r.fullName} ${r.description ?? ''}`.toLowerCase()}
+              renderItem={(r) => (
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="truncate font-medium">{r.fullName}</span>
+                  {r.private && (
+                    <Lock className="size-3 shrink-0 text-muted-foreground" aria-label="private" />
+                  )}
+                  {r.archived && (
+                    <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
+                      archived
+                    </span>
+                  )}
+                </div>
+              )}
+              renderTrigger={(r) => (
+                <span className="flex items-center gap-2">
+                  <span className="truncate font-medium">{r.fullName}</span>
+                  {r.private && <Lock className="size-3 shrink-0 text-muted-foreground" />}
+                </span>
+              )}
+              placeholder="Choose a repository"
+              searchPlaceholder="Filter repos…"
+              emptyMessage="No repos match."
+            />
+          )}
+        </Field>
+
+        <Field label="Type">
+          <KindToggle value={kind} onChange={onChangeKind} disabled={!repo} />
+        </Field>
+
+        <Field label={kind === 'pr' ? 'Pull request' : 'Branch'}>
+          {kind === 'pr' ? (
+            <Combobox<PullSummary>
+              items={repo ? pulls : []}
+              value={pull}
+              onChange={onChangePull}
+              getKey={(p) => String(p.number)}
+              getSearchValue={(p) =>
+                `#${p.number} ${p.title} ${p.headRef} ${p.authorLogin ?? ''}`.toLowerCase()
+              }
+              renderItem={(p) => (
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="text-muted-foreground tabular-nums">#{p.number}</span>
+                    <span className="truncate font-medium">{p.title}</span>
+                    {p.draft && (
+                      <span className="rounded bg-muted px-1 py-0 text-[10px] text-muted-foreground">
+                        draft
                       </span>
                     )}
                   </div>
-                )}
-                renderTrigger={(r) => (
-                  <span className="flex items-center gap-2">
-                    <span className="truncate font-medium">{r.fullName}</span>
-                    {r.private && <Lock className="size-3 shrink-0 text-muted-foreground" />}
-                  </span>
-                )}
-                placeholder="Choose a repository"
-                searchPlaceholder="Filter repos…"
-                emptyMessage="No repos match."
-              />
-            )}
-          </Field>
-
-          <Field label="Type">
-            <KindToggle value={kind} onChange={onChangeKind} disabled={!repo} />
-          </Field>
-
-          <Field label={kind === 'pr' ? 'Pull request' : 'Branch'}>
-            {kind === 'pr' ? (
-              <Combobox<PullSummary>
-                items={repo ? pulls : []}
-                value={pull}
-                onChange={onChangePull}
-                getKey={(p) => String(p.number)}
-                getSearchValue={(p) =>
-                  `#${p.number} ${p.title} ${p.headRef} ${p.authorLogin ?? ''}`.toLowerCase()
-                }
-                renderItem={(p) => (
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span className="text-muted-foreground tabular-nums">#{p.number}</span>
-                      <span className="truncate font-medium">{p.title}</span>
-                      {p.draft && (
-                        <span className="rounded bg-muted px-1 py-0 text-[10px] text-muted-foreground">
-                          draft
-                        </span>
-                      )}
-                    </div>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {p.authorLogin ?? 'unknown'} · {p.headRef} → {p.baseRef}
-                    </p>
-                  </div>
-                )}
-                renderTrigger={(p) => (
-                  <span className="flex items-center gap-1.5 truncate">
-                    <GitPullRequest className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="text-muted-foreground tabular-nums">#{p.number}</span>
-                    <span className="truncate">{p.title}</span>
-                  </span>
-                )}
-                placeholder={repo ? 'Choose a pull request' : 'Pick a repo first'}
-                searchPlaceholder="Filter PRs…"
-                emptyMessage={
-                  repo && pulls && pulls.length === 0 ? 'No open PRs.' : 'No matches.'
-                }
-                disabled={!repo}
-              />
-            ) : (
-              <Combobox<BranchSummary>
-                items={repo ? (branchData?.branches ?? null) : []}
-                value={branch}
-                onChange={onChangeBranch}
-                getKey={(b) => b.ref}
-                getSearchValue={(b) => `${b.ref} ${b.headCommitMessage}`.toLowerCase()}
-                renderItem={(b) => (
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate font-mono text-sm">{b.ref}</span>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {b.headCommitMessage}
-                    </p>
-                  </div>
-                )}
-                renderTrigger={(b) => (
-                  <span className="flex items-center gap-1.5 truncate">
-                    <GitBranch className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="truncate font-mono text-sm">{b.ref}</span>
-                  </span>
-                )}
-                placeholder={repo ? 'Choose a branch' : 'Pick a repo first'}
-                searchPlaceholder="Filter branches…"
-                emptyMessage={
-                  repo && branchData && branchData.branches.length === 0
-                    ? 'No branches active in last 30 days.'
-                    : 'No matches.'
-                }
-                disabled={!repo}
-              />
-            )}
-          </Field>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {p.authorLogin ?? 'unknown'} · {p.headRef} → {p.baseRef}
+                  </p>
+                </div>
+              )}
+              renderTrigger={(p) => (
+                <span className="flex items-center gap-1.5 truncate">
+                  <GitPullRequest className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="text-muted-foreground tabular-nums">#{p.number}</span>
+                  <span className="truncate">{p.title}</span>
+                </span>
+              )}
+              placeholder={repo ? 'Choose a pull request' : 'Pick a repo first'}
+              searchPlaceholder="Filter PRs…"
+              emptyMessage={repo && pulls && pulls.length === 0 ? 'No open PRs.' : 'No matches.'}
+              disabled={!repo}
+            />
+          ) : (
+            <Combobox<BranchSummary>
+              items={repo ? (branchData?.branches ?? null) : []}
+              value={branch}
+              onChange={onChangeBranch}
+              getKey={(b) => b.ref}
+              getSearchValue={(b) => `${b.ref} ${b.headCommitMessage}`.toLowerCase()}
+              renderItem={(b) => (
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="truncate font-mono text-sm">{b.ref}</span>
+                  <p className="truncate text-xs text-muted-foreground">{b.headCommitMessage}</p>
+                </div>
+              )}
+              renderTrigger={(b) => (
+                <span className="flex items-center gap-1.5 truncate">
+                  <GitBranch className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate font-mono text-sm">{b.ref}</span>
+                </span>
+              )}
+              placeholder={repo ? 'Choose a branch' : 'Pick a repo first'}
+              searchPlaceholder="Filter branches…"
+              emptyMessage={
+                repo && branchData && branchData.branches.length === 0
+                  ? 'No branches active in last 30 days.'
+                  : 'No matches.'
+              }
+              disabled={!repo}
+            />
+          )}
+        </Field>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-4">

@@ -23,10 +23,10 @@ import type { FileAtRef, ViewTimeError, ViewTimeResult } from '@/lib/github/view
  * `window` on mount).
  */
 
-const DiffEditor = dynamic(
-  () => import('@monaco-editor/react').then((mod) => mod.DiffEditor),
-  { ssr: false, loading: () => <div className="h-15 animate-pulse rounded bg-muted/50" /> },
-);
+const DiffEditor = dynamic(() => import('@monaco-editor/react').then((mod) => mod.DiffEditor), {
+  ssr: false,
+  loading: () => <div className="h-15 animate-pulse rounded bg-muted/50" />,
+});
 
 const CONTEXT_LINES = 5;
 const MIN_EDITOR_HEIGHT = 60;
@@ -42,7 +42,16 @@ interface InlineDiffChunkProps {
 
 type FetchState =
   | { kind: 'loading' }
-  | { kind: 'ok'; data: { original: string; modified: string; originalLineCount: number; modifiedLineCount: number; language: string } }
+  | {
+      kind: 'ok';
+      data: {
+        original: string;
+        modified: string;
+        originalLineCount: number;
+        modifiedLineCount: number;
+        language: string;
+      };
+    }
   | { kind: 'error'; error: ViewTimeError };
 
 type FileResponseBody = ViewTimeResult<FileAtRef>;
@@ -81,7 +90,11 @@ interface InlineDiffSnippetEditorProps {
   expanded: boolean;
 }
 
-function buildModelPath(filename: string, snippetKey: string, side: 'original' | 'modified'): string {
+function buildModelPath(
+  filename: string,
+  snippetKey: string,
+  side: 'original' | 'modified',
+): string {
   const encodedPath = filename
     .split('/')
     .map((segment) => encodeURIComponent(segment))
@@ -209,10 +222,7 @@ export function InlineDiffChunk({ chunk, owner, repo, baseRef, headRef }: Inline
   const [expanded, setExpanded] = useState(false);
   const cancelRef = useRef(false);
 
-  const chunkHunks = useMemo(
-    () => (Array.isArray(chunk.hunks) ? chunk.hunks : []),
-    [chunk],
-  );
+  const chunkHunks = useMemo(() => (Array.isArray(chunk.hunks) ? chunk.hunks : []), [chunk]);
 
   useEffect(() => {
     // No synchronous reset to `loading` here — props are stable for the
@@ -241,7 +251,12 @@ export function InlineDiffChunk({ chunk, owner, repo, baseRef, headRef }: Inline
       // a chunk surfaced by the AI unless the viewer lost access to the
       // repo or the SHAs are gone. Treat as an error so the user sees a
       // meaningful fallback rather than two empty editors.
-      if (!base.ok && !head.ok && base.error.kind === 'not-found' && head.error.kind === 'not-found') {
+      if (
+        !base.ok &&
+        !head.ok &&
+        base.error.kind === 'not-found' &&
+        head.error.kind === 'not-found'
+      ) {
         setState({ kind: 'error', error: base.error });
         return;
       }

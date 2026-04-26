@@ -37,11 +37,7 @@ export async function finalizeAsDone(
   });
 }
 
-export async function markErrored(
-  pb: PocketBase,
-  jobId: string,
-  message: string,
-): Promise<void> {
+export async function markErrored(pb: PocketBase, jobId: string, message: string): Promise<void> {
   try {
     await pb.collection('review_jobs').update(jobId, {
       status: 'error',

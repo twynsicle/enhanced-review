@@ -24,7 +24,11 @@ export const dynamic = 'force-dynamic';
 
 // PB IDs default to 15 alphanumeric chars; allow a bit of slack in case
 // of customised id length.
-const idSchema = z.string().regex(/^[a-zA-Z0-9_-]+$/).min(1).max(40);
+const idSchema = z
+  .string()
+  .regex(/^[a-zA-Z0-9_-]+$/)
+  .min(1)
+  .max(40);
 
 export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/cancel'>) {
   const { id } = await ctx.params;

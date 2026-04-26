@@ -1,11 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import type { NarrativeReview } from '@enhanced-review/review-types';
 
-import {
-  type ReviewExecutor,
-  type ReviewExecutorInput,
-  type ReviewExecutorOutput,
-} from './types';
+import { type ReviewExecutor, type ReviewExecutorInput, type ReviewExecutorOutput } from './types';
 
 const STUB_REVIEW: NarrativeReview = {
   prTitle: 'Stub review',

@@ -41,12 +41,7 @@ describe('<ChapterSidebar />', () => {
     ).toBeNull();
 
     rerender(
-      <ChapterSidebar
-        chapters={chapters}
-        activeId="ch2"
-        reviewTitle="t"
-        onSelect={() => {}}
-      />,
+      <ChapterSidebar chapters={chapters} activeId="ch2" reviewTitle="t" onSelect={() => {}} />,
     );
     expect(
       screen.getByText('Risks and follow-ups').closest('button')?.getAttribute('aria-current'),

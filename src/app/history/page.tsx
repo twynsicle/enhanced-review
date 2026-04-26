@@ -200,13 +200,7 @@ function FilteredEmpty({ status }: { status: StatusFilter }) {
 function EmptyLibrary() {
   return (
     <section className="mx-auto flex max-w-2xl flex-col items-center gap-6 py-24 text-center">
-      <svg
-        width="160"
-        height="120"
-        viewBox="0 0 160 120"
-        aria-hidden
-        className="text-iris"
-      >
+      <svg width="160" height="120" viewBox="0 0 160 120" aria-hidden className="text-iris">
         <rect
           x="20"
           y="10"
@@ -217,9 +211,33 @@ function EmptyLibrary() {
           stroke="var(--border)"
         />
         <rect x="32" y="22" width="40" height="6" rx="3" fill="currentColor" opacity="0.85" />
-        <rect x="32" y="36" width="96" height="3" rx="1.5" fill="var(--muted-foreground)" opacity="0.45" />
-        <rect x="32" y="44" width="84" height="3" rx="1.5" fill="var(--muted-foreground)" opacity="0.45" />
-        <rect x="32" y="52" width="92" height="3" rx="1.5" fill="var(--muted-foreground)" opacity="0.45" />
+        <rect
+          x="32"
+          y="36"
+          width="96"
+          height="3"
+          rx="1.5"
+          fill="var(--muted-foreground)"
+          opacity="0.45"
+        />
+        <rect
+          x="32"
+          y="44"
+          width="84"
+          height="3"
+          rx="1.5"
+          fill="var(--muted-foreground)"
+          opacity="0.45"
+        />
+        <rect
+          x="32"
+          y="52"
+          width="92"
+          height="3"
+          rx="1.5"
+          fill="var(--muted-foreground)"
+          opacity="0.45"
+        />
         <rect x="32" y="68" width="96" height="20" rx="3" fill="var(--iris-soft)" />
         <path d="M32 68 L32 88" stroke="currentColor" strokeWidth="2" />
       </svg>
@@ -227,8 +245,8 @@ function EmptyLibrary() {
         The library is waiting.
       </h2>
       <p className="max-w-md text-[15px] text-muted-foreground text-pretty">
-        When you start your first review, it lives here — every chapter, every insight, every
-        diff, written and indexed.
+        When you start your first review, it lives here — every chapter, every insight, every diff,
+        written and indexed.
       </p>
       <Button asChild className="h-9 rounded-full px-4">
         <Link href="/">Begin your first review →</Link>

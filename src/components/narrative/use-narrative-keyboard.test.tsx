@@ -9,13 +9,7 @@ const chapters: NarrativeChapter[] = [
   { id: 'ch3', title: 'Three', insights: [], diffChunks: [] },
 ];
 
-function Harness({
-  activeId,
-  onSelect,
-}: {
-  activeId: string;
-  onSelect: (id: string) => void;
-}) {
+function Harness({ activeId, onSelect }: { activeId: string; onSelect: (id: string) => void }) {
   useNarrativeKeyboard({ chapters, activeId, onSelect });
   return null;
 }
