@@ -1,40 +1,57 @@
-import type { SupabaseClient, User } from '@supabase/supabase-js';
+import 'server-only';
+import type PocketBase from 'pocketbase';
+import type { UserRecord } from '@/lib/pb';
 
 /**
- * Extract the GitHub login (username) from a Supabase auth user.
+ * Extract the GitHub login from a PB users record. Populated by
+ * `/api/auth/post-signin` from the OAuth `meta.username` returned by
+ * `authWithOAuth2`. PB's auto-created `username` (e.g. `users123abc`) is
+ * NOT the GitHub handle, hence the dedicated field.
  *
- * gotrue's GitHub provider stores it on `user_metadata.user_name`. Other keys
- * (`preferred_username`, `name`) are populated too but `user_name` is the
- * canonical login slug we joined on in the allowlist.
- *
- * Returns `null` if the field is missing or not a string — defensive against
- * non-GitHub identity providers being added later.
+ * Returns `null` when the field is missing — happens for records created
+ * before the post-signin handler ran, and for any future non-GitHub
+ * providers.
  */
-export function getGithubLogin(user: User): string | null {
-  const meta = user.user_metadata as Record<string, unknown> | null | undefined;
-  const login = meta?.user_name;
+export function getGithubLogin(user: UserRecord | null | undefined): string | null {
+  if (!user) return null;
+  const login = user.github_login;
   return typeof login === 'string' && login.length > 0 ? login : null;
 }
 
 /**
- * True iff `githubLogin` is present in `public.allowed_users`.
+ * True iff `githubLogin` is present in the `allowed_users` PB collection.
  *
- * Must be called with a service-role client (RLS would otherwise hide the
- * table from authenticated users). On query error we fail closed (return
- * false) — better to deny a real user than to let a denied user through.
+ * Must be called with a PB superuser client — the collection's list/view
+ * rules are `null` (server-only) so any other client gets nothing back.
+ * On query error we fail closed (return false) — better to deny a real
+ * user than to let a denied user through.
  */
-export async function isAllowed(admin: SupabaseClient, githubLogin: string): Promise<boolean> {
-  const { data, error } = await admin
-    .from('allowed_users')
-    .select('github_login')
-    .eq('github_login', githubLogin)
-    .maybeSingle();
-
-  if (error) {
-    // Imported from proxy.ts (middleware) — keep console.error to avoid
-    // pulling pino into the middleware bundle.
-    console.error('[allowlist] lookup failed', error);
+export async function isAllowed(admin: PocketBase, githubLogin: string): Promise<boolean> {
+  try {
+    await admin
+      .collection('allowed_users')
+      .getFirstListItem(`github_login = "${escape(githubLogin)}"`);
+    return true;
+  } catch (err: unknown) {
+    if (isNotFound(err)) return false;
+    // Unexpected — log to console (this runs in middleware where we
+    // intentionally avoid pulling pino into the bundle).
+    console.error('[allowlist] lookup failed', err);
     return false;
   }
-  return data !== null;
+}
+
+function isNotFound(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  return (err as { status?: unknown }).status === 404;
+}
+
+/**
+ * Escape a value for inclusion in a PB filter string. PB filters are
+ * shell-like; double quotes inside a `"..."` literal need escaping. Backs
+ * out anything weirder than that — GitHub logins are alphanumeric+hyphen
+ * so this is mostly defense-in-depth against future input.
+ */
+function escape(value: string): string {
+  return value.replace(/["\\]/g, '\\$&');
 }

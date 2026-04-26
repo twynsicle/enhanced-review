@@ -1,63 +1,63 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { SupabaseClient, User } from '@supabase/supabase-js';
+import type PocketBase from 'pocketbase';
+import type { UserRecord } from '@/lib/pb';
 import { getGithubLogin, isAllowed } from './allowlist';
 
 /**
- * Build a stub SupabaseClient whose `from(...).select(...).eq(...).maybeSingle()`
- * chain resolves to the supplied result. Only the methods we use are stubbed;
- * everything else is `undefined`.
+ * Build a stub PocketBase client whose `collection(name).getFirstListItem(filter)`
+ * resolves with `result` or rejects with `rejectWith` (used to simulate
+ * 404 / 500). Only the methods we use are stubbed.
  */
-function stubClient(result: { data: unknown; error: unknown }): SupabaseClient {
-  const maybeSingle = vi.fn().mockResolvedValue(result);
-  const eq = vi.fn().mockReturnValue({ maybeSingle });
-  const select = vi.fn().mockReturnValue({ eq });
-  const from = vi.fn().mockReturnValue({ select });
-  return { from } as unknown as SupabaseClient;
+function stubClient(opts: { result?: unknown; rejectWith?: unknown }): PocketBase {
+  const getFirstListItem = vi.fn(() =>
+    'rejectWith' in opts ? Promise.reject(opts.rejectWith) : Promise.resolve(opts.result),
+  );
+  const collection = vi.fn().mockReturnValue({ getFirstListItem });
+  return { collection } as unknown as PocketBase;
 }
 
 describe('getGithubLogin', () => {
-  it('returns the user_name from user_metadata', () => {
-    const user = { user_metadata: { user_name: 'twynsicle' } } as unknown as User;
+  it('returns the github_login field from the user record', () => {
+    const user = { github_login: 'twynsicle' } as unknown as UserRecord;
     expect(getGithubLogin(user)).toBe('twynsicle');
   });
 
-  it('returns null when user_name is missing', () => {
-    const user = { user_metadata: { name: 'Steven' } } as unknown as User;
+  it('returns null when github_login is missing', () => {
+    const user = { name: 'Steven' } as unknown as UserRecord;
     expect(getGithubLogin(user)).toBeNull();
   });
 
-  it('returns null when user_name is empty', () => {
-    const user = { user_metadata: { user_name: '' } } as unknown as User;
+  it('returns null when github_login is empty', () => {
+    const user = { github_login: '' } as unknown as UserRecord;
     expect(getGithubLogin(user)).toBeNull();
   });
 
-  it('returns null when user_metadata is null', () => {
-    const user = { user_metadata: null } as unknown as User;
-    expect(getGithubLogin(user)).toBeNull();
+  it('returns null when the user is null', () => {
+    expect(getGithubLogin(null)).toBeNull();
   });
 });
 
 describe('isAllowed', () => {
   it('returns true when the row exists', async () => {
-    const client = stubClient({ data: { github_login: 'twynsicle' }, error: null });
+    const client = stubClient({ result: { github_login: 'twynsicle' } });
     expect(await isAllowed(client, 'twynsicle')).toBe(true);
   });
 
-  it('returns false when the row is missing (data === null)', async () => {
-    const client = stubClient({ data: null, error: null });
+  it('returns false on a 404 (row missing)', async () => {
+    const client = stubClient({ rejectWith: { status: 404, message: 'not found' } });
     expect(await isAllowed(client, 'someone-else')).toBe(false);
   });
 
-  it('fails closed (false) when the query errors', async () => {
+  it('fails closed (false) on unexpected errors', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const client = stubClient({ data: null, error: { message: 'boom' } });
+    const client = stubClient({ rejectWith: new Error('boom') });
     expect(await isAllowed(client, 'twynsicle')).toBe(false);
     errSpy.mockRestore();
   });
 
-  it('queries the allowed_users table', async () => {
-    const client = stubClient({ data: null, error: null });
+  it('queries the allowed_users collection', async () => {
+    const client = stubClient({ rejectWith: { status: 404 } });
     await isAllowed(client, 'twynsicle');
-    expect(client.from).toHaveBeenCalledWith('allowed_users');
+    expect(client.collection).toHaveBeenCalledWith('allowed_users');
   });
 });

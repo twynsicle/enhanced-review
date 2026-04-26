@@ -7,8 +7,8 @@ import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
 import { findUserInFlightJob } from '@/lib/jobs/concurrency';
 import { logger } from '@/lib/log';
 import { ReviewTargetSchema } from '@/lib/jobs/target';
+import { getCurrentUser } from '@/lib/pb';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient as createServerSupabase } from '@/lib/supabase/server';
 
 /**
  * POST /api/jobs
@@ -32,10 +32,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   // 1. Session
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: 'unauthorized' }, { status: 401 });
   }

@@ -1,7 +1,9 @@
-import { createServerClient } from '@supabase/ssr';
+import PocketBase from 'pocketbase';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getGithubLogin, isAllowed } from '@/lib/auth/allowlist';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { pbAdmin } from '@/lib/pb/admin';
+import { GH_TOKEN_COOKIE, PB_AUTH_COOKIE } from '@/lib/pb/types';
+import type { UserRecord } from '@/lib/pb/types';
 
 /**
  * Next 16's `proxy.ts` (formerly `middleware.ts`). Runs on every matched
@@ -9,87 +11,76 @@ import { createAdminClient } from '@/lib/supabase/admin';
  *
  * Two responsibilities:
  *
- *   1. Refresh the Supabase auth cookie (the SDK rotates tokens; if we don't
- *      sync them here, server components see a stale session and SSR pages
- *      flicker between logged-in / logged-out).
+ *   1. Hydrate the PocketBase auth state from the `pb_auth` cookie so the
+ *      gate below sees the same session a Server Component would.
  *   2. Gate access:
- *        - `/auth/*`  — always allowed (OAuth callback must run pre-session)
- *        - `/login`   — allowed; redirect away if already authed
- *        - `/denied`  — allowed (users we just signed out land here)
+ *        - `/api/auth/*` — always allowed (post-signin / sign-out need to
+ *          run with whatever auth state the cookie has, no allowlist gate)
+ *        - `/api/health`  — public ops endpoint, no per-user data
+ *        - `/login`       — allowed; redirect away if already authed AND
+ *          allowed (otherwise the user could sign in repeatedly with no
+ *          way out)
+ *        - `/denied`      — allowed (users we just signed out land here)
  *        - everything else: must be authed AND in `allowed_users`. Otherwise
- *          sign out and redirect to `/denied`.
+ *          clear the auth cookies and redirect to `/denied` (or `/login`
+ *          when there was no session to begin with).
  *
- * The Next 16 `proxy` runtime is nodejs (edge is not supported), so the
- * service-role admin client used for the allowlist lookup is fine here.
- *
- * IMPORTANT (per Supabase SSR docs): Don't put logic between
- * `createServerClient(...)` and `getUser()`, and propagate `supabaseResponse`
- * cookies onto any redirect we return — otherwise the browser and server
- * sessions can drift.
+ * Next 16 `proxy` runs on the nodejs runtime, so the PB superuser admin
+ * client used for the allowlist lookup is fine here.
  */
 export async function proxy(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
-          );
-        },
-      },
-    },
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const { pathname } = request.nextUrl;
 
-  // OAuth callback must run before any session exists.
-  if (pathname.startsWith('/auth')) return supabaseResponse;
+  // Public paths first — skip auth work entirely.
+  if (pathname.startsWith('/api/auth')) return NextResponse.next();
+  if (pathname === '/api/health') return NextResponse.next();
+  if (pathname === '/denied') return NextResponse.next();
 
-  // Public ops endpoint — no per-user data, intentionally pingable
-  // without a session.
-  if (pathname === '/api/health') return supabaseResponse;
-
-  // /login: allow unauthed; bounce authed users home.
-  if (pathname === '/login') {
-    if (user) return forwardCookies(supabaseResponse, redirect(request, '/'));
-    return supabaseResponse;
+  // Hydrate PB auth from the request cookie.
+  const pbUrl = process.env.POCKETBASE_URL ?? process.env.NEXT_PUBLIC_POCKETBASE_URL;
+  if (!pbUrl) {
+    // Misconfigured env — fail closed.
+    console.error('[proxy] POCKETBASE_URL not set; denying all requests');
+    return clearAuthAndRedirect(request, '/denied');
   }
 
-  // /denied: anyone (especially users we just signed out) can land here.
-  if (pathname === '/denied') return supabaseResponse;
+  const pb = new PocketBase(pbUrl);
+  const cookieValue = request.cookies.get(PB_AUTH_COOKIE)?.value;
+  if (cookieValue) {
+    pb.authStore.loadFromCookie(`${PB_AUTH_COOKIE}=${cookieValue}`, PB_AUTH_COOKIE);
+  }
+
+  const user = pb.authStore.isValid ? (pb.authStore.record as UserRecord | null) : null;
+
+  // /login: allow unauthed; bounce authed+allowed users home. We can't
+  // safely redirect an authed-but-not-yet-allowlisted user from /login —
+  // they might just have signed in for the first time and the post-signin
+  // handler hasn't populated github_login yet.
+  if (pathname === '/login') {
+    if (user) {
+      const githubLogin = getGithubLogin(user);
+      if (githubLogin && (await isAllowed(await pbAdmin(), githubLogin))) {
+        return redirect(request, '/');
+      }
+    }
+    return NextResponse.next();
+  }
 
   // Everything else: authentication required.
   if (!user) {
-    return forwardCookies(supabaseResponse, redirect(request, '/login'));
+    return clearAuthAndRedirect(request, '/login');
   }
 
-  // Allowlist check (server-only, bypasses RLS).
+  // Allowlist gate.
   const githubLogin = getGithubLogin(user);
   if (!githubLogin) {
-    await supabase.auth.signOut();
-    return forwardCookies(supabaseResponse, redirect(request, '/denied'));
+    return clearAuthAndRedirect(request, '/denied');
+  }
+  if (!(await isAllowed(await pbAdmin(), githubLogin))) {
+    return clearAuthAndRedirect(request, '/denied');
   }
 
-  const admin = createAdminClient();
-  if (!(await isAllowed(admin, githubLogin))) {
-    await supabase.auth.signOut();
-    return forwardCookies(supabaseResponse, redirect(request, '/denied'));
-  }
-
-  return supabaseResponse;
+  return NextResponse.next();
 }
 
 function redirect(request: NextRequest, path: string): NextResponse {
@@ -100,20 +91,19 @@ function redirect(request: NextRequest, path: string): NextResponse {
 }
 
 /**
- * Copy any cookies the Supabase SDK set during this request onto a redirect
- * response so the session change survives the navigation. Without this,
- * `signOut()` in the proxy is invisible to the browser and the user stays
- * authed.
+ * Drop both auth cookies and redirect. PB's `pb_auth` is the session;
+ * `gh_access_token` is the GitHub provider token persisted alongside it.
+ * Clearing one without the other would leave a token attached to no
+ * session.
  */
-function forwardCookies(from: NextResponse, to: NextResponse): NextResponse {
-  from.cookies.getAll().forEach((c) => to.cookies.set(c));
-  return to;
+function clearAuthAndRedirect(request: NextRequest, path: string): NextResponse {
+  const res = redirect(request, path);
+  res.cookies.delete(PB_AUTH_COOKIE);
+  res.cookies.delete(GH_TOKEN_COOKIE);
+  return res;
 }
 
 export const config = {
-  // Run on every path EXCEPT static/Next internals + common static asset
-  // extensions. Do NOT exclude /auth — we need cookie sync there too; the
-  // proxy body lets /auth/* through after the sync.
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],

@@ -1,7 +1,7 @@
 import { Sparkles } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/pb';
 import { SignInButton } from './sign-in-button';
 
 export const metadata = {
@@ -9,10 +9,7 @@ export const metadata = {
 };
 
 export default async function LoginPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (user) redirect('/');
 
   return (

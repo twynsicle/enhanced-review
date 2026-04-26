@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@enhanced-review/review-types';
 import type { ReviewTarget } from '@enhanced-review/github-client';
+import { getCurrentUser } from '@/lib/pb';
 import { createClient } from '@/lib/supabase/server';
 import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import {
@@ -48,12 +49,11 @@ export default async function ReviewPage({
   const { id } = await params;
   const sp = await searchParams;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect('/login');
 
+  // Phase 3 will move these queries to PB.
+  const supabase = await createClient();
   const { data: job } = await supabase
     .from('review_jobs')
     .select('*')

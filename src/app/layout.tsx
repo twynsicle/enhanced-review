@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { JobNotifications } from '@/components/notifications/job-notifications';
 import { ThemeInitScript } from '@/components/theme/theme-init-script';
 import { Toaster } from '@/components/ui/toaster';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/pb';
 import './globals.css';
 
 const geistSans = Geist({
@@ -31,10 +31,7 @@ export default async function RootLayout({
   // protected pages; on /login and /denied `user` is null and the
   // notifier doesn't mount. Toaster is always available so unauthed
   // pages can still surface error toasts.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   return (
     <html

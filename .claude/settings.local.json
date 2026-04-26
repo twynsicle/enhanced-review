@@ -1,1 +1,20 @@
-{}
+{
+  "permissions": {
+    "allow": [
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "WebFetch(domain:api.github.com)",
+      "Bash(npm run *)",
+      "Bash(where tar *)",
+      "Bash(tar --version)",
+      "Bash(curl -s http://127.0.0.1:8090/api/health)",
+      "Bash(curl -s http://127.0.0.1:8090/api/collections/allowed_users/records)",
+      "Bash(curl -s http://127.0.0.1:8090/api/collections/review_jobs/records)",
+      "Bash(curl -s http://127.0.0.1:8090/api/collections/reviews/records)",
+      "Bash(curl -s http://127.0.0.1:8090/api/collections/review_chunks/records)",
+      "Bash(curl -s http://127.0.0.1:8090/api/collections)",
+      "Bash(taskkill //F //IM pocketbase.exe)",
+      "Bash(./tools/pocketbase/pocketbase.exe superuser *)"
+    ]
+  }
+}

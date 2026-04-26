@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/hooks/use-toast';
-import { createClient } from '@/lib/supabase/client';
+import { pbBrowser } from '@/lib/pb/browser';
 
 export interface TopbarUser {
   login: string;
@@ -40,8 +40,13 @@ export function UserMenu({ user }: { user: TopbarUser }) {
 
   const signOut = useCallback(async () => {
     setSigningOut(true);
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    // Belt: clear PB auth state (localStorage + pb_auth cookie via
+    // pbBrowser's onChange). Suspenders: hit the server endpoint to clear
+    // the HttpOnly gh_access_token cookie that the browser can't touch.
+    pbBrowser().authStore.clear();
+    await fetch('/api/auth/sign-out', { method: 'POST' }).catch(() => {
+      /* swallowed: best-effort */
+    });
     router.replace('/login');
   }, [router]);
 

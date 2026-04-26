@@ -3,16 +3,18 @@ import Link from 'next/link';
 import { JobCard } from '@/components/jobs/job-card';
 import type { ReviewJobRow } from '@/lib/jobs/types';
 import { logger } from '@/lib/log';
+import { getCurrentUser } from '@/lib/pb';
 import { createClient } from '@/lib/supabase/server';
 
 const RECENT_LIMIT = 5;
 
 export async function RecentReviews() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return null;
+  // Phase 3 will move this query to PB. For Phase 2 it'll return empty
+  // results (Supabase user IDs don't match the PB session) — the empty
+  // state UI handles that fine.
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from('review_jobs')

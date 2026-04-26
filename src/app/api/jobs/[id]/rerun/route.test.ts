@@ -6,6 +6,9 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(),
 }));
+vi.mock('@/lib/pb', () => ({
+  getCurrentUser: vi.fn(),
+}));
 vi.mock('@/lib/github/server', async () => {
   const actual =
     await vi.importActual<typeof import('@/lib/github/server')>('@/lib/github/server');
@@ -33,29 +36,29 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerOctokit } from '@/lib/github/server';
 import { getGithubToken } from '@/lib/github/token';
+import { getCurrentUser } from '@/lib/pb';
 
 const createClientMock = vi.mocked(createClient);
 const createAdminClientMock = vi.mocked(createAdminClient);
 const createServerOctokitMock = vi.mocked(createServerOctokit);
 const getGithubTokenMock = vi.mocked(getGithubToken);
+const getCurrentUserMock = vi.mocked(getCurrentUser);
 
 // Zod 4's uuid() enforces v4 layout (third group starts with `4`, fourth
 // with 8/9/a/b). Use a valid v4 example, not the all-1s pattern.
 const VALID_ID = '11111111-1111-4111-8111-111111111111';
 
-function fakeSupabase(opts: {
-  user?: { id: string } | null;
-  source?: { target: unknown } | null;
-}) {
+function fakeSupabase(opts: { source?: { target: unknown } | null }) {
   const eqMock = vi.fn().mockReturnValue({
     maybeSingle: vi.fn().mockResolvedValue({ data: opts.source ?? null }),
   });
   return {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: opts.user ?? null } }),
-    },
     from: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ eq: eqMock }) }),
   } as unknown as Awaited<ReturnType<typeof createClient>>;
+}
+
+function fakeUser(id: string) {
+  return { id, github_login: 'alice' } as Awaited<ReturnType<typeof getCurrentUser>>;
 }
 
 function fakeAdmin(
@@ -105,9 +108,8 @@ function ctxFor(id: string) {
 }
 
 beforeEach(() => {
-  createClientMock.mockResolvedValue(
-    fakeSupabase({ user: { id: 'user-2' }, source: { target: PR_TARGET } }),
-  );
+  getCurrentUserMock.mockResolvedValue(fakeUser('user-2'));
+  createClientMock.mockResolvedValue(fakeSupabase({ source: { target: PR_TARGET } }));
   createServerOctokitMock.mockResolvedValue(fakeOctokit('newSha'));
   getGithubTokenMock.mockResolvedValue('gh-token');
   createAdminClientMock.mockReturnValue(fakeAdmin('new-job-id'));
@@ -126,15 +128,13 @@ describe('POST /api/jobs/[id]/rerun', () => {
   });
 
   it('returns 401 when no session', async () => {
-    createClientMock.mockResolvedValue(fakeSupabase({ user: null }));
+    getCurrentUserMock.mockResolvedValue(null);
     const res = await POST(buildRequest(), ctxFor(VALID_ID));
     expect(res.status).toBe(401);
   });
 
   it('returns 404 when source job is invisible to the viewer', async () => {
-    createClientMock.mockResolvedValue(
-      fakeSupabase({ user: { id: 'user-2' }, source: null }),
-    );
+    createClientMock.mockResolvedValue(fakeSupabase({ source: null }));
     const res = await POST(buildRequest(), ctxFor(VALID_ID));
     expect(res.status).toBe(404);
   });

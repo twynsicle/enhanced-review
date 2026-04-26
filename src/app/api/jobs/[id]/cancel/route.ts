@@ -2,6 +2,7 @@ import 'server-only';
 import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { logger } from '@/lib/log';
+import { getCurrentUser } from '@/lib/pb';
 import { createClient as createServerSupabase } from '@/lib/supabase/server';
 
 /**
@@ -27,14 +28,13 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     return NextResponse.json({ message: 'invalid job id' }, { status: 400 });
   }
 
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: 'unauthorized' }, { status: 401 });
   }
 
+  // Phase 3 will move this update to PB.
+  const supabase = await createServerSupabase();
   const { data, error } = await supabase
     .from('review_jobs')
     .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })

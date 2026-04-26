@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import { getFileAtRef } from '@/lib/github/view-time';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/pb';
 
 /**
  * GET /api/github/file?owner=...&repo=...&path=...&ref=...
@@ -35,11 +35,8 @@ const QuerySchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  // 1. Session check via Supabase SSR cookies.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 1. Session check.
+  const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: 'unauthorized' }, { status: 401 });
   }

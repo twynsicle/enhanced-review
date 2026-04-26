@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
+import { getCurrentUser } from '@/lib/pb';
 import { createClient } from '@/lib/supabase/server';
 import type { ReviewChunkRow, ReviewJobRow } from '@/lib/jobs/types';
 import { JobLiveView } from './job-live-view';
@@ -17,12 +18,11 @@ export const dynamic = 'force-dynamic';
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect('/login');
 
+  // Phase 3 will move these queries to PB.
+  const supabase = await createClient();
   const { data: job } = await supabase
     .from('review_jobs')
     .select('*')

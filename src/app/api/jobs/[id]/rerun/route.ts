@@ -7,6 +7,7 @@ import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
 import { findUserInFlightJob } from '@/lib/jobs/concurrency';
 import { logger } from '@/lib/log';
+import { getCurrentUser } from '@/lib/pb';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient as createServerSupabase } from '@/lib/supabase/server';
 
@@ -34,13 +35,13 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
   }
 
   // 1. Session.
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: 'unauthorized' }, { status: 401 });
   }
+
+  // Phase 3 will move the source-job lookup to PB.
+  const supabase = await createServerSupabase();
 
   const githubLogin = getGithubLogin(user);
   if (!githubLogin) {

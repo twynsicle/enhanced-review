@@ -1,36 +1,33 @@
 import 'server-only';
-import { createClient } from '@/lib/supabase/server';
+import { readGithubTokenCookie } from '@/lib/pb';
 
 /**
- * Thrown when the Supabase session has no GitHub `provider_token`. Happens
- * if the user signed in before we requested the `repo` scope, or if their
- * session was created via a non-GitHub provider. Callers translate this
- * into a redirect to `/relink`.
+ * Thrown when the HttpOnly GitHub access-token cookie isn't set or has been
+ * cleared. Happens before first sign-in, after sign-out, or if the user
+ * signed in via a flow that didn't persist the token. Callers translate
+ * this into a redirect to `/relink`.
  */
 export class MissingProviderTokenError extends Error {
-  constructor(message = 'No GitHub provider token on this Supabase session') {
+  constructor(message = 'No GitHub access token cookie on this request') {
     super(message);
     this.name = 'MissingProviderTokenError';
   }
 }
 
 /**
- * Read the user's GitHub OAuth `provider_token` off the Supabase session.
+ * Read the user's GitHub OAuth access token from the HttpOnly
+ * `gh_access_token` cookie set by `POST /api/auth/post-signin` after the
+ * browser-side PB OAuth handshake completes.
  *
- * The token is stored on the session at sign-in time and persists in the
- * session cookie until the user signs out. We do **not** attempt to refresh
- * it: GitHub OAuth Apps don't issue refresh tokens by default and Supabase's
- * `refreshSession()` only mints a new Supabase JWT — not a new
- * `provider_token`. If the token is rejected by GitHub, callers redirect
- * the user to `/relink` to re-run the OAuth flow.
+ * The token isn't persisted server-side (per the migration's "never store
+ * the GitHub token" rule). We do **not** attempt to refresh it: GitHub
+ * OAuth Apps don't issue refresh tokens, and PB doesn't expose one either.
+ * If the token is rejected by GitHub, callers redirect the user to
+ * `/relink` to re-run the OAuth flow.
  */
 export async function getGithubToken(): Promise<string> {
-  const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const token = session?.provider_token;
-  if (typeof token !== 'string' || token.length === 0) {
+  const token = await readGithubTokenCookie();
+  if (!token) {
     throw new MissingProviderTokenError();
   }
   return token;

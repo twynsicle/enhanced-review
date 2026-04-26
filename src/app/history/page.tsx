@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { describeTarget, type ReviewJobRow } from '@/lib/jobs/types';
 import { logger } from '@/lib/log';
+import { getCurrentUser } from '@/lib/pb';
 import { createClient } from '@/lib/supabase/server';
 
 /**
@@ -32,12 +33,11 @@ export default async function HistoryPage({
   const params = await searchParams;
   const status = parseStatus(params.status);
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect('/login');
 
+  // Phase 3 will move this query to PB; for Phase 2 it returns empty.
+  const supabase = await createClient();
   let query = supabase
     .from('review_jobs')
     .select('*')

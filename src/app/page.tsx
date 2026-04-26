@@ -4,23 +4,19 @@ import { RecentReviews } from '@/components/home/recent-reviews';
 import { ReviewComposer } from '@/components/home/review-composer';
 import { Topbar } from '@/components/topbar/topbar';
 import { getGithubLogin } from '@/lib/auth/allowlist';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/pb';
 
 export const metadata = {
   title: 'enhanced-review',
 };
 
 export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect('/login');
 
   const login = getGithubLogin(user) ?? user.email ?? user.id;
-  const meta = user.user_metadata as Record<string, unknown> | null | undefined;
-  const avatarUrl = typeof meta?.avatar_url === 'string' ? (meta.avatar_url as string) : null;
-  const fullName = typeof meta?.full_name === 'string' ? (meta.full_name as string) : null;
+  const avatarUrl = user.avatar && user.avatar.length > 0 ? user.avatar : null;
+  const fullName = user.name && user.name.length > 0 ? user.name : null;
 
   return (
     <>

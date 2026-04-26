@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(),
+vi.mock('@/lib/pb', () => ({
+  getCurrentUser: vi.fn(),
 }));
 vi.mock('@/lib/github/token', () => ({
   getGithubToken: vi.fn(),
@@ -18,20 +18,16 @@ vi.mock('@/lib/github/view-time', () => ({
 
 import { NextRequest } from 'next/server';
 import { GET } from './route';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/pb';
 import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import { getFileAtRef } from '@/lib/github/view-time';
 
-const createClientMock = vi.mocked(createClient);
+const getCurrentUserMock = vi.mocked(getCurrentUser);
 const getGithubTokenMock = vi.mocked(getGithubToken);
 const getFileAtRefMock = vi.mocked(getFileAtRef);
 
-function fakeSupabase(user: { id: string } | null) {
-  return {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user } }),
-    },
-  } as unknown as Awaited<ReturnType<typeof createClient>>;
+function fakeUser(id: string) {
+  return { id, github_login: 'alice' } as Awaited<ReturnType<typeof getCurrentUser>>;
 }
 
 function buildRequest(query: Record<string, string>): NextRequest {
@@ -48,7 +44,7 @@ const VALID_QUERY = {
 };
 
 beforeEach(() => {
-  createClientMock.mockResolvedValue(fakeSupabase({ id: 'user-1' }));
+  getCurrentUserMock.mockResolvedValue(fakeUser('user-1'));
   getGithubTokenMock.mockResolvedValue('gh-token');
 });
 
@@ -58,7 +54,7 @@ afterEach(() => {
 
 describe('GET /api/github/file', () => {
   it('returns 401 when no session', async () => {
-    createClientMock.mockResolvedValue(fakeSupabase(null));
+    getCurrentUserMock.mockResolvedValue(null);
 
     const res = await GET(buildRequest(VALID_QUERY));
     expect(res.status).toBe(401);
