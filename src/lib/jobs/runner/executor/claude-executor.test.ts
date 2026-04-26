@@ -173,13 +173,11 @@ describe('ClaudeExecutor', () => {
 
   it('rejects with AbortError when signal aborts mid-stream', async () => {
     const ac = new AbortController();
-    let abortAfter = 1;
 
     const queryFn = vi.fn(() => {
       return (async function* () {
         yield makeAssistantMessage('<narrative_review>');
-        abortAfter--;
-        if (abortAfter === 0) ac.abort();
+        ac.abort();
         // Simulate SDK throwing on abort
         throw new Error('aborted by signal');
       })();
@@ -192,12 +190,12 @@ describe('ClaudeExecutor', () => {
   });
 
   it('throws ExecutorProcessError when result subtype is not success and parse also fails', async () => {
-    const messages = [makeResultError('error_max_tokens')];
+    const messages = [makeResultError('error_max_turns')];
     const exec = new ClaudeExecutor({ queryFn: makeQueryFn(messages).queryFn });
 
     const err = await exec.run(buildInput()).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ExecutorProcessError);
-    expect((err as ExecutorProcessError).message).toContain('error_max_tokens');
+    expect((err as ExecutorProcessError).message).toContain('error_max_turns');
   });
 
   it('returns parsed review even when SDK emits non-success result after a complete narrative', async () => {

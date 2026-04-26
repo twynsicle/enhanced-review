@@ -41,6 +41,7 @@ export class ClaudeExecutor implements ReviewExecutor {
 
     const abortController = new AbortController();
     input.signal.addEventListener('abort', () => abortController.abort(), { once: true });
+    if (input.signal.aborted) abortController.abort();
 
     const queryFn = this.deps.queryFn ?? query;
     const env = this.deps.env ?? process.env;
@@ -103,7 +104,7 @@ export class ClaudeExecutor implements ReviewExecutor {
     } catch (err) {
       if (chunkError) throw chunkError;
       if (input.signal.aborted) {
-        log.error({ err }, 'claude executor aborted by signal');
+        log.info({ err }, 'claude executor aborted by signal');
         const aborted = new Error('claude executor aborted');
         aborted.name = 'AbortError';
         throw aborted;
