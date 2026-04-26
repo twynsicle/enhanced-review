@@ -4,29 +4,70 @@ import { InsightCallout } from './insight-callout';
 
 interface ChapterCardProps {
   chapter: NarrativeChapter;
+  /** 1-based index used for the chapter eyebrow ("Chapter Two · Refactor"). */
+  chapterIndex: number;
   owner: string;
   repo: string;
   baseRef: string;
   headRef: string;
 }
 
-export function ChapterCard({ chapter, owner, repo, baseRef, headRef }: ChapterCardProps) {
+const ORDINALS = [
+  'Zero',
+  'One',
+  'Two',
+  'Three',
+  'Four',
+  'Five',
+  'Six',
+  'Seven',
+  'Eight',
+  'Nine',
+  'Ten',
+  'Eleven',
+  'Twelve',
+];
+
+function chapterEyebrow(index: number): string {
+  const ordinal = ORDINALS[index] ?? `#${index.toString()}`;
+  return `Chapter ${ordinal}`;
+}
+
+export function ChapterCard({
+  chapter,
+  chapterIndex,
+  owner,
+  repo,
+  baseRef,
+  headRef,
+}: ChapterCardProps) {
+  const fileCount = chapter.diffChunks.length;
+  const insightCount = chapter.insights.length;
   return (
     <article
       id={`chapter-${chapter.id}`}
       aria-labelledby={`chapter-heading-${chapter.id}`}
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-7"
     >
-      <h2
-        id={`chapter-heading-${chapter.id}`}
-        tabIndex={-1}
-        className="text-xl font-semibold leading-tight outline-none"
-      >
-        {chapter.title}
-      </h2>
+      <header className="flex flex-col gap-3">
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-iris">
+          {chapterEyebrow(chapterIndex)}
+        </p>
+        <h1
+          id={`chapter-heading-${chapter.id}`}
+          tabIndex={-1}
+          className="font-serif text-[42px] font-semibold leading-[1.05] tracking-[-0.02em] outline-none"
+        >
+          {chapter.title}
+        </h1>
+        <p className="text-[13px] text-muted-foreground">
+          {fileCount} file{fileCount === 1 ? '' : 's'} touched · {insightCount} insight
+          {insightCount === 1 ? '' : 's'}
+        </p>
+      </header>
 
       {chapter.insights.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {chapter.insights.map((insight, i) => (
             <InsightCallout key={i} insight={insight} />
           ))}

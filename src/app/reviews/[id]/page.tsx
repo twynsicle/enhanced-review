@@ -1,9 +1,11 @@
 import 'server-only';
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@enhanced-review/review-types';
 import type { ReviewTarget } from '@enhanced-review/github-client';
+import { Topbar } from '@/components/topbar/topbar';
+import { getGithubLogin } from '@/lib/auth/allowlist';
 import { getCurrentUser, pbServer } from '@/lib/pb';
+import type { UserRecord } from '@/lib/pb';
 import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import {
   type BranchHead,
@@ -126,24 +128,36 @@ export default async function ReviewPage({
   const isStale = currentHeadSha !== null && currentHeadSha !== job.head_sha;
   const activeId = parseActiveId(sp.ch, review.content.chapters);
 
+  const userRecord = pb.authStore.record as UserRecord;
+  const login = getGithubLogin(userRecord) ?? userRecord.email ?? userRecord.id;
+  const avatarUrl =
+    userRecord.avatar && userRecord.avatar.length > 0
+      ? pb.files.getURL(userRecord, userRecord.avatar)
+      : null;
+  const fullName = userRecord.name && userRecord.name.length > 0 ? userRecord.name : null;
+
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-4 px-6 py-6">
-      <ReviewHeader job={job} review={review.content} target={target} />
+    <>
+      <Topbar user={{ login, fullName, avatarUrl }} />
+      <main className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-4 px-6 py-8">
+        {review.diff_truncated && <TruncationBanner />}
+        {isStale && <StalenessBanner jobId={job.id} commitsAhead={commitsAhead} />}
 
-      {review.diff_truncated && <TruncationBanner />}
-      {isStale && <StalenessBanner jobId={job.id} commitsAhead={commitsAhead} />}
-
-      <ChapterReader
-        review={review.content}
-        target={target}
-        pullMetadata={pullMetadata}
-        owner={owner}
-        repo={repo}
-        baseRef={baseRef}
-        headRef={headRef}
-        initialActiveId={activeId}
-      />
-    </main>
+        <ChapterReader
+          review={review.content}
+          target={target}
+          pullMetadata={pullMetadata}
+          owner={owner}
+          repo={repo}
+          baseRef={baseRef}
+          headRef={headRef}
+          initialActiveId={activeId}
+          jobId={job.id}
+          jobAuthor={job.github_login}
+          jobHeadSha={job.head_sha}
+        />
+      </main>
+    </>
   );
 }
 
@@ -176,41 +190,6 @@ function parseActiveId(
   if (raw === SUMMARY_SECTION_ID) return SUMMARY_SECTION_ID;
   if (chapters.some((ch) => ch.id === raw)) return raw;
   return SUMMARY_SECTION_ID;
-}
-
-function ReviewHeader({
-  job,
-  review,
-  target,
-}: {
-  job: ReviewJobRow;
-  review: NarrativeReview;
-  target: ReviewTarget;
-}) {
-  const targetLabel =
-    target.kind === 'pr'
-      ? `${target.owner}/${target.repo} PR #${String(target.number)}`
-      : `${target.owner}/${target.repo} branch:${target.ref}`;
-  return (
-    <header className="flex flex-col gap-2 border-b border-foreground/10 pb-4">
-      <div className="text-xs text-muted-foreground">
-        <Link href="/" className="hover:underline">
-          ← Home
-        </Link>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-mono text-sm font-medium break-all">{targetLabel}</h1>
-          <p className="text-xs text-muted-foreground">
-            Reviewed by <span className="font-medium">@{job.github_login}</span> ·{' '}
-            <code className="rounded bg-muted px-1 py-0.5">{job.head_sha.slice(0, 7)}</code>
-            {review.prTitle && <> · {review.prTitle}</>}
-          </p>
-        </div>
-        <RerunButton jobId={job.id} />
-      </div>
-    </header>
-  );
 }
 
 function TruncationBanner() {

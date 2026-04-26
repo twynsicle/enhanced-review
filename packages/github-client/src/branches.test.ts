@@ -127,6 +127,66 @@ describe('listRecentBranches', () => {
     );
   });
 
+  it('returns an empty list for a repo with no branches without throwing', async () => {
+    const octokit = mockOctokit(async () => ({
+      repository: {
+        defaultBranchRef: null,
+        refs: { nodes: [] },
+      },
+    }));
+    const result = await listRecentBranches(octokit, 'o', 'empty', { now: NOW });
+    expect(result.branches).toEqual([]);
+    expect(result.defaultBranch).toBe('main');
+    expect(result.defaultBranchSha).toBe('');
+  });
+
+  it('sorts branches by commit date, newest-first', async () => {
+    const octokit = mockOctokit(async () =>
+      fakeResponse('main', [
+        {
+          name: 'a-older',
+          target: {
+            oid: 'aaa',
+            committedDate: '2026-04-10T00:00:00Z',
+            messageHeadline: 'older',
+          },
+        },
+        {
+          name: 'b-newest',
+          target: {
+            oid: 'bbb',
+            committedDate: '2026-04-24T00:00:00Z',
+            messageHeadline: 'newest',
+          },
+        },
+        {
+          name: 'c-middle',
+          target: {
+            oid: 'ccc',
+            committedDate: '2026-04-15T00:00:00Z',
+            messageHeadline: 'middle',
+          },
+        },
+      ]),
+    );
+    const result = await listRecentBranches(octokit, 'o', 'r', { now: NOW });
+    expect(result.branches.map((b) => b.ref)).toEqual(['b-newest', 'c-middle', 'a-older']);
+  });
+
+  it('uses a RefOrderField value GitHub accepts (not the invalid COMMITTED_DATE)', async () => {
+    let captured = '';
+    const octokit = mockOctokit(async (query) => {
+      captured = query;
+      return fakeResponse('main', []);
+    });
+    await listRecentBranches(octokit, 'o', 'r', { now: NOW });
+    // RefOrderField only accepts ALPHABETICAL or TAG_COMMIT_DATE; the latter
+    // doesn't order branch refs by commit date, so the query must use
+    // ALPHABETICAL and we sort in memory.
+    expect(captured).toMatch(/field:\s*ALPHABETICAL/);
+    expect(captured).not.toMatch(/COMMITTED_DATE/);
+  });
+
   it('translates GraphQL UNAUTHORIZED to GithubAuthError', async () => {
     const octokit = mockOctokit(async () => {
       throw { errors: [{ type: 'UNAUTHORIZED', message: 'Bad credentials' }] };

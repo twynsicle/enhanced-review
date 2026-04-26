@@ -24,8 +24,22 @@ export default async function Home() {
   return (
     <>
       <Topbar user={{ login, fullName, avatarUrl }} />
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
-        <ReviewComposer userId={user.id} />
+      <main className="mx-auto flex w-full max-w-4xl flex-col gap-12 px-5 py-12 sm:px-7 sm:py-14">
+        <section className="flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-iris">
+              ❖&nbsp;&nbsp;A new review
+            </p>
+            <h1 className="font-serif text-4xl font-semibold leading-[1.05] tracking-[-0.02em] sm:text-[44px]">
+              The reviewer is ready when you are.
+            </h1>
+            <p className="max-w-[58ch] text-[15px] leading-[1.55] text-muted-foreground text-pretty">
+              Choose a pull request or branch — we&rsquo;ll read every line, write the chapters,
+              and surface the few things that genuinely need a human eye.
+            </p>
+          </div>
+          <ReviewComposer userId={user.id} />
+        </section>
         <Suspense fallback={null}>
           <RecentReviews />
         </Suspense>

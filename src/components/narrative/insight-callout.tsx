@@ -1,28 +1,37 @@
 import type { Insight, InsightType } from '@enhanced-review/review-types';
+import { cn } from '@/lib/utils';
 
-const TYPE_LABELS: Record<InsightType, string> = {
-  context: 'CONTEXT',
-  rationale: 'RATIONALE',
-  highlight: 'HIGHLIGHT',
-  reference: 'REFERENCE',
+interface InsightTone {
+  label: string;
+  /** One-character mark / emoji for the eyebrow. */
+  glyph: string;
+}
+
+const TYPE_TONE: Record<InsightType, InsightTone> = {
+  context: { label: 'Context worth knowing', glyph: '◇' },
+  rationale: { label: 'Why this matters', glyph: '✦' },
+  highlight: { label: 'Worth flagging', glyph: '⚠' },
+  reference: { label: 'For reference', glyph: '↗' },
 };
 
-const TYPE_STYLES: Record<InsightType, string> = {
-  context: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 ring-sky-500/30',
-  rationale: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/30',
-  highlight: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/30',
-  reference: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 ring-violet-500/30',
-};
-
+/**
+ * Pull-quote insight callout. Iris-soft background with a left-aligned
+ * iris bar; eyebrow + serif body to read like a magazine sidebar.
+ */
 export function InsightCallout({ insight }: { insight: Insight }) {
+  const tone = TYPE_TONE[insight.type];
   return (
     <aside
-      className={`rounded-md p-3 ring-1 ring-inset text-sm leading-relaxed ${TYPE_STYLES[insight.type]}`}
+      className={cn(
+        'flex flex-col gap-2 rounded-xl border-l-2 border-iris bg-iris-soft px-6 py-5',
+      )}
     >
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-80">
-        {TYPE_LABELS[insight.type]}
-      </div>
-      <div className="text-foreground">{insight.text}</div>
+      <span className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-iris">
+        {tone.glyph} {tone.label}
+      </span>
+      <p className="font-serif text-[18px] font-medium leading-[1.4] text-iris-ink">
+        {insight.text}
+      </p>
     </aside>
   );
 }

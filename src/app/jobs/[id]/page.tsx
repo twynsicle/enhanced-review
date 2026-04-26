@@ -1,5 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
+import { Topbar } from '@/components/topbar/topbar';
+import { getGithubLogin } from '@/lib/auth/allowlist';
 import { getCurrentUser, pbServer } from '@/lib/pb';
+import type { UserRecord } from '@/lib/pb';
 import type { ReviewChunkRow, ReviewJobRow } from '@/lib/jobs/types';
 import { JobLiveView } from './job-live-view';
 
@@ -37,9 +40,20 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
     })
     .catch(() => [] as ReviewChunkRow[]);
 
+  const userRecord = pb.authStore.record as UserRecord;
+  const login = getGithubLogin(userRecord) ?? userRecord.email ?? userRecord.id;
+  const avatarUrl =
+    userRecord.avatar && userRecord.avatar.length > 0
+      ? pb.files.getURL(userRecord, userRecord.avatar)
+      : null;
+  const fullName = userRecord.name && userRecord.name.length > 0 ? userRecord.name : null;
+
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-6 px-6 py-10">
-      <JobLiveView initialJob={job} initialChunks={chunks} viewerUserId={user.id} />
-    </main>
+    <>
+      <Topbar user={{ login, fullName, avatarUrl }} />
+      <main className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-10 px-7 py-12">
+        <JobLiveView initialJob={job} initialChunks={chunks} viewerUserId={user.id} />
+      </main>
+    </>
   );
 }

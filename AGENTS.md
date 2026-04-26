@@ -47,7 +47,7 @@ src/
     reviews/[id]               Final narrative reader
     history, login, denied, relink
   proxy.ts                     Next 16 middleware (renamed). Auth + allowlist gate, session rolling.
-  components/                  home, jobs, narrative, notifications, theme, topbar, ui
+  components/                  home, narrative, notifications, theme, topbar, ui
   hooks/                       use-toast.ts
   lib/
     pb/                        pbBrowser / pbServer / pbAdmin clients + UserRecord type + cookie keys

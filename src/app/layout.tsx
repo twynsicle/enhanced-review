@@ -1,19 +1,28 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Inter_Tight, JetBrains_Mono, Source_Serif_4 } from 'next/font/google';
 import { JobNotifications } from '@/components/notifications/job-notifications';
 import { ThemeInitScript } from '@/components/theme/theme-init-script';
 import { Toaster } from '@/components/ui/toaster';
 import { getCurrentUser } from '@/lib/pb';
 import './globals.css';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+const interTight = Inter_Tight({
+  variable: '--font-sans',
   subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
 });
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+const sourceSerif = Source_Serif_4({
+  variable: '--font-serif',
   subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  style: ['normal', 'italic'],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: '--font-mono',
+  subsets: ['latin'],
+  weight: ['400', '500'],
 });
 
 export const metadata: Metadata = {
@@ -36,7 +45,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
+      className={`${interTight.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

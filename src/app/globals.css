@@ -9,11 +9,20 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans:
-    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    var(--font-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     'Segoe UI', Roboto, sans-serif;
   --font-mono:
-    var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --font-heading: var(--font-geist-sans);
+    var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-serif:
+    var(--font-serif), 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-heading: var(--font-serif);
+  --color-iris: var(--iris);
+  --color-iris-soft: var(--iris-soft);
+  --color-iris-ink: var(--iris-ink);
+  --color-surface-2: var(--surface-2);
+  --color-subtle: var(--subtle);
+  --color-add: var(--add);
+  --color-del: var(--del);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -52,73 +61,93 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Editorial Iris — light surface with iris/violet accent. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.985 0.004 280);
+  --foreground: oklch(0.20 0.02 280);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.20 0.02 280);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.20 0.02 280);
+  --primary: oklch(0.52 0.18 285);
+  --primary-foreground: oklch(0.985 0.004 280);
+  --secondary: oklch(0.96 0.03 285);
+  --secondary-foreground: oklch(0.30 0.14 285);
+  --muted: oklch(0.95 0.008 285);
+  --muted-foreground: oklch(0.50 0.02 280);
+  --accent: oklch(0.96 0.03 285);
+  --accent-foreground: oklch(0.30 0.14 285);
+  --destructive: oklch(0.55 0.16 25);
+  --border: oklch(0.91 0.01 280);
+  --input: oklch(0.91 0.01 280);
+  --ring: oklch(0.52 0.18 285);
+  --chart-1: oklch(0.52 0.18 285);
+  --chart-2: oklch(0.66 0.015 280);
+  --chart-3: oklch(0.50 0.02 280);
+  --chart-4: oklch(0.30 0.14 285);
+  --chart-5: oklch(0.20 0.02 280);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.985 0.004 280);
+  --sidebar-foreground: oklch(0.20 0.02 280);
+  --sidebar-primary: oklch(0.52 0.18 285);
+  --sidebar-primary-foreground: oklch(0.985 0.004 280);
+  --sidebar-accent: oklch(0.96 0.03 285);
+  --sidebar-accent-foreground: oklch(0.30 0.14 285);
+  --sidebar-border: oklch(0.91 0.01 280);
+  --sidebar-ring: oklch(0.52 0.18 285);
+
+  /* Editorial Iris extras (light) */
+  --iris: oklch(0.52 0.18 285);
+  --iris-soft: oklch(0.96 0.03 285);
+  --iris-ink: oklch(0.30 0.14 285);
+  --surface-2: oklch(0.97 0.008 285);
+  --subtle: oklch(0.66 0.015 280);
+  --add: oklch(0.50 0.13 145);
+  --del: oklch(0.55 0.16 25);
 }
 
+/* Editorial Iris — deep blue-violet ink with lifted iris accent. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.16 0.018 285);
+  --foreground: oklch(0.97 0.01 285);
+  --card: oklch(0.20 0.02 285);
+  --card-foreground: oklch(0.97 0.01 285);
+  --popover: oklch(0.20 0.02 285);
+  --popover-foreground: oklch(0.97 0.01 285);
+  --primary: oklch(0.78 0.16 290);
+  --primary-foreground: oklch(0.16 0.018 285);
+  --secondary: oklch(0.30 0.10 290);
+  --secondary-foreground: oklch(0.88 0.12 290);
+  --muted: oklch(0.24 0.022 285);
+  --muted-foreground: oklch(0.70 0.02 285);
+  --accent: oklch(0.30 0.10 290);
+  --accent-foreground: oklch(0.88 0.12 290);
+  --destructive: oklch(0.74 0.18 25);
+  --border: oklch(0.30 0.02 285);
+  --input: oklch(0.30 0.02 285);
+  --ring: oklch(0.78 0.16 290);
+  --chart-1: oklch(0.78 0.16 290);
+  --chart-2: oklch(0.70 0.02 285);
+  --chart-3: oklch(0.55 0.025 285);
+  --chart-4: oklch(0.88 0.12 290);
+  --chart-5: oklch(0.97 0.01 285);
+  --sidebar: oklch(0.20 0.02 285);
+  --sidebar-foreground: oklch(0.97 0.01 285);
+  --sidebar-primary: oklch(0.78 0.16 290);
+  --sidebar-primary-foreground: oklch(0.16 0.018 285);
+  --sidebar-accent: oklch(0.30 0.10 290);
+  --sidebar-accent-foreground: oklch(0.88 0.12 290);
+  --sidebar-border: oklch(0.30 0.02 285);
+  --sidebar-ring: oklch(0.78 0.16 290);
+
+  /* Editorial Iris extras (dark) */
+  --iris: oklch(0.78 0.16 290);
+  --iris-soft: oklch(0.30 0.10 290);
+  --iris-ink: oklch(0.88 0.12 290);
+  --surface-2: oklch(0.24 0.022 285);
+  --subtle: oklch(0.55 0.025 285);
+  --add: oklch(0.78 0.14 145);
+  --del: oklch(0.74 0.18 25);
 }
 
 @layer base {

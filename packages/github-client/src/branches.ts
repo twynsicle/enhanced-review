@@ -34,6 +34,9 @@ interface GraphqlBranchesResponse {
   } | null;
 }
 
+// `RefOrderField` only accepts ALPHABETICAL or TAG_COMMIT_DATE, and the
+// latter only orders correctly for `refs/tags/`. We have to fetch branches
+// alphabetically and sort by `committedDate` ourselves below.
 const BRANCHES_QUERY = `
   query Branches($owner: String!, $name: String!, $first: Int!) {
     repository(owner: $owner, name: $name) {
@@ -41,7 +44,7 @@ const BRANCHES_QUERY = `
         name
         target { ... on Commit { oid } }
       }
-      refs(refPrefix: "refs/heads/", orderBy: { field: COMMITTED_DATE, direction: DESC }, first: $first) {
+      refs(refPrefix: "refs/heads/", orderBy: { field: ALPHABETICAL, direction: ASC }, first: $first) {
         nodes {
           name
           target {
@@ -62,13 +65,11 @@ const BRANCHES_QUERY = `
  * 30 days), sorted newest-first.
  *
  * REST `/repos/{owner}/{repo}/branches` returns alphabetically with no
- * date metadata, which is unhelpful for repos with many stale branches.
- * GraphQL's `Repository.refs` lets us order by committed date and pull
- * the commit metadata in the same round-trip.
- *
- * Returns at most {@link GRAPHQL_PAGE_SIZE} branches even before the
- * date filter; if all 100 are within the window the caller can warn
- * about truncation.
+ * date metadata. GraphQL pulls the commit metadata in the same round-trip
+ * but can only order branch refs alphabetically (see {@link BRANCHES_QUERY}),
+ * so we fetch a page alphabetically and sort/filter by `committedDate`
+ * locally. Repos with more than {@link GRAPHQL_PAGE_SIZE} branches may have
+ * recent activity outside this window — acceptable for the picker's intent.
  */
 export async function listRecentBranches(
   octokit: Octokit,
@@ -113,6 +114,8 @@ export async function listRecentBranches(
       headCommitMessage: target.messageHeadline,
     });
   }
+
+  branches.sort((a, b) => b.headCommitDate.localeCompare(a.headCommitDate));
 
   return {
     defaultBranch,

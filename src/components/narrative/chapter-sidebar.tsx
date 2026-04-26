@@ -1,6 +1,7 @@
 'use client';
 
 import { SUMMARY_SECTION_ID, type NarrativeChapter } from '@enhanced-review/review-types';
+import { cn } from '@/lib/utils';
 
 interface ChapterSidebarProps {
   chapters: readonly NarrativeChapter[];
@@ -15,9 +16,9 @@ interface ChapterSidebarProps {
 }
 
 /**
- * Sticky vertical chapter list. Replaces the POC's combination of
- * `ChapterNav` (sidebar) + `ChapterNavBar` (top Prev/Next) — Phase 6
- * settled on sidebar-only navigation.
+ * Editorial chapter list. Mono-faced index column on the left, serif
+ * chapter title on the right, iris-coloured border-left on the active
+ * row.
  */
 export function ChapterSidebar({
   chapters,
@@ -28,28 +29,32 @@ export function ChapterSidebar({
   return (
     <nav
       aria-label="Chapters"
-      className="sticky top-6 flex max-h-[calc(100vh-3rem)] flex-col gap-1 overflow-y-auto pr-2 text-sm"
+      className="sticky top-20 flex max-h-[calc(100vh-6rem)] flex-col gap-4 overflow-y-auto pt-1 pr-2"
     >
-      <SidebarItem
-        id={SUMMARY_SECTION_ID}
-        label="Summary"
-        sublabel={reviewTitle}
-        active={activeId === SUMMARY_SECTION_ID}
-        index={null}
-        onSelect={onSelect}
-      />
-      <div className="my-2 border-t border-foreground/10" aria-hidden />
-      {chapters.map((ch, i) => (
+      <p className="text-[10.5px] font-medium uppercase tracking-[0.18em] text-subtle">
+        Chapters
+      </p>
+      <ul className="flex flex-col gap-2">
         <SidebarItem
-          key={ch.id}
-          id={ch.id}
-          label={ch.title}
-          sublabel={null}
-          active={ch.id === activeId}
-          index={i + 1}
+          id={SUMMARY_SECTION_ID}
+          label="Summary"
+          sublabel={reviewTitle}
+          active={activeId === SUMMARY_SECTION_ID}
+          index={null}
           onSelect={onSelect}
         />
-      ))}
+        {chapters.map((ch, i) => (
+          <SidebarItem
+            key={ch.id}
+            id={ch.id}
+            label={ch.title}
+            sublabel={null}
+            active={ch.id === activeId}
+            index={i + 1}
+            onSelect={onSelect}
+          />
+        ))}
+      </ul>
     </nav>
   );
 }
@@ -70,35 +75,39 @@ function SidebarItem({
   onSelect: (id: string) => void;
 }) {
   return (
-    <button
-      type="button"
-      aria-current={active ? 'true' : undefined}
-      onClick={() => onSelect(id)}
-      className={
-        'group flex flex-col items-start gap-0.5 rounded-md px-2.5 py-1.5 text-left transition-colors ' +
-        (active
-          ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground')
-      }
-    >
-      <span className="flex w-full items-baseline gap-2">
-        {index !== null && (
-          <span
-            className={
-              'shrink-0 font-mono text-[10px] tabular-nums ' +
-              (active ? 'text-primary/70' : 'text-muted-foreground/70')
-            }
-          >
-            {String(index).padStart(2, '0')}
-          </span>
-        )}
-        <span className="line-clamp-2 grow text-sm leading-snug">{label}</span>
-      </span>
-      {sublabel && (
-        <span className="ml-[1.7rem] line-clamp-1 text-[11px] text-muted-foreground/70">
-          {sublabel}
+    <li>
+      <button
+        type="button"
+        aria-current={active ? 'true' : undefined}
+        onClick={() => {
+          onSelect(id);
+        }}
+        className="flex w-full items-baseline gap-2.5 text-left"
+      >
+        <span
+          className={cn(
+            'shrink-0 pt-1 font-mono text-[10px] tabular-nums',
+            active ? 'text-iris' : 'text-subtle',
+          )}
+        >
+          {index === null ? '00' : index.toString().padStart(2, '0')}
         </span>
-      )}
-    </button>
+        <span
+          className={cn(
+            'font-serif text-[14px] leading-[1.35]',
+            active
+              ? 'border-l-2 border-iris pl-2 font-semibold text-foreground'
+              : 'border-l-2 border-transparent pl-2 text-muted-foreground',
+          )}
+        >
+          {label}
+          {sublabel && (
+            <span className="mt-0.5 block truncate text-[11px] font-normal text-subtle">
+              {sublabel}
+            </span>
+          )}
+        </span>
+      </button>
+    </li>
   );
 }

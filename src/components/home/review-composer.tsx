@@ -229,22 +229,9 @@ export function ReviewComposer({ userId }: { userId: string }) {
   return (
     <section
       aria-label="Start a review"
-      className="relative overflow-hidden rounded-2xl bg-card ring-1 ring-foreground/10"
+      className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_0_rgba(140,100,255,0.04),0_18px_50px_-28px_rgba(140,100,255,0.55)]"
     >
-      {/* Soft accent glow — single decorative element, behind everything */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-32 -right-32 size-72 rounded-full bg-foreground/[0.04] blur-3xl"
-      />
-      <div className="relative flex flex-col gap-5 p-6 sm:p-8">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Start a review</h1>
-          <p className="text-sm text-muted-foreground">
-            Pick a repo and a PR or branch — we&rsquo;ll generate a narrative review.
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-[1.4fr_auto_1fr]">
+      <div className="grid gap-5 p-6 sm:grid-cols-[1.3fr_auto_1.2fr] sm:items-end sm:gap-6">
           <Field label="Repository">
             {reposError ? (
               <div className="flex h-10 items-center rounded-lg border border-destructive/40 bg-destructive/10 px-3 text-sm text-destructive">
@@ -361,27 +348,33 @@ export function ReviewComposer({ userId }: { userId: string }) {
               />
             )}
           </Field>
-        </div>
+      </div>
 
-        <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-4">
-          <p className="text-xs text-muted-foreground">
-            {target ? (
-              <SelectionHint target={target} />
-            ) : (
-              'Selections are remembered for next time.'
-            )}
-          </p>
-          <div className="flex items-center gap-2">
-            {inFlightJobId && (
-              <Button asChild variant="ghost" size="sm">
-                <a href={`/jobs/${inFlightJobId}`}>View running review →</a>
-              </Button>
-            )}
-            <Button onClick={onSubmit} disabled={!target || submitting} aria-busy={submitting}>
-              {submitting ? 'Starting…' : 'Start review'}
-              <ArrowRight className="size-4" data-icon="inline-end" />
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-4">
+        <p className="text-[12.5px] text-muted-foreground">
+          {target ? (
+            <SelectionHint target={target} />
+          ) : (
+            <>
+              Average review takes <span className="text-foreground">32 seconds</span>.
+            </>
+          )}
+        </p>
+        <div className="flex items-center gap-2">
+          {inFlightJobId && (
+            <Button asChild variant="ghost" size="sm">
+              <a href={`/jobs/${inFlightJobId}`}>View running review →</a>
             </Button>
-          </div>
+          )}
+          <Button
+            onClick={onSubmit}
+            disabled={!target || submitting}
+            aria-busy={submitting}
+            className="h-9 rounded-full px-4"
+          >
+            {submitting ? 'Starting…' : 'Start review'}
+            <ArrowRight className="size-4" data-icon="inline-end" />
+          </Button>
         </div>
       </div>
     </section>
@@ -391,7 +384,7 @@ export function ReviewComposer({ userId }: { userId: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <span className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-subtle">
         {label}
       </span>
       {children}
@@ -413,7 +406,7 @@ function KindToggle({
       role="tablist"
       aria-label="Target type"
       className={cn(
-        'inline-flex h-10 items-center rounded-lg border border-input/60 bg-input/20 p-0.5',
+        'inline-flex h-9 items-center rounded-full bg-iris-soft p-1',
         disabled && 'opacity-60',
       )}
     >
@@ -450,9 +443,9 @@ function KindButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'inline-flex h-full items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors',
+        'inline-flex h-full items-center gap-1.5 rounded-full px-3 text-[12px] font-medium transition-colors',
         active
-          ? 'bg-background text-foreground shadow-sm ring-1 ring-foreground/10'
+          ? 'bg-surface-2 text-iris shadow-[0_1px_2px_rgba(0,0,0,0.4)]'
           : 'text-muted-foreground hover:text-foreground',
         disabled && 'cursor-not-allowed',
       )}
