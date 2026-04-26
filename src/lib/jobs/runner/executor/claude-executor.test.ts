@@ -22,6 +22,7 @@ function buildInput(overrides: Partial<ReviewExecutorInput> = {}): ReviewExecuto
   const ac = new AbortController();
   return {
     cloneDir: '/tmp/clone',
+    jobId: 'test-job-id',
     prData: {
       title: 'Test PR',
       body: 'body',
@@ -143,7 +144,7 @@ describe('ClaudeExecutor', () => {
     expect(onChunk).toHaveBeenCalledTimes(1);
   });
 
-  it('passes cwd, model, tools, and permissionMode to queryFn', async () => {
+  it('passes correct options to queryFn and excludes disallowed fields', async () => {
     const messages = [
       ...ASSISTANT_TEXT_FRAGMENTS.map((t) => makeAssistantMessage(t)),
       makeResultSuccess(),
@@ -156,12 +157,18 @@ describe('ClaudeExecutor', () => {
 
     expect(deps.calls).toHaveLength(1);
     const [arg] = deps.calls[0] as [{ prompt: string; options: Record<string, unknown> }];
+    // Verify required fields are present with exact values.
     expect(arg.options).toMatchObject({
       cwd: '/tmp/clone',
       model: 'claude-haiku-4-5',
       tools: ['Read', 'Glob', 'Grep'],
       permissionMode: 'bypassPermissions',
+      allowDangerouslySkipPermissions: true,
+      settingSources: [],
+      persistSession: false,
     });
+    // Ensure legacy / unsafe fields are absent.
+    expect(arg.options).not.toHaveProperty('allowedTools');
   });
 
   it('rejects with AbortError when signal aborts mid-stream', async () => {
@@ -184,13 +191,26 @@ describe('ClaudeExecutor', () => {
     expect((err as Error).name).toBe('AbortError');
   });
 
-  it('throws ExecutorProcessError when result subtype is not success', async () => {
+  it('throws ExecutorProcessError when result subtype is not success and parse also fails', async () => {
     const messages = [makeResultError('error_max_tokens')];
     const exec = new ClaudeExecutor({ queryFn: makeQueryFn(messages).queryFn });
 
     const err = await exec.run(buildInput()).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ExecutorProcessError);
     expect((err as ExecutorProcessError).message).toContain('error_max_tokens');
+  });
+
+  it('returns parsed review even when SDK emits non-success result after a complete narrative', async () => {
+    // Model produced a valid narrative, then SDK emitted error_max_turns on cleanup.
+    // The executor must parse-first and return the review rather than throwing.
+    const messages = [
+      ...ASSISTANT_TEXT_FRAGMENTS.map((t) => makeAssistantMessage(t)),
+      makeResultError('error_max_turns'),
+    ];
+    const exec = new ClaudeExecutor({ queryFn: makeQueryFn(messages).queryFn });
+
+    const result = await exec.run(buildInput());
+    expect(result.review.prTitle).toBe('Test PR');
   });
 
   it('calls onChunk twice for a multi-block assistant message and rawText is concatenation', async () => {
@@ -208,16 +228,21 @@ describe('ClaudeExecutor', () => {
     expect(result.rawText).toBe(block1 + block2);
   });
 
-  it('round-trips wasTruncated through to the executor result', async () => {
-    // Use a diff large enough to trigger truncation by building a prData with a huge diff.
-    // Instead: we rely on buildNarrativePrompt returning wasTruncated=false for empty diff,
-    // and just verify the field is present and boolean.
-    const messages = [
-      ...ASSISTANT_TEXT_FRAGMENTS.map((t) => makeAssistantMessage(t)),
-      makeResultSuccess(),
-    ];
-    const exec = new ClaudeExecutor({ queryFn: makeQueryFn(messages).queryFn });
-    const result = await exec.run(buildInput());
-    expect(typeof result.wasTruncated).toBe('boolean');
+  it('throws AbortError when signal is aborted mid-stream and SDK silently stops (no throw)', async () => {
+    // SDK generator yields one message then returns without throwing.
+    // The executor must detect the aborted signal and raise AbortError, not ParseError.
+    const ac = new AbortController();
+    const queryFn = vi.fn(() => {
+      return (async function* () {
+        yield makeAssistantMessage('<narrative_review>');
+        ac.abort(); // abort while the loop is running
+        // SDK silently stops — no throw, just return
+      })();
+    }) as unknown as ClaudeQueryFn;
+
+    const exec = new ClaudeExecutor({ queryFn });
+    const err = await exec.run({ ...buildInput(), signal: ac.signal }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).name).toBe('AbortError');
   });
 });

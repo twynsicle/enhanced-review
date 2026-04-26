@@ -10,6 +10,7 @@ export interface ReviewExecutorInput {
   target: CloneTarget;
   signal: AbortSignal;
   model: string;
+  jobId: string;
   onChunk?: (text: string) => void;
 }
 

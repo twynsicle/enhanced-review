@@ -45,7 +45,7 @@ export class ClaudeExecutor implements ReviewExecutor {
     const queryFn = this.deps.queryFn ?? query;
     const env = this.deps.env ?? process.env;
 
-    const log = logger.child({ executor: 'claude' });
+    const log = logger.child({ job_id: input.jobId, executor: 'claude' });
 
     const options: Options = {
       cwd: input.cloneDir,
@@ -54,6 +54,11 @@ export class ClaudeExecutor implements ReviewExecutor {
       tools: ['Read', 'Glob', 'Grep'],
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
+      // Isolation mode: prevent the reviewed repo's .claude/settings.json from
+      // registering hooks or MCP servers that would run with the host process env.
+      settingSources: [],
+      // Don't persist PR transcripts to ~/.claude/projects/.
+      persistSession: false,
       abortController,
       maxTurns: MAX_TURNS,
       env,
@@ -114,12 +119,22 @@ export class ClaudeExecutor implements ReviewExecutor {
 
     if (chunkError) throw chunkError;
 
-    if (resultError) {
-      throw new ExecutorProcessError(resultError, '', null, raw);
+    // Defensive: if the SDK silently stopped iterating due to abort (no throw),
+    // surface an AbortError rather than letting parse fail with a confusing message.
+    if (input.signal.aborted) {
+      const aborted = new Error('claude executor aborted');
+      aborted.name = 'AbortError';
+      throw aborted;
     }
 
+    // Parse first: if the model produced a complete narrative before the SDK
+    // emitted a non-success result (e.g. error_max_turns on cleanup), we still
+    // return the usable review. Only fall back to ProcessError when parse fails.
     const parsed = parseNarrativeReview(raw, hunkIndex);
     if (!parsed.ok) {
+      if (resultError) {
+        throw new ExecutorProcessError(resultError, '', null, raw);
+      }
       throw new ExecutorParseError(parsed.error, raw);
     }
 

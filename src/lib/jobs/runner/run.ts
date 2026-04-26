@@ -214,6 +214,7 @@ export async function runJob(
       target: parsed.clone,
       signal,
       model,
+      jobId,
       onChunk,
     });
 
