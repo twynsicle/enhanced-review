@@ -228,7 +228,20 @@ export async function runJob(
     // subscriber observing status='done' already sees the full chunk stream.
     await Promise.allSettled(inFlight);
 
-    await finalizeAsDone(pb, jobId, result.review, { diffTruncated: result.wasTruncated });
+    await finalizeAsDone(
+      pb,
+      jobId,
+      {
+        ...result.review,
+        files: prData.files.map((file) => ({
+          filename: file.filename,
+          status: file.status,
+          additions: file.additions,
+          deletions: file.deletions,
+        })),
+      },
+      { diffTruncated: result.wasTruncated },
+    );
     log.info('job done');
   } catch (err) {
     if (signal.aborted) return;

@@ -11,6 +11,8 @@ export const metadata = {
   title: 'enhanced-review',
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
   const pb = await pbServer();
   const user = pb.authStore.isValid ? (pb.authStore.record as UserRecord | null) : null;

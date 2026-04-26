@@ -1,16 +1,25 @@
 'use client';
 
-import { useCallback } from 'react';
+import {
+  useCallback,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@enhanced-review/review-types';
 import type { ReviewTarget } from '@enhanced-review/github-client';
 import type { PullMetadata } from '@/lib/github/view-time';
 import { ChapterCard } from '@/components/narrative/chapter-card';
-import { ChapterPageRail } from '@/components/narrative/chapter-page-rail';
 import { ChapterSidebar } from '@/components/narrative/chapter-sidebar';
 import { SummaryCard } from '@/components/narrative/summary-card';
 import { useNarrativeKeyboard } from '@/components/narrative/use-narrative-keyboard';
 import { RerunButton } from './rerun-button';
+
+const DEFAULT_SIDEBAR_WIDTH = 256;
+const MIN_SIDEBAR_WIDTH = 208;
+const MAX_SIDEBAR_WIDTH = 420;
 
 interface ChapterReaderProps {
   review: NarrativeReview;
@@ -28,10 +37,8 @@ interface ChapterReaderProps {
 }
 
 /**
- * Three-column editorial reader: chapters TOC on the left, the active
- * chapter article in the centre, and an "on this page" rail on the right
- * that lists the active chapter's insights + diff figures with a
- * progress bar.
+ * Two-column editorial reader: chapters + files on the left, and the
+ * active chapter article in the main column.
  *
  * Owns keyboard nav and the `?ch=` URL state.
  */
@@ -50,6 +57,7 @@ export function ChapterReader({
 }: ChapterReaderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const urlActive = searchParams.get('ch');
   const activeId = isKnownId(urlActive, review.chapters)
     ? (urlActive ?? SUMMARY_SECTION_ID)
@@ -71,19 +79,65 @@ export function ChapterReader({
 
   useNarrativeKeyboard({ chapters: review.chapters, activeId, onSelect });
 
+  const onResizePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = sidebarWidth;
+
+      const onPointerMove = (moveEvent: PointerEvent): void => {
+        setSidebarWidth(clampSidebarWidth(startWidth + moveEvent.clientX - startX));
+      };
+      const onPointerUp = (): void => {
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+      };
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp, { once: true });
+    },
+    [sidebarWidth],
+  );
+
+  const onResizeKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const direction = event.key === 'ArrowLeft' ? -1 : 1;
+    setSidebarWidth((current) => clampSidebarWidth(current + direction * 16));
+  }, []);
+
   const activeChapter = review.chapters.find((ch) => ch.id === activeId) ?? null;
   const isSummary = activeId === SUMMARY_SECTION_ID;
   const activeIndex = isSummary ? 0 : review.chapters.findIndex((ch) => ch.id === activeId) + 1;
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[14rem_minmax(0,1fr)_12rem]">
-      <aside className="hidden lg:block">
+    <div
+      className="grid gap-10 lg:grid-cols-[var(--review-sidebar-width)_minmax(0,1fr)]"
+      style={{ '--review-sidebar-width': `${sidebarWidth.toString()}px` } as CSSProperties}
+    >
+      <aside className="relative hidden min-w-0 lg:block">
         <ChapterSidebar
           chapters={review.chapters}
+          files={review.files}
           activeId={activeId}
           reviewTitle={review.prTitle}
+          riskAssessment={review.riskAssessment}
           onSelect={onSelect}
         />
+        <button
+          type="button"
+          role="separator"
+          aria-label="Resize review navigation"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_SIDEBAR_WIDTH}
+          aria-valuemax={MAX_SIDEBAR_WIDTH}
+          aria-valuenow={sidebarWidth}
+          onPointerDown={onResizePointerDown}
+          onKeyDown={onResizeKeyDown}
+          className="absolute top-0 -right-5 h-full w-3 cursor-col-resize rounded-full transition-colors hover:bg-iris/15 focus-visible:bg-iris/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-iris/50"
+        >
+          <span className="sr-only">Resize review navigation</span>
+        </button>
       </aside>
 
       <section aria-live="polite" className="min-w-0">
@@ -106,18 +160,12 @@ export function ChapterReader({
           />
         )}
       </section>
-
-      <aside className="hidden lg:block">
-        <ChapterPageRail
-          chapters={review.chapters}
-          activeId={activeId}
-          activeIndex={activeIndex}
-          chapter={activeChapter}
-          isSummary={isSummary}
-        />
-      </aside>
     </div>
   );
+}
+
+function clampSidebarWidth(width: number): number {
+  return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, width));
 }
 
 function isKnownId(raw: string | null, chapters: NarrativeReview['chapters']): boolean {

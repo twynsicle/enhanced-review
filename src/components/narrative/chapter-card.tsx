@@ -60,6 +60,11 @@ export function ChapterCard({
         >
           {chapter.title}
         </h1>
+        {chapter.description && chapter.description.trim().length > 0 && (
+          <p className="max-w-[82ch] text-[15px] leading-[1.6] text-muted-foreground text-pretty">
+            {chapter.description}
+          </p>
+        )}
         <p className="text-[13px] text-muted-foreground">
           {fileCount} file{fileCount === 1 ? '' : 's'} touched · {insightCount} insight
           {insightCount === 1 ? '' : 's'}

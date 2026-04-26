@@ -137,7 +137,7 @@ export default async function ReviewPage({
   return (
     <>
       <Topbar user={{ login, fullName, avatarUrl }} />
-      <main className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-4 px-6 py-8">
+      <main className="mx-auto flex min-h-full w-full max-w-[92rem] flex-col gap-4 px-6 py-8">
         {review.diff_truncated && <TruncationBanner />}
         {isStale && <StalenessBanner jobId={job.id} commitsAhead={commitsAhead} />}
 

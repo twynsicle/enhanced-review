@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { RiskScorePill } from '@/components/narrative/risk-score';
 import { Topbar } from '@/components/topbar/topbar';
 import { Button } from '@/components/ui/button';
 import { getGithubLogin } from '@/lib/auth/allowlist';
@@ -158,9 +159,11 @@ function JobRow({ job, first }: { job: ReviewJobRow; first: boolean }) {
           @{job.github_login} · {timeAgo(job.created)} · {job.head_sha.slice(0, 7)}
         </p>
       </div>
-      <span className="hidden font-mono text-[11px] text-subtle sm:inline">
-        {job.status === 'done' ? 'view review' : ''}
-      </span>
+      {job.status === 'done' ? (
+        <RiskScorePill score={job.risk_score} showLabel={false} />
+      ) : (
+        <span className="hidden font-mono text-[11px] text-subtle sm:inline" />
+      )}
       <StatusBadge status={job.status} />
     </Link>
   );

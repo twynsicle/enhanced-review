@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RerunButton } from '@/app/reviews/[id]/rerun-button';
 import { Button } from '@/components/ui/button';
 import { describeTarget, type ReviewChunkRow, type ReviewJobRow } from '@/lib/jobs/types';
@@ -34,17 +34,38 @@ export function JobLiveView({
   const [chunks, setChunks] = useState<ReviewChunkRow[]>(initialChunks);
   const [cancelInFlight, setCancelInFlight] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const terminalRefreshRef = useRef<string | null>(null);
 
   useEffect(() => {
     const pb = pbBrowser();
     let mounted = true;
     const unsubFns: Array<() => void> = [];
 
+    async function refreshSnapshot() {
+      try {
+        const [latestJob, latestChunks] = await Promise.all([
+          pb.collection('review_jobs').getOne<ReviewJobRow>(job.id),
+          pb
+            .collection('review_chunks')
+            .getFullList<ReviewChunkRow>({ filter: `job = "${job.id}"`, sort: 'seq' }),
+        ]);
+        if (mounted) {
+          setJob(latestJob);
+          setChunks(latestChunks);
+        }
+      } catch {
+        /* swallowed: page still has the latest realtime state we know about */
+      }
+    }
+
     async function setup() {
       const [unsubJob, unsubChunks, unsubConnect] = await Promise.all([
         pb.collection('review_jobs').subscribe<ReviewJobRow>(job.id, (e) => {
           if (!mounted || e.action !== 'update') return;
           setJob((prev) => ({ ...prev, ...e.record }));
+          if (isTerminalStatus(e.record.status)) {
+            void refreshSnapshot();
+          }
         }),
 
         pb.collection('review_chunks').subscribe<ReviewChunkRow>(
@@ -64,20 +85,7 @@ export function JobLiveView({
 
         pb.realtime.subscribe('PB_CONNECT', async () => {
           if (!mounted) return;
-          try {
-            const [latestJob, latestChunks] = await Promise.all([
-              pb.collection('review_jobs').getOne<ReviewJobRow>(job.id),
-              pb
-                .collection('review_chunks')
-                .getFullList<ReviewChunkRow>({ filter: `job = "${job.id}"`, sort: 'seq' }),
-            ]);
-            if (mounted) {
-              setJob(latestJob);
-              setChunks(latestChunks);
-            }
-          } catch {
-            /* swallowed: page still has the server-fetched snapshot */
-          }
+          await refreshSnapshot();
         }),
       ]);
 
@@ -97,6 +105,18 @@ export function JobLiveView({
       for (const fn of unsubFns) fn();
     };
   }, [job.id]);
+
+  useEffect(() => {
+    if (!isTerminalStatus(job.status) || terminalRefreshRef.current === job.id) return;
+    terminalRefreshRef.current = job.id;
+    const pb = pbBrowser();
+    pb.collection('review_chunks')
+      .getFullList<ReviewChunkRow>({ filter: `job = "${job.id}"`, sort: 'seq' })
+      .then(setChunks)
+      .catch(() => {
+        /* swallowed */
+      });
+  }, [job.id, job.status]);
 
   const onCancel = useCallback(async () => {
     setCancelInFlight(true);
@@ -288,12 +308,20 @@ function writingPhaseDetail(state: PhaseState, chunkCount: number, titleCount: n
     if (titleCount === 0) return 'Streaming chapter titles…';
     return `${titleCount.toString()} chapter${titleCount === 1 ? '' : 's'} so far.`;
   }
-  if (state === 'done')
-    return `${chunkCount.toString()} chunk${chunkCount === 1 ? '' : 's'} streamed.`;
+  if (state === 'done') {
+    if (titleCount > 0) {
+      return `${titleCount.toString()} chapter${titleCount === 1 ? '' : 's'} finalized.`;
+    }
+    return chunkCount > 0 ? 'Review complete.' : 'Review complete. Open it when ready.';
+  }
   if (state === 'error') return 'Streaming halted — see error below.';
   if (state === 'cancelled')
     return chunkCount > 0 ? 'Cancelled · partial output preserved.' : 'Cancelled.';
   return '';
+}
+
+function isTerminalStatus(status: ReviewJobRow['status']): boolean {
+  return status === 'done' || status === 'error' || status === 'cancelled';
 }
 
 function phaseEyebrow(status: ReviewJobRow['status']): string {

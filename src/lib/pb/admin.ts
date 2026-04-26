@@ -31,6 +31,7 @@ function creds(): { email: string; password: string } {
 
 async function login(): Promise<PocketBase> {
   const pb = new PocketBase(url());
+  pb.autoCancellation(false);
   const { email, password } = creds();
   await pb.collection('_superusers').authWithPassword(email, password);
   cached = { pb, token: pb.authStore.token };

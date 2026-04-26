@@ -1,8 +1,72 @@
-import type { Insight, NarrativeReview, ResolvedDiffHunk } from '@enhanced-review/review-types';
+import type {
+  Insight,
+  InsightType,
+  NarrativeReview,
+  ReviewRiskAssessment,
+  ReviewRiskFactorImpact,
+  ReviewRiskScore,
+  ResolvedDiffHunk,
+} from '@enhanced-review/review-types';
 
 import type { DiffHunkIndex } from './diff-hunk-catalog';
 
 export type ParseResult = { ok: true; data: NarrativeReview } | { ok: false; error: string };
+
+const INSIGHT_TYPES: readonly InsightType[] = ['context', 'rationale', 'highlight', 'reference'];
+const RISK_FACTOR_IMPACTS: readonly ReviewRiskFactorImpact[] = ['raises', 'lowers', 'neutral'];
+
+function toInsightType(raw: unknown): InsightType {
+  return typeof raw === 'string' && (INSIGHT_TYPES as readonly string[]).includes(raw)
+    ? (raw as InsightType)
+    : 'context';
+}
+
+function toRiskScore(raw: unknown): ReviewRiskScore | null {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return null;
+  const rounded = Math.round(raw);
+  if (rounded < 1 || rounded > 5) return null;
+  return rounded as ReviewRiskScore;
+}
+
+function toRiskFactorImpact(raw: unknown): ReviewRiskFactorImpact {
+  return typeof raw === 'string' && (RISK_FACTOR_IMPACTS as readonly string[]).includes(raw)
+    ? (raw as ReviewRiskFactorImpact)
+    : 'neutral';
+}
+
+function sanitizeRiskAssessment(raw: unknown): ReviewRiskAssessment | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+
+  const record = raw as Record<string, unknown>;
+  const score = toRiskScore(record['score']);
+  if (score === null) return undefined;
+
+  const summary =
+    typeof record['summary'] === 'string' && record['summary'].trim().length > 0
+      ? record['summary']
+      : `Risk score ${String(score)} of 5.`;
+  const rationale = typeof record['rationale'] === 'string' ? record['rationale'] : '';
+  const factors = Array.isArray(record['factors'])
+    ? record['factors']
+        .filter(
+          (factor) =>
+            typeof factor === 'object' &&
+            factor !== null &&
+            typeof (factor as Record<string, unknown>)['name'] === 'string' &&
+            typeof (factor as Record<string, unknown>)['detail'] === 'string',
+        )
+        .map((factor) => {
+          const factorRecord = factor as Record<string, unknown>;
+          return {
+            name: factorRecord['name'] as string,
+            impact: toRiskFactorImpact(factorRecord['impact']),
+            detail: factorRecord['detail'] as string,
+          };
+        })
+    : [];
+
+  return { score, summary, rationale, factors };
+}
 
 function extractHunksFromHunkIds(
   chunk: Record<string, unknown>,
@@ -61,6 +125,10 @@ export function parseNarrativeReview(text: string, hunkIndex?: DiffHunkIndex): P
     return { ok: false, error: 'Narrative review JSON is missing required fields' };
   }
 
+  (parsed as NarrativeReview).riskAssessment = sanitizeRiskAssessment(
+    (parsed as Record<string, unknown>)['riskAssessment'],
+  );
+
   type RawChapter = Record<string, unknown> & { summary?: string };
   const rawChapters = (parsed as { chapters: RawChapter[] }).chapters;
 
@@ -73,22 +141,32 @@ export function parseNarrativeReview(text: string, hunkIndex?: DiffHunkIndex): P
     if (typeof ch['title'] !== 'string' || (ch['title'] as string).length === 0) {
       ch['title'] = `Chapter ${String(i + 1)}`;
     }
+    if (typeof ch['description'] !== 'string') {
+      ch['description'] = typeof ch.summary === 'string' ? ch.summary : '';
+    }
 
     if (!Array.isArray(ch['insights']) && typeof ch.summary === 'string') {
-      ch['insights'] = [{ type: 'context', text: ch.summary } satisfies Insight];
+      ch['insights'] = [];
       delete ch.summary;
     }
 
     if (!Array.isArray(ch['insights'])) {
       ch['insights'] = [];
     }
-    ch['insights'] = (ch['insights'] as unknown[]).filter(
-      (ins) =>
-        typeof ins === 'object' &&
-        ins !== null &&
-        typeof (ins as Record<string, unknown>)['type'] === 'string' &&
-        typeof (ins as Record<string, unknown>)['text'] === 'string',
-    );
+    ch['insights'] = (ch['insights'] as unknown[])
+      .filter(
+        (ins) =>
+          typeof ins === 'object' &&
+          ins !== null &&
+          typeof (ins as Record<string, unknown>)['text'] === 'string',
+      )
+      .map((ins) => {
+        const record = ins as Record<string, unknown>;
+        return {
+          type: toInsightType(record['type']),
+          text: record['text'] as string,
+        } satisfies Insight;
+      });
 
     if (!Array.isArray(ch['diffChunks'])) {
       ch['diffChunks'] = [];

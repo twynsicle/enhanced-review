@@ -19,6 +19,7 @@ export interface ReviewJobRow {
   completed_at: string | null;
   cancelled_at: string | null;
   error_message: string | null;
+  risk_score?: number | null;
 }
 
 export interface ReviewChunkRow {

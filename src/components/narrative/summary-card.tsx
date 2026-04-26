@@ -3,6 +3,7 @@ import type { NarrativeReview } from '@enhanced-review/review-types';
 import type { ReviewTarget } from '@enhanced-review/github-client';
 import type { PullMetadata } from '@/lib/github/view-time';
 import { MarkdownText } from './markdown-text';
+import { RiskSummaryPanel } from './risk-score';
 
 interface SummaryCardProps {
   review: NarrativeReview;
@@ -28,8 +29,18 @@ export function SummaryCard({ review, target, pullMetadata, byline, actions }: S
   const title =
     review.prTitle || pullMetadata?.title || (target.kind === 'pr' ? target.title : target.ref);
   const sha = byline.sha.slice(0, 7);
+  const reviewedFiles = review.files ?? [];
+  const reviewedFileCount = reviewedFiles.length || pullMetadata?.changedFiles || 0;
+  const additions =
+    reviewedFiles.length > 0
+      ? reviewedFiles.reduce((sum, file) => sum + file.additions, 0)
+      : (pullMetadata?.additions ?? 0);
+  const deletions =
+    reviewedFiles.length > 0
+      ? reviewedFiles.reduce((sum, file) => sum + file.deletions, 0)
+      : (pullMetadata?.deletions ?? 0);
 
-  const fileWord = pullMetadata?.changedFiles === 1 ? 'file' : 'files';
+  const fileWord = reviewedFileCount === 1 ? 'file' : 'files';
 
   return (
     <article id="chapter-__summary__" className="flex flex-col gap-7">
@@ -62,14 +73,14 @@ export function SummaryCard({ review, target, pullMetadata, byline, actions }: S
           </span>
           <span aria-hidden>·</span>
           <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">{sha}</code>
-          {pullMetadata && (
+          {reviewedFileCount > 0 && (
             <>
               <span aria-hidden>·</span>
               <span>
-                {pullMetadata.changedFiles} {fileWord}
+                {reviewedFileCount} {fileWord}
               </span>
-              <span className="text-add">+{pullMetadata.additions}</span>
-              <span className="text-del">−{pullMetadata.deletions}</span>
+              <span className="text-add">+{additions}</span>
+              <span className="text-del">−{deletions}</span>
             </>
           )}
           {baseRef && headRef && (
@@ -85,7 +96,18 @@ export function SummaryCard({ review, target, pullMetadata, byline, actions }: S
         </div>
       </header>
 
+      <RiskSummaryPanel assessment={review.riskAssessment} />
+
       <DropCapMarkdown text={review.overviewSummary} />
+
+      <section className="grid gap-3 border-t border-border pt-5 text-[13px] sm:grid-cols-3">
+        <Detail label="Target" value={`${target.owner}/${target.repo}`} />
+        <Detail label="Reviewer" value={`@${author}`} />
+        <Detail
+          label="Reviewed diff"
+          value={`${reviewedFileCount.toString()} ${fileWord} · +${additions.toString()} / -${deletions.toString()}`}
+        />
+      </section>
 
       {pullMetadata?.body && (
         <section className="flex flex-col gap-2 border-t border-border pt-5">
@@ -96,6 +118,17 @@ export function SummaryCard({ review, target, pullMetadata, byline, actions }: S
         </section>
       )}
     </article>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border bg-card/60 px-3 py-2.5">
+      <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-subtle">
+        {label}
+      </span>
+      <span className="truncate text-muted-foreground">{value}</span>
+    </div>
   );
 }
 

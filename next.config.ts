@@ -18,6 +18,12 @@ const pbRemote = (() => {
   }
 })();
 
+// Next 16 blocks image optimization for upstreams resolving to private IPs by
+// default. Local dev points PB at 127.0.0.1, so opt in when the configured PB
+// host is obviously local — otherwise leave the default protection in place.
+const isLocalHost = (h: string) =>
+  h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === '::1';
+
 const nextConfig: NextConfig = {
   // Transpile workspace packages so their raw TS sources work without a
   // build step. Phase 4's worker also consumes these packages.
@@ -29,6 +35,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
       ...(pbRemote ? [pbRemote] : []),
     ],
+    dangerouslyAllowLocalIP: pbRemote ? isLocalHost(pbRemote.hostname) : false,
   },
 };
 

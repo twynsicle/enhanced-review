@@ -32,9 +32,34 @@ export interface DiffChunk {
   hunks: ResolvedDiffHunk[];
 }
 
+export interface ReviewFile {
+  filename: string;
+  status: 'added' | 'modified' | 'removed' | 'renamed' | 'copied' | 'unchanged';
+  additions: number;
+  deletions: number;
+}
+
+export type ReviewRiskScore = 1 | 2 | 3 | 4 | 5;
+
+export type ReviewRiskFactorImpact = 'raises' | 'lowers' | 'neutral';
+
+export interface ReviewRiskFactor {
+  name: string;
+  impact: ReviewRiskFactorImpact;
+  detail: string;
+}
+
+export interface ReviewRiskAssessment {
+  score: ReviewRiskScore;
+  summary: string;
+  rationale: string;
+  factors: ReviewRiskFactor[];
+}
+
 export interface NarrativeChapter {
   id: string;
   title: string;
+  description?: string;
   insights: Insight[];
   diffChunks: DiffChunk[];
 }
@@ -42,6 +67,8 @@ export interface NarrativeChapter {
 export interface NarrativeReview {
   prTitle: string;
   overviewSummary: string;
+  riskAssessment?: ReviewRiskAssessment;
+  files?: ReviewFile[];
   chapters: NarrativeChapter[];
 }
 

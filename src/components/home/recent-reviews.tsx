@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { RiskScorePill } from '@/components/narrative/risk-score';
 import { Sparkline } from '@/components/ui/sparkline';
 import type { ReviewJobRow } from '@/lib/jobs/types';
 import { logger } from '@/lib/log';
@@ -116,9 +117,13 @@ function RecentRow({ job, first }: { job: ReviewJobRow; first: boolean }) {
         </p>
         <p className="truncate text-[11.5px] text-muted-foreground">{sub}</p>
       </div>
-      <span className="hidden font-mono text-[11px] text-subtle sm:inline">
-        {job.status === 'done' ? 'view review' : describeStatus(job.status)}
-      </span>
+      {job.status === 'done' ? (
+        <RiskScorePill score={job.risk_score} showLabel={false} />
+      ) : (
+        <span className="hidden font-mono text-[11px] text-subtle sm:inline">
+          {describeStatus(job.status)}
+        </span>
+      )}
       <StatusPill status={job.status} />
     </Link>
   );

@@ -34,6 +34,7 @@ export async function finalizeAsDone(
   await pb.collection('review_jobs').update(jobId, {
     status: 'done',
     completed_at: new Date().toISOString(),
+    risk_score: content.riskAssessment?.score ?? null,
   });
 }
 
