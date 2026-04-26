@@ -111,9 +111,13 @@ function FilterChips({ current }: { current: StatusFilter }) {
 
 function JobRow({ job }: { job: ReviewJobRow }) {
   const target = describeTarget(job.target);
+  // Done jobs link straight to the rendered reader; anything else lands
+  // on the live job view (which itself has a "View rendered review →"
+  // CTA when status flips).
+  const href = job.status === 'done' ? `/reviews/${job.id}` : `/jobs/${job.id}`;
   return (
     <Link
-      href={`/jobs/${job.id}`}
+      href={href}
       className="block rounded-lg ring-1 ring-foreground/10 bg-card px-4 py-3 transition-colors hover:bg-muted/50"
     >
       <div className="flex items-baseline justify-between gap-3">
@@ -121,7 +125,19 @@ function JobRow({ job }: { job: ReviewJobRow }) {
         <StatusBadge status={job.status} />
       </div>
       <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-        <span>@{job.github_login}</span>
+        <span className="inline-flex items-center gap-1.5">
+          {/* Avatar via github.com/{login}.png — public, browser-cached, no API call. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`https://github.com/${job.github_login}.png?size=32`}
+            alt=""
+            width={16}
+            height={16}
+            className="size-4 rounded-full"
+            loading="lazy"
+          />
+          <span>@{job.github_login}</span>
+        </span>
         <span>·</span>
         <span>{timeAgo(job.created_at)}</span>
         <span>·</span>
