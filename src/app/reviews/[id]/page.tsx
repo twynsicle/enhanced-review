@@ -3,8 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@enhanced-review/review-types';
 import type { ReviewTarget } from '@enhanced-review/github-client';
-import { getCurrentUser } from '@/lib/pb';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser, pbServer } from '@/lib/pb';
 import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import {
   type BranchHead,
@@ -13,7 +12,7 @@ import {
   getCommitsAhead,
   getPullMetadata,
 } from '@/lib/github/view-time';
-import type { ReviewJobRow } from '@/lib/jobs/types';
+import type { ReviewJobRow, ReviewRow } from '@/lib/jobs/types';
 import { ChapterReader } from './chapter-reader';
 import { RerunButton } from './rerun-button';
 
@@ -25,19 +24,11 @@ import { RerunButton } from './rerun-button';
  * fans out to GitHub for the SummaryCard metadata + staleness check.
  *
  * The page only renders for `done` jobs that produced a `reviews` row.
- * Unfinished or errored jobs send the user back to `/jobs/:id` (which
- * Phase 5 already covers). RLS lets every workspace member read both
- * tables — anyone in the beta can view anyone's reviews.
+ * Unfinished or errored jobs send the user back to `/jobs/:id`. PB rules
+ * let every workspace member read both collections — anyone in the beta
+ * can view anyone's reviews.
  */
 export const dynamic = 'force-dynamic';
-
-interface ReviewRowFromDb {
-  id: string;
-  job_id: string;
-  content: NarrativeReview;
-  diff_truncated: boolean;
-  created_at: string;
-}
 
 export default async function ReviewPage({
   params,
@@ -52,15 +43,14 @@ export default async function ReviewPage({
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  // Phase 3 will move these queries to PB.
-  const supabase = await createClient();
-  const { data: job } = await supabase
-    .from('review_jobs')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle<ReviewJobRow>();
+  const pb = await pbServer();
 
-  if (!job) notFound();
+  let job: ReviewJobRow;
+  try {
+    job = await pb.collection('review_jobs').getOne<ReviewJobRow>(id);
+  } catch {
+    notFound();
+  }
 
   // The reader is only meaningful for done jobs; pending / running /
   // error / cancelled jobs live on /jobs/:id.
@@ -68,13 +58,12 @@ export default async function ReviewPage({
     redirect(`/jobs/${id}`);
   }
 
-  const { data: review } = await supabase
-    .from('reviews')
-    .select('*')
-    .eq('job_id', id)
-    .maybeSingle<ReviewRowFromDb>();
-
-  if (!review) {
+  let review: ReviewRow;
+  try {
+    review = await pb
+      .collection('reviews')
+      .getFirstListItem<ReviewRow>(`job = "${id}"`);
+  } catch {
     // status=done but no row — should be impossible per Phase 4 guarantees.
     // Send the user back to the live view so they can see whatever state
     // exists rather than rendering an empty reader.

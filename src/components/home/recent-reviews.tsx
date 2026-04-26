@@ -3,31 +3,24 @@ import Link from 'next/link';
 import { JobCard } from '@/components/jobs/job-card';
 import type { ReviewJobRow } from '@/lib/jobs/types';
 import { logger } from '@/lib/log';
-import { getCurrentUser } from '@/lib/pb';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser, pbServer } from '@/lib/pb';
 
 const RECENT_LIMIT = 5;
 
 export async function RecentReviews() {
   const user = await getCurrentUser();
   if (!user) return null;
-  // Phase 3 will move this query to PB. For Phase 2 it'll return empty
-  // results (Supabase user IDs don't match the PB session) — the empty
-  // state UI handles that fine.
-  const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from('review_jobs')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(RECENT_LIMIT)
-    .returns<ReviewJobRow[]>();
-
-  if (error) {
-    logger.error({ err: error, user_id: user.id }, '[recent-reviews] fetch failed');
+  let jobs: ReviewJobRow[] = [];
+  try {
+    const pb = await pbServer();
+    const result = await pb.collection('review_jobs').getList<ReviewJobRow>(1, RECENT_LIMIT, {
+      sort: '-created',
+    });
+    jobs = result.items;
+  } catch (err) {
+    logger.error({ err, user_id: user.id }, '[recent-reviews] fetch failed');
   }
-
-  const jobs = data ?? [];
 
   return (
     <section aria-label="Recent reviews" className="flex flex-col gap-3">

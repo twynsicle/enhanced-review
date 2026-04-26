@@ -2,13 +2,11 @@ import 'server-only';
 import { GithubAuthError, isAuthError, type ReviewTarget } from '@enhanced-review/github-client';
 import { NextResponse } from 'next/server';
 import { getGithubLogin } from '@/lib/auth/allowlist';
-import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
 import { findUserInFlightJob } from '@/lib/jobs/concurrency';
 import { logger } from '@/lib/log';
 import { ReviewTargetSchema } from '@/lib/jobs/target';
-import { getCurrentUser } from '@/lib/pb';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getCurrentUser, pbAdmin } from '@/lib/pb';
 
 /**
  * POST /api/jobs
@@ -17,21 +15,21 @@ import { createAdminClient } from '@/lib/supabase/admin';
  * page POSTs here when the user clicks the "Review" button.
  *
  * Auth model:
- *   - Session is verified via @supabase/ssr (`getUser`).
- *   - The route then reaches for the user's GitHub provider_token to
- *     re-resolve `head_sha` server-side — the picker may have selected
- *     a target before recent pushes landed.
- *   - The insert runs through the service-role client so the row can be
- *     written with `user_id` + `github_login` copied from the verified
- *     session (RLS would otherwise restrict what columns can be set).
+ *   - Session is verified via `getCurrentUser()` (PB).
+ *   - The route then re-resolves `head_sha` server-side — the picker may
+ *     have selected a target before recent pushes landed.
+ *   - The insert runs through `pbAdmin()` because `review_jobs.createRule`
+ *     is server-only.
  *
- * Returns `{ id }` on success. 401 on missing/invalid session or
- * provider_token (client redirects to /relink). 400 on bad body.
+ * Returns `{ id }` on success. 401 on missing session. 400 on bad body.
+ *
+ * Phase 3: row is created at status `pending` but no runner is hooked up
+ * yet, so the job sits at `pending` forever. Phase 4 wires the in-process
+ * runner in and starts pulling the GitHub token off the session here.
  */
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
-  // 1. Session
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: 'unauthorized' }, { status: 401 });
@@ -45,7 +43,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // 2. Body
   let body: unknown;
   try {
     body = await request.json();
@@ -62,10 +59,7 @@ export async function POST(request: Request) {
   }
   const target: ReviewTarget = parsed.data;
 
-  // 3. Per-user concurrency cap. The client treats `reason: 'job_in_flight'`
-  // as a "you already have a review running" prompt linking to the active
-  // job rather than an error toast.
-  const admin = createAdminClient();
+  const admin = await pbAdmin();
   const inFlight = await findUserInFlightJob(admin, user.id);
   if (inFlight) {
     return NextResponse.json(
@@ -78,9 +72,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // 4. Re-resolve head_sha from GitHub (always — the client value is a
-  // hint, not a source of truth). Token errors map to the same shape the
-  // picker already handles.
   let headSha: string;
   try {
     const octokit = await createServerOctokit();
@@ -110,37 +101,17 @@ export async function POST(request: Request) {
     );
   }
 
-  // 5. Pull the GitHub token off the session — the worker needs it to
-  // clone the user's repo. Stored encrypted on the job row via pgsodium
-  // (see migration 0003) and NULLed by the worker as soon as the clone
-  // returns. Missing token => same 401 shape the picker handles.
-  let providerToken: string;
   try {
-    providerToken = await getGithubToken();
-  } catch (error) {
-    if (error instanceof MissingProviderTokenError) {
-      return NextResponse.json(
-        { reason: 'github_token_invalid', message: 'GitHub token is invalid; please re-link.' },
-        { status: 401 },
-      );
-    }
-    throw error;
-  }
-
-  // 6. Insert via service role using the encrypt-and-create RPC so the
-  // row is never visible without its token.
-  const { data: jobId, error: insertError } = await admin.rpc('create_review_job_with_token', {
-    p_user_id: user.id,
-    p_github_login: githubLogin,
-    p_target: target,
-    p_head_sha: headSha,
-    p_token: providerToken,
-  });
-
-  if (insertError || !jobId) {
-    logger.error({ err: insertError, user_id: user.id }, '[api/jobs] insert failed');
+    const record = await admin.collection('review_jobs').create({
+      user: user.id,
+      github_login: githubLogin,
+      target,
+      status: 'pending',
+      head_sha: headSha,
+    });
+    return NextResponse.json({ id: record.id });
+  } catch (err) {
+    logger.error({ err, user_id: user.id }, '[api/jobs] insert failed');
     return NextResponse.json({ message: 'failed to create job' }, { status: 500 });
   }
-
-  return NextResponse.json({ id: jobId });
 }

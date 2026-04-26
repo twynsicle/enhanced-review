@@ -1,5 +1,5 @@
 import 'server-only';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type PocketBase from 'pocketbase';
 
 /**
  * Per-user concurrency cap shared by `POST /api/jobs` and
@@ -9,8 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * running — view it" prompt linking to that in-flight job.
  *
  * Race window: count + insert isn't atomic. For closed beta (low rate,
- * one user at a time clicking) this is fine; under load we'd lift the
- * check into the `create_review_job_with_token` RPC.
+ * one user at a time clicking) this is fine.
  */
 
 export const DEFAULT_MAX_JOBS_PER_USER = 1;
@@ -32,26 +31,21 @@ export interface ActiveJob {
 
 /**
  * Returns the user's most recently created in-flight job, or null when
- * they're under the cap. Reads via the supplied client — pass the
- * service-role admin client so the count isn't hidden by RLS.
+ * they're under the cap. Reads via the supplied PB client — pass the
+ * superuser admin client (`pbAdmin()`) to keep the count consistent
+ * regardless of collection rule state.
  */
 export async function findUserInFlightJob(
-  supabase: SupabaseClient,
+  pb: PocketBase,
   userId: string,
 ): Promise<ActiveJob | null> {
   const cap = maxJobsPerUser();
-  const { data, error } = await supabase
-    .from('review_jobs')
-    .select('id,status')
-    .eq('user_id', userId)
-    .in('status', ['pending', 'running'])
-    .order('created_at', { ascending: false })
-    .limit(cap);
-
-  if (error) {
-    throw new Error(`findUserInFlightJob failed: ${error.message}`);
-  }
-  const rows = (data ?? []) as ActiveJob[];
+  const result = await pb.collection('review_jobs').getList(1, cap, {
+    filter: `user = "${userId}" && (status = "pending" || status = "running")`,
+    sort: '-created',
+    fields: 'id,status',
+  });
+  const rows = result.items as unknown as ActiveJob[];
   if (rows.length < cap) return null;
   return rows[0] ?? null;
 }

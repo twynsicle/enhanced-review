@@ -3,13 +3,10 @@ import { GithubAuthError, isAuthError, type ReviewTarget } from '@enhanced-revie
 import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getGithubLogin } from '@/lib/auth/allowlist';
-import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
 import { findUserInFlightJob } from '@/lib/jobs/concurrency';
 import { logger } from '@/lib/log';
-import { getCurrentUser } from '@/lib/pb';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient as createServerSupabase } from '@/lib/supabase/server';
+import { getCurrentUser, pbAdmin } from '@/lib/pb';
 
 /**
  * POST /api/jobs/[id]/rerun
@@ -20,13 +17,17 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server';
  * members can re-run each other's reviews and the new row reflects who
  * actually paid for the work.
  *
- * Returns 200 with `{ id }` of the new job. 401 / `github_token_invalid`
- * when the viewer needs to re-link. 404 when the source job doesn't
- * exist or RLS hides it. 502 when the GitHub head-SHA refresh fails.
+ * Returns 200 with `{ id }` of the new job. 401 on missing session.
+ * 404 when the source job doesn't exist. 502 when the GitHub head-SHA
+ * refresh fails.
+ *
+ * Phase 3: the runner isn't hooked up yet, so the new row sits at
+ * `pending` forever. Phase 4 wires the runner in and starts pulling
+ * the viewer's GitHub token off the session here.
  */
 export const dynamic = 'force-dynamic';
 
-const idSchema = z.string().uuid();
+const idSchema = z.string().regex(/^[a-zA-Z0-9_-]+$/).min(1).max(40);
 
 export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/rerun'>) {
   const { id } = await ctx.params;
@@ -34,14 +35,10 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     return NextResponse.json({ message: 'invalid job id' }, { status: 400 });
   }
 
-  // 1. Session.
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ message: 'unauthorized' }, { status: 401 });
   }
-
-  // Phase 3 will move the source-job lookup to PB.
-  const supabase = await createServerSupabase();
 
   const githubLogin = getGithubLogin(user);
   if (!githubLogin) {
@@ -51,23 +48,22 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     );
   }
 
-  // 2. Source job (workspace-readable via RLS — anyone in the beta can
-  // re-run anyone's review).
-  const { data: source } = await supabase
-    .from('review_jobs')
-    .select('target')
-    .eq('id', id)
-    .maybeSingle<{ target: ReviewTarget }>();
+  const admin = await pbAdmin();
 
-  if (!source) {
-    return NextResponse.json({ message: 'job not found' }, { status: 404 });
+  let target: ReviewTarget;
+  try {
+    const source = await admin
+      .collection('review_jobs')
+      .getOne<{ id: string; target: ReviewTarget }>(id, { fields: 'id,target' });
+    target = source.target;
+  } catch (err) {
+    if (isNotFound(err)) {
+      return NextResponse.json({ message: 'job not found' }, { status: 404 });
+    }
+    logger.error({ err, source_job_id: id, user_id: user.id }, '[api/jobs/rerun] source lookup failed');
+    return NextResponse.json({ message: 'failed to load source job' }, { status: 500 });
   }
-  const target = source.target;
 
-  // 3. Per-user concurrency cap. Re-run is just another submission, so
-  // the same gate applies — point the user at their existing in-flight
-  // job rather than queueing a duplicate.
-  const admin = createAdminClient();
   const inFlight = await findUserInFlightJob(admin, user.id);
   if (inFlight) {
     return NextResponse.json(
@@ -80,8 +76,6 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     );
   }
 
-  // 4. Re-resolve head_sha from GitHub. The whole point of re-running is
-  // to capture commits added since the original review.
   let headSha: string;
   try {
     const octokit = await createServerOctokit();
@@ -114,36 +108,25 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     );
   }
 
-  // 5. Pull the viewer's GitHub token for the worker's clone.
-  let providerToken: string;
   try {
-    providerToken = await getGithubToken();
-  } catch (error) {
-    if (error instanceof MissingProviderTokenError) {
-      return NextResponse.json(
-        { reason: 'github_token_invalid', message: 'GitHub token is invalid; please re-link.' },
-        { status: 401 },
-      );
-    }
-    throw error;
-  }
-
-  // 6. Insert the new job, attributed to the viewer.
-  const { data: jobId, error: insertError } = await admin.rpc('create_review_job_with_token', {
-    p_user_id: user.id,
-    p_github_login: githubLogin,
-    p_target: target,
-    p_head_sha: headSha,
-    p_token: providerToken,
-  });
-
-  if (insertError || !jobId) {
+    const record = await admin.collection('review_jobs').create({
+      user: user.id,
+      github_login: githubLogin,
+      target,
+      status: 'pending',
+      head_sha: headSha,
+    });
+    return NextResponse.json({ id: record.id });
+  } catch (err) {
     logger.error(
-      { err: insertError, source_job_id: id, user_id: user.id },
+      { err, source_job_id: id, user_id: user.id },
       '[api/jobs/rerun] insert failed',
     );
     return NextResponse.json({ message: 'failed to create job' }, { status: 500 });
   }
+}
 
-  return NextResponse.json({ id: jobId });
+function isNotFound(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  return (err as { status?: unknown }).status === 404;
 }

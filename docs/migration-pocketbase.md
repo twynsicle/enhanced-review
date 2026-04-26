@@ -231,30 +231,71 @@ Goal: pages render data from PB. Job creation works (but the runner is still
 the old worker, which is broken since `pg_notify` is gone — so submitted jobs
 sit in `pending` forever. Phase 4 fixes that.)
 
-- [ ] Replace `.from('table').select(...)` sites with `pb.collection('table').getList(...)` /
+- [x] Replace `.from('table').select(...)` sites with `pb.collection('table').getList(...)` /
       `getOne` / `getFullList` as appropriate:
-  - `src/lib/auth/allowlist.ts:28`
-  - `src/app/history/page.tsx:42–45`
-  - `src/app/page.tsx`
-  - `src/components/home/recent-reviews.tsx:18–21`
-  - `src/lib/jobs/concurrency.ts:44–49`
-  - `src/app/api/health/route.ts:64–79`
-  - `src/app/jobs/[id]/page.tsx:27–29,35–38`
-  - `src/app/reviews/[id]/page.tsx:58–60,72–74`
-  - `src/app/api/jobs/[id]/rerun/route.ts:56–58`
-- [ ] Replace job creation in `src/app/api/jobs/route.ts:135` and
-      `src/app/api/jobs/[id]/rerun/route.ts:131`:
-      drop the `create_review_job_with_token` RPC call; use `pbAdmin()`
-      to insert directly into `review_jobs` with `status: 'pending'`.
-- [ ] Replace cancel in `src/app/api/jobs/[id]/cancel/route.ts:39–44`:
-      `pb.collection('review_jobs').update(id, { status: 'cancelled' })`
-      under the user's PB client (not admin) so the collection rule enforces
-      ownership.
-- [ ] Update `src/app/api/health/route.ts` queue-depth query.
+  - `src/lib/auth/allowlist.ts` — already migrated in Phase 2.
+  - `src/app/history/page.tsx` — `pb.collection('review_jobs').getList(1, PAGE_SIZE, { filter, sort: '-created' })`.
+  - `src/components/home/recent-reviews.tsx` — same pattern, perPage=5.
+  - `src/lib/jobs/concurrency.ts` — `findUserInFlightJob` now takes a
+    `PocketBase` client, calls `getList(1, cap, { filter: 'user = "..." && (status = "pending" || status = "running")', sort: '-created' })`.
+  - `src/app/api/health/route.ts` — three `getList(1, 1, ...)` calls;
+    counts read `result.totalItems`, oldest-pending reads `items[0].created`.
+  - `src/app/jobs/[id]/page.tsx` — `getOne` for the job + `getFullList` for chunks.
+  - `src/app/reviews/[id]/page.tsx` — `getOne` for the job +
+    `getFirstListItem('job = "..."')` for the review row; both throw on
+    miss, mapped to `notFound()` / `redirect`.
+  - `src/app/api/jobs/[id]/rerun/route.ts` — source-job lookup via
+    `pbAdmin().collection('review_jobs').getOne(id, { fields: 'id,target' })`.
+- [x] Replace job creation in `src/app/api/jobs/route.ts` and
+      `src/app/api/jobs/[id]/rerun/route.ts`: dropped the
+      `create_review_job_with_token` RPC; both routes now do
+      `pbAdmin().collection('review_jobs').create({ user, github_login, target, status: 'pending', head_sha })`.
+      Also dropped the `getGithubToken()` call from both — Phase 4 will
+      re-introduce it inline before the runner kickoff. Phase 3 jobs sit
+      at `pending` regardless, so the validation step has no consumer yet.
+- [x] Replace cancel in `src/app/api/jobs/[id]/cancel/route.ts`:
+      `pbServer().collection('review_jobs').update(id, { status: 'cancelled', cancelled_at: ... })`
+      under the user's PB client (not admin) so the collection rule
+      enforces ownership. PB returns 404 when a rule blocks the update
+      — we map 404 → 409 ("not cancellable") to avoid leaking ownership.
+- [x] Updated `src/app/api/health/route.ts` queue-depth query (above).
+- [x] Renamed `ReviewJobRow` / `ReviewChunkRow` / `ReviewRow` to PB
+      conventions (`user`, `job`, `created`, no `worker_id`, chunk `id`
+      is now `string`). Touches every UI consumer (`job-card`,
+      `job-live-view`, history, reviews/[id]) — single source of truth
+      for the row shape across the codebase.
+- [x] Relaxed the route-handler id schema from `z.string().uuid()` to
+      `z.string().regex(/^[a-zA-Z0-9_-]+$/).min(1).max(40)` in cancel +
+      rerun routes — PB IDs are 15-char alphanumeric, not UUIDs.
+- [x] Tests updated: `api/health/route.test.ts` and
+      `api/jobs/[id]/rerun/route.test.ts` mocks rewritten against the PB
+      client API. 199 tests pass.
 
 **Verifiable**: every page that previously showed data still shows it,
 sourced from PB. Submitting a job creates a `review_jobs` row in PB but
 the row stays at `pending` (no runner yet).
+
+**Phase 3 surprises worth noting for later phases:**
+- PB IDs default to 15 alphanumeric chars (`[a-zA-Z0-9]{15}`), not UUIDs
+  — any route handler that validates an id must accept this shape.
+- PB filter datetime comparisons want space-separated form
+  (`"YYYY-MM-DD HH:mm:ss.SSSZ"`), not ISO `T`. `.replace('T', ' ')` on
+  an `ISOString` is enough.
+- PB obscures rule failures on `update` / `delete` as 404 (so rule-vs-not-found
+  is indistinguishable). The cancel handler maps that 404 → 409 because
+  the user-facing meaning is "not in a cancellable state, or not yours".
+- `createRule: null` means *no one* can create through the public API —
+  even an authenticated user. All inserts (jobs, rerun) go through
+  `pbAdmin()`. Cancellation is the only user-driven write and uses
+  `pbServer()` because its `updateRule` is non-null.
+- `pb.collection().getList(page, perPage, options)` returns
+  `{ totalItems, items, ... }`. Cheap counts: `perPage=1` + read
+  `totalItems`. Don't fetch full lists when you only need the count.
+- The Supabase realtime sites (`job-live-view.tsx`, `job-notifications.tsx`)
+  are deliberately untouched in Phase 3 — they still subscribe to
+  Supabase, but Supabase has nothing to deliver because writes have
+  moved. Live view appears static until Phase 4 swaps the subscription
+  to PB realtime.
 
 ### Phase 4 — Fold the worker into Next.js
 

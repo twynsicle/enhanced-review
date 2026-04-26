@@ -1,6 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { getCurrentUser } from '@/lib/pb';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser, pbServer } from '@/lib/pb';
 import type { ReviewChunkRow, ReviewJobRow } from '@/lib/jobs/types';
 import { JobLiveView } from './job-live-view';
 
@@ -9,9 +8,9 @@ import { JobLiveView } from './job-live-view';
  *
  * Server-rendered shell hydrates the page with the current job row + any
  * chunks already written; the client component then subscribes to
- * Supabase Realtime for updates. RLS allows any authenticated user to
- * SELECT here (workspace visibility), so two beta users can watch the
- * same job side-by-side.
+ * realtime for updates. PB rules allow any authenticated user to view
+ * here (workspace visibility), so two beta users can watch the same job
+ * side-by-side.
  */
 export const dynamic = 'force-dynamic';
 
@@ -21,29 +20,26 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  // Phase 3 will move these queries to PB.
-  const supabase = await createClient();
-  const { data: job } = await supabase
-    .from('review_jobs')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle<ReviewJobRow>();
+  const pb = await pbServer();
 
-  if (!job) notFound();
+  let job: ReviewJobRow;
+  try {
+    job = await pb.collection('review_jobs').getOne<ReviewJobRow>(id);
+  } catch {
+    notFound();
+  }
 
-  const { data: chunks } = await supabase
-    .from('review_chunks')
-    .select('*')
-    .eq('job_id', id)
-    .order('seq', { ascending: true });
+  const chunks = await pb
+    .collection('review_chunks')
+    .getFullList<ReviewChunkRow>({
+      filter: `job = "${id}"`,
+      sort: 'seq',
+    })
+    .catch(() => [] as ReviewChunkRow[]);
 
   return (
     <main className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-6 px-6 py-10">
-      <JobLiveView
-        initialJob={job}
-        initialChunks={(chunks ?? []) as ReviewChunkRow[]}
-        viewerUserId={user.id}
-      />
+      <JobLiveView initialJob={job} initialChunks={chunks} viewerUserId={user.id} />
     </main>
   );
 }

@@ -1,66 +1,66 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn(),
+vi.mock('@/lib/pb', () => ({
+  pbAdmin: vi.fn(),
 }));
 
 import { GET } from './route';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { pbAdmin } from '@/lib/pb';
 
-const createAdminClientMock = vi.mocked(createAdminClient);
+const pbAdminMock = vi.mocked(pbAdmin);
 
 interface HealthRows {
   pendingCount?: number;
-  oldestPendingCreatedAt?: string | null;
+  oldestPendingCreated?: string | null;
   errorCount?: number;
 }
 
-function fakeAdmin(rows: HealthRows) {
-  // Each `from('review_jobs').select(...)` builds a fresh chain. We
-  // discriminate by the chain calls: `.eq('status', 'pending')` followed
-  // by either `.order().limit().maybeSingle()` (oldest pending lookup)
-  // or count via { count: 'exact', head: true } (queue depth / errors).
+function fakePb(rows: HealthRows) {
+  // Each handler builds its own getList call; we discriminate by the
+  // filter string passed in `options` so a single mock can serve all
+  // three. The route reads `totalItems` for counts and `items[0]` for
+  // the oldest-pending lookup.
   return {
-    from: vi.fn().mockImplementation(() => {
-      const eqStatus = vi.fn();
-      const eqStatusReturn: Record<string, unknown> = {};
-
-      // Order/limit chain (oldest pending).
-      const limit = vi.fn().mockReturnValue({
-        maybeSingle: vi.fn().mockResolvedValue({
-          data: rows.oldestPendingCreatedAt
-            ? { created_at: rows.oldestPendingCreatedAt }
-            : null,
-          error: null,
-        }),
-      });
-      const order = vi.fn().mockReturnValue({ limit });
-      eqStatusReturn.order = order;
-
-      // Count chain (queue depth / errors). Differentiates by completed_at filter.
-      const gteFn = vi.fn().mockResolvedValue({
-        count: rows.errorCount ?? 0,
-        error: null,
-      });
-      eqStatusReturn.gte = gteFn;
-
-      // For the head-count variant: .eq('status','pending') resolves directly.
-      eqStatusReturn.then = (resolve: (r: unknown) => unknown) =>
-        resolve({ count: rows.pendingCount ?? 0, error: null });
-
-      eqStatus.mockReturnValue(eqStatusReturn);
-      return {
-        select: vi.fn().mockReturnValue({ eq: eqStatus }),
-      };
-    }),
-  } as unknown as ReturnType<typeof createAdminClient>;
+    collection: vi.fn(() => ({
+      getList: vi.fn((page: number, perPage: number, options: { filter?: string; sort?: string }) => {
+        const filter = options.filter ?? '';
+        if (filter.includes('completed_at')) {
+          return Promise.resolve({
+            page,
+            perPage,
+            totalItems: rows.errorCount ?? 0,
+            totalPages: 1,
+            items: [],
+          });
+        }
+        if (options.sort === 'created') {
+          return Promise.resolve({
+            page,
+            perPage,
+            totalItems: rows.oldestPendingCreated ? 1 : 0,
+            totalPages: 1,
+            items: rows.oldestPendingCreated
+              ? [{ created: rows.oldestPendingCreated }]
+              : [],
+          });
+        }
+        return Promise.resolve({
+          page,
+          perPage,
+          totalItems: rows.pendingCount ?? 0,
+          totalPages: 1,
+          items: [],
+        });
+      }),
+    })),
+  } as unknown as Awaited<ReturnType<typeof pbAdmin>>;
 }
 
 beforeEach(() => {
-  createAdminClientMock.mockReturnValue(
-    fakeAdmin({
+  pbAdminMock.mockResolvedValue(
+    fakePb({
       pendingCount: 3,
-      oldestPendingCreatedAt: new Date(Date.now() - 30_000).toISOString(),
+      oldestPendingCreated: new Date(Date.now() - 30_000).toISOString(),
       errorCount: 1,
     }),
   );
@@ -83,8 +83,8 @@ describe('GET /api/health', () => {
   });
 
   it('reports null oldestPendingAgeSec when nothing is pending', async () => {
-    createAdminClientMock.mockReturnValue(
-      fakeAdmin({ pendingCount: 0, oldestPendingCreatedAt: null, errorCount: 0 }),
+    pbAdminMock.mockResolvedValue(
+      fakePb({ pendingCount: 0, oldestPendingCreated: null, errorCount: 0 }),
     );
     const res = await GET();
     const body = await res.json();

@@ -52,7 +52,7 @@ export function JobCard({ job }: { job: ReviewJobRow }) {
         />
         <span className="truncate">@{job.github_login}</span>
         <span aria-hidden>·</span>
-        <span>{timeAgo(job.created_at)}</span>
+        <span>{timeAgo(job.created)}</span>
         <span aria-hidden>·</span>
         <code className="rounded bg-muted px-1 py-0.5 text-[10px]">
           {job.head_sha.slice(0, 7)}

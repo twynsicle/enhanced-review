@@ -3,15 +3,14 @@ import { redirect } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { describeTarget, type ReviewJobRow } from '@/lib/jobs/types';
 import { logger } from '@/lib/log';
-import { getCurrentUser } from '@/lib/pb';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser, pbServer } from '@/lib/pb';
 
 /**
  * `/history` — workspace-wide list of review jobs (yours + every beta
- * member's). RLS allows authenticated SELECT on `review_jobs`, so the
- * page reads through the user-scoped client; the displayed
- * `github_login` and `target` columns are denormalised on each row so
- * we don't need joins here.
+ * member's). PB collection rules allow any authenticated user to list
+ * `review_jobs`, so the page reads through the user-scoped client; the
+ * displayed `github_login` and `target` columns are denormalised on
+ * each row so we don't need joins here.
  */
 export const dynamic = 'force-dynamic';
 
@@ -36,21 +35,17 @@ export default async function HistoryPage({
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  // Phase 3 will move this query to PB; for Phase 2 it returns empty.
-  const supabase = await createClient();
-  let query = supabase
-    .from('review_jobs')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(PAGE_SIZE);
-  if (status !== 'all') query = query.eq('status', status);
-
-  const { data: jobs, error } = await query.returns<ReviewJobRow[]>();
-  if (error) {
-    logger.error({ err: error, user_id: user.id }, '[history] fetch failed');
+  let rows: ReviewJobRow[] = [];
+  try {
+    const pb = await pbServer();
+    const result = await pb.collection('review_jobs').getList<ReviewJobRow>(1, PAGE_SIZE, {
+      filter: status === 'all' ? '' : `status = "${status}"`,
+      sort: '-created',
+    });
+    rows = result.items;
+  } catch (err) {
+    logger.error({ err, user_id: user.id }, '[history] fetch failed');
   }
-
-  const rows = jobs ?? [];
 
   return (
     <main className="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-6 px-6 py-10">
@@ -140,7 +135,7 @@ function JobRow({ job }: { job: ReviewJobRow }) {
           <span>@{job.github_login}</span>
         </span>
         <span>·</span>
-        <span>{timeAgo(job.created_at)}</span>
+        <span>{timeAgo(job.created)}</span>
         <span>·</span>
         <code className="rounded bg-muted px-1 py-0.5">{job.head_sha.slice(0, 7)}</code>
       </div>

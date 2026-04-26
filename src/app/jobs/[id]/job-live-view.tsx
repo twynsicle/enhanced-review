@@ -99,7 +99,7 @@ export function JobLiveView({
   }, [job.id]);
 
   const cancellable = job.status === 'pending' || job.status === 'running';
-  const isOwner = job.user_id === viewerUserId;
+  const isOwner = job.user === viewerUserId;
   const targetLine = useMemo(() => describeTarget(job.target), [job.target]);
 
   // Accumulate the raw stream into a single buffer so the partial parser

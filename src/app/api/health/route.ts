@@ -1,15 +1,16 @@
 import 'server-only';
+import type PocketBase from 'pocketbase';
 import { NextResponse } from 'next/server';
 import { logger } from '@/lib/log';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { pbAdmin } from '@/lib/pb';
 
 /**
  * GET /api/health — public, no secrets in payload.
  *
  * Cheap snapshot for ad-hoc ops checks: queue depth, age of the oldest
  * pending job, and the count of errored jobs in the last 24h. Three
- * lightweight queries (one count, one min, one filtered count); no
- * per-user data, no internal IDs.
+ * lightweight queries (each `getList` with `perPage=1` reading
+ * `totalItems` for counts); no per-user data, no internal IDs.
  *
  * Always returns 200 so a green pinger sees a green dot. If a query
  * fails the value is null and `ok` flips to `false`, but the response
@@ -26,21 +27,21 @@ export interface HealthBody {
 }
 
 export async function GET() {
-  const admin = createAdminClient();
+  const admin = await pbAdmin();
   let ok = true;
 
   const [queueDepth, oldestPending, errorsLast24h] = await Promise.all([
-    countByStatus(admin, 'pending').catch((err) => {
+    countByStatus(admin, 'pending').catch((err: unknown) => {
       logger.error({ err }, '[api/health] queueDepth failed');
       ok = false;
       return null;
     }),
-    oldestPendingAgeSeconds(admin).catch((err) => {
+    oldestPendingAgeSeconds(admin).catch((err: unknown) => {
       logger.error({ err }, '[api/health] oldestPending failed');
       ok = false;
       return null;
     }),
-    countErrorsLast24h(admin).catch((err) => {
+    countErrorsLast24h(admin).catch((err: unknown) => {
       logger.error({ err }, '[api/health] errorsLast24h failed');
       ok = false;
       return null;
@@ -57,42 +58,34 @@ export async function GET() {
 }
 
 async function countByStatus(
-  admin: ReturnType<typeof createAdminClient>,
+  admin: PocketBase,
   status: 'pending' | 'running' | 'done' | 'error' | 'cancelled',
 ): Promise<number> {
-  const { count, error } = await admin
-    .from('review_jobs')
-    .select('id', { count: 'exact', head: true })
-    .eq('status', status);
-  if (error) throw new Error(error.message);
-  return count ?? 0;
+  const result = await admin.collection('review_jobs').getList(1, 1, {
+    filter: `status = "${status}"`,
+    fields: 'id',
+  });
+  return result.totalItems;
 }
 
-async function oldestPendingAgeSeconds(
-  admin: ReturnType<typeof createAdminClient>,
-): Promise<number | null> {
-  const { data, error } = await admin
-    .from('review_jobs')
-    .select('created_at')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle<{ created_at: string }>();
-  if (error) throw new Error(error.message);
-  if (!data) return null;
-  const ageMs = Date.now() - new Date(data.created_at).getTime();
+async function oldestPendingAgeSeconds(admin: PocketBase): Promise<number | null> {
+  const result = await admin.collection('review_jobs').getList<{ created: string }>(1, 1, {
+    filter: 'status = "pending"',
+    sort: 'created',
+    fields: 'created',
+  });
+  const oldest = result.items[0];
+  if (!oldest) return null;
+  const ageMs = Date.now() - new Date(oldest.created).getTime();
   return Math.max(0, Math.round(ageMs / 1000));
 }
 
-async function countErrorsLast24h(
-  admin: ReturnType<typeof createAdminClient>,
-): Promise<number> {
-  const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  const { count, error } = await admin
-    .from('review_jobs')
-    .select('id', { count: 'exact', head: true })
-    .eq('status', 'error')
-    .gte('completed_at', cutoff);
-  if (error) throw new Error(error.message);
-  return count ?? 0;
+async function countErrorsLast24h(admin: PocketBase): Promise<number> {
+  // PB filter datetimes accept space-separated `YYYY-MM-DD HH:mm:ss.SSSZ`.
+  const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString().replace('T', ' ');
+  const result = await admin.collection('review_jobs').getList(1, 1, {
+    filter: `status = "error" && completed_at >= "${cutoff}"`,
+    fields: 'id',
+  });
+  return result.totalItems;
 }

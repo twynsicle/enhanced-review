@@ -2,25 +2,28 @@ import 'server-only';
 import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { logger } from '@/lib/log';
-import { getCurrentUser } from '@/lib/pb';
-import { createClient as createServerSupabase } from '@/lib/supabase/server';
+import { getCurrentUser, pbServer } from '@/lib/pb';
 
 /**
  * POST /api/jobs/[id]/cancel
  *
- * Owner-only cancellation. The user-scoped Supabase client is used
- * deliberately so RLS enforces the owner check — no manual `auth.uid()`
- * comparison in this handler. RLS additionally constrains the new status
- * to `cancelled` and requires `cancelled_at` to be set.
+ * Owner-only cancellation. The user-scoped PB client is used deliberately
+ * so the `review_jobs.updateRule`
+ * (`@request.auth.id = user.id && (status = "pending" || status = "running")`)
+ * enforces the owner check + cancellable-state check at the DB layer —
+ * no manual auth comparison in this handler.
  *
  * Returns 200 with `{ id }` on success, 409 when the job is no longer in
  * a cancellable state (already done/errored, already cancelled, or not
- * the user's job). The 409 conflates "wrong owner" with "wrong status"
- * on purpose — exposing the difference would leak job ownership.
+ * the user's job). PB returns 404 when a rule blocks an update — we map
+ * that to 409 deliberately. The 409 conflates "wrong owner" with "wrong
+ * status" on purpose: exposing the difference would leak job ownership.
  */
 export const dynamic = 'force-dynamic';
 
-const idSchema = z.string().uuid();
+// PB IDs default to 15 alphanumeric chars; allow a bit of slack in case
+// of customised id length.
+const idSchema = z.string().regex(/^[a-zA-Z0-9_-]+$/).min(1).max(40);
 
 export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/cancel'>) {
   const { id } = await ctx.params;
@@ -33,23 +36,23 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     return NextResponse.json({ message: 'unauthorized' }, { status: 401 });
   }
 
-  // Phase 3 will move this update to PB.
-  const supabase = await createServerSupabase();
-  const { data, error } = await supabase
-    .from('review_jobs')
-    .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
-    .eq('id', id)
-    .in('status', ['pending', 'running'])
-    .select('id')
-    .maybeSingle();
-
-  if (error) {
-    logger.error({ err: error, job_id: id, user_id: user.id }, '[api/jobs/cancel] update failed');
+  const pb = await pbServer();
+  try {
+    const record = await pb.collection('review_jobs').update(id, {
+      status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+    });
+    return NextResponse.json({ id: record.id });
+  } catch (err: unknown) {
+    if (isNotFound(err)) {
+      return NextResponse.json({ message: 'job is not cancellable' }, { status: 409 });
+    }
+    logger.error({ err, job_id: id, user_id: user.id }, '[api/jobs/cancel] update failed');
     return NextResponse.json({ message: 'failed to cancel' }, { status: 500 });
   }
-  if (!data) {
-    return NextResponse.json({ message: 'job is not cancellable' }, { status: 409 });
-  }
+}
 
-  return NextResponse.json({ id: data.id });
+function isNotFound(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  return (err as { status?: unknown }).status === 404;
 }

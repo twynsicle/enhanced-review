@@ -2,38 +2,39 @@ import type { ReviewTarget } from '@enhanced-review/github-client';
 import type { NarrativeReview } from '@enhanced-review/review-types';
 
 /**
- * `review_jobs` row shape as we read it from the user-scoped client.
- * Hand-written instead of using Supabase-generated types — small, stable,
- * and avoids pulling in a code-gen dependency for v1.
+ * `review_jobs` row shape as we read it from PocketBase. Field names
+ * follow PB conventions: relation columns are the related record id
+ * (`user`, `job`), autodate columns are `created`/`updated`.
  */
 export interface ReviewJobRow {
   id: string;
-  user_id: string;
+  user: string;
   github_login: string;
   target: ReviewTarget;
   status: 'pending' | 'running' | 'done' | 'error' | 'cancelled';
   head_sha: string;
-  created_at: string;
+  created: string;
+  updated: string;
   started_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
   error_message: string | null;
-  worker_id: string | null;
 }
 
 export interface ReviewChunkRow {
-  id: number;
-  job_id: string;
+  id: string;
+  job: string;
   seq: number;
   content: string;
-  created_at: string;
+  created: string;
 }
 
 export interface ReviewRow {
   id: string;
-  job_id: string;
+  job: string;
   content: NarrativeReview;
-  created_at: string;
+  diff_truncated: boolean;
+  created: string;
 }
 
 /**
