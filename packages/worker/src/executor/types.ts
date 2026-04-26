@@ -17,6 +17,16 @@ export interface ReviewExecutorInput {
   signal: AbortSignal;
   /** Model identifier in `<provider>/<model>` form (e.g. `opencode-zen/glm-4.7`). */
   model: string;
+  /**
+   * Streaming hook. Invoked for every stdout `data` event the executor
+   * receives, with the chunk decoded as UTF-8. The receiver is the
+   * worker's chunk batcher, which assigns `seq` and writes rows into
+   * `review_chunks`. Order matches the underlying stdout order.
+   *
+   * If `onChunk` itself throws (e.g. the batcher hit the per-job cap),
+   * the executor must propagate the error so the job is failed cleanly.
+   */
+  onChunk?: (text: string) => void;
 }
 
 export interface ReviewExecutorOutput {

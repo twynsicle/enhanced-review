@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { runOpencodeJob } from './opencode-job';
 import type { ReviewExecutor } from './executor/types';
 import type { GitRunOptions, GitRunResult } from './clone/git-runner';
+import { StreamCapExceededError, type ChunkBatcher } from './streaming/chunk-batcher';
 import type { ClaimedJob } from './types';
 
 interface SupabaseLog {
@@ -173,6 +174,65 @@ describe('runOpencodeJob', () => {
     );
     expect(outcome).toBe('cancelled');
     expect(supabase.inserts.find((i) => i.table === 'reviews')).toBeUndefined();
+  });
+
+  it('marks the job errored with "stream cap exceeded" when the batcher throws', async () => {
+    const supabase = fakeSupabase();
+    const { runner } = fakeGitRunner([
+      { match: (a) => a[0] === 'clone', result: { stdout: '', stderr: '', exitCode: 0 } },
+      { match: (a) => a[0] === 'rev-parse', result: { stdout: 'a11ce0\n', stderr: '', exitCode: 0 } },
+      { match: (a) => a[0] === 'fetch', result: { stdout: '', stderr: '', exitCode: 0 } },
+      { match: (a) => a[0] === 'diff' && a[1] === '--numstat', result: { stdout: '', stderr: '', exitCode: 0 } },
+      { match: (a) => a[0] === 'diff' && a[1] === '--name-status', result: { stdout: '', stderr: '', exitCode: 0 } },
+      { match: (a) => a[0] === 'diff', result: { stdout: '', stderr: '', exitCode: 0 } },
+      { match: (a) => a[0] === 'log', result: { stdout: 'a\n--BODY--\nb\n', stderr: '', exitCode: 0 } },
+    ]);
+
+    const capExecutor: ReviewExecutor = {
+      name: 'cap',
+      async run(input) {
+        // Simulate the executor surfacing a batcher cap throw.
+        try {
+          input.onChunk?.('over-the-cap');
+        } catch (err) {
+          throw err;
+        }
+        throw new Error('unreachable');
+      },
+    };
+
+    const fakeBatcher: ChunkBatcher = {
+      onChunk: () => {
+        throw new StreamCapExceededError(5000);
+      },
+      flush: async () => undefined,
+      getCount: () => 5000,
+    };
+
+    const ac = new AbortController();
+    const outcome = await runOpencodeJob(
+      {
+        supabase: supabase.client,
+        executor: capExecutor,
+        gitRunner: runner,
+        model: 'm',
+        createBatcher: () => fakeBatcher,
+      },
+      PR_JOB,
+      ac.signal,
+    );
+
+    expect(outcome).toBe('errored');
+    expect(supabase.inserts.find((i) => i.table === 'reviews')).toBeUndefined();
+    const errUpdate = supabase.updates.find(
+      (u) =>
+        u.table === 'review_jobs' &&
+        (u.row as { status?: string }).status === 'error',
+    );
+    expect(errUpdate).toBeDefined();
+    expect(
+      (errUpdate?.row as { error_message?: string } | undefined)?.error_message,
+    ).toBe('stream cap exceeded');
   });
 
   it('marks the job errored when the executor throws', async () => {

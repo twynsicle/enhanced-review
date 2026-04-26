@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Querier } from './db';
-import { STUB_CHUNKS, buildStubReview, runStubJob } from './stub';
+
+import type { ChunkBatcher } from './streaming/chunk-batcher';
+import type { ReviewExecutor, ReviewExecutorInput, ReviewExecutorOutput } from './executor/types';
+import { runStubJob } from './stub';
 import type { ClaimedJob } from './types';
 
 function fakeJob(): ClaimedJob {
@@ -28,7 +30,7 @@ interface SupabaseStub {
   client: SupabaseClient;
 }
 
-function fakeSupabase(opts: { failInsert?: boolean } = {}): SupabaseStub {
+function fakeSupabase(): SupabaseStub {
   const inserts: SupabaseStub['inserts'] = [];
   const updates: SupabaseStub['updates'] = [];
   const client = {
@@ -36,9 +38,7 @@ function fakeSupabase(opts: { failInsert?: boolean } = {}): SupabaseStub {
       return {
         insert(row: unknown) {
           inserts.push({ table, row });
-          return Promise.resolve({
-            error: opts.failInsert && table === 'review_chunks' ? { message: 'boom' } : null,
-          });
+          return Promise.resolve({ error: null });
         },
         update(row: unknown) {
           return {
@@ -54,116 +54,175 @@ function fakeSupabase(opts: { failInsert?: boolean } = {}): SupabaseStub {
   return { inserts, updates, client };
 }
 
-function fakePg(statusByCall: Array<string | null> | (() => string | null)): Querier {
-  const queue =
-    typeof statusByCall === 'function' ? null : ([...statusByCall] as Array<string | null>);
-  const fn = typeof statusByCall === 'function' ? statusByCall : null;
-  const query = vi.fn(async () => {
-    const next = fn ? fn() : (queue!.shift() ?? null);
-    return next === null ? { rows: [], rowCount: 0 } : { rows: [{ status: next }], rowCount: 1 };
-  });
-  return { query: query as unknown as Querier['query'] };
+interface FakeBatcherLog {
+  fragments: string[];
+  flushed: boolean;
+}
+
+function fakeBatcher(log: FakeBatcherLog): ChunkBatcher {
+  return {
+    onChunk(text: string) {
+      log.fragments.push(text);
+    },
+    async flush() {
+      log.flushed = true;
+    },
+    getCount() {
+      return log.fragments.length;
+    },
+  };
+}
+
+const SAMPLE_REVIEW = {
+  prTitle: 'Stub',
+  overviewSummary: 'sum',
+  chapters: [
+    { id: 'c1', title: 'first', insights: [], diffChunks: [] },
+    { id: 'c2', title: 'second', insights: [], diffChunks: [] },
+  ],
+};
+
+function makeFastExecutor(): { executor: ReviewExecutor; calls: ReviewExecutorInput[] } {
+  const calls: ReviewExecutorInput[] = [];
+  const executor: ReviewExecutor = {
+    name: 'fake-stub',
+    async run(input: ReviewExecutorInput): Promise<ReviewExecutorOutput> {
+      calls.push(input);
+      input.onChunk?.('<narrative_review>{"prTitle":"Stub","chapters":[');
+      input.onChunk?.('{"id":"c1","title":"first"}]}</narrative_review>');
+      return { review: SAMPLE_REVIEW, wasTruncated: false, rawText: 'raw' };
+    },
+  };
+  return { executor, calls };
 }
 
 describe('runStubJob', () => {
-  it('emits all 5 chunks then finalises with the stub review', async () => {
+  it('streams executor output via onChunk and finalises with the review', async () => {
     const supabase = fakeSupabase();
-    // selectStatus is called once per chunk + once before finalize → 6 times.
-    const pg = fakePg(() => 'running');
+    const batcherLog: FakeBatcherLog = { fragments: [], flushed: false };
+    const { executor, calls } = makeFastExecutor();
 
+    const ac = new AbortController();
     const outcome = await runStubJob(
-      { pg, supabase: supabase.client, sleep: async () => undefined, chunkDelayMs: 0 },
+      {
+        supabase: supabase.client,
+        executor,
+        createBatcher: () => fakeBatcher(batcherLog),
+      },
       fakeJob(),
+      ac.signal,
     );
 
     expect(outcome).toBe('done');
-    const chunkInserts = supabase.inserts.filter((i) => i.table === 'review_chunks');
-    expect(chunkInserts).toHaveLength(STUB_CHUNKS.length);
-    chunkInserts.forEach((insert, i) => {
-      expect(insert.row).toMatchObject({ job_id: 'job-1', seq: i, content: STUB_CHUNKS[i] });
-    });
+    expect(calls).toHaveLength(1);
+    // Executor received the same onChunk the batcher exposes; both
+    // fragments landed in the batcher.
+    expect(batcherLog.fragments).toHaveLength(2);
+    expect(batcherLog.flushed).toBe(true);
+
     const reviewInserts = supabase.inserts.filter((i) => i.table === 'reviews');
     expect(reviewInserts).toHaveLength(1);
-    expect(supabase.updates).toEqual([
-      expect.objectContaining({
-        table: 'review_jobs',
-        row: expect.objectContaining({ status: 'done' }),
-        eq: { column: 'id', value: 'job-1' },
-      }),
-    ]);
+    expect(reviewInserts[0]?.row).toMatchObject({ job_id: 'job-1', content: SAMPLE_REVIEW });
+
+    expect(
+      supabase.updates.some(
+        (u) => u.table === 'review_jobs' && (u.row as { status?: string }).status === 'done',
+      ),
+    ).toBe(true);
   });
 
-  it('exits early when status flips to cancelled mid-stream', async () => {
+  it('returns "cancelled" without finalising when the signal is already aborted', async () => {
     const supabase = fakeSupabase();
-    // chunk 0: running, chunk 1: cancelled — should emit one chunk only and skip finalize.
-    const pg = fakePg(['running', 'cancelled']);
+    const batcherLog: FakeBatcherLog = { fragments: [], flushed: false };
+    const ac = new AbortController();
+    ac.abort();
+
+    const executor: ReviewExecutor = {
+      name: 'never',
+      async run(input: ReviewExecutorInput) {
+        const err = new Error('aborted');
+        err.name = 'AbortError';
+        if (input.signal.aborted) throw err;
+        throw new Error('should not run');
+      },
+    };
 
     const outcome = await runStubJob(
-      { pg, supabase: supabase.client, sleep: async () => undefined, chunkDelayMs: 0 },
+      {
+        supabase: supabase.client,
+        executor,
+        createBatcher: () => fakeBatcher(batcherLog),
+      },
       fakeJob(),
+      ac.signal,
     );
 
     expect(outcome).toBe('cancelled');
-    expect(supabase.inserts.filter((i) => i.table === 'review_chunks')).toHaveLength(1);
-    expect(supabase.inserts.filter((i) => i.table === 'reviews')).toHaveLength(0);
-    // No status update either — the API already wrote 'cancelled'.
-    expect(supabase.updates).toEqual([]);
+    expect(supabase.inserts.find((i) => i.table === 'reviews')).toBeUndefined();
   });
 
-  it('cancels even on the final pre-finalize status check', async () => {
+  it('marks the job errored when the executor throws', async () => {
     const supabase = fakeSupabase();
-    // 5 running checks for the chunks + 1 cancelled at the gate before finalize.
-    const pg = fakePg(['running', 'running', 'running', 'running', 'running', 'cancelled']);
+    const batcherLog: FakeBatcherLog = { fragments: [], flushed: false };
+    const executor: ReviewExecutor = {
+      name: 'failing',
+      async run() {
+        throw new Error('boom');
+      },
+    };
 
     const outcome = await runStubJob(
-      { pg, supabase: supabase.client, sleep: async () => undefined, chunkDelayMs: 0 },
+      {
+        supabase: supabase.client,
+        executor,
+        createBatcher: () => fakeBatcher(batcherLog),
+      },
       fakeJob(),
-    );
-
-    expect(outcome).toBe('cancelled');
-    expect(supabase.inserts.filter((i) => i.table === 'review_chunks')).toHaveLength(5);
-    expect(supabase.inserts.filter((i) => i.table === 'reviews')).toHaveLength(0);
-  });
-
-  it('marks the job errored when an insert fails', async () => {
-    const supabase = fakeSupabase({ failInsert: true });
-    const pg = fakePg(() => 'running');
-
-    const outcome = await runStubJob(
-      { pg, supabase: supabase.client, sleep: async () => undefined, chunkDelayMs: 0 },
-      fakeJob(),
+      new AbortController().signal,
     );
 
     expect(outcome).toBe('errored');
     expect(
       supabase.updates.some(
-        (u) => u.table === 'review_jobs' && (u.row as { status?: string }).status === 'error',
+        (u) =>
+          u.table === 'review_jobs' &&
+          (u.row as { status?: string; error_message?: string }).status === 'error',
       ),
     ).toBe(true);
   });
-});
 
-describe('buildStubReview', () => {
-  it('uses the PR title for a PR target', () => {
-    const job = fakeJob();
-    const review = buildStubReview(job);
-    expect(review.prTitle).toBe('T');
-    expect(review.chapters).toHaveLength(2);
-  });
-
-  it('falls back to a branch-derived title for branch targets', () => {
-    const job: ClaimedJob = {
-      ...fakeJob(),
-      target: {
-        kind: 'branch',
-        owner: 'foo',
-        repo: 'bar',
-        ref: 'feature/x',
-        headSha: 'a',
-        baseRef: 'main',
-        baseSha: 'b',
+  it('always flushes the batcher in the finally block', async () => {
+    const supabase = fakeSupabase();
+    const batcherLog: FakeBatcherLog = { fragments: [], flushed: false };
+    const flush = vi.fn(async () => {
+      batcherLog.flushed = true;
+    });
+    const executor: ReviewExecutor = {
+      name: 'mid',
+      async run(input: ReviewExecutorInput) {
+        input.onChunk?.('partial');
+        throw new Error('mid-stream failure');
       },
     };
-    expect(buildStubReview(job).prTitle).toBe('Branch feature/x');
+
+    const outcome = await runStubJob(
+      {
+        supabase: supabase.client,
+        executor,
+        createBatcher: () => ({
+          onChunk(text: string) {
+            batcherLog.fragments.push(text);
+          },
+          flush,
+          getCount: () => batcherLog.fragments.length,
+        }),
+      },
+      fakeJob(),
+      new AbortController().signal,
+    );
+
+    expect(outcome).toBe('errored');
+    // flush was called during the finally even though we threw mid-run.
+    expect(flush).toHaveBeenCalled();
   });
 });

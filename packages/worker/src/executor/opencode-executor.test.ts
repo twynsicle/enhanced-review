@@ -164,4 +164,46 @@ describe('OpencodeExecutor', () => {
     await expect(promise).rejects.toBeDefined();
     expect(child.kill).toHaveBeenCalledWith('SIGTERM');
   });
+
+  it('forwards stdout to onChunk and still produces the parsed review', async () => {
+    const child = makeFakeChild({ stdoutText: VALID_MODEL_OUTPUT, exitCode: 0 });
+    const spawner = vi.fn().mockReturnValue(child);
+    const writeConfig = vi.fn().mockResolvedValue({ configPath: 'opencode.json', agentsPath: 'AGENTS.md' });
+
+    const seen: string[] = [];
+    const executor = new OpencodeExecutor({ spawner, writeConfig });
+    const result = await executor.run(
+      makeInput({ onChunk: (t) => seen.push(t) }),
+    );
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.join('')).toBe(VALID_MODEL_OUTPUT);
+    expect(result.review.prTitle).toBe('Test PR');
+  });
+
+  it('SIGTERMs the child and rejects when onChunk throws', async () => {
+    const child = makeFakeChild({ stdoutText: 'first chunk', exitCode: 143, delayCloseMs: 30 });
+    const spawner = vi.fn().mockReturnValue(child);
+
+    const executor = new OpencodeExecutor({
+      spawner,
+      writeConfig: vi.fn().mockResolvedValue({ configPath: '', agentsPath: '' }),
+    });
+
+    const boom = new Error('cap exceeded');
+    let caught: unknown;
+    try {
+      await executor.run(
+        makeInput({
+          onChunk: () => {
+            throw boom;
+          },
+        }),
+      );
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBe(boom);
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+  });
 });

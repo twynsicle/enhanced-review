@@ -76,7 +76,7 @@ export class OpencodeExecutor implements ReviewExecutor {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    const result = await collectChildOutput(child, user, input.signal);
+    const result = await collectChildOutput(child, user, input.signal, input.onChunk);
 
     // 4. Parse the narrative review. Tags + JSON shape do the heavy lifting.
     const parsed = parseNarrativeReview(result.stdout, hunkIndex);
@@ -120,14 +120,32 @@ function collectChildOutput(
   child: ChildProcess,
   stdinPayload: string,
   signal: AbortSignal,
+  onChunk: ((text: string) => void) | undefined,
 ): Promise<CollectedOutput> {
   return new Promise<CollectedOutput>((resolve, reject) => {
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
     let killTimer: NodeJS.Timeout | null = null;
     let aborted = false;
+    let streamError: Error | null = null;
 
-    child.stdout?.on('data', (c: Buffer) => stdoutChunks.push(c));
+    child.stdout?.on('data', (c: Buffer) => {
+      stdoutChunks.push(c);
+      if (!onChunk || streamError) return;
+      try {
+        onChunk(c.toString('utf-8'));
+      } catch (err) {
+        // Batcher cap exceeded (or any other receiver failure). Capture
+        // the error and tear the child down — the close handler will
+        // reject the outer promise with this error preserved.
+        streamError = err instanceof Error ? err : new Error(String(err));
+        try {
+          child.kill('SIGTERM');
+        } catch {
+          /* child may already be gone */
+        }
+      }
+    });
     child.stderr?.on('data', (c: Buffer) => stderrChunks.push(c));
 
     const onAbort = () => {
@@ -162,6 +180,10 @@ function collectChildOutput(
     child.once('close', (code) => {
       signal.removeEventListener('abort', onAbort);
       if (killTimer) clearTimeout(killTimer);
+      if (streamError) {
+        reject(streamError);
+        return;
+      }
       resolve({
         stdout: Buffer.concat(stdoutChunks).toString('utf-8'),
         stderr: Buffer.concat(stderrChunks).toString('utf-8'),

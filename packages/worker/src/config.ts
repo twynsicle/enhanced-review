@@ -12,8 +12,6 @@ export interface WorkerConfig {
   /** Initial reconnect delay; doubles up to {@link reconnectMaxMs}. */
   reconnectMinMs: number;
   reconnectMaxMs: number;
-  /** Stub-mode pause between fake chunks. */
-  stubChunkDelayMs: number;
   /** Which executor to run jobs through. Default: `opencode`. */
   executor: ReviewExecutorKind;
   /** Model id for opencode runs (`<provider>/<model>`). */
@@ -31,7 +29,6 @@ export function readConfigFromEnv(env: NodeJS.ProcessEnv = process.env): WorkerC
     serviceRoleKey: required(env, 'SUPABASE_SERVICE_ROLE_KEY'),
     reconnectMinMs: Number(env.WORKER_RECONNECT_MIN_MS ?? 1000),
     reconnectMaxMs: Number(env.WORKER_RECONNECT_MAX_MS ?? 30_000),
-    stubChunkDelayMs: Number(env.WORKER_STUB_CHUNK_DELAY_MS ?? 1000),
     executor: executorRaw,
     reviewModel: env.REVIEW_MODEL ?? 'opencode-zen/glm-4.7',
   };

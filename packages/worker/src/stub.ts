@@ -1,116 +1,98 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { NarrativeReview } from '@enhanced-review/review-types';
-import { type Querier, selectStatus } from './db';
-import { finalizeAsDone, insertChunk, markErrored } from './writes';
+
+import { StubExecutor } from './executor/stub-executor';
+import type { ReviewExecutor } from './executor/types';
+import {
+  StreamCapExceededError,
+  createChunkBatcher,
+  type ChunkBatcher,
+} from './streaming/chunk-batcher';
 import type { ClaimedJob } from './types';
+import { finalizeAsDone, markErrored } from './writes';
 
 /**
- * The fake chunks the stub worker streams. Five lines, one second apart
- * by default — enough to make the Realtime subscription observable in
- * a demo without being annoying.
+ * Phase 5+ stub job: drives a {@link StubExecutor} through the same
+ * batcher → review_chunks pipeline that the real opencode executor
+ * uses. That way `REVIEW_EXECUTOR=stub` exercises the streaming code
+ * path during dev, and streaming-related regressions surface in the
+ * stub tests rather than only under live opencode.
+ *
+ * The previous (Phase 3) version polled `review_jobs.status` between
+ * chunk emits to detect cancellation. With session.ts now wiring an
+ * `AbortSignal` from the cancel NOTIFY, the stub follows the same
+ * convention: cancellation is signal-driven, not DB-polled.
  */
-export const STUB_CHUNKS: readonly string[] = [
-  'Cloning repository at HEAD…',
-  'Reading recent commits and PR metadata…',
-  'Drafting Chapter 1 — high-level shape of the change…',
-  'Drafting Chapter 2 — risks and follow-ups…',
-  'Wrapping up review.',
-];
-
-/**
- * The hard-coded NarrativeReview the stub writes to `reviews.content`
- * once the chunks have streamed. Phase 4 replaces the producer; the
- * shape stays stable so Phase 6's reader UI can render either.
- */
-export function buildStubReview(job: ClaimedJob): NarrativeReview {
-  const target = job.target as { kind?: string; title?: string; ref?: string; number?: number };
-  const title =
-    target?.kind === 'pr' && target.title
-      ? target.title
-      : target?.kind === 'branch' && target.ref
-        ? `Branch ${target.ref}`
-        : 'Stub review';
-
-  return {
-    prTitle: title,
-    overviewSummary:
-      'This is a stub review produced by the Phase 3 worker. Real opencode-driven analysis arrives in Phase 4.',
-    chapters: [
-      {
-        id: 'stub-chapter-1',
-        title: 'Shape of the change',
-        insights: [
-          {
-            type: 'context',
-            text: 'The diff touches a handful of files; the stub worker did not actually read them.',
-          },
-          {
-            type: 'highlight',
-            text: 'Phase 4 will replace this placeholder with a real AI-generated narrative.',
-          },
-        ],
-        diffChunks: [],
-      },
-      {
-        id: 'stub-chapter-2',
-        title: 'Risks and follow-ups',
-        insights: [
-          {
-            type: 'rationale',
-            text: 'No risk analysis is performed by the stub. Treat all PRs as low-risk for now.',
-          },
-        ],
-        diffChunks: [],
-      },
-    ],
-  };
-}
 
 export interface RunStubJobDeps {
-  pg: Querier;
   supabase: SupabaseClient;
-  /** Test seam: replace with a deterministic delay in unit tests. */
-  sleep: (ms: number) => Promise<void>;
-  /** Fake-chunk pause, in ms. */
-  chunkDelayMs: number;
+  /** Test seam: substitute the StubExecutor with another fake. */
+  executor?: ReviewExecutor;
+  /** Test seam: substitute the chunk batcher. */
+  createBatcher?: (jobId: string) => ChunkBatcher;
 }
 
 export type StubJobOutcome = 'done' | 'cancelled' | 'errored';
 
-/**
- * Stream {@link STUB_CHUNKS} into `review_chunks` one second apart,
- * checking for cancellation between chunks. On the last chunk emitted
- * cleanly, write the {@link buildStubReview} payload and flip status
- * to `done`. On `cancelled`, exit without writing the reviews row.
- */
-export async function runStubJob(deps: RunStubJobDeps, job: ClaimedJob): Promise<StubJobOutcome> {
+export async function runStubJob(
+  deps: RunStubJobDeps,
+  job: ClaimedJob,
+  signal: AbortSignal,
+): Promise<StubJobOutcome> {
+  const executor = deps.executor ?? new StubExecutor();
+  const createBatcher =
+    deps.createBatcher ??
+    ((jobId: string) => createChunkBatcher({ supabase: deps.supabase, jobId }));
+
+  let batcher: ChunkBatcher | null = null;
   try {
-    for (let i = 0; i < STUB_CHUNKS.length; i++) {
-      // Check cancellation before each emit. Doing it before (not after)
-      // means the worker stops as quickly as possible once the user
-      // clicks Cancel; the trade-off is one extra round-trip per chunk.
-      const status = await selectStatus(deps.pg, job.id);
-      if (status === 'cancelled') return 'cancelled';
-      if (status === null) return 'errored';
+    batcher = createBatcher(job.id);
+    const result = await executor.run({
+      cloneDir: '/tmp/stub',
+      prData: {
+        title: 'stub',
+        body: '',
+        author: 'stub',
+        baseRefName: 'main',
+        headRefName: 'stub',
+        files: [],
+        diff: '',
+      },
+      filteredDiff: '',
+      target: { kind: 'branch', owner: 'stub', repo: 'stub', ref: 'stub', baseRef: 'main', baseSha: '0' },
+      signal,
+      model: 'stub',
+      onChunk: batcher.onChunk,
+    });
 
-      await insertChunk(deps.supabase, job.id, i, STUB_CHUNKS[i]!);
-
-      // Pause between chunks (and before the finalize) so the demo is
-      // visibly streaming. No pause after the last chunk would lose the
-      // visual cue; pause first then check status one more time.
-      await deps.sleep(deps.chunkDelayMs);
+    if (signal.aborted) {
+      return 'cancelled';
     }
 
-    // One more cancellation check before finalising — covers a click that
-    // arrives during the final pause.
-    const finalStatus = await selectStatus(deps.pg, job.id);
-    if (finalStatus === 'cancelled') return 'cancelled';
-
-    await finalizeAsDone(deps.supabase, job.id, buildStubReview(job));
+    await batcher.flush();
+    await finalizeAsDone(deps.supabase, job.id, result.review, {
+      diffTruncated: result.wasTruncated,
+    });
     return 'done';
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await markErrored(deps.supabase, job.id, message);
+    if (signal.aborted) {
+      return 'cancelled';
+    }
+    await markErrored(deps.supabase, job.id, formatStubError(err));
     return 'errored';
+  } finally {
+    if (batcher !== null) {
+      try {
+        await batcher.flush();
+      } catch {
+        /* swallowed: tail flush after error/cancel is best-effort */
+      }
+    }
   }
+}
+
+function formatStubError(err: unknown): string {
+  if (err instanceof StreamCapExceededError) {
+    return 'stream cap exceeded';
+  }
+  return err instanceof Error ? err.message : String(err);
 }

@@ -21,6 +21,11 @@ import {
 } from './executor/types';
 import { GithubFetchError, fetchPullMetadata } from './github';
 import type { PrData } from './prompt/types';
+import {
+  StreamCapExceededError,
+  createChunkBatcher,
+  type ChunkBatcher,
+} from './streaming/chunk-batcher';
 import type { ClaimedJob } from './types';
 import { finalizeAsDone, markErrored } from './writes';
 
@@ -42,6 +47,8 @@ export interface RunOpencodeJobDeps {
   model?: string;
   /** Test seam: bypass the real `child_process.spawn`-backed git. */
   gitRunner?: typeof runGit;
+  /** Test seam: substitute the chunk batcher (e.g. to inject fake timers). */
+  createBatcher?: (jobId: string) => ChunkBatcher;
 }
 
 export type OpencodeJobOutcome = 'done' | 'cancelled' | 'errored';
@@ -127,9 +134,13 @@ export async function runOpencodeJob(
   const model = deps.model ?? process.env.REVIEW_MODEL ?? 'opencode-zen/glm-4.7';
   const executor = deps.executor ?? new OpencodeExecutor();
   const gitRunner = deps.gitRunner ?? runGit;
+  const createBatcher =
+    deps.createBatcher ??
+    ((jobId: string) => createChunkBatcher({ supabase: deps.supabase, jobId }));
 
   let cloneDir: string | null = null;
   let token: string | null = null;
+  let batcher: ChunkBatcher | null = null;
 
   try {
     const target = parseTarget(job.target);
@@ -208,6 +219,8 @@ export async function runOpencodeJob(
       };
     })();
 
+    batcher = createBatcher(job.id);
+
     const result = await executor.run({
       cloneDir,
       prData,
@@ -215,11 +228,17 @@ export async function runOpencodeJob(
       target: target.clone,
       signal,
       model,
+      onChunk: batcher.onChunk,
     });
 
     if (signal.aborted) {
       return 'cancelled';
     }
+
+    // Drain any in-flight / buffered chunks before flipping status to
+    // `done` so a subscriber that observes `done` already sees the full
+    // chunk stream rebuilt on reload.
+    await batcher.flush();
 
     await finalizeAsDone(deps.supabase, job.id, result.review, {
       diffTruncated: result.wasTruncated,
@@ -232,6 +251,16 @@ export async function runOpencodeJob(
     await markErrored(deps.supabase, job.id, formatJobError(err));
     return 'errored';
   } finally {
+    // Best-effort tail flush so partial chunks survive cancel / error.
+    // No reviews row will exist in those paths; the chunks are the only
+    // record of what was streamed.
+    if (batcher !== null) {
+      try {
+        await batcher.flush();
+      } catch {
+        /* swallowed: tail flush after error/cancel is best-effort */
+      }
+    }
     // Token is normally cleared mid-flight; this catches the failure path.
     if (token !== null) {
       await clearGithubToken(deps.supabase, job.id);
@@ -254,6 +283,9 @@ function formatJobError(err: unknown): string {
   }
   if (err instanceof GithubFetchError) {
     return `github: ${err.message}`;
+  }
+  if (err instanceof StreamCapExceededError) {
+    return 'stream cap exceeded';
   }
   if (err instanceof ExecutorParseError) {
     return `parse: ${err.message}`;
