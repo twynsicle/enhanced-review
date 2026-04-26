@@ -190,9 +190,6 @@ function whatNowFor(errorMessage: string): string {
   if (m.startsWith('timeout')) {
     return 'The review hit the time limit. Try Re-run; if it keeps timing out, narrow the diff scope.';
   }
-  if (m.startsWith('worker crashed')) {
-    return 'The worker died mid-review. Click Re-run to try again.';
-  }
   if (m.startsWith('token')) {
     return 'GitHub token issue — re-link your account from the home page, then Re-run.';
   }
@@ -262,7 +259,7 @@ function ChapterChecklist({
         <div className="flex flex-col gap-1 text-muted-foreground">
           <p>Setting up your review…</p>
           <p className="text-xs">
-            Cloning the repo and waiting for a worker to pick this up.
+            Cloning the repo and starting the reviewer.
           </p>
         </div>
       )}
@@ -347,7 +344,7 @@ function ChecklistFooter({
   const startMs = startedAt ? new Date(startedAt).getTime() : null;
   const completedMs = completedAt ? new Date(completedAt).getTime() : null;
 
-  if (status === 'pending') return <span>Queued · waiting for a worker.</span>;
+  if (status === 'pending') return <span>Starting up…</span>;
   if (status === 'running') {
     if (startMs === null || nowMs === null) return <span>Streaming…</span>;
     const elapsedSec = Math.max(0, Math.floor((nowMs - startMs) / 1000));

@@ -4,10 +4,9 @@ import { detectLanguage } from '@/lib/narrative/language-map';
 /**
  * View-time GitHub data layer for the review reader UI.
  *
- * Phase 6 deliberately re-fetches diff context, PR metadata, and current
- * head SHAs from GitHub on every render rather than persisting them — see
- * PHASE-6-review-reader-ui.md for the rationale. These helpers are the
- * single ingress point.
+ * Diff context, PR metadata, and current head SHAs are deliberately
+ * re-fetched from GitHub on every render rather than persisted. These
+ * helpers are the single ingress point.
  *
  * All helpers run server-only (see `'server-only'` import) and use plain
  * `fetch` so Next.js's data-cache can amortise refresh hits via

@@ -6,7 +6,7 @@ vi.mock('@/lib/pb', () => ({
 vi.mock('@/lib/github/token', () => ({
   getGithubToken: vi.fn(),
   MissingProviderTokenError: class MissingProviderTokenError extends Error {
-    constructor(message = 'No GitHub provider token on this Supabase session') {
+    constructor(message = 'No GitHub access token cookie on this request') {
       super(message);
       this.name = 'MissingProviderTokenError';
     }

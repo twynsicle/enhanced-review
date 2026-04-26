@@ -35,7 +35,7 @@ export async function fetchPullMetadata(opts: {
         Authorization: `Bearer ${opts.token}`,
         Accept: 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'enhanced-review-worker/0.1',
+        'User-Agent': 'enhanced-review/0.1',
       },
       signal: opts.signal,
     },

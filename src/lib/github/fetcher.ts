@@ -3,10 +3,10 @@
 /**
  * Client-side fetcher for our `/api/github/...` routes.
  *
- * On 401 we redirect to `/relink` so the user can re-run the OAuth flow
- * — see PHASE-2 for why we don't refresh the GitHub `provider_token`
- * automatically. Other non-2xx responses surface as an Error the caller
- * can render.
+ * On 401 we redirect to `/relink` so the user can re-run the OAuth flow.
+ * GitHub OAuth Apps don't issue refresh tokens, so re-running the flow
+ * is the only recovery. Other non-2xx responses surface as an Error the
+ * caller can render.
  */
 export class FetchGithubError extends Error {
   readonly status: number;

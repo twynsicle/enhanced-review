@@ -1,11 +1,10 @@
 /**
- * Thrown when GitHub returns 401, signalling the OAuth `provider_token` is
- * no longer valid (revoked, expired, scope downgraded). Callers in the web
+ * Thrown when GitHub returns 401, signalling the OAuth access token is no
+ * longer valid (revoked, expired, scope downgraded). Callers in the web
  * app translate this into a redirect to `/relink`.
  *
- * GitHub OAuth Apps don't issue refresh tokens by default and Supabase
- * doesn't proactively re-mint `provider_token`, so the only correct
- * recovery is to re-run the OAuth flow.
+ * GitHub OAuth Apps don't issue refresh tokens by default, so the only
+ * correct recovery is to re-run the OAuth flow.
  */
 export class GithubAuthError extends Error {
   readonly status: number;

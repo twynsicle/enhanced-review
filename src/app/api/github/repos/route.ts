@@ -6,11 +6,10 @@ import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
  * GET /api/github/repos
  *
  * Returns the first 100 repos accessible to the signed-in user, sorted by
- * most-recently pushed. Pagination is intentionally absent for v1 — see
- * PHASE-2 doc decisions.
+ * most-recently pushed. Pagination is intentionally absent for v1.
  *
  * Auth is enforced by `proxy.ts`; this handler additionally relies on the
- * GitHub `provider_token` being present (otherwise → 401 → `/relink`).
+ * GitHub access token being present (otherwise → 401 → `/relink`).
  */
 export const dynamic = 'force-dynamic';
 

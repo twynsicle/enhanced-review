@@ -8,8 +8,8 @@ import { pino, type Logger } from 'pino';
  * the server.
  *
  * Use `logger.child({ job_id })` (or any other tag) for request-scoped
- * lines so the operator can grep for a single job across the worker
- * and the API.
+ * lines so the operator can grep for a single job across the API route
+ * and the in-process runner.
  */
 function buildLogger(): Logger {
   const level = process.env.LOG_LEVEL ?? 'info';

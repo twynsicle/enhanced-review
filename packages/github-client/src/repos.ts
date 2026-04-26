@@ -9,7 +9,7 @@ const DEFAULT_PAGE_SIZE = 100;
  *
  * Uses GitHub's REST `/user/repos` with `affiliation=owner,collaborator,
  * organization_member` so org-collab repos show up alongside personal ones.
- * Capped at the first 100 (one page) for v1 — see PHASE-2 doc decisions.
+ * Capped at the first 100 (one page) for v1.
  */
 export async function listRepos(octokit: Octokit): Promise<RepoSummary[]> {
   try {

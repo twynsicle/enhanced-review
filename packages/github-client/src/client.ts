@@ -2,8 +2,7 @@ import { Octokit } from 'octokit';
 
 /**
  * Construct a per-request Octokit instance authenticated with the user's
- * GitHub OAuth `provider_token`. Centralised so the web app and the
- * (future) worker container can both reach for the same factory.
+ * GitHub OAuth access token.
  *
  * Token must be passed in explicitly; this module deliberately has no
  * dependency on Next.js cookies or any request context so it stays

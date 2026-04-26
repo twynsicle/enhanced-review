@@ -10,8 +10,8 @@ import { getCurrentUser } from '@/lib/pb';
  *
  * Server-side proxy that the Phase 6 `InlineDiffChunk` calls to load
  * base/head file blobs. Token never reaches the browser; the route
- * reads the *viewer's* GitHub OAuth provider_token off the Supabase
- * session and forwards it to GitHub's contents API.
+ * reads the *viewer's* GitHub OAuth access token from the HttpOnly
+ * `gh_access_token` cookie and forwards it to GitHub's contents API.
  *
  * Response shape mirrors the {@link import('@/lib/github/view-time').ViewTimeResult}
  * discriminated union except for hard auth failures, which return 401
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 3. GitHub provider_token. Missing = relink.
+  // 3. GitHub access token. Missing = relink.
   let token: string;
   try {
     token = await getGithubToken();
