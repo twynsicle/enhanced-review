@@ -4,7 +4,7 @@
  * persist into `reviews.content` and Phase 6's reader UI will render.
  *
  * Phase 3's stub worker writes a hard-coded value of this shape so the
- * pipeline can be tested end-to-end before opencode is wired up.
+ * pipeline can be tested end-to-end before the real executor is wired up.
  */
 
 export type InsightType = 'context' | 'rationale' | 'highlight' | 'reference';

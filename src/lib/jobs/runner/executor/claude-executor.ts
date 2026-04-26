@@ -1,5 +1,6 @@
 import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
 
+import { logger } from '@/lib/log';
 import { buildNarrativePrompt } from '../prompt/narrative-prompt';
 import { parseNarrativeReview } from '../prompt/parse-narrative';
 import {
@@ -13,7 +14,7 @@ import {
 const FILESYSTEM_BOUNDARY = `
 
 ---
-You are running inside a freshly cloned working tree at the current working directory. The diff in the user prompt is your primary input. You may use Read, Glob, and Grep to look up surrounding context if it helps you write a more accurate review, but you cannot write, edit, or run shell commands. Output only the <narrative_review> JSON block — no preamble, no closing remarks.`;
+You are running inside a freshly cloned working tree at the current working directory. The diff in the user prompt is your primary input. You may use Read, Glob, and Grep to look up surrounding context. Output only the <narrative_review> JSON block — no preamble, no closing remarks.`;
 
 const MAX_TURNS = 30;
 
@@ -31,26 +32,26 @@ export class ClaudeExecutor implements ReviewExecutor {
 
   async run(input: ReviewExecutorInput): Promise<ReviewExecutorOutput> {
     if (input.signal.aborted) {
-      throw new Error('claude run aborted before start');
+      const aborted = new Error('claude run aborted before start');
+      aborted.name = 'AbortError';
+      throw aborted;
     }
 
     const { system, user, wasTruncated, hunkIndex } = buildNarrativePrompt(input.prData);
 
     const abortController = new AbortController();
-    if (input.signal.aborted) {
-      abortController.abort();
-    } else {
-      input.signal.addEventListener('abort', () => abortController.abort(), { once: true });
-    }
+    input.signal.addEventListener('abort', () => abortController.abort(), { once: true });
 
     const queryFn = this.deps.queryFn ?? query;
     const env = this.deps.env ?? process.env;
+
+    const log = logger.child({ executor: 'claude' });
 
     const options: Options = {
       cwd: input.cloneDir,
       model: input.model,
       systemPrompt: system + FILESYSTEM_BOUNDARY,
-      allowedTools: ['Read', 'Glob', 'Grep'],
+      tools: ['Read', 'Glob', 'Grep'],
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
       abortController,
@@ -95,11 +96,14 @@ export class ClaudeExecutor implements ReviewExecutor {
         }
       }
     } catch (err) {
+      if (chunkError) throw chunkError;
       if (input.signal.aborted) {
+        log.error({ err }, 'claude executor aborted by signal');
         const aborted = new Error('claude executor aborted');
         aborted.name = 'AbortError';
         throw aborted;
       }
+      log.error({ err }, 'claude SDK error');
       throw new ExecutorProcessError(
         err instanceof Error ? err.message : String(err),
         '',
@@ -108,20 +112,15 @@ export class ClaudeExecutor implements ReviewExecutor {
       );
     }
 
-    if (chunkError) {
-      throw chunkError;
+    if (chunkError) throw chunkError;
+
+    if (resultError) {
+      throw new ExecutorProcessError(resultError, '', null, raw);
     }
 
     const parsed = parseNarrativeReview(raw, hunkIndex);
     if (!parsed.ok) {
-      if (resultError) {
-        throw new ExecutorProcessError(resultError, '', null, raw);
-      }
       throw new ExecutorParseError(parsed.error, raw);
-    }
-
-    if (resultError) {
-      throw new ExecutorProcessError(resultError, '', null, raw);
     }
 
     return { review: parsed.data, wasTruncated, rawText: raw };

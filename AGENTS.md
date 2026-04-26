@@ -78,18 +78,18 @@ test/                          server-only.shim.ts (Vitest alias for next/server
 - **Job lifecycle**: `POST /api/jobs` → resolve head SHA via Octokit → insert `review_jobs` row (`status=pending`) → register `AbortController` in `src/lib/jobs/runner/registry.ts` → fire `runJob(...)` (no await) → return `{ id }`. The route arms a `setTimeout(REVIEW_TIMEOUT_MIN)` that writes `status=error` and aborts.
 - **Runner** (`src/lib/jobs/runner/run.ts`): parse target → fetch PR metadata if PR → shallow clone (`git clone --depth=1`) → list changed files → build `PrData` → executor (`claude` via the Claude Agent SDK, or `stub`) streams chunks → each chunk inserted fire-and-forget into `review_chunks` → drain in-flight before flipping `status=done` → `finally` cleans clone dir + re-applies `cancelled` if signal aborted.
 - **Streaming**: client subscribes to PB realtime SSE on `review_chunks` (deduped by `seq`). Drain-before-done means a subscriber that observes `done` already has every chunk.
-- **Cancel**: `POST /api/jobs/[id]/cancel` updates row to `cancelled` under user's PB session, then signals the registry. Runner propagates the abort signal into clone + executor subprocesses.
+- **Cancel**: `POST /api/jobs/[id]/cancel` updates row to `cancelled` under user's PB session, then signals the registry. Runner propagates the abort signal into the clone process and the SDK iterator.
 - **Output shape**: `packages/review-types/src/narrative.ts` — `NarrativeReview` = `prTitle` + `overviewSummary` + `chapters[]` (each with `insights[]` and `diffChunks[]`).
 
 ## PocketBase collections (see `pb_migrations/1745539200_initial_schema.js`)
 
-| Collection                  | Rules                                                                         | Notes                                          |
-| --------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------- | ------- | ---- | ----- | ----------- |
-| `users` (auth, PB built-in) | default                                                                       | Extended by migrations to add `github_login`.  |
-| `allowed_users`             | all `null`                                                                    | Admin-only. Unique index on `github_login`.    |
-| `review_jobs`               | list/view: any auth; update: owner while pending/running; create/delete: null | Status `pending                                | running | done | error | cancelled`. |
-| `reviews`                   | list/view: any auth; mutations null                                           | One per completed job (unique index on `job`). |
-| `review_chunks`             | list/view: any auth; mutations null                                           | Streamed partials. Unique on `(job, seq)`.     |
+| Collection                  | Rules                                                                         | Notes                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `users` (auth, PB built-in) | default                                                                       | Extended by migrations to add `github_login`.                         |
+| `allowed_users`             | all `null`                                                                    | Admin-only. Unique index on `github_login`.                           |
+| `review_jobs`               | list/view: any auth; update: owner while pending/running; create/delete: null | Status enum: pending, running, done, error, cancelled.                |
+| `reviews`                   | list/view: any auth; mutations null                                           | One per completed job (unique index on `job`).                        |
+| `review_chunks`             | list/view: any auth; mutations null                                           | Streamed partials. Unique on `(job, seq)`.                            |
 
 All status writes from the runner use `pbAdmin()` to bypass rules.
 

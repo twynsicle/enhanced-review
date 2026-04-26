@@ -242,8 +242,8 @@ export async function runJob(
           status: 'cancelled',
           cancelled_at: new Date().toISOString(),
         })
-        .catch(() => {
-          /* best-effort */
+        .catch((err: unknown) => {
+          log.warn({ err }, 'failed to mark job cancelled');
         });
     }
     if (cloneDir) await cleanupWorkDir(cloneDir);

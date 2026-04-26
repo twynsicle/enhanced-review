@@ -6,8 +6,8 @@ import rehypeHighlight from 'rehype-highlight';
  * Thin wrapper around `react-markdown` with GFM (tables, task lists,
  * strikethrough) and `highlight.js`-driven code-fence highlighting.
  *
- * Default sanitization (no `rehype-raw`) — opencode shouldn't be emitting
- * raw HTML, and the AI's review chapters land at trust-level "anything
+ * Default sanitization (no `rehype-raw`) — the Claude executor shouldn't be
+ * emitting raw HTML, and the AI's review chapters land at trust-level "anything
  * the model said". The wrapper isolates the rest of the codebase from
  * the rendering library so a future swap is one file.
  *

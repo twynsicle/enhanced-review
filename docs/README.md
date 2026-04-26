@@ -49,7 +49,7 @@ jobs) see [OPERATIONS.md](OPERATIONS.md).
 - **Cancellation**: the cancel route updates the row to `status='cancelled'`
   and signals an `AbortController` registered in
   `src/lib/jobs/runner/registry.ts`. The runner propagates the signal
-  into clone + executor so subprocesses tear down promptly.
+  into the clone process and the SDK iterator so both tear down promptly.
 
 ### Repo handling
 
@@ -75,7 +75,7 @@ jobs) see [OPERATIONS.md](OPERATIONS.md).
 - **Frontend**: Next.js 16 (App Router) + React 19 + TypeScript.
 - **Backend (API)**: Next.js Route Handlers / Server Actions.
 - **DB / Auth / Realtime**: PocketBase (single binary, SQLite-backed).
-- **Review runner**: in-process inside Next.js; uses `@anthropic-ai/claude-agent-sdk`'s `query()` (which the SDK runs as a managed Node subprocess).
+- **Review runner**: in-process inside Next.js; uses `@anthropic-ai/claude-agent-sdk`'s `query()` iterator directly — no subprocess.
 - **Deployment target**: AWS-friendly (PB on a Fargate task with EFS for
   `pb_data/`, Next.js on another Fargate task) but local-first today.
 
