@@ -162,13 +162,18 @@ describe('ClaudeExecutor', () => {
       cwd: '/tmp/clone',
       model: 'claude-haiku-4-5',
       tools: ['Read', 'Glob', 'Grep'],
-      permissionMode: 'bypassPermissions',
-      allowDangerouslySkipPermissions: true,
+      allowedTools: ['Read', 'Glob', 'Grep'],
+      permissionMode: 'dontAsk',
       settingSources: [],
       persistSession: false,
+      sandbox: {
+        enabled: true,
+        failIfUnavailable: false,
+        allowUnsandboxedCommands: false,
+      },
     });
-    // Ensure legacy / unsafe fields are absent.
-    expect(arg.options).not.toHaveProperty('allowedTools');
+    // Ensure the unsafe bypass flag is absent.
+    expect(arg.options).not.toHaveProperty('allowDangerouslySkipPermissions');
   });
 
   it('rejects with AbortError when signal aborts mid-stream', async () => {

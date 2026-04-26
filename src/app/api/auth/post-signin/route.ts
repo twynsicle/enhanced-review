@@ -33,9 +33,34 @@ export const dynamic = 'force-dynamic';
 
 const bodySchema = z.object({
   accessToken: z.string().min(1),
-  githubLogin: z.string().min(1).max(100),
-  name: z.string().max(200).optional(),
 });
+
+interface GithubViewer {
+  login?: string | null;
+  name?: string | null;
+}
+
+async function verifyGithubToken(accessToken: string, signal: AbortSignal): Promise<GithubViewer> {
+  const res = await fetch('https://api.github.com/user', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'enhanced-review/0.1',
+    },
+    signal,
+  });
+
+  if (!res.ok) {
+    throw new Error(`GitHub /user returned ${res.status.toString()}`);
+  }
+
+  const viewer = (await res.json()) as GithubViewer;
+  if (!viewer.login || viewer.login.length > 100) {
+    throw new Error('GitHub /user did not return a valid login');
+  }
+  return viewer;
+}
 
 export async function POST(request: NextRequest) {
   // 1. Verify the browser is authenticated against PB.
@@ -62,7 +87,35 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  const { accessToken, githubLogin, name } = parsed.data;
+  const { accessToken } = parsed.data;
+
+  let viewer: GithubViewer;
+  try {
+    viewer = await verifyGithubToken(accessToken, request.signal);
+  } catch (err) {
+    logger.warn({ err, user_id: user.id }, '[auth/post-signin] GitHub token verification failed');
+    return NextResponse.json(
+      { reason: 'github_token_invalid', message: 'GitHub token is invalid; please re-link.' },
+      { status: 401 },
+    );
+  }
+
+  const githubLogin = viewer.login!;
+  const name = typeof viewer.name === 'string' ? viewer.name : undefined;
+
+  if (user.github_login && user.github_login !== githubLogin) {
+    logger.warn(
+      { user_id: user.id, existing_login: user.github_login, verified_login: githubLogin },
+      '[auth/post-signin] verified GitHub login does not match existing user login',
+    );
+    return NextResponse.json(
+      {
+        reason: 'github_identity_mismatch',
+        message: 'GitHub account does not match this session.',
+      },
+      { status: 409 },
+    );
+  }
 
   // 3. Backfill the user record. Admin client because the user can't
   // update their own `github_login` (rule would need to be

@@ -4,7 +4,7 @@ export interface GitRunOptions {
   args: readonly string[];
   cwd?: string;
   signal?: AbortSignal;
-  env?: NodeJS.ProcessEnv;
+  env?: Record<string, string | undefined>;
 }
 
 export interface GitRunResult {

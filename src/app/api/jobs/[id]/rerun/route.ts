@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { getGithubLogin } from '@/lib/auth/allowlist';
 import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
 import { findUserInFlightJob } from '@/lib/jobs/concurrency';
+import { resolveFreshReviewTarget } from '@/lib/jobs/resolve-target';
 import { logger } from '@/lib/log';
 import { getCurrentUser, pbAdmin, readGithubTokenCookie } from '@/lib/pb';
 import * as registry from '@/lib/jobs/runner/registry';
@@ -23,13 +24,16 @@ import { runJob } from '@/lib/jobs/runner/run';
  * 404 when the source job doesn't exist. 502 when the GitHub head-SHA
  * refresh fails.
  *
- * Phase 3: the runner isn't hooked up yet, so the new row sits at
- * `pending` forever. Phase 4 wires the runner in and starts pulling
- * the viewer's GitHub token off the session here.
+ * The runner starts immediately with the viewer's GitHub token from the
+ * session cookie.
  */
 export const dynamic = 'force-dynamic';
 
-const idSchema = z.string().regex(/^[a-zA-Z0-9_-]+$/).min(1).max(40);
+const idSchema = z
+  .string()
+  .regex(/^[a-zA-Z0-9_-]+$/)
+  .min(1)
+  .max(40);
 
 export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/rerun'>) {
   const { id } = await ctx.params;
@@ -70,7 +74,10 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     if (isNotFound(err)) {
       return NextResponse.json({ message: 'job not found' }, { status: 404 });
     }
-    logger.error({ err, source_job_id: id, user_id: user.id }, '[api/jobs/rerun] source lookup failed');
+    logger.error(
+      { err, source_job_id: id, user_id: user.id },
+      '[api/jobs/rerun] source lookup failed',
+    );
     return NextResponse.json({ message: 'failed to load source job' }, { status: 500 });
   }
 
@@ -89,21 +96,9 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
   let headSha: string;
   try {
     const octokit = await createServerOctokit();
-    if (target.kind === 'pr') {
-      const { data } = await octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
-        owner: target.owner,
-        repo: target.repo,
-        pull_number: target.number,
-      });
-      headSha = data.head.sha;
-    } else {
-      const { data } = await octokit.request('GET /repos/{owner}/{repo}/branches/{branch}', {
-        owner: target.owner,
-        repo: target.repo,
-        branch: target.ref,
-      });
-      headSha = data.commit.sha;
-    }
+    const resolved = await resolveFreshReviewTarget(octokit, target);
+    target = resolved.target;
+    headSha = resolved.headSha;
   } catch (error) {
     if (error instanceof GithubAuthError || isAuthError(error)) {
       return githubErrorResponse(error);
@@ -129,10 +124,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     });
     jobId = record.id;
   } catch (err) {
-    logger.error(
-      { err, source_job_id: id, user_id: user.id },
-      '[api/jobs/rerun] insert failed',
-    );
+    logger.error({ err, source_job_id: id, user_id: user.id }, '[api/jobs/rerun] insert failed');
     return NextResponse.json({ message: 'failed to create job' }, { status: 500 });
   }
 
@@ -146,8 +138,10 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
         completed_at: new Date().toISOString(),
         error_message: `timeout: job exceeded ${timeoutMin} min`,
       })
-      .catch(() => { /* best-effort */ })
-      .finally(() => controller.abort());
+      .catch(() => {
+        /* best-effort */
+      })
+      .finally(() => controller.abort('timeout'));
   }, timeoutMin * 60_000);
 
   registry.register(jobId, controller);

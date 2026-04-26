@@ -6,8 +6,7 @@ vi.mock('@/lib/pb', () => ({
   readGithubTokenCookie: vi.fn().mockResolvedValue('gh-token'),
 }));
 vi.mock('@/lib/github/server', async () => {
-  const actual =
-    await vi.importActual<typeof import('@/lib/github/server')>('@/lib/github/server');
+  const actual = await vi.importActual<typeof import('@/lib/github/server')>('@/lib/github/server');
   return {
     ...actual,
     createServerOctokit: vi.fn(),
@@ -73,7 +72,12 @@ function fakeUser(id: string) {
 function fakeOctokit(headSha: string) {
   return {
     request: vi.fn().mockResolvedValue({
-      data: { head: { sha: headSha }, commit: { sha: headSha } },
+      data: {
+        title: 'fresh title',
+        head: { sha: headSha },
+        base: { sha: 'freshBaseSha' },
+        commit: { sha: headSha },
+      },
     }),
   } as unknown as Awaited<ReturnType<typeof createServerOctokit>>;
 }
@@ -144,7 +148,7 @@ describe('POST /api/jobs/[id]/rerun', () => {
       expect.objectContaining({
         user: 'user-2',
         github_login: 'alice',
-        target: PR_TARGET,
+        target: { ...PR_TARGET, title: 'fresh title', headSha: 'newSha', baseSha: 'freshBaseSha' },
         status: 'pending',
         head_sha: 'newSha',
       }),

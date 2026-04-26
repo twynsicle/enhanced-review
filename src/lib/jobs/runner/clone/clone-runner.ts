@@ -59,8 +59,17 @@ async function defaultMakeWorkDir(jobId: string): Promise<string> {
   return mkdtemp(path.join(tmpdir(), `review-${jobId}-`));
 }
 
-function buildCloneUrl(token: string, owner: string, repo: string): string {
-  return `https://x-access-token:${encodeURIComponent(token)}@github.com/${owner}/${repo}.git`;
+function buildCloneUrl(owner: string, repo: string): string {
+  return `https://github.com/${owner}/${repo}.git`;
+}
+
+function gitAuthEnv(token: string): Record<string, string> {
+  const encoded = Buffer.from(`x-access-token:${token}`).toString('base64');
+  return {
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+    GIT_CONFIG_VALUE_0: `Authorization: Basic ${encoded}`,
+  };
 }
 
 export async function cloneAndDiff(
@@ -71,7 +80,8 @@ export async function cloneAndDiff(
   const makeDir = deps.makeWorkDir ?? defaultMakeWorkDir;
 
   const cloneDir = await makeDir(input.jobId);
-  const url = buildCloneUrl(input.token, input.target.owner, input.target.repo);
+  const url = buildCloneUrl(input.target.owner, input.target.repo);
+  const authEnv = gitAuthEnv(input.token);
 
   const headRef = input.target.kind === 'pr' ? input.target.headRef : input.target.ref;
 
@@ -91,6 +101,7 @@ export async function cloneAndDiff(
   await runGitOrThrow(runner, 'fetch head', {
     args: ['fetch', '--depth=1', 'origin', headRef],
     cwd: cloneDir,
+    env: authEnv,
     signal: input.signal,
   });
   await runGitOrThrow(runner, 'checkout head', {
@@ -112,6 +123,7 @@ export async function cloneAndDiff(
   await runGitOrThrow(runner, 'fetch base', {
     args: ['fetch', '--depth=1', 'origin', input.target.baseSha],
     cwd: cloneDir,
+    env: authEnv,
     signal: input.signal,
   });
 

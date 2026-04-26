@@ -17,12 +17,45 @@ const FILESYSTEM_BOUNDARY = `
 You are running inside a freshly cloned working tree at the current working directory. The diff in the user prompt is your primary input. You may use Read, Glob, and Grep to look up surrounding context. Output only the <narrative_review> JSON block — no preamble, no closing remarks.`;
 
 const MAX_TURNS = 30;
+const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep'] as const;
 
 export type ClaudeQueryFn = typeof query;
 
 export interface ClaudeExecutorDeps {
   queryFn?: ClaudeQueryFn;
   env?: NodeJS.ProcessEnv;
+}
+
+function pickEnv(env: NodeJS.ProcessEnv, keys: readonly string[]): NodeJS.ProcessEnv {
+  const out = {} as NodeJS.ProcessEnv;
+  for (const key of keys) {
+    const value = env[key];
+    if (value !== undefined) out[key] = value;
+  }
+  return out;
+}
+
+function buildClaudeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return {
+    ...pickEnv(env, [
+      'ANTHROPIC_API_KEY',
+      'ANTHROPIC_BASE_URL',
+      'ANTHROPIC_AUTH_TOKEN',
+      'CLAUDE_CODE_OAUTH_TOKEN',
+      'HTTPS_PROXY',
+      'HTTP_PROXY',
+      'NO_PROXY',
+      'NODE_EXTRA_CA_CERTS',
+      'SSL_CERT_FILE',
+      'PATH',
+      'Path',
+      'SystemRoot',
+      'TEMP',
+      'TMP',
+      'HOME',
+      'USERPROFILE',
+    ]),
+  };
 }
 
 export class ClaudeExecutor implements ReviewExecutor {
@@ -44,7 +77,7 @@ export class ClaudeExecutor implements ReviewExecutor {
     if (input.signal.aborted) abortController.abort();
 
     const queryFn = this.deps.queryFn ?? query;
-    const env = this.deps.env ?? process.env;
+    const env = buildClaudeEnv(this.deps.env ?? process.env);
 
     const log = logger.child({ job_id: input.jobId, executor: 'claude' });
 
@@ -52,9 +85,20 @@ export class ClaudeExecutor implements ReviewExecutor {
       cwd: input.cloneDir,
       model: input.model,
       systemPrompt: system + FILESYSTEM_BOUNDARY,
-      tools: ['Read', 'Glob', 'Grep'],
-      permissionMode: 'bypassPermissions',
-      allowDangerouslySkipPermissions: true,
+      tools: [...READ_ONLY_TOOLS],
+      allowedTools: [...READ_ONLY_TOOLS],
+      permissionMode: 'dontAsk',
+      sandbox: {
+        enabled: true,
+        failIfUnavailable: false,
+        allowUnsandboxedCommands: false,
+        filesystem: {
+          allowRead: [input.cloneDir],
+          denyWrite: [input.cloneDir],
+          allowManagedReadPathsOnly: true,
+        },
+        network: { allowManagedDomainsOnly: true },
+      },
       // Isolation mode: prevent the reviewed repo's .claude/settings.json from
       // registering hooks or MCP servers that would run with the host process env.
       settingSources: [],

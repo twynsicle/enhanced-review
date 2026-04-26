@@ -6,6 +6,7 @@ import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
 import { findUserInFlightJob } from '@/lib/jobs/concurrency';
 import { logger } from '@/lib/log';
 import { ReviewTargetSchema } from '@/lib/jobs/target';
+import { resolveFreshReviewTarget } from '@/lib/jobs/resolve-target';
 import { getCurrentUser, pbAdmin, readGithubTokenCookie } from '@/lib/pb';
 import * as registry from '@/lib/jobs/runner/registry';
 import { runJob } from '@/lib/jobs/runner/run';
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const target: ReviewTarget = parsed.data;
+  let target: ReviewTarget = parsed.data;
 
   const admin = await pbAdmin();
   const inFlight = await findUserInFlightJob(admin, user.id);
@@ -78,21 +79,9 @@ export async function POST(request: Request) {
   let headSha: string;
   try {
     const octokit = await createServerOctokit();
-    if (target.kind === 'pr') {
-      const { data } = await octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
-        owner: target.owner,
-        repo: target.repo,
-        pull_number: target.number,
-      });
-      headSha = data.head.sha;
-    } else {
-      const { data } = await octokit.request('GET /repos/{owner}/{repo}/branches/{branch}', {
-        owner: target.owner,
-        repo: target.repo,
-        branch: target.ref,
-      });
-      headSha = data.commit.sha;
-    }
+    const resolved = await resolveFreshReviewTarget(octokit, target);
+    target = resolved.target;
+    headSha = resolved.headSha;
   } catch (error) {
     if (error instanceof GithubAuthError || isAuthError(error)) {
       return githubErrorResponse(error);
@@ -132,8 +121,10 @@ export async function POST(request: Request) {
         completed_at: new Date().toISOString(),
         error_message: `timeout: job exceeded ${timeoutMin} min`,
       })
-      .catch(() => { /* best-effort */ })
-      .finally(() => controller.abort());
+      .catch(() => {
+        /* best-effort */
+      })
+      .finally(() => controller.abort('timeout'));
   }, timeoutMin * 60_000);
 
   registry.register(jobId, controller);

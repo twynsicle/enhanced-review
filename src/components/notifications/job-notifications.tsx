@@ -31,9 +31,12 @@ export function JobNotifications({ userId }: { userId: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const pathRef = useRef(pathname);
-  pathRef.current = pathname;
 
   const notifiedRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    pathRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     const pb = pbBrowser();
@@ -56,10 +59,7 @@ export function JobNotifications({ userId }: { userId: string }) {
           notifiedRef.current.add(job.id);
 
           // Suppress when the user is already viewing that job.
-          if (
-            pathRef.current === `/jobs/${job.id}` ||
-            pathRef.current === `/reviews/${job.id}`
-          ) {
+          if (pathRef.current === `/jobs/${job.id}` || pathRef.current === `/reviews/${job.id}`) {
             return;
           }
 
@@ -76,7 +76,9 @@ export function JobNotifications({ userId }: { userId: string }) {
       }
     }
 
-    setup().catch(() => { /* swallowed */ });
+    setup().catch(() => {
+      /* swallowed */
+    });
 
     return () => {
       mounted = false;
@@ -87,13 +89,7 @@ export function JobNotifications({ userId }: { userId: string }) {
   return null;
 }
 
-function fireToast({
-  job,
-  router,
-}: {
-  job: ReviewJobRow;
-  router: ReturnType<typeof useRouter>;
-}) {
+function fireToast({ job, router }: { job: ReviewJobRow; router: ReturnType<typeof useRouter> }) {
   const { title, description, variant, href } = describeTransition(job);
   toast({
     title,

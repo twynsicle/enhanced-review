@@ -101,6 +101,10 @@ function formatJobError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+function isTimeoutAbort(signal: AbortSignal): boolean {
+  return signal.aborted && signal.reason === 'timeout';
+}
+
 /**
  * Run a review job in-process. Called fire-and-forget from POST /api/jobs
  * and POST /api/jobs/[id]/rerun. The caller registers the AbortController
@@ -236,7 +240,7 @@ export async function runJob(
     await Promise.allSettled(inFlight);
     // Ensure 'cancelled' status is written if aborted (handles the narrow
     // race where markRunning overwrote a cancel the route set just before us).
-    if (signal.aborted) {
+    if (signal.aborted && !isTimeoutAbort(signal)) {
       await pb
         .collection('review_jobs')
         .update(jobId, {
