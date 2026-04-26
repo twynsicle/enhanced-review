@@ -1,11 +1,16 @@
 import 'server-only';
 import { pbAdmin } from '@/lib/pb';
 import { logger } from '@/lib/log';
-import { cloneAndDiff, cleanupWorkDir, HeadShaMismatchError, type CloneTarget } from './clone/clone-runner';
+import {
+  cloneAndDiff,
+  cleanupWorkDir,
+  HeadShaMismatchError,
+  type CloneTarget,
+} from './clone/clone-runner';
 import { listChangedFiles } from './clone/diff-files';
 import { runGit, runGitOrThrow } from './clone/git-runner';
 import { GitCommandError } from './clone/git-runner';
-import { OpencodeExecutor } from './executor/opencode-executor';
+import { ClaudeExecutor } from './executor/claude-executor';
 import { StubExecutor } from './executor/stub-executor';
 import { ExecutorParseError, ExecutorProcessError } from './executor/types';
 import { fetchPullMetadata, GithubFetchError } from './github';
@@ -90,7 +95,8 @@ function formatJobError(err: unknown): string {
     return `parse: ${err.message}`;
   }
   if (err instanceof ExecutorProcessError) {
-    return `executor: ${err.message}: ${err.stderr.split('\n')[0] ?? ''}`.trim();
+    const trailer = err.stderr ? `: ${err.stderr.split('\n')[0] ?? ''}` : '';
+    return `executor: ${err.message}${trailer}`.trim();
   }
   return err instanceof Error ? err.message : String(err);
 }
@@ -111,9 +117,9 @@ export async function runJob(
   target: unknown,
   signal: AbortSignal,
 ): Promise<void> {
-  const model = process.env.REVIEW_MODEL ?? 'opencode-zen/glm-4.7';
-  const executorType = process.env.REVIEW_EXECUTOR ?? 'opencode';
-  const executor = executorType === 'stub' ? new StubExecutor() : new OpencodeExecutor();
+  const model = process.env.REVIEW_MODEL ?? 'claude-haiku-4-5';
+  const executorType = process.env.REVIEW_EXECUTOR ?? 'claude';
+  const executor = executorType === 'stub' ? new StubExecutor() : new ClaudeExecutor();
 
   const log = logger.child({ job_id: jobId, executor: executor.name });
   let cloneDir: string | null = null;
@@ -161,13 +167,7 @@ export async function runJob(
 
     if (signal.aborted) return;
 
-    const files = await listChangedFiles(
-      runGit,
-      cloneDir,
-      parsed.clone.baseSha,
-      headSha,
-      signal,
-    );
+    const files = await listChangedFiles(runGit, cloneDir, parsed.clone.baseSha, headSha, signal);
 
     const prData: PrData = await (async () => {
       if (parsed.clone.kind === 'pr' && prMeta) {
@@ -236,10 +236,15 @@ export async function runJob(
     // Ensure 'cancelled' status is written if aborted (handles the narrow
     // race where markRunning overwrote a cancel the route set just before us).
     if (signal.aborted) {
-      await pb.collection('review_jobs').update(jobId, {
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-      }).catch(() => { /* best-effort */ });
+      await pb
+        .collection('review_jobs')
+        .update(jobId, {
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+        })
+        .catch(() => {
+          /* best-effort */
+        });
     }
     if (cloneDir) await cleanupWorkDir(cloneDir);
   }

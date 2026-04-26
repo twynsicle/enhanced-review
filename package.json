@@ -19,6 +19,7 @@
     "pb:install": "node scripts/pb-install.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.119",
     "@enhanced-review/github-client": "*",
     "@enhanced-review/review-types": "*",
     "@monaco-editor/react": "^4.7.0",

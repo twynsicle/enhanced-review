@@ -24,11 +24,11 @@ syntax is shown in §3.
 
 ## 1. Prerequisites — install on your machine
 
-| Tool | Version | Purpose |
-| ---- | ------- | ------- |
-| [Node.js for Windows](https://nodejs.org/en/download) | >= 20.9 | Next.js 16 minimum, also runs the in-process review runner |
-| npm (bundled with Node) | >= 10 | Workspace support |
-| [Git for Windows](https://git-scm.com/download/win) | recent | `git` on PATH for the runner's clone step; also provides Git Bash |
+| Tool                                                  | Version | Purpose                                                           |
+| ----------------------------------------------------- | ------- | ----------------------------------------------------------------- |
+| [Node.js for Windows](https://nodejs.org/en/download) | >= 20.9 | Next.js 16 minimum, also runs the in-process review runner        |
+| npm (bundled with Node)                               | >= 10   | Workspace support                                                 |
+| [Git for Windows](https://git-scm.com/download/win)   | recent  | `git` on PATH for the runner's clone step; also provides Git Bash |
 
 Verify before continuing:
 
@@ -42,14 +42,15 @@ Docker is **not** required.
 
 ## 2. External accounts and credentials you need
 
-| Credential | Where to get it | Used by | Consequence if missing |
-| ---------- | --------------- | ------- | ---------------------- |
-| GitHub OAuth app (Client ID + Secret) | <https://github.com/settings/developers> → New OAuth App | PocketBase Auth | Cannot sign in. App is unusable. |
-| opencode-zen API key | <https://opencode.ai> account dashboard | Review runner (`OPENCODE_ZEN_API_KEY`) | Runner cannot run real reviews. You can still develop against the stub executor (`REVIEW_EXECUTOR=stub`). |
-| GitHub username (yours) | the username you'll sign in with | Allowlist row in PocketBase | OAuth login is rejected by middleware. |
+| Credential                            | Where to get it                                          | Used by                             | Consequence if missing                                                                                    |
+| ------------------------------------- | -------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| GitHub OAuth app (Client ID + Secret) | <https://github.com/settings/developers> → New OAuth App | PocketBase Auth                     | Cannot sign in. App is unusable.                                                                          |
+| Anthropic API key                     | <https://console.anthropic.com> → API Keys               | Review runner (`ANTHROPIC_API_KEY`) | Runner cannot run real reviews. You can still develop against the stub executor (`REVIEW_EXECUTOR=stub`). |
+| GitHub username (yours)               | the username you'll sign in with                         | Allowlist row in PocketBase         | OAuth login is rejected by middleware.                                                                    |
 
 Nothing in this project requires a paid third-party service for development —
-opencode-zen's free tier is enough to drive a few reviews.
+the stub executor is enough to exercise the full streaming path without
+spending Anthropic credits.
 
 ## 3. Install npm dependencies and the PocketBase binary
 
@@ -141,11 +142,11 @@ Copy-Item .env.example .env.local
 
 Edit `.env.local` and fill in:
 
-| `.env.local` key | Value |
-| ---------------- | ----- |
-| `POCKETBASE_ADMIN_EMAIL` | the email from step 5 |
-| `POCKETBASE_ADMIN_PASSWORD` | the password from step 5 |
-| `OPENCODE_ZEN_API_KEY` | (optional) your opencode-zen key — only needed for `REVIEW_EXECUTOR=opencode` |
+| `.env.local` key            | Value                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| `POCKETBASE_ADMIN_EMAIL`    | the email from step 5                                                        |
+| `POCKETBASE_ADMIN_PASSWORD` | the password from step 5                                                     |
+| `ANTHROPIC_API_KEY`         | (optional) your Anthropic API key — only needed for `REVIEW_EXECUTOR=claude` |
 
 The PB URL keys (`NEXT_PUBLIC_POCKETBASE_URL`, `POCKETBASE_URL`) are
 already set to the local PB defaults. The admin credentials let the
@@ -155,8 +156,8 @@ has all rules `null` so only a superuser can read it) and backfill
 
 Optional knobs (all commented in the template):
 
-- `REVIEW_EXECUTOR` — `stub` (default) or `opencode`
-- `REVIEW_MODEL` — opencode model id
+- `REVIEW_EXECUTOR` — `stub` or `claude` (production default is `claude`; the template defaults to `stub` for safety)
+- `REVIEW_MODEL` — Claude model id (default `claude-haiku-4-5`)
 - `REVIEW_TIMEOUT_MIN` — per-job wall-clock budget (default 15)
 - `MAX_JOBS_PER_USER` — per-user concurrency cap (default 1)
 - `LOG_LEVEL`, `LOG_PRETTY` — pino logger config
@@ -201,10 +202,10 @@ If anything goes wrong, check:
 
 ## File-by-file: where every secret lives
 
-| File | Gitignored? | Contains | Read by |
-| ---- | ----------- | -------- | ------- |
-| `.env.local` | yes | PB URL + admin creds, opencode-zen key, runner knobs | Next.js dev server |
-| `pb_data/settings.json` | yes (whole `pb_data/`) | GitHub OAuth client id + secret (managed via the admin UI) | PocketBase |
+| File                    | Gitignored?            | Contains                                                   | Read by            |
+| ----------------------- | ---------------------- | ---------------------------------------------------------- | ------------------ |
+| `.env.local`            | yes                    | PB URL + admin creds, Anthropic API key, runner knobs      | Next.js dev server |
+| `pb_data/settings.json` | yes (whole `pb_data/`) | GitHub OAuth client id + secret (managed via the admin UI) | PocketBase         |
 
 ## Stop / reset
 

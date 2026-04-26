@@ -8,17 +8,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Repo orientation for agents
 
-Web-based AI code-review tool (closed beta). Sign in with GitHub, pick a repo + PR/branch, the server clones it, runs `opencode` against it, and streams a chaptered narrative review back. Successor to the diffy POC.
+Web-based AI code-review tool (closed beta). Sign in with GitHub, pick a repo + PR/branch, the server clones it, runs the Claude Agent SDK against it, and streams a chaptered narrative review back. Successor to the diffy POC.
 
 ## Authoritative docs — read these first
 
-| File | When to read |
-| --- | --- |
-| `README.md` | Top-level summary, scripts table, prerequisites. |
-| `docs/README.md` | Architecture, decisions, repo layout table. |
-| `docs/RUNNING.md` | First-time local setup (PB binary, OAuth app, allowlist). |
+| File                 | When to read                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `README.md`          | Top-level summary, scripts table, prerequisites.                                        |
+| `docs/README.md`     | Architecture, decisions, repo layout table.                                             |
+| `docs/RUNNING.md`    | First-time local setup (PB binary, OAuth app, allowlist).                               |
 | `docs/OPERATIONS.md` | Day-2 runbook: allowlist, key rotation, logs, stuck jobs, health, log-shape, env knobs. |
-| `docs/archive/` | Historical migration plans — context only, not current state. |
+| `docs/archive/`      | Historical migration plans — context only, not current state.                           |
 
 If a question is covered there, read the doc rather than re-deriving from code.
 
@@ -54,7 +54,7 @@ src/
     auth/                      allowlist gate (allowed_users collection)
     github/                    Octokit factory, token cookie reader, fetcher, view-time helpers
     jobs/                      concurrency, target schema, start-review, partial-narrative-parse
-    jobs/runner/               In-process review runner: clone/, executor/ (opencode + stub), prompt/, registry, run.ts, writes.ts, github.ts
+    jobs/runner/               In-process review runner: clone/, executor/ (claude + stub), prompt/, registry, run.ts, writes.ts, github.ts
     narrative/                 inline-diff-snippets, language-map
     log.ts                     pino logger (job_id / executor child loggers)
 
@@ -76,39 +76,39 @@ test/                          server-only.shim.ts (Vitest alias for next/server
 - **Auth**: GitHub OAuth via PB (popup). Provider config lives in `pb_data/settings.json` (set in admin UI, not committed). Per-request session cookie `pb_auth`; HttpOnly `gh_access_token` mirrored from PB's `meta.accessToken` by `/api/auth/post-signin`. Token never persisted in DB.
 - **Allowlist gate**: `proxy.ts` runs on every matched request. Hydrates PB from cookie, refreshes token past half-life, blocks anything not in `allowed_users` collection (rules all `null` — admin-only). Public exits: `/api/auth/*`, `/api/health`, `/login`, `/denied`.
 - **Job lifecycle**: `POST /api/jobs` → resolve head SHA via Octokit → insert `review_jobs` row (`status=pending`) → register `AbortController` in `src/lib/jobs/runner/registry.ts` → fire `runJob(...)` (no await) → return `{ id }`. The route arms a `setTimeout(REVIEW_TIMEOUT_MIN)` that writes `status=error` and aborts.
-- **Runner** (`src/lib/jobs/runner/run.ts`): parse target → fetch PR metadata if PR → shallow clone (`git clone --depth=1`) → list changed files → build `PrData` → executor (`opencode` or `stub`) streams chunks → each chunk inserted fire-and-forget into `review_chunks` → drain in-flight before flipping `status=done` → `finally` cleans clone dir + re-applies `cancelled` if signal aborted.
+- **Runner** (`src/lib/jobs/runner/run.ts`): parse target → fetch PR metadata if PR → shallow clone (`git clone --depth=1`) → list changed files → build `PrData` → executor (`claude` via the Claude Agent SDK, or `stub`) streams chunks → each chunk inserted fire-and-forget into `review_chunks` → drain in-flight before flipping `status=done` → `finally` cleans clone dir + re-applies `cancelled` if signal aborted.
 - **Streaming**: client subscribes to PB realtime SSE on `review_chunks` (deduped by `seq`). Drain-before-done means a subscriber that observes `done` already has every chunk.
 - **Cancel**: `POST /api/jobs/[id]/cancel` updates row to `cancelled` under user's PB session, then signals the registry. Runner propagates the abort signal into clone + executor subprocesses.
 - **Output shape**: `packages/review-types/src/narrative.ts` — `NarrativeReview` = `prTitle` + `overviewSummary` + `chapters[]` (each with `insights[]` and `diffChunks[]`).
 
 ## PocketBase collections (see `pb_migrations/1745539200_initial_schema.js`)
 
-| Collection | Rules | Notes |
-| --- | --- | --- |
-| `users` (auth, PB built-in) | default | Extended by migrations to add `github_login`. |
-| `allowed_users` | all `null` | Admin-only. Unique index on `github_login`. |
-| `review_jobs` | list/view: any auth; update: owner while pending/running; create/delete: null | Status `pending|running|done|error|cancelled`. |
-| `reviews` | list/view: any auth; mutations null | One per completed job (unique index on `job`). |
-| `review_chunks` | list/view: any auth; mutations null | Streamed partials. Unique on `(job, seq)`. |
+| Collection                  | Rules                                                                         | Notes                                          |
+| --------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------- | ------- | ---- | ----- | ----------- |
+| `users` (auth, PB built-in) | default                                                                       | Extended by migrations to add `github_login`.  |
+| `allowed_users`             | all `null`                                                                    | Admin-only. Unique index on `github_login`.    |
+| `review_jobs`               | list/view: any auth; update: owner while pending/running; create/delete: null | Status `pending                                | running | done | error | cancelled`. |
+| `reviews`                   | list/view: any auth; mutations null                                           | One per completed job (unique index on `job`). |
+| `review_chunks`             | list/view: any auth; mutations null                                           | Streamed partials. Unique on `(job, seq)`.     |
 
 All status writes from the runner use `pbAdmin()` to bypass rules.
 
 ## Common scripts
 
-| Script | What |
-| --- | --- |
-| `npm run dev` | Next.js dev server (Turbopack) on `localhost:3000` |
-| `npm run build` | Production build |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run format` / `format:check` | Prettier write / check |
-| `npm test` / `test:watch` | Vitest |
-| `npm run pb` | Local PocketBase server (`127.0.0.1:8090`, admin at `/_/`) |
-| `npm run pb:install` | Download pinned PB binary into `tools/pocketbase/` |
+| Script                            | What                                                       |
+| --------------------------------- | ---------------------------------------------------------- |
+| `npm run dev`                     | Next.js dev server (Turbopack) on `localhost:3000`         |
+| `npm run build`                   | Production build                                           |
+| `npm run lint`                    | ESLint                                                     |
+| `npm run typecheck`               | `tsc --noEmit`                                             |
+| `npm run format` / `format:check` | Prettier write / check                                     |
+| `npm test` / `test:watch`         | Vitest                                                     |
+| `npm run pb`                      | Local PocketBase server (`127.0.0.1:8090`, admin at `/_/`) |
+| `npm run pb:install`              | Download pinned PB binary into `tools/pocketbase/`         |
 
 ## Environment
 
-`.env.example` is the canonical list. Keys you'll see: `NEXT_PUBLIC_POCKETBASE_URL`, `POCKETBASE_URL`, `POCKETBASE_ADMIN_EMAIL`, `POCKETBASE_ADMIN_PASSWORD`, `REVIEW_EXECUTOR` (`stub`|`opencode`), `REVIEW_MODEL`, `OPENCODE_ZEN_API_KEY`, `REVIEW_TIMEOUT_MIN`, `MAX_JOBS_PER_USER`, `LOG_LEVEL`, `LOG_PRETTY`. Defaults and meaning are documented in `docs/OPERATIONS.md` (Tunable knobs).
+`.env.example` is the canonical list. Keys you'll see: `NEXT_PUBLIC_POCKETBASE_URL`, `POCKETBASE_URL`, `POCKETBASE_ADMIN_EMAIL`, `POCKETBASE_ADMIN_PASSWORD`, `REVIEW_EXECUTOR` (`stub`|`claude`), `REVIEW_MODEL`, `ANTHROPIC_API_KEY`, `REVIEW_TIMEOUT_MIN`, `MAX_JOBS_PER_USER`, `LOG_LEVEL`, `LOG_PRETTY`. Defaults and meaning are documented in `docs/OPERATIONS.md` (Tunable knobs).
 
 ## Conventions worth knowing before editing
 

@@ -3,8 +3,9 @@
 Web-based AI code-review tool for closed beta. Successor to the diffy POC.
 
 You sign in with GitHub (invite-only allowlist), pick one of your repos,
-choose a PR or branch, and the app clones the repo, runs `opencode`
-against it, and streams a chaptered narrative review back to your browser.
+choose a PR or branch, and the app clones the repo, runs the Claude
+Agent SDK against it, and streams a chaptered narrative review back to
+your browser.
 
 - [docs/RUNNING.md](docs/RUNNING.md) — first-time setup and run instructions.
 - [docs/README.md](docs/README.md) — architecture overview.
@@ -43,15 +44,15 @@ Open <http://localhost:3000>.
 
 ## Common scripts
 
-| Script                  | What                              |
-| ----------------------- | --------------------------------- |
-| `npm run dev`           | Next.js dev server (Turbopack)    |
-| `npm run build`         | Production build                  |
-| `npm run lint`          | ESLint                            |
-| `npm run typecheck`     | `tsc --noEmit`                    |
-| `npm run format`        | Prettier write                    |
-| `npm run format:check`  | Prettier check (CI)               |
-| `npm test`              | Vitest run                        |
-| `npm run test:watch`    | Vitest watch                      |
-| `npm run pb`            | Start the local PocketBase server |
-| `npm run pb:install`    | Download the pinned PB binary     |
+| Script                 | What                              |
+| ---------------------- | --------------------------------- |
+| `npm run dev`          | Next.js dev server (Turbopack)    |
+| `npm run build`        | Production build                  |
+| `npm run lint`         | ESLint                            |
+| `npm run typecheck`    | `tsc --noEmit`                    |
+| `npm run format`       | Prettier write                    |
+| `npm run format:check` | Prettier check (CI)               |
+| `npm test`             | Vitest run                        |
+| `npm run test:watch`   | Vitest watch                      |
+| `npm run pb`           | Start the local PocketBase server |
+| `npm run pb:install`   | Download the pinned PB binary     |

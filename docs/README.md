@@ -54,14 +54,16 @@ jobs) see [OPERATIONS.md](OPERATIONS.md).
 ### Repo handling
 
 - **Shallow clone per review** (`git clone --depth=1`), deleted after.
-- File-filter pre-curates which files opencode is allowed to read.
-- opencode runs **agentically** with `cwd` set to the clone.
+- File-filter pre-curates which files appear in the diff sent to the model.
+- Claude runs **agentically** with `cwd` set to the clone and read-only
+  tools (`Read`, `Glob`, `Grep`) so it can pull surrounding context.
 
 ### AI model
 
-- opencode CLI invoking GLM 4.7 via opencode-zen.
-- Single backend env var for the opencode-zen API key (operator-paid,
-  not per-user).
+- Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) calling Anthropic's
+  Claude models in-process — no external CLI binary required.
+- Single backend env var (`ANTHROPIC_API_KEY`) for the Anthropic key
+  (operator-paid, not per-user).
 
 ### Output format
 
@@ -73,22 +75,22 @@ jobs) see [OPERATIONS.md](OPERATIONS.md).
 - **Frontend**: Next.js 16 (App Router) + React 19 + TypeScript.
 - **Backend (API)**: Next.js Route Handlers / Server Actions.
 - **DB / Auth / Realtime**: PocketBase (single binary, SQLite-backed).
-- **Review runner**: in-process inside Next.js; spawns `opencode` CLI as a subprocess.
+- **Review runner**: in-process inside Next.js; uses `@anthropic-ai/claude-agent-sdk`'s `query()` (which the SDK runs as a managed Node subprocess).
 - **Deployment target**: AWS-friendly (PB on a Fargate task with EFS for
   `pb_data/`, Next.js on another Fargate task) but local-first today.
 
 ## Repo layout
 
-| Path | Purpose |
-| ---- | ------- |
-| `src/app/` | Next.js App Router pages and route handlers |
-| `src/lib/pb/` | PocketBase client factories: `pbBrowser`, `pbServer`, `pbAdmin` |
-| `src/lib/jobs/runner/` | The in-process review runner (clone, executor, prompt, writes, registry) |
-| `src/lib/auth/` | Allowlist gate |
-| `src/lib/github/` | GitHub token + API helpers |
-| `packages/github-client/` | Octokit wrapper used by API routes |
-| `packages/review-types/` | Shared `NarrativeReview` shape |
-| `pb_migrations/` | PocketBase JSVM migrations (auto-applied on PB startup) |
-| `tools/pocketbase/` | The PB binary (gitignored; downloaded by `npm run pb:install`) |
-| `pb_data/` | PB's SQLite DB and settings (gitignored) |
-| `docs/archive/` | Historical migration plans kept for context |
+| Path                      | Purpose                                                                  |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `src/app/`                | Next.js App Router pages and route handlers                              |
+| `src/lib/pb/`             | PocketBase client factories: `pbBrowser`, `pbServer`, `pbAdmin`          |
+| `src/lib/jobs/runner/`    | The in-process review runner (clone, executor, prompt, writes, registry) |
+| `src/lib/auth/`           | Allowlist gate                                                           |
+| `src/lib/github/`         | GitHub token + API helpers                                               |
+| `packages/github-client/` | Octokit wrapper used by API routes                                       |
+| `packages/review-types/`  | Shared `NarrativeReview` shape                                           |
+| `pb_migrations/`          | PocketBase JSVM migrations (auto-applied on PB startup)                  |
+| `tools/pocketbase/`       | The PB binary (gitignored; downloaded by `npm run pb:install`)           |
+| `pb_data/`                | PB's SQLite DB and settings (gitignored)                                 |
+| `docs/archive/`           | Historical migration plans kept for context                              |

@@ -7,16 +7,16 @@ now what."
 
 ## Quick reference
 
-| Want to…                            | See                                                    |
-| ----------------------------------- | ------------------------------------------------------ |
-| Add or remove a beta user           | [Allowlist management](#allowlist-management)          |
-| Rotate the opencode-zen API key     | [Rotating the opencode-zen key](#rotating-the-opencode-zen-key) |
-| Tail server logs                    | [Viewing logs](#viewing-logs)                          |
-| Re-run a stuck job                  | [Re-running a stuck job](#re-running-a-stuck-job)      |
-| Check queue health                  | [Health endpoint](#health-endpoint)                    |
-| Adjust per-job timeout / concurrency| [Tunable knobs](#tunable-knobs)                        |
-| Clean up old chunks / errored jobs  | [Retention (deferred)](#retention-deferred)            |
-| Inspect the pino log shape          | [Log shape](#log-shape)                                |
+| Want to…                             | See                                                               |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| Add or remove a beta user            | [Allowlist management](#allowlist-management)                     |
+| Rotate the Anthropic API key         | [Rotating the Anthropic API key](#rotating-the-anthropic-api-key) |
+| Tail server logs                     | [Viewing logs](#viewing-logs)                                     |
+| Re-run a stuck job                   | [Re-running a stuck job](#re-running-a-stuck-job)                 |
+| Check queue health                   | [Health endpoint](#health-endpoint)                               |
+| Adjust per-job timeout / concurrency | [Tunable knobs](#tunable-knobs)                                   |
+| Clean up old chunks / errored jobs   | [Retention (deferred)](#retention-deferred)                       |
+| Inspect the pino log shape           | [Log shape](#log-shape)                                           |
 
 ---
 
@@ -42,12 +42,13 @@ row (closed-beta workspace model). To purge their reviews, find their
 `users` record id and delete the matching `review_jobs` rows (chunks
 and reviews cascade via the `job` relation).
 
-## Rotating the opencode-zen key
+## Rotating the Anthropic API key
 
 The key is read from the Next.js server's environment as
-`OPENCODE_ZEN_API_KEY` and never stored in the database.
+`ANTHROPIC_API_KEY` and never stored in the database. The Claude Agent
+SDK reads it directly from `process.env`.
 
-1. Generate a new key in the opencode-zen dashboard.
+1. Generate a new key at <https://console.anthropic.com> → API Keys.
 2. Update the value in `.env.local` (local) or your container
    orchestrator's secret store (deployed).
 3. Restart the Next.js process so it picks up the new env. There is no
@@ -56,14 +57,15 @@ The key is read from the Next.js server's environment as
 4. Revoke the old key.
 
 Currently-running jobs can't pick up a new key mid-flight. They either
-finish on the old key (if the rotation happened after `opencode`
-started) or fail with an executor error (if it happened mid-stream);
-either way they end as `done` or `error` and the user can re-run.
+finish on the old key (if the rotation happened after the Claude SDK
+session started) or fail with an executor error (if it happened
+mid-stream); either way they end as `done` or `error` and the user can
+re-run.
 
 ## Viewing logs
 
 The Next.js process emits single-line JSON via [pino](https://getpino.io).
-Job-scoped lines carry `job_id`; the runner adds `executor` (`opencode`
+Job-scoped lines carry `job_id`; the runner adds `executor` (`claude`
 or `stub`).
 
 ```bash
@@ -131,15 +133,15 @@ Use it from a deploy platform's health check or a curl one-liner.
 
 ## Tunable knobs
 
-| Env var                | Default                | Read by  | What                                                                 |
-| ---------------------- | ---------------------- | -------- | -------------------------------------------------------------------- |
-| `MAX_JOBS_PER_USER`    | `1`                    | Next.js  | Maximum pending+running jobs per user. >1 effectively disables cap.  |
-| `REVIEW_TIMEOUT_MIN`   | `15`                   | Next.js  | Per-job wall-clock budget (minutes). Drives the per-job timer.       |
-| `REVIEW_EXECUTOR`      | `opencode`             | Next.js  | `stub` runs a deterministic fake executor (useful with no API key).  |
-| `REVIEW_MODEL`         | `opencode-zen/glm-4.7` | Next.js  | `<provider>/<model>` for `opencode`.                                 |
-| `OPENCODE_ZEN_API_KEY` | unset                  | Next.js  | Required when `REVIEW_EXECUTOR=opencode`.                            |
-| `LOG_LEVEL`            | `info`                 | Next.js  | pino level: `trace` `debug` `info` `warn` `error` `fatal`.           |
-| `LOG_PRETTY`           | unset                  | Next.js  | `1` swaps in pino-pretty for human-friendly local dev.               |
+| Env var              | Default            | Read by | What                                                                |
+| -------------------- | ------------------ | ------- | ------------------------------------------------------------------- |
+| `MAX_JOBS_PER_USER`  | `1`                | Next.js | Maximum pending+running jobs per user. >1 effectively disables cap. |
+| `REVIEW_TIMEOUT_MIN` | `15`               | Next.js | Per-job wall-clock budget (minutes). Drives the per-job timer.      |
+| `REVIEW_EXECUTOR`    | `claude`           | Next.js | `stub` runs a deterministic fake executor (useful with no API key). |
+| `REVIEW_MODEL`       | `claude-haiku-4-5` | Next.js | Claude model id passed to the Claude Agent SDK.                     |
+| `ANTHROPIC_API_KEY`  | unset              | Next.js | Required when `REVIEW_EXECUTOR=claude`. Read by the SDK from env.   |
+| `LOG_LEVEL`          | `info`             | Next.js | pino level: `trace` `debug` `info` `warn` `error` `fatal`.          |
+| `LOG_PRETTY`         | unset              | Next.js | `1` swaps in pino-pretty for human-friendly local dev.              |
 
 Changing any of these requires restarting the Next.js process; nothing
 is hot-reloadable.
@@ -162,18 +164,18 @@ purges easy.
 
 Every server-side line is a single JSON object. Keys you'll see often:
 
-| Key             | Type      | Meaning                                                    |
-| --------------- | --------- | ---------------------------------------------------------- |
-| `level`         | int       | pino level (30=info, 40=warn, 50=error, 60=fatal).         |
-| `time`          | int       | Unix-ms timestamp.                                         |
-| `pid`           | int       | Process id.                                                |
-| `hostname`      | string    | Host where the line originated.                            |
-| `msg`           | string    | The human-readable line.                                   |
-| `job_id`        | string    | PB id of the review job. Present on every job-scoped line. |
-| `executor`      | string    | `opencode` or `stub`. Set by the runner on its child logger. |
-| `user_id`       | string    | PB auth user id, on API lines that touch a session.        |
-| `err`           | object    | Pino's serialised error (`type`, `message`, `stack`).      |
-| `source_job_id` | string    | On `/api/jobs/:id/rerun` lines — the job being re-run.     |
+| Key             | Type   | Meaning                                                    |
+| --------------- | ------ | ---------------------------------------------------------- |
+| `level`         | int    | pino level (30=info, 40=warn, 50=error, 60=fatal).         |
+| `time`          | int    | Unix-ms timestamp.                                         |
+| `pid`           | int    | Process id.                                                |
+| `hostname`      | string | Host where the line originated.                            |
+| `msg`           | string | The human-readable line.                                   |
+| `job_id`        | string | PB id of the review job. Present on every job-scoped line. |
+| `executor`      | string | `claude` or `stub`. Set by the runner on its child logger. |
+| `user_id`       | string | PB auth user id, on API lines that touch a session.        |
+| `err`           | object | Pino's serialised error (`type`, `message`, `stack`).      |
+| `source_job_id` | string | On `/api/jobs/:id/rerun` lines — the job being re-run.     |
 
 To trace a single review end-to-end, filter by `job_id` — the same id
 shows up in `/api/jobs` (creation), `/api/jobs/:id/rerun` (re-runs),
