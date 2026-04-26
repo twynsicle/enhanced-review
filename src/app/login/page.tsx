@@ -1,5 +1,6 @@
+import { Sparkles } from 'lucide-react';
 import { redirect } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { createClient } from '@/lib/supabase/server';
 import { SignInButton } from './sign-in-button';
 
@@ -7,11 +8,6 @@ export const metadata = {
   title: 'Sign in — enhanced-review',
 };
 
-/**
- * The proxy already redirects authenticated users away from /login, but we
- * double-check here so a stale tab can't keep showing the sign-in screen
- * after a session is established server-side.
- */
 export default async function LoginPage() {
   const supabase = await createClient();
   const {
@@ -20,19 +16,51 @@ export default async function LoginPage() {
   if (user) redirect('/');
 
   return (
-    <main className="flex min-h-full items-center justify-center p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Sign in</CardTitle>
-          <CardDescription>
-            enhanced-review is invite-only during the beta. Sign in with the GitHub account
-            that&apos;s been added to the allowlist.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SignInButton />
-        </CardContent>
-      </Card>
+    <main className="relative flex min-h-full flex-col">
+      {/* Backdrop: subtle radial gradient that respects the OKLCH grayscale palette */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_60%_at_50%_0%,_oklch(1_0_0/0.06),_transparent_70%)]"
+      />
+      <header className="flex items-center justify-end p-4 sm:p-6">
+        <ThemeToggle />
+      </header>
+      <div className="flex flex-1 items-center justify-center px-4 pb-16">
+        <div className="w-full max-w-md">
+          <div className="flex flex-col items-center gap-6 text-center">
+            <span
+              aria-hidden
+              className="inline-flex size-12 items-center justify-center rounded-2xl bg-foreground text-background shadow-lg ring-1 ring-foreground/20"
+            >
+              <span className="text-sm font-bold tracking-tight">er</span>
+            </span>
+            <div className="flex flex-col gap-2">
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                enhanced-review
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                AI code-review that reads like a senior engineer&rsquo;s walkthrough.
+              </p>
+            </div>
+          </div>
+          <div className="mt-10 rounded-2xl bg-card p-6 ring-1 ring-foreground/10 sm:p-7">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-start gap-3">
+                <Sparkles className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                <p className="text-sm text-muted-foreground">
+                  Invite-only beta. Sign in with the GitHub account that&rsquo;s been added to the
+                  allowlist — we&rsquo;ll need <code className="rounded bg-muted px-1 py-0.5 text-xs">repo</code> read scope to fetch
+                  diffs.
+                </p>
+              </div>
+              <SignInButton />
+            </div>
+          </div>
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            By signing in you agree to leave us alone if the AI says something silly.
+          </p>
+        </div>
+      </div>
     </main>
   );
 }

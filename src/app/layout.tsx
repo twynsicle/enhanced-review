@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { JobNotifications } from '@/components/notifications/job-notifications';
+import { ThemeInitScript } from '@/components/theme/theme-init-script';
 import { Toaster } from '@/components/ui/toaster';
 import { createClient } from '@/lib/supabase/server';
 import './globals.css';
@@ -36,8 +37,15 @@ export default async function RootLayout({
   } = await supabase.auth.getUser();
 
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
+      suppressHydrationWarning
+    >
+      <head>
+        <ThemeInitScript />
+      </head>
+      <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
         <Toaster />
         {user ? <JobNotifications userId={user.id} /> : null}

@@ -56,8 +56,8 @@ export default async function HistoryPage({
     <main className="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-6 px-6 py-10">
       <header className="flex flex-col gap-2">
         <div className="text-xs text-muted-foreground">
-          <Link href="/picker" className="hover:underline">
-            Browse repos →
+          <Link href="/" className="hover:underline">
+            ← Start a review
           </Link>
         </div>
         <h1 className="text-xl font-semibold">Review history</h1>
@@ -194,10 +194,10 @@ function EmptyState({ status }: { status: StatusFilter }) {
           </p>
         </div>
         <Link
-          href="/picker"
+          href="/"
           className="mt-1 inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
-          Browse repos →
+          Start a review →
         </Link>
       </CardContent>
     </Card>
