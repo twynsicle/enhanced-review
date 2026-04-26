@@ -1,17 +1,28 @@
-# enhanced-review — Plan of Record
+# enhanced-review — architecture overview
 
-A web-based AI code-review tool. Successor to the `diffy` Electron POC, narrowed to the narrative-review experience and re-platformed for multi-user use.
+A web-based AI code-review tool. Successor to the `diffy` Electron POC,
+narrowed to the narrative-review experience and re-platformed for
+multi-user use.
 
-For getting it running locally see the top-level [README.md](../README.md). For operating a running deployment (allowlist mgmt, key rotation, log tailing, re-queueing stuck jobs, retention SQL) see [OPERATIONS.md](OPERATIONS.md).
+For local setup see the top-level [README.md](../README.md) and the
+detailed [RUNNING.md](RUNNING.md). For day-2 operations on a running
+deployment (allowlist mgmt, key rotation, log tailing, re-running stuck
+jobs) see [OPERATIONS.md](OPERATIONS.md).
 
 ## Decisions
 
 ### Identity & access
 
-- **Auth**: GitHub OAuth SSO via Supabase Auth.
-- **GitHub access**: per-user OAuth tokens (no GitHub App).
-- **Tenancy**: multi-user, **invite-only closed beta**. Allowlist is a Supabase table of GitHub usernames; OAuth login is rejected if username is not present.
-- **Visibility**: every beta member can see every other member's reviews (shared workspace).
+- **Auth**: GitHub OAuth SSO via PocketBase Auth (popup-based).
+- **GitHub access**: per-user OAuth tokens, mirrored from PB's `meta.accessToken`
+  into an HttpOnly `gh_access_token` cookie. The token is never persisted
+  in the database — it lives only in the cookie and in memory during a job.
+- **Tenancy**: multi-user, **invite-only closed beta**. Allowlist is the
+  PB `allowed_users` collection (server-only rules; only a superuser can
+  read it). OAuth login is rejected by middleware if the GitHub login is
+  not present.
+- **Visibility**: every beta member can see every other member's reviews
+  (shared workspace).
 
 ### Feature scope
 
@@ -22,50 +33,62 @@ For getting it running locally see the top-level [README.md](../README.md). For 
 
 ### Execution
 
-- Async jobs with streamed updates; **Postgres-backed queue** in Supabase (`review_jobs` table).
-- **Separate worker container** owns the opencode subprocess. The frontend/API never invokes opencode directly — modular so a Claude-Code-SDK worker can replace it later.
-- **Streaming** via Supabase Realtime on Postgres changes (`review_chunks` table).
-- **Re-run semantics**: every review pins to a commit SHA; UI shows a "PR has new commits since this review" staleness badge when HEAD has moved.
-- **Cancellation**: user can abort a running review; worker kills the opencode subprocess.
+- Async jobs with streamed updates; row-driven via PB `review_jobs`
+  collection. No queue, no `LISTEN`/`NOTIFY` — the API route
+  fire-and-forgets the runner in-process.
+- **Review runner runs inside the Next.js process.** No separate worker.
+  At the project's scale (10–20 users, ~5 concurrent jobs max) the
+  process boundary wasn't paying for itself.
+- **Streaming** via PocketBase realtime SSE on `review_chunks` inserts.
+  Each chunk insert is fire-and-forget; the runner drains in-flight
+  promises before flipping `status='done'` so a subscriber that observes
+  `done` already sees the full chunk stream.
+- **Re-run semantics**: every review pins to a commit SHA; UI shows a
+  "PR has new commits since this review" staleness badge when HEAD has
+  moved.
+- **Cancellation**: the cancel route updates the row to `status='cancelled'`
+  and signals an `AbortController` registered in
+  `src/lib/jobs/runner/registry.ts`. The runner propagates the signal
+  into clone + executor so subprocesses tear down promptly.
 
 ### Repo handling
 
 - **Shallow clone per review** (`git clone --depth=1`), deleted after.
-- File-filter pre-curates which files opencode is allowed to read (see Phase 4).
+- File-filter pre-curates which files opencode is allowed to read.
 - opencode runs **agentically** with `cwd` set to the clone.
 
 ### AI model
 
-- opencode CLI invoking GLM 5.1 via opencode-zen.
-- Single backend env var for the opencode-zen API key (operator-paid, not per-user).
+- opencode CLI invoking GLM 4.7 via opencode-zen.
+- Single backend env var for the opencode-zen API key (operator-paid,
+  not per-user).
 
 ### Output format
 
 - Same shape as the POC's narrative: chapters + insights + inline diff chunks.
-- Stored in Postgres; full per-user history; re-runnable.
+- Stored in PocketBase; full per-user history; re-runnable.
 
 ## Tech stack
 
-- **Frontend**: Next.js (App Router) + React + TypeScript.
+- **Frontend**: Next.js 16 (App Router) + React 19 + TypeScript.
 - **Backend (API)**: Next.js Route Handlers / Server Actions.
-- **DB / Auth / Realtime**: self-hosted Supabase via `docker-compose`.
-- **Worker**: separate container; Node + TypeScript; spawns `opencode` CLI as a subprocess.
-- **Deployment target**: any host that runs `docker-compose` (worry about hosting later).
+- **DB / Auth / Realtime**: PocketBase (single binary, SQLite-backed).
+- **Review runner**: in-process inside Next.js; spawns `opencode` CLI as a subprocess.
+- **Deployment target**: AWS-friendly (PB on a Fargate task with EFS for
+  `pb_data/`, Next.js on another Fargate task) but local-first today.
 
-## Phase order
+## Repo layout
 
-Each phase ends in something demoable. Don't start a phase until the previous one is shipped.
-
-1. [Phase 1 — Foundation: infra + auth shell](PHASE-1-foundation.md)
-2. [Phase 2 — Repo & target picker](PHASE-2-repo-picker.md)
-3. [Phase 3 — Review job lifecycle (stub worker)](PHASE-3-job-lifecycle-stub.md)
-4. [Phase 4 — Worker: real repo + real opencode](PHASE-4-worker-opencode.md)
-5. [Phase 5 — Streaming output end-to-end](PHASE-5-streaming.md)
-6. [Phase 6 — Review reader UI](PHASE-6-review-reader-ui.md)
-7. [Phase 7 — Polish](PHASE-7-polish.md)
-
-## Cross-cutting concerns (handled inside phases, not as separate phases)
-
-- **RLS policies** — sketched in Phase 1, fleshed out in Phase 3 when the review tables land.
-- **OAuth token refresh** — handled in Phase 2 when GitHub API calls begin; revisited in Phase 4 for git-clone auth.
-- **Diff viewer component** — built in Phase 6 alongside the chapter UI.
+| Path | Purpose |
+| ---- | ------- |
+| `src/app/` | Next.js App Router pages and route handlers |
+| `src/lib/pb/` | PocketBase client factories: `pbBrowser`, `pbServer`, `pbAdmin` |
+| `src/lib/jobs/runner/` | The in-process review runner (clone, executor, prompt, writes, registry) |
+| `src/lib/auth/` | Allowlist gate |
+| `src/lib/github/` | GitHub token + API helpers |
+| `packages/github-client/` | Octokit wrapper used by API routes |
+| `packages/review-types/` | Shared `NarrativeReview` shape |
+| `pb_migrations/` | PocketBase JSVM migrations (auto-applied on PB startup) |
+| `tools/pocketbase/` | The PB binary (gitignored; downloaded by `npm run pb:install`) |
+| `pb_data/` | PB's SQLite DB and settings (gitignored) |
+| `docs/archive/` | Historical migration plans kept for context |

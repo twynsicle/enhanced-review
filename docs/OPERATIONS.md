@@ -1,6 +1,9 @@
 # Operations
 
-Day-to-day runbook for the closed-beta deployment. The plan-of-record lives in [docs/README.md](README.md); this file is for "the thing's running, now what."
+Day-to-day runbook for the closed-beta deployment. The architecture
+overview lives in [docs/README.md](README.md); first-time setup is in
+[docs/RUNNING.md](RUNNING.md). This file is for "the thing's running,
+now what."
 
 ## Quick reference
 
@@ -8,8 +11,8 @@ Day-to-day runbook for the closed-beta deployment. The plan-of-record lives in [
 | ----------------------------------- | ------------------------------------------------------ |
 | Add or remove a beta user           | [Allowlist management](#allowlist-management)          |
 | Rotate the opencode-zen API key     | [Rotating the opencode-zen key](#rotating-the-opencode-zen-key) |
-| Tail worker / API logs              | [Viewing logs](#viewing-logs)                          |
-| Re-queue a stuck job                | [Re-queueing a stuck job](#re-queueing-a-stuck-job)    |
+| Tail server logs                    | [Viewing logs](#viewing-logs)                          |
+| Re-run a stuck job                  | [Re-running a stuck job](#re-running-a-stuck-job)      |
 | Check queue health                  | [Health endpoint](#health-endpoint)                    |
 | Adjust per-job timeout / concurrency| [Tunable knobs](#tunable-knobs)                        |
 | Clean up old chunks / errored jobs  | [Retention (deferred)](#retention-deferred)            |
@@ -19,89 +22,92 @@ Day-to-day runbook for the closed-beta deployment. The plan-of-record lives in [
 
 ## Allowlist management
 
-Beta access is gated by `public.allowed_users.github_login`. RLS hides this table from authenticated users; only the service role can read or write it.
+Beta access is gated by the PocketBase `allowed_users` collection
+(`github_login` field, unique). All collection rules are `null`, so only
+a superuser (the Next.js server's admin client, or a human signed in to
+the PB admin UI) can read or write it.
 
-```sql
--- Add a user.
-insert into public.allowed_users (github_login) values ('octocat')
-on conflict (github_login) do nothing;
+Day-to-day, do this through the admin UI at <http://127.0.0.1:8090/_/>:
 
--- Remove a user (any active session of theirs is rejected on the next request).
-delete from public.allowed_users where github_login = 'octocat';
+- **Add a user**: Collections → allowed_users → **+ New record** →
+  `github_login` = the GitHub handle → Create.
+- **Remove a user**: find the row → row menu → Delete. Any active
+  session of theirs is rejected on their next request (the middleware
+  re-checks the allowlist per request).
+- **List**: the collection table view is the list.
 
--- List current allowlist.
-select github_login, created_at from public.allowed_users order by created_at desc;
-```
-
-Apply via Studio's SQL editor (`http://localhost:8000`, dashboard creds in `supabase/.env`) or `psql` with the postgres password.
-
-After removing a user, their existing reviews remain — RLS allows every beta member to see every other member's reviews (closed-beta workspace model). If you want their reviews gone, see [Re-queueing a stuck job](#re-queueing-a-stuck-job) for the row-level delete patterns.
+Removing a user does not delete their reviews — the `reviews` and
+`review_jobs` collections allow any signed-in beta member to read any
+row (closed-beta workspace model). To purge their reviews, find their
+`users` record id and delete the matching `review_jobs` rows (chunks
+and reviews cascade via the `job` relation).
 
 ## Rotating the opencode-zen key
 
-The key is read from the worker's environment as `OPENCODE_ZEN_API_KEY` and never stored in the database. To rotate:
+The key is read from the Next.js server's environment as
+`OPENCODE_ZEN_API_KEY` and never stored in the database.
 
 1. Generate a new key in the opencode-zen dashboard.
-2. Update the value wherever the worker reads its env (`packages/worker/.env` for local dev, your container orchestrator's secret store in deployment).
-3. Restart the worker process. There is exactly one — `docker compose -f docker-compose.worker.yml restart` (or your equivalent).
+2. Update the value in `.env.local` (local) or your container
+   orchestrator's secret store (deployed).
+3. Restart the Next.js process so it picks up the new env. There is no
+   separate worker — restarting `npm run dev` (or your equivalent
+   `next start` orchestrator) is the entire rotation.
 4. Revoke the old key.
 
-Currently-running jobs can't pick up a new key mid-flight. They either finish on the old key (if the rotation happened after `opencode` started) or fail with an executor error (if it happened mid-stream); either way they end as `done` or `error` and the user can re-run.
+Currently-running jobs can't pick up a new key mid-flight. They either
+finish on the old key (if the rotation happened after `opencode`
+started) or fail with an executor error (if it happened mid-stream);
+either way they end as `done` or `error` and the user can re-run.
 
 ## Viewing logs
 
-Worker and API both emit single-line JSON via [pino](https://getpino.io). Every job-scoped line carries `job_id`; worker session lines also carry `worker_id`.
+The Next.js process emits single-line JSON via [pino](https://getpino.io).
+Job-scoped lines carry `job_id`; the runner adds `executor` (`opencode`
+or `stub`).
 
 ```bash
-# Tail the worker container.
-docker logs -f enhanced-review-worker
+# Local dev: lines stream to the npm run dev terminal. Set LOG_PRETTY=1
+# in .env.local to swap in pino-pretty (colourised, human-friendly).
 
-# Filter to a single job.
-docker logs enhanced-review-worker 2>&1 | grep '"job_id":"<JOB-UUID>"'
-
-# Pretty-print for human reading (jq is optional but recommended).
-docker logs enhanced-review-worker 2>&1 | jq -c .
-
-# Local dev: set LOG_PRETTY=1 in packages/worker/.env or .env.local for the
-# Next.js side to swap in pino-pretty (colourised, human-friendly).
+# Deployed: capture stdout however your orchestrator captures any other
+# Next.js stdout, then filter with jq:
+your-log-cmd | jq -c 'select(.job_id == "<JOB-ID>")'
 ```
 
-API logs go to the Next.js server's stdout. In production behind a reverse proxy / orchestrator, capture them the same way you capture any other Next.js stdout.
+PocketBase has its own logs in the admin UI at **Settings → Logs**, with
+filterable level + free-text search. Useful when an `update` or `create`
+call fails — PB obscures rule failures as 404, but the request log
+shows the rule that blocked it.
 
-## Re-queueing a stuck job
+## Re-running a stuck job
 
-The worker has three layers of stuck-job protection:
+The runner has two layers of stuck-job protection:
 
-1. **Boot-time crash recovery** — when the worker process restarts, every row still in `running` is marked `status='error'` with `error_message='worker crashed before the review finished'`. The user can re-run from the UI.
-2. **In-process per-job timer** — each claim arms a `setTimeout` for `REVIEW_TIMEOUT_MIN` (default 15). On fire, the worker writes `status='error', error_message='timeout: job exceeded N min'` and aborts the executor.
-3. **Periodic sweeper** — once a minute the worker queries `WHERE status='running' AND started_at < now() - REVIEW_TIMEOUT_MIN` and errors any matches. This catches cases where (1) and (2) both missed.
+1. **In-process per-job timer** — each `runJob` call arms a `setTimeout`
+   for `REVIEW_TIMEOUT_MIN` (default 15). On fire, the route handler
+   writes `status='error', error_message='timeout: job exceeded N min'`
+   and aborts the registered `AbortController`.
+2. **Cancellation** — the `/api/jobs/[id]/cancel` route updates the row
+   under the user's PB session and signals the registered controller.
+   The runner's finally block re-applies `status='cancelled'` to handle
+   the narrow race where `markRunning` overwrote the cancel.
 
-If you ever need to manually intervene (e.g. the worker is hard-hung and you want to free up the user's slot before restarting):
+There is **no boot-time crash recovery sweep** any more (it lived in
+the old worker). If the Next.js process crashes mid-job, the row is
+left at `status='running'` with no controller registered. To clean
+those up manually, in the PB admin UI:
 
-```sql
--- Force a single job to error.
-update public.review_jobs
-   set status        = 'error',
-       completed_at  = now(),
-       error_message = 'manual intervention'
- where id = '<JOB-UUID>'
-   and status = 'running';
+- Collections → review_jobs → filter `status = "running"` → for each
+  stuck row, edit and set `status = "error"`,
+  `error_message = "server crashed before the review finished"`,
+  `completed_at = <now>`.
 
--- Bulk: error every running job (e.g. before a restart).
-update public.review_jobs
-   set status        = 'error',
-       completed_at  = now(),
-       error_message = 'manual intervention before maintenance'
- where status = 'running';
-```
+The user sees the friendly "what now" line on `/jobs/:id` and can
+click Re-run.
 
-The user sees the friendly "what now" line on `/jobs/:id` and can click Re-run.
-
-To **delete** a job entirely (reviews row + chunks both cascade):
-
-```sql
-delete from public.review_jobs where id = '<JOB-UUID>';
-```
+To **delete** a job entirely (review + chunks cascade via the `job`
+relation): delete the `review_jobs` row in the admin UI.
 
 ## Health endpoint
 
@@ -121,45 +127,36 @@ delete from public.review_jobs where id = '<JOB-UUID>';
 - `errorsLast24h` — count of `status='error'` rows with `completed_at` in the last 24h.
 - `ok` flips to `false` if any of the underlying queries fails (response is still 200; the value tells you which field is `null`).
 
-Use it from a deploy platform's health check or a curl one-liner. Don't put it in front of the user — the cap-related rejection in `/api/jobs` already gives them all the info they need.
+Use it from a deploy platform's health check or a curl one-liner.
 
 ## Tunable knobs
 
-| Env var                      | Default | Where               | What                                                                 |
-| ---------------------------- | ------- | ------------------- | -------------------------------------------------------------------- |
-| `MAX_JOBS_PER_USER`          | `1`     | Next.js             | Maximum pending+running jobs per user. >1 effectively disables cap.  |
-| `REVIEW_TIMEOUT_MIN`         | `15`    | worker              | Per-job wall-clock budget (minutes). Drives both timer and sweeper.  |
-| `WORKER_SWEEP_INTERVAL_SEC`  | `60`    | worker              | Cadence of the periodic stuck-job sweeper.                           |
-| `WORKER_RECONNECT_MIN_MS`    | `1000`  | worker              | Initial pg reconnect delay (doubles up to MAX).                      |
-| `WORKER_RECONNECT_MAX_MS`    | `30000` | worker              | Cap on the pg reconnect delay.                                       |
-| `LOG_LEVEL`                  | `info`  | Next.js + worker    | pino level: `trace` `debug` `info` `warn` `error` `fatal`.           |
-| `LOG_PRETTY`                 | unset   | Next.js + worker    | `1` swaps in pino-pretty for human-friendly local dev.               |
-| `REVIEW_EXECUTOR`            | `opencode` | worker           | `stub` runs a deterministic fake executor (useful with no API key).  |
-| `REVIEW_MODEL`               | `opencode-zen/glm-4.7` | worker | `<provider>/<model>` for `opencode`.                                 |
+| Env var                | Default                | Read by  | What                                                                 |
+| ---------------------- | ---------------------- | -------- | -------------------------------------------------------------------- |
+| `MAX_JOBS_PER_USER`    | `1`                    | Next.js  | Maximum pending+running jobs per user. >1 effectively disables cap.  |
+| `REVIEW_TIMEOUT_MIN`   | `15`                   | Next.js  | Per-job wall-clock budget (minutes). Drives the per-job timer.       |
+| `REVIEW_EXECUTOR`      | `opencode`             | Next.js  | `stub` runs a deterministic fake executor (useful with no API key).  |
+| `REVIEW_MODEL`         | `opencode-zen/glm-4.7` | Next.js  | `<provider>/<model>` for `opencode`.                                 |
+| `OPENCODE_ZEN_API_KEY` | unset                  | Next.js  | Required when `REVIEW_EXECUTOR=opencode`.                            |
+| `LOG_LEVEL`            | `info`                 | Next.js  | pino level: `trace` `debug` `info` `warn` `error` `fatal`.           |
+| `LOG_PRETTY`           | unset                  | Next.js  | `1` swaps in pino-pretty for human-friendly local dev.               |
 
-Changing any of these requires restarting the relevant process; nothing is hot-reloadable.
+Changing any of these requires restarting the Next.js process; nothing
+is hot-reloadable.
 
 ## Retention (deferred)
 
-Phase 7 deferred scheduled retention to post-beta. The plan was: delete `review_chunks` older than 7 days, delete `review_jobs` with `status='error'` older than 30 days, keep `reviews` forever. The SQL is sketched here for when storage starts mattering — copy/paste into Studio when you need it, no `pg_cron` setup required.
+Plan: delete `review_chunks` older than 7 days, delete `review_jobs`
+with `status='error'` older than 30 days, keep `reviews` forever.
 
-```sql
--- Drop streamed chunks older than 7 days. Reviews remain because the
--- structured NarrativeReview is stored in the `reviews` table separately.
-delete from public.review_chunks where created_at < now() - interval '7 days';
-
--- Drop errored jobs older than 30 days (cascades to their chunks).
-delete from public.review_jobs
- where status = 'error'
-   and completed_at < now() - interval '30 days';
-
--- (Optional) drop cancelled jobs older than 30 days too.
-delete from public.review_jobs
- where status = 'cancelled'
-   and cancelled_at < now() - interval '30 days';
-```
-
-If/when this becomes a routine job, install `pg_cron` (extension exists in the vendored Supabase image but isn't loaded), wrap the statements above in `cron.schedule(...)`, and document the schedule here.
+Once this becomes routine, add a PocketBase
+[scheduled job](https://pocketbase.io/docs/js-overview/) under
+`pb_migrations/` (or `pb_hooks/` if we add one) that runs the deletes
+on a cron expression. PB's JSVM exposes `cronAdd(name, expr, handler)`
+for this. Until then, do it manually in the admin UI when storage
+starts mattering — the `review_jobs` collection's filter syntax
+(`status = "error" && completed_at < "2026-01-01"`) makes ad-hoc
+purges easy.
 
 ## Log shape
 
@@ -172,20 +169,12 @@ Every server-side line is a single JSON object. Keys you'll see often:
 | `pid`           | int       | Process id.                                                |
 | `hostname`      | string    | Host where the line originated.                            |
 | `msg`           | string    | The human-readable line.                                   |
-| `job_id`        | string    | UUID of the review job. Present on every job-scoped line.  |
-| `worker_id`     | string    | UUID assigned per worker session (changes on reconnect).   |
-| `user_id`       | string    | Supabase auth user id, on API lines that touch a session.  |
+| `job_id`        | string    | PB id of the review job. Present on every job-scoped line. |
+| `executor`      | string    | `opencode` or `stub`. Set by the runner on its child logger. |
+| `user_id`       | string    | PB auth user id, on API lines that touch a session.        |
 | `err`           | object    | Pino's serialised error (`type`, `message`, `stack`).      |
 | `source_job_id` | string    | On `/api/jobs/:id/rerun` lines — the job being re-run.     |
-| `signal`        | string    | On worker shutdown lines — `SIGINT` or `SIGTERM`.          |
-| `backoff_ms`    | int       | On worker reconnect lines — the next backoff delay.        |
 
-To trace a single review end-to-end:
-
-```bash
-# Pipe both processes' logs together.
-( docker logs -f enhanced-review-worker & docker logs -f enhanced-review-web ) \
-  2>&1 | grep --line-buffered '"job_id":"<JOB-UUID>"' | jq -c .
-```
-
-The same `job_id` shows up in `/api/jobs` (creation), `/api/jobs/:id/rerun` (re-runs), `/api/jobs/:id/cancel`, and every worker line. The API doesn't tag every line with `job_id` (some routes don't have one in scope) — when in doubt grep by `user_id`.
+To trace a single review end-to-end, filter by `job_id` — the same id
+shows up in `/api/jobs` (creation), `/api/jobs/:id/rerun` (re-runs),
+`/api/jobs/:id/cancel`, and every runner line.
