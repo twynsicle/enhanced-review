@@ -14,10 +14,14 @@ import { Combobox } from '@/components/ui/combobox';
 import { toast } from '@/hooks/use-toast';
 import { fetchGithub } from '@/lib/github/fetcher';
 import {
+  clearLastBranch,
+  clearLastPull,
   clearLastTarget,
   readLastTarget,
-  writeLastTarget,
-  type LastTarget,
+  writeLastBranch,
+  writeLastKind,
+  writeLastPull,
+  writeLastRepo,
 } from '@/lib/jobs/last-target';
 import { JobInFlightError, startReview } from '@/lib/jobs/start-review';
 import { cn } from '@/lib/utils';
@@ -95,10 +99,10 @@ export function ReviewComposer({ userId }: { userId: string }) {
         if (cancelled) return;
         setPulls(data.pulls);
         const last = readLastTarget(userId);
-        if (last?.kind === 'pr' && last.repoFullName === repo.fullName) {
+        if (last && last.repoFullName === repo.fullName && last.prNumber !== undefined) {
           const found = data.pulls.find((p) => p.number === last.prNumber);
           if (found) setPull(found);
-          else clearLastTarget(userId);
+          else clearLastPull(userId);
         }
       })
       .catch((err) => {
@@ -123,10 +127,10 @@ export function ReviewComposer({ userId }: { userId: string }) {
         if (cancelled) return;
         setBranchData(data);
         const last = readLastTarget(userId);
-        if (last?.kind === 'branch' && last.repoFullName === repo.fullName) {
+        if (last && last.repoFullName === repo.fullName && last.branchRef !== undefined) {
           const found = data.branches.find((b) => b.ref === last.branchRef);
           if (found) setBranch(found);
-          else clearLastTarget(userId);
+          else clearLastBranch(userId);
         }
       })
       .catch((err) => {
@@ -177,11 +181,23 @@ export function ReviewComposer({ userId }: { userId: string }) {
     setBranch(null);
     setPulls(null);
     setBranchData(null);
+    writeLastRepo(userId, next.fullName);
   };
 
   const onChangeKind = (next: Kind) => {
     if (next === kind) return;
     setKind(next);
+    writeLastKind(userId, next);
+  };
+
+  const onChangePull = (next: PullSummary) => {
+    setPull(next);
+    writeLastPull(userId, next.number);
+  };
+
+  const onChangeBranch = (next: BranchSummary) => {
+    setBranch(next);
+    writeLastBranch(userId, next.ref);
   };
 
   const onSubmit = async () => {
@@ -190,12 +206,6 @@ export function ReviewComposer({ userId }: { userId: string }) {
     setInFlightJobId(null);
     try {
       const { id } = await startReview(target);
-      // Persist what we just submitted.
-      const last: LastTarget =
-        target.kind === 'pr'
-          ? { repoFullName: repo.fullName, kind: 'pr', prNumber: target.number }
-          : { repoFullName: repo.fullName, kind: 'branch', branchRef: target.ref };
-      writeLastTarget(userId, last);
       router.push(`/jobs/${id}`);
     } catch (err) {
       if (err instanceof JobInFlightError) {
@@ -284,7 +294,7 @@ export function ReviewComposer({ userId }: { userId: string }) {
               <Combobox<PullSummary>
                 items={repo ? pulls : []}
                 value={pull}
-                onChange={setPull}
+                onChange={onChangePull}
                 getKey={(p) => String(p.number)}
                 getSearchValue={(p) =>
                   `#${p.number} ${p.title} ${p.headRef} ${p.authorLogin ?? ''}`.toLowerCase()
@@ -323,7 +333,7 @@ export function ReviewComposer({ userId }: { userId: string }) {
               <Combobox<BranchSummary>
                 items={repo ? (branchData?.branches ?? null) : []}
                 value={branch}
-                onChange={setBranch}
+                onChange={onChangeBranch}
                 getKey={(b) => b.ref}
                 getSearchValue={(b) => `${b.ref} ${b.headCommitMessage}`.toLowerCase()}
                 renderItem={(b) => (

@@ -4,18 +4,21 @@ import { RecentReviews } from '@/components/home/recent-reviews';
 import { ReviewComposer } from '@/components/home/review-composer';
 import { Topbar } from '@/components/topbar/topbar';
 import { getGithubLogin } from '@/lib/auth/allowlist';
-import { getCurrentUser } from '@/lib/pb';
+import { pbServer } from '@/lib/pb';
+import type { UserRecord } from '@/lib/pb';
 
 export const metadata = {
   title: 'enhanced-review',
 };
 
 export default async function Home() {
-  const user = await getCurrentUser();
+  const pb = await pbServer();
+  const user = pb.authStore.isValid ? (pb.authStore.record as UserRecord | null) : null;
   if (!user) redirect('/login');
 
   const login = getGithubLogin(user) ?? user.email ?? user.id;
-  const avatarUrl = user.avatar && user.avatar.length > 0 ? user.avatar : null;
+  const avatarUrl =
+    user.avatar && user.avatar.length > 0 ? pb.files.getURL(user, user.avatar) : null;
   const fullName = user.name && user.name.length > 0 ? user.name : null;
 
   return (

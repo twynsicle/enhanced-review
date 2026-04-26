@@ -2,25 +2,19 @@
 
 /**
  * Persisted "last review target" the user kicked off, scoped per user so
- * a shared device with multiple GitHub accounts stays sensible. Read on
- * homepage mount to auto-fill the composer; written after a successful
- * `POST /api/jobs`.
- *
- * Stored as JSON. Validation is permissive — anything that doesn't shape
- * up returns null and clears the entry.
+ * a shared device with multiple GitHub accounts stays sensible. Persisted
+ * incrementally as the user changes selections (repo, kind toggle, PR,
+ * branch) so a refresh restores the full composer state, not just the
+ * last submitted job. `prNumber` and `branchRef` are stored side-by-side
+ * so toggling the kind in either direction restores the previous pick.
  */
 
-export type LastTarget =
-  | {
-      repoFullName: string;
-      kind: 'pr';
-      prNumber: number;
-    }
-  | {
-      repoFullName: string;
-      kind: 'branch';
-      branchRef: string;
-    };
+export type LastTarget = {
+  repoFullName: string;
+  kind: 'pr' | 'branch';
+  prNumber?: number;
+  branchRef?: string;
+};
 
 const KEY = (userId: string) => `er:last-target:${userId}`;
 
@@ -41,27 +35,20 @@ export function readLastTarget(userId: string): LastTarget | null {
   try {
     const parsed = JSON.parse(raw) as Partial<LastTarget>;
     if (!parsed || typeof parsed.repoFullName !== 'string') return null;
-    if (parsed.kind === 'pr' && typeof parsed.prNumber === 'number') {
-      return {
-        repoFullName: parsed.repoFullName,
-        kind: 'pr',
-        prNumber: parsed.prNumber,
-      };
-    }
-    if (parsed.kind === 'branch' && typeof parsed.branchRef === 'string') {
-      return {
-        repoFullName: parsed.repoFullName,
-        kind: 'branch',
-        branchRef: parsed.branchRef,
-      };
-    }
-    return null;
+    if (parsed.kind !== 'pr' && parsed.kind !== 'branch') return null;
+    const result: LastTarget = {
+      repoFullName: parsed.repoFullName,
+      kind: parsed.kind,
+    };
+    if (typeof parsed.prNumber === 'number') result.prNumber = parsed.prNumber;
+    if (typeof parsed.branchRef === 'string') result.branchRef = parsed.branchRef;
+    return result;
   } catch {
     return null;
   }
 }
 
-export function writeLastTarget(userId: string, target: LastTarget): void {
+function write(userId: string, target: LastTarget): void {
   const storage = safeStorage();
   if (!storage) return;
   try {
@@ -69,6 +56,47 @@ export function writeLastTarget(userId: string, target: LastTarget): void {
   } catch {
     /* quota / private mode — silently skip */
   }
+}
+
+export function writeLastRepo(userId: string, repoFullName: string): void {
+  const current = readLastTarget(userId);
+  if (current?.repoFullName === repoFullName) return;
+  // Different repo — drop the per-repo selections, keep the kind toggle.
+  write(userId, { repoFullName, kind: current?.kind ?? 'pr' });
+}
+
+export function writeLastKind(userId: string, kind: 'pr' | 'branch'): void {
+  const current = readLastTarget(userId);
+  if (!current || current.kind === kind) return;
+  write(userId, { ...current, kind });
+}
+
+export function writeLastPull(userId: string, prNumber: number): void {
+  const current = readLastTarget(userId);
+  if (!current || current.prNumber === prNumber) return;
+  write(userId, { ...current, prNumber });
+}
+
+export function writeLastBranch(userId: string, branchRef: string): void {
+  const current = readLastTarget(userId);
+  if (!current || current.branchRef === branchRef) return;
+  write(userId, { ...current, branchRef });
+}
+
+export function clearLastPull(userId: string): void {
+  const current = readLastTarget(userId);
+  if (!current || current.prNumber === undefined) return;
+  const next = { ...current };
+  delete next.prNumber;
+  write(userId, next);
+}
+
+export function clearLastBranch(userId: string): void {
+  const current = readLastTarget(userId);
+  if (!current || current.branchRef === undefined) return;
+  const next = { ...current };
+  delete next.branchRef;
+  write(userId, next);
 }
 
 export function clearLastTarget(userId: string): void {

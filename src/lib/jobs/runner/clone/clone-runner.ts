@@ -74,8 +74,28 @@ export async function cloneAndDiff(
   const url = buildCloneUrl(input.token, input.target.owner, input.target.repo);
 
   const headRef = input.target.kind === 'pr' ? input.target.headRef : input.target.ref;
-  await runGitOrThrow(runner, 'clone', {
-    args: ['clone', '--depth=1', '--branch', headRef, url, cloneDir],
+
+  // `git clone --branch` only accepts refs/heads/* and refs/tags/*, so it can't
+  // resolve GitHub's refs/pull/N/head. Initialize an empty repo and fetch the
+  // ref directly — works for branches and pull-request heads alike.
+  await runGitOrThrow(runner, 'init', {
+    args: ['init', '--quiet'],
+    cwd: cloneDir,
+    signal: input.signal,
+  });
+  await runGitOrThrow(runner, 'remote add origin', {
+    args: ['remote', 'add', 'origin', url],
+    cwd: cloneDir,
+    signal: input.signal,
+  });
+  await runGitOrThrow(runner, 'fetch head', {
+    args: ['fetch', '--depth=1', 'origin', headRef],
+    cwd: cloneDir,
+    signal: input.signal,
+  });
+  await runGitOrThrow(runner, 'checkout head', {
+    args: ['checkout', '--quiet', 'FETCH_HEAD'],
+    cwd: cloneDir,
     signal: input.signal,
   });
 

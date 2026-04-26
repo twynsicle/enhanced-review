@@ -130,8 +130,8 @@ export function JobLiveView({
     <>
       <header className="flex flex-col gap-3">
         <div className="text-xs text-muted-foreground">
-          <Link href="/history" className="hover:underline">
-            ← All reviews
+          <Link href="/" className="hover:underline">
+            ← Home
           </Link>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">

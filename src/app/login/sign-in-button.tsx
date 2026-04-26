@@ -33,7 +33,6 @@ export function SignInButton() {
         accessToken?: string;
         username?: string;
         name?: string;
-        avatarURL?: string;
       };
       if (!meta.accessToken || !meta.username) {
         throw new Error('GitHub OAuth did not return an access token / username');
@@ -46,7 +45,6 @@ export function SignInButton() {
           accessToken: meta.accessToken,
           githubLogin: meta.username,
           name: meta.name,
-          avatarUrl: meta.avatarURL,
         }),
       });
       if (!res.ok && res.status !== 204) {

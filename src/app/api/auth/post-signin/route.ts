@@ -35,7 +35,6 @@ const bodySchema = z.object({
   accessToken: z.string().min(1),
   githubLogin: z.string().min(1).max(100),
   name: z.string().max(200).optional(),
-  avatarUrl: z.string().url().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -63,18 +62,19 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  const { accessToken, githubLogin, name, avatarUrl } = parsed.data;
+  const { accessToken, githubLogin, name } = parsed.data;
 
   // 3. Backfill the user record. Admin client because the user can't
   // update their own `github_login` (rule would need to be
   // `@request.auth.id = id`, but a malicious caller could set a different
   // login to bypass allowlist by impersonating another GitHub account).
+  // PB's GitHub OAuth provider auto-downloads the avatar into the `avatar`
+  // file field on first sign-in, so we don't persist the URL ourselves.
   try {
     await withAdminRetry((admin) =>
       admin.collection('users').update(user.id, {
         github_login: githubLogin,
         ...(name ? { name } : {}),
-        ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       }),
     );
   } catch (err) {
@@ -85,7 +85,9 @@ export async function POST(request: NextRequest) {
   }
 
   // 4. Set the GitHub access-token cookie. HttpOnly so XSS can't read it;
-  // `Secure` only in HTTPS contexts (dev runs on http://).
+  // `Secure` only in HTTPS contexts (dev runs on http://). `maxAge` so the
+  // cookie survives browser restarts — without it, closing the browser
+  // forces a re-OAuth even though the PB session is still valid.
   const res = new NextResponse(null, { status: 204 });
   const isHttps = new URL(request.url).protocol === 'https:';
   res.cookies.set(GH_TOKEN_COOKIE, accessToken, {
@@ -93,6 +95,7 @@ export async function POST(request: NextRequest) {
     secure: isHttps,
     sameSite: 'lax',
     path: '/',
+    maxAge: 60 * 60 * 24 * 90,
   });
   return res;
 }
