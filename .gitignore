@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -43,3 +44,9 @@ next-env.d.ts
 # pocketbase
 /tools/pocketbase/
 /pb_data/
+
+# claude code (user-local permission overrides; project-shared settings.json is fine)
+.claude/settings.local.json
+
+# playwright mcp runtime artifacts (console logs + page snapshots)
+.playwright-mcp/
