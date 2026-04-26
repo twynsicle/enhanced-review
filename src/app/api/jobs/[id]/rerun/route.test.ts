@@ -58,8 +58,22 @@ function fakeSupabase(opts: {
   } as unknown as Awaited<ReturnType<typeof createClient>>;
 }
 
-function fakeAdmin(jobId: string | null, error: { message: string } | null = null) {
+function fakeAdmin(
+  jobId: string | null,
+  error: { message: string } | null = null,
+  options: { inFlightRows?: { id: string; status: 'pending' | 'running' }[] } = {},
+) {
+  // Concurrency check uses .from('review_jobs').select().eq().in().order().limit()
+  const limit = vi.fn().mockResolvedValue({
+    data: options.inFlightRows ?? [],
+    error: null,
+  });
+  const order = vi.fn().mockReturnValue({ limit });
+  const inFn = vi.fn().mockReturnValue({ order });
+  const eq = vi.fn().mockReturnValue({ in: inFn });
+  const select = vi.fn().mockReturnValue({ eq });
   return {
+    from: vi.fn().mockReturnValue({ select }),
     rpc: vi.fn().mockResolvedValue({ data: jobId, error }),
   } as unknown as ReturnType<typeof createAdminClient>;
 }
@@ -162,5 +176,18 @@ describe('POST /api/jobs/[id]/rerun', () => {
 
     const res = await POST(buildRequest(), ctxFor(VALID_ID));
     expect(res.status).toBe(502);
+  });
+
+  it('returns 409 with job_in_flight when the user already has a pending or running job', async () => {
+    createAdminClientMock.mockReturnValue(
+      fakeAdmin('new-job-id', null, {
+        inFlightRows: [{ id: 'existing-job', status: 'running' }],
+      }),
+    );
+
+    const res = await POST(buildRequest(), ctxFor(VALID_ID));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body).toMatchObject({ reason: 'job_in_flight', activeJobId: 'existing-job' });
   });
 });

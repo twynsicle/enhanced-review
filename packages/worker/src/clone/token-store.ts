@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { logger } from '../log';
 
 /**
  * Service-role-only helpers for the per-job encrypted GitHub token. The
@@ -46,6 +47,6 @@ export async function clearGithubToken(supabase: SupabaseClient, jobId: string):
     // Best effort. The token will expire naturally if the GH OAuth flow
     // is re-run; an operator can also UPDATE … set github_token_encrypted
     // = null manually if cleanup repeatedly fails.
-    console.error(`[worker] clearGithubToken(${jobId}) failed: ${error.message}`);
+    logger.error({ job_id: jobId, err: error.message }, 'clearGithubToken failed');
   }
 }

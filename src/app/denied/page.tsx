@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const metadata = {
@@ -15,10 +17,14 @@ export default function DeniedPage() {
             yet.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            If you think this is a mistake, reach out to the operator who invited you.
+            If you think this is a mistake, reach out to the operator who invited you so they can
+            add you to the allowlist.
           </p>
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/login">Try a different account →</Link>
+          </Button>
         </CardContent>
       </Card>
     </main>

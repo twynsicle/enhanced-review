@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { NarrativeReview } from '@enhanced-review/review-types';
+import { logger } from './log';
 
 /**
  * Service-role writes that produce content the page subscribes to via
@@ -64,7 +65,7 @@ export async function markErrored(
     .eq('id', jobId);
   if (error) {
     // Best-effort: log and move on. The next worker boot's recovery sweep
-    // will reset stuck `running` rows even if this update never lands.
-    console.error(`[worker] markErrored(${jobId}) failed:`, error.message);
+    // marks stuck `running` rows as errored even if this update never lands.
+    logger.error({ job_id: jobId, err: error.message }, 'markErrored failed');
   }
 }

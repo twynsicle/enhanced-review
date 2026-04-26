@@ -26,17 +26,64 @@ export interface Querier {
 }
 
 /**
- * Reset every job stuck in `running` back to `pending`. Single-worker
- * crash recovery — we assume any row in `running` at boot belongs to a
- * previous boot of this worker that crashed before completing or
- * cancelling. Phase 7 replaces this with heartbeat-based recovery once
- * we run multiple workers.
+ * Mark every row stuck in `running` as `error` with `worker_crashed`.
+ * Single-worker crash recovery — at session start we know any row in
+ * `running` is left over from a previous worker process that died before
+ * completing the job. We surface it to the user (who can re-run from the
+ * UI) rather than silently retrying — matches the "manual re-run only"
+ * policy decided in Phase 7.
  */
-export async function resetRunning(pg: Querier): Promise<number> {
+export async function markRunningAsCrashed(pg: Querier): Promise<number> {
   const result = await pg.query(
     `update public.review_jobs
-       set status = 'pending', worker_id = null, started_at = null
+       set status = 'error',
+           completed_at = now(),
+           error_message = 'worker crashed before the review finished'
      where status = 'running'`,
+  );
+  return result.rowCount ?? 0;
+}
+
+/**
+ * Mark a single in-flight job as `error` because its in-process timeout
+ * fired. The session aborts the job's controller right after calling
+ * this, so any subsequent finalize attempt by the executor sees
+ * `signal.aborted` and exits without writing. The `WHERE status =
+ * 'running'` guard makes the call a no-op if the job already finished
+ * (lost-the-race case).
+ */
+export async function markStuckAsTimedOut(
+  pg: Querier,
+  jobId: string,
+  message: string,
+): Promise<number> {
+  const result = await pg.query(
+    `update public.review_jobs
+       set status = 'error',
+           completed_at = now(),
+           error_message = $2
+     where id = $1
+       and status = 'running'`,
+    [jobId, message],
+  );
+  return result.rowCount ?? 0;
+}
+
+/**
+ * Periodic safety net: error any `running` job whose `started_at` is
+ * older than the timeout threshold. The in-process per-job timer is the
+ * primary mechanism — this exists to catch jobs we lost track of (e.g.
+ * the worker hung hard, or our setTimeout never fired for some reason).
+ */
+export async function sweepStuckJobs(pg: Querier, timeoutMs: number): Promise<number> {
+  const result = await pg.query(
+    `update public.review_jobs
+       set status = 'error',
+           completed_at = now(),
+           error_message = 'timeout: job exceeded REVIEW_TIMEOUT_MIN'
+     where status = 'running'
+       and started_at < now() - ($1::bigint * interval '1 millisecond')`,
+    [timeoutMs],
   );
   return result.rowCount ?? 0;
 }

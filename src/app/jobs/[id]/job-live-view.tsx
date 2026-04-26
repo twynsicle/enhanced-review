@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { RerunButton } from '@/app/reviews/[id]/rerun-button';
 import { Button } from '@/components/ui/button';
 import { describeTarget, type ReviewChunkRow, type ReviewJobRow } from '@/lib/jobs/types';
 import { extractChapterTitles } from '@/lib/jobs/partial-narrative-parse';
@@ -144,6 +145,9 @@ export function JobLiveView({
               <Link href={`/reviews/${job.id}`}>View rendered review →</Link>
             </Button>
           )}
+          {(job.status === 'error' || job.status === 'cancelled') && (
+            <RerunButton jobId={job.id}>Re-run</RerunButton>
+          )}
           {cancellable && isOwner && (
             <Button
               variant="outline"
@@ -158,6 +162,39 @@ export function JobLiveView({
       </footer>
     </>
   );
+}
+
+/**
+ * Map a `review_jobs.error_message` to a one-line "what now" suggestion.
+ * The worker error formats are stable enough to switch on prefixes.
+ */
+function whatNowFor(errorMessage: string): string {
+  const m = errorMessage.toLowerCase();
+  if (m.startsWith('timeout')) {
+    return 'The review hit the time limit. Try Re-run; if it keeps timing out, narrow the diff scope.';
+  }
+  if (m.startsWith('worker crashed')) {
+    return 'The worker died mid-review. Click Re-run to try again.';
+  }
+  if (m.startsWith('token')) {
+    return 'GitHub token issue — re-link your account from the home page, then Re-run.';
+  }
+  if (m.startsWith('clone') && m.includes('mismatch')) {
+    return 'The PR moved since the review started. Click Re-run to pick up the latest commits.';
+  }
+  if (m.startsWith('clone') || m.startsWith('git')) {
+    return 'Clone failed — check the repo permissions on GitHub, then Re-run.';
+  }
+  if (m.startsWith('github')) {
+    return 'GitHub API error. Try again in a minute, or check repo access.';
+  }
+  if (m.startsWith('stream cap exceeded')) {
+    return 'The review output exceeded the streaming cap. The diff may be too large; try a smaller scope.';
+  }
+  if (m.startsWith('parse') || m.startsWith('executor')) {
+    return 'The reviewer model returned unparseable output. Re-run usually clears it; if not, contact the operator.';
+  }
+  return 'Click Re-run to try again, or contact the operator if it persists.';
 }
 
 function StatusPill({ status }: { status: ReviewJobRow['status'] }) {
@@ -207,10 +244,20 @@ function ChapterChecklist({
       aria-live="polite"
     >
       {!hasAnyTitle && status === 'pending' && (
-        <p className="text-muted-foreground">Waiting for the worker to pick this up…</p>
+        <div className="flex flex-col gap-1 text-muted-foreground">
+          <p>Setting up your review…</p>
+          <p className="text-xs">
+            Cloning the repo and waiting for a worker to pick this up.
+          </p>
+        </div>
       )}
       {!hasAnyTitle && status === 'running' && (
-        <p className="text-muted-foreground">Streaming…</p>
+        <div className="flex flex-col gap-1 text-muted-foreground">
+          <p>Reading the diff…</p>
+          <p className="text-xs">
+            The first chapter title will appear here as soon as the model starts streaming.
+          </p>
+        </div>
       )}
       {!hasAnyTitle && status === 'cancelled' && (
         <p className="text-muted-foreground">
@@ -255,8 +302,9 @@ function ChapterChecklist({
       </div>
 
       {errorMessage && (
-        <div className="mt-3 rounded bg-destructive/10 p-2 text-xs text-destructive">
-          {errorMessage}
+        <div className="mt-3 flex flex-col gap-1 rounded bg-destructive/10 p-2 text-xs text-destructive">
+          <span>{errorMessage}</span>
+          <span className="text-foreground/70">{whatNowFor(errorMessage)}</span>
         </div>
       )}
     </div>

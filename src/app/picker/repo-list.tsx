@@ -2,7 +2,8 @@
 
 import type { RepoSummary } from '@enhanced-review/github-client';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { fetchGithub } from '@/lib/github/fetcher';
 
@@ -16,6 +17,7 @@ export function RepoList() {
   const [repos, setRepos] = useState<RepoSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,6 +33,12 @@ export function RepoList() {
     return () => {
       cancelled = true;
     };
+  }, [retryNonce]);
+
+  const onRetry = useCallback(() => {
+    setError(null);
+    setRepos(null);
+    setRetryNonce((n) => n + 1);
   }, []);
 
   const filtered = useMemo(() => {
@@ -46,7 +54,18 @@ export function RepoList() {
   if (error) {
     return (
       <Card>
-        <CardContent className="py-6 text-sm text-destructive">{error}</CardContent>
+        <CardContent className="flex flex-col gap-3 py-6">
+          <p className="text-sm text-destructive">{error}</p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>What now:</span>
+            <Button size="sm" variant="outline" onClick={onRetry}>
+              Retry
+            </Button>
+            <a href="/relink" className="underline underline-offset-2 hover:text-foreground">
+              Re-link GitHub
+            </a>
+          </div>
+        </CardContent>
       </Card>
     );
   }
@@ -64,9 +83,20 @@ export function RepoList() {
         total={repos.length}
       />
       {repos.length === 0 ? (
-        <Empty>No repos accessible to your GitHub account.</Empty>
+        <Empty>
+          <p className="font-medium text-foreground">No repos accessible.</p>
+          <p className="mt-1">
+            GitHub returned an empty list — your account may not have any repos with the granted
+            scope, or the OAuth scope was denied.{' '}
+            <a href="/relink" className="underline underline-offset-2 hover:text-foreground">
+              Re-link GitHub →
+            </a>
+          </p>
+        </Empty>
       ) : filtered.length === 0 ? (
-        <Empty>No repos match &ldquo;{filter}&rdquo;.</Empty>
+        <Empty>
+          No repos match &ldquo;{filter}&rdquo;. Try a different search.
+        </Empty>
       ) : (
         <ul className="flex flex-col gap-2">
           {filtered.map((repo) => (

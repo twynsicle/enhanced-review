@@ -58,6 +58,10 @@ export async function proxy(request: NextRequest) {
   // OAuth callback must run before any session exists.
   if (pathname.startsWith('/auth')) return supabaseResponse;
 
+  // Public ops endpoint — no per-user data, intentionally pingable
+  // without a session.
+  if (pathname === '/api/health') return supabaseResponse;
+
   // /login: allow unauthed; bounce authed users home.
   if (pathname === '/login') {
     if (user) return forwardCookies(supabaseResponse, redirect(request, '/'));

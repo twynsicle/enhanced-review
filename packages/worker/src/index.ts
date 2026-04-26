@@ -3,6 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createClient } from '@supabase/supabase-js';
 import { Client } from 'pg';
 import { readConfigFromEnv } from './config';
+import { logger } from './log';
 import { runOpencodeJob } from './opencode-job';
 import { runSession } from './session';
 import { runStubJob } from './stub';
@@ -26,7 +27,7 @@ async function main(): Promise<void> {
   const stop = (signal: string) => {
     if (stopping) return;
     stopping = true;
-    console.log(`[worker] received ${signal}, shutting down`);
+    logger.info({ signal }, 'worker received shutdown signal');
     activeClient?.end().catch(() => {
       /* connection may already be dead */
     });
@@ -48,6 +49,12 @@ async function main(): Promise<void> {
       await runSession({
         workerId,
         pg,
+        timeoutMs: config.timeoutMs,
+        sweepIntervalMs: config.sweepIntervalMs,
+        log: (msg, meta) =>
+          meta === undefined
+            ? logger.info({ worker_id: workerId }, msg)
+            : logger.info({ worker_id: workerId, meta }, msg),
         runJob: (job, signal) => {
           if (config.executor === 'stub') {
             return runStubJob({ supabase }, job, signal).then(() => undefined);
@@ -60,7 +67,7 @@ async function main(): Promise<void> {
         },
       });
     } catch (err) {
-      console.error('[worker] session crashed', err);
+      logger.error({ err, worker_id: workerId }, 'session crashed');
     } finally {
       activeClient = null;
       try {
@@ -72,15 +79,15 @@ async function main(): Promise<void> {
 
     if (stopping) break;
 
-    console.log(`[worker] reconnecting in ${backoff}ms`);
+    logger.info({ backoff_ms: backoff, worker_id: workerId }, 'reconnecting');
     await delay(backoff);
     backoff = Math.min(backoff * 2, config.reconnectMaxMs);
   }
 
-  console.log('[worker] stopped');
+  logger.info('worker stopped');
 }
 
 main().catch((err) => {
-  console.error('[worker] fatal', err);
+  logger.fatal({ err }, 'worker fatal');
   process.exit(1);
 });

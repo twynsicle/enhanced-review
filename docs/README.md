@@ -2,6 +2,8 @@
 
 A web-based AI code-review tool. Successor to the `diffy` Electron POC, narrowed to the narrative-review experience and re-platformed for multi-user use.
 
+For getting it running locally see the top-level [README.md](../README.md). For operating a running deployment (allowlist mgmt, key rotation, log tailing, re-queueing stuck jobs, retention SQL) see [OPERATIONS.md](OPERATIONS.md).
+
 ## Decisions
 
 ### Identity & access

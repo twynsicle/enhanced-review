@@ -1,6 +1,7 @@
 import 'server-only';
 import { GithubAuthError, createOctokit } from '@enhanced-review/github-client';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/log';
 import { MissingProviderTokenError, getGithubToken } from './token';
 
 /**
@@ -26,7 +27,7 @@ export function githubErrorResponse(error: unknown): NextResponse {
       { status: 401 },
     );
   }
-  console.error('[github] unexpected error', error);
+  logger.error({ err: error }, '[github] unexpected error');
   return NextResponse.json(
     { reason: 'unknown', message: 'Something went wrong talking to GitHub.' },
     { status: 500 },

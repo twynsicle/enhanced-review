@@ -12,11 +12,12 @@ import type { ClaimedJob } from './types';
 class FakePg extends EventEmitter {
   readonly queryLog: { sql: string; params?: unknown[] }[] = [];
   pendingClaims: ClaimedJob[] = [];
-  // Tracks whether resetRunning has been called so we can assert it
-  // happened before the LISTEN.
-  resetRunningCount = 0;
+  // Tracks whether the boot-time crash recovery sweep has run so we can
+  // assert it happened before the LISTEN.
+  crashSweepCount = 0;
   listenCount = 0;
   cancelListenCount = 0;
+  timeoutMarks: { jobId: string; message: string }[] = [];
 
   query = vi.fn(async (sql: string, params?: unknown[]) => {
     this.queryLog.push({ sql, params });
@@ -28,9 +29,28 @@ class FakePg extends EventEmitter {
       this.cancelListenCount++;
       return { rows: [], rowCount: 0 };
     }
-    if (sql.includes("status = 'pending'") && sql.includes("set status = 'pending'")) {
-      // resetRunning
-      this.resetRunningCount++;
+    if (
+      sql.includes("set status = 'error'") &&
+      sql.includes("where status = 'running'") &&
+      !sql.includes('id = $1') &&
+      !sql.includes('started_at')
+    ) {
+      // markRunningAsCrashed
+      this.crashSweepCount++;
+      return { rows: [], rowCount: 0 };
+    }
+    if (
+      sql.includes("set status = 'error'") &&
+      sql.includes('id = $1') &&
+      sql.includes("status = 'running'")
+    ) {
+      // markStuckAsTimedOut
+      const [jobId, message] = (params ?? []) as [string, string];
+      this.timeoutMarks.push({ jobId, message });
+      return { rows: [], rowCount: 1 };
+    }
+    if (sql.includes('started_at < now()')) {
+      // sweepStuckJobs (periodic)
       return { rows: [], rowCount: 0 };
     }
     if (sql.includes("set status = 'running'")) {
@@ -78,6 +98,8 @@ describe('runSession', () => {
       pg: pg as any,
       workerId: 'w-1',
       runJob,
+      timeoutMs: 5_000,
+      sweepIntervalMs: 60_000,
       log: () => {},
     });
 
@@ -85,7 +107,7 @@ describe('runSession', () => {
     await new Promise((r) => setImmediate(r));
     await new Promise((r) => setImmediate(r));
 
-    expect(pg.resetRunningCount).toBe(1);
+    expect(pg.crashSweepCount).toBe(1);
     expect(pg.listenCount).toBe(1);
     expect(ran).toEqual(['job-A']);
 
@@ -105,6 +127,8 @@ describe('runSession', () => {
       pg: pg as any,
       workerId: 'w-1',
       runJob,
+      timeoutMs: 5_000,
+      sweepIntervalMs: 60_000,
       log: () => {},
     });
 
@@ -158,6 +182,8 @@ describe('runSession', () => {
       pg: pg as any,
       workerId: 'w-1',
       runJob,
+      timeoutMs: 5_000,
+      sweepIntervalMs: 60_000,
       log: () => {},
     });
 
@@ -188,6 +214,50 @@ describe('runSession', () => {
     await session;
   });
 
+  it('marks the job as errored and aborts the controller when its timeout fires', async () => {
+    const pg = new FakePg();
+
+    let observedAbort = false;
+    const runJob = vi.fn(async (_job: ClaimedJob, signal: AbortSignal) => {
+      await new Promise<void>((resolve) => {
+        signal.addEventListener('abort', () => {
+          observedAbort = true;
+          resolve();
+        });
+      });
+    });
+
+    const session = runSession({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pg: pg as any,
+      workerId: 'w-1',
+      runJob,
+      timeoutMs: 25,
+      sweepIntervalMs: 60_000,
+      log: () => {},
+    });
+
+    pg.pendingClaims.push({
+      id: 'job-T',
+      user_id: 'u',
+      github_login: 'a',
+      target: {},
+      head_sha: 's',
+    });
+    pg.fireNotify('job-T');
+
+    // Wait long enough for the 25ms timer to fire and the abort to
+    // propagate through the awaiting runJob.
+    await new Promise((r) => setTimeout(r, 80));
+    expect(observedAbort).toBe(true);
+    expect(pg.timeoutMarks).toEqual([
+      { jobId: 'job-T', message: expect.stringContaining('timeout') },
+    ]);
+
+    pg.endConnection();
+    await session;
+  });
+
   it('drains multiple queued jobs after a single notify', async () => {
     const pg = new FakePg();
     const ran: string[] = [];
@@ -200,6 +270,8 @@ describe('runSession', () => {
       pg: pg as any,
       workerId: 'w-1',
       runJob,
+      timeoutMs: 5_000,
+      sweepIntervalMs: 60_000,
       log: () => {},
     });
 

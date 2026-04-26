@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { EnableNotificationsButton } from '@/components/notifications/enable-notifications-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getGithubLogin } from '@/lib/auth/allowlist';
@@ -59,6 +60,7 @@ export default async function Home() {
           <Button asChild className="w-full">
             <Link href="/picker">Browse repos →</Link>
           </Button>
+          <EnableNotificationsButton />
           <SignOutButton />
         </CardContent>
       </Card>

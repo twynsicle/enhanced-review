@@ -22,10 +22,12 @@ export function RerunButton({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inFlightJobId, setInFlightJobId] = useState<string | null>(null);
 
   const onClick = useCallback(async () => {
     setBusy(true);
     setError(null);
+    setInFlightJobId(null);
     try {
       const res = await fetch(`/api/jobs/${jobId}/rerun`, {
         method: 'POST',
@@ -39,6 +41,18 @@ export function RerunButton({
         }
         setError('Sign in required.');
         return;
+      }
+      if (res.status === 409) {
+        const body = (await res.json().catch(() => ({}))) as {
+          reason?: string;
+          message?: string;
+          activeJobId?: string;
+        };
+        if (body.reason === 'job_in_flight' && body.activeJobId) {
+          setInFlightJobId(body.activeJobId);
+          setError(body.message ?? 'You already have a review in progress.');
+          return;
+        }
       }
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
@@ -54,6 +68,21 @@ export function RerunButton({
     }
   }, [jobId, router]);
 
+  const errorNode = inFlightJobId ? (
+    <span className="text-xs text-destructive">
+      {error}{' '}
+      <button
+        type="button"
+        onClick={() => router.push(`/jobs/${inFlightJobId}`)}
+        className="underline underline-offset-2 hover:text-foreground"
+      >
+        View it →
+      </button>
+    </span>
+  ) : error ? (
+    <span className="text-xs text-destructive">{error}</span>
+  ) : null;
+
   if (variant === 'banner') {
     return (
       <div className="flex items-center gap-2">
@@ -66,7 +95,7 @@ export function RerunButton({
         >
           {busy ? 'Re-running…' : (children ?? 'Re-run →')}
         </button>
-        {error && <span className="text-xs text-destructive">{error}</span>}
+        {errorNode}
       </div>
     );
   }
@@ -76,7 +105,7 @@ export function RerunButton({
       <Button variant="outline" size="sm" disabled={busy} onClick={onClick} aria-busy={busy}>
         {busy ? 'Re-running…' : (children ?? 'Re-run')}
       </Button>
-      {error && <span className="text-xs text-destructive">{error}</span>}
+      {errorNode}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { fetchGithub } from '@/lib/github/fetcher';
-import { startReview } from '@/lib/jobs/start-review';
+import { JobInFlightError, startReview } from '@/lib/jobs/start-review';
 
 type Tab = 'prs' | 'branches';
 
@@ -145,6 +145,10 @@ export function RepoDetail({ owner, repo }: { owner: string; repo: string }) {
         <PullsPane
           pulls={pulls}
           error={pullsError}
+          onRetry={() => {
+            setPullsError(null);
+            setPulls(null);
+          }}
           filter={pullsFilter}
           setFilter={setPullsFilter}
           selectedNumber={
@@ -158,6 +162,10 @@ export function RepoDetail({ owner, repo }: { owner: string; repo: string }) {
         <BranchesPane
           data={branchesData}
           error={branchesError}
+          onRetry={() => {
+            setBranchesError(null);
+            setBranchesData(null);
+          }}
           filter={branchesFilter}
           setFilter={setBranchesFilter}
           selectedRef={
@@ -215,6 +223,7 @@ function TabButton({
 function PullsPane({
   pulls,
   error,
+  onRetry,
   filter,
   setFilter,
   selectedNumber,
@@ -222,6 +231,7 @@ function PullsPane({
 }: {
   pulls: PullSummary[] | null;
   error: string | null;
+  onRetry: () => void;
   filter: string;
   setFilter: (next: string) => void;
   selectedNumber: number | null;
@@ -239,7 +249,7 @@ function PullsPane({
     );
   }, [pulls, filter]);
 
-  if (error) return <ErrorCard message={error} />;
+  if (error) return <ErrorCard message={error} onRetry={onRetry} />;
   if (!pulls || !filtered) return <SkeletonRows />;
 
   return (
@@ -253,7 +263,12 @@ function PullsPane({
         total={pulls.length}
       />
       {pulls.length === 0 ? (
-        <Empty>No open PRs in this repo.</Empty>
+        <Empty>
+          <p className="font-medium text-foreground">No open PRs in this repo.</p>
+          <p className="mt-1">
+            Try the <strong>Branches</strong> tab to review a feature branch directly.
+          </p>
+        </Empty>
       ) : filtered.length === 0 ? (
         <Empty>No open PRs match &ldquo;{filter}&rdquo;.</Empty>
       ) : (
@@ -312,6 +327,7 @@ function PullRow({
 function BranchesPane({
   data,
   error,
+  onRetry,
   filter,
   setFilter,
   selectedRef,
@@ -319,6 +335,7 @@ function BranchesPane({
 }: {
   data: BranchesResponse | null;
   error: string | null;
+  onRetry: () => void;
   filter: string;
   setFilter: (next: string) => void;
   selectedRef: string | null;
@@ -333,7 +350,7 @@ function BranchesPane({
     );
   }, [data, filter]);
 
-  if (error) return <ErrorCard message={error} />;
+  if (error) return <ErrorCard message={error} onRetry={onRetry} />;
   if (!data || !filtered) return <SkeletonRows />;
 
   return (
@@ -351,7 +368,13 @@ function BranchesPane({
         total={data.branches.length}
       />
       {data.branches.length === 0 ? (
-        <Empty>No branches active in the last 30 days.</Empty>
+        <Empty>
+          <p className="font-medium text-foreground">No active branches.</p>
+          <p className="mt-1">
+            Nothing has been pushed to a non-default branch in the last 30 days. Try the{' '}
+            <strong>Open PRs</strong> tab.
+          </p>
+        </Empty>
       ) : filtered.length === 0 ? (
         <Empty>No branches match &ldquo;{filter}&rdquo;.</Empty>
       ) : (
@@ -403,17 +426,26 @@ function ReviewFooter({ target }: { target: ReviewTarget | null }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inFlightJobId, setInFlightJobId] = useState<string | null>(null);
 
   const onClick = useCallback(async () => {
     if (!target || submitting) return;
     setSubmitting(true);
     setError(null);
+    setInFlightJobId(null);
     try {
       const { id } = await startReview(target);
       router.push(`/jobs/${id}`);
     } catch (err) {
-      // 401 redirects to /relink inside startReview; anything else surfaces here.
-      setError(err instanceof Error ? err.message : 'Failed to start review');
+      // 401 redirects to /relink inside startReview; 409 surfaces as
+      // JobInFlightError and we show a link to the active job; anything
+      // else lands as a generic error message.
+      if (err instanceof JobInFlightError) {
+        setInFlightJobId(err.activeJobId);
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to start review');
+      }
       setSubmitting(false);
     }
   }, [target, submitting, router]);
@@ -422,7 +454,18 @@ function ReviewFooter({ target }: { target: ReviewTarget | null }) {
     <div className="fixed inset-x-0 bottom-0 border-t bg-background/95 backdrop-blur">
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-6 py-3">
         <div className="text-sm text-muted-foreground">
-          {error ? (
+          {inFlightJobId ? (
+            <span className="text-destructive">
+              {error}{' '}
+              <button
+                type="button"
+                onClick={() => router.push(`/jobs/${inFlightJobId}`)}
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                View it →
+              </button>
+            </span>
+          ) : error ? (
             <span className="text-destructive">{error}</span>
           ) : target ? (
             <TargetSummary target={target} />
@@ -511,10 +554,23 @@ function Empty({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ErrorCard({ message }: { message: string }) {
+function ErrorCard({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <Card>
-      <CardContent className="py-6 text-sm text-destructive">{message}</CardContent>
+      <CardContent className="flex flex-col gap-3 py-6">
+        <p className="text-sm text-destructive">{message}</p>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>What now:</span>
+          {onRetry && (
+            <Button size="sm" variant="outline" onClick={onRetry}>
+              Retry
+            </Button>
+          )}
+          <a href="/relink" className="underline underline-offset-2 hover:text-foreground">
+            Re-link GitHub
+          </a>
+        </div>
+      </CardContent>
     </Card>
   );
 }

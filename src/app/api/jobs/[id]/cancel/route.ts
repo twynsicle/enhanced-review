@@ -1,6 +1,7 @@
 import 'server-only';
 import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { logger } from '@/lib/log';
 import { createClient as createServerSupabase } from '@/lib/supabase/server';
 
 /**
@@ -43,7 +44,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     .maybeSingle();
 
   if (error) {
-    console.error('[api/jobs/cancel] update failed', error);
+    logger.error({ err: error, job_id: id, user_id: user.id }, '[api/jobs/cancel] update failed');
     return NextResponse.json({ message: 'failed to cancel' }, { status: 500 });
   }
   if (!data) {

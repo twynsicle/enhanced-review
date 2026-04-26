@@ -1,8 +1,11 @@
 # enhanced-review
 
-Web-based AI code-review tool. Successor to the diffy POC.
+Web-based AI code-review tool for closed beta. Successor to the diffy POC.
 
-See [docs/README.md](docs/README.md) for the plan-of-record and phase breakdown.
+You sign in with GitHub (invite-only allowlist), pick one of your repos, choose a PR or branch, and a worker container clones the repo, runs `opencode` against it, and streams a chaptered narrative review back to your browser.
+
+- [docs/README.md](docs/README.md) — plan-of-record and per-phase breakdown.
+- [docs/OPERATIONS.md](docs/OPERATIONS.md) — ops runbook (allowlist mgmt, key rotation, viewing logs, re-queueing stuck jobs, deferred retention SQL, log shape).
 
 ## Tech stack
 
@@ -76,6 +79,7 @@ Migrations:
 
 - `0001_allowed_users.sql` — invite-only allowlist (Phase 1).
 - `0002_review_jobs.sql` — review job lifecycle tables, RLS, NOTIFY trigger, Realtime publication (Phase 3).
+- `0003_phase4.sql` — encrypted GitHub token column (pgsodium), `diff_truncated` flag on reviews, cancel NOTIFY trigger (Phase 4).
 
 ### 5. Configure Next.js env
 
@@ -109,9 +113,12 @@ npm run dev --workspace @enhanced-review/worker
 docker compose -f docker-compose.worker.yml up -d --build
 ```
 
-Only one worker should run at a time during Phase 3 — the boot sweep
-("reset all running jobs to pending") assumes a single-worker invariant.
-Phase 7 introduces heartbeat-based recovery for multiple workers.
+Only one worker should run at a time. The boot sweep marks any leftover
+`running` rows as `error: worker crashed`, and a periodic in-process
+sweeper (plus a 15-minute per-job timer) errors any job whose
+`started_at` is past `REVIEW_TIMEOUT_MIN`. There is no auto-retry — the
+user clicks Re-run from the UI. Multi-worker / parallel execution
+remains out of scope.
 
 ## Common scripts
 

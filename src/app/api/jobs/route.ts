@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 import { getGithubLogin } from '@/lib/auth/allowlist';
 import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
+import { findUserInFlightJob } from '@/lib/jobs/concurrency';
+import { logger } from '@/lib/log';
 import { ReviewTargetSchema } from '@/lib/jobs/target';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient as createServerSupabase } from '@/lib/supabase/server';
@@ -63,7 +65,23 @@ export async function POST(request: Request) {
   }
   const target: ReviewTarget = parsed.data;
 
-  // 3. Re-resolve head_sha from GitHub (always — the client value is a
+  // 3. Per-user concurrency cap. The client treats `reason: 'job_in_flight'`
+  // as a "you already have a review running" prompt linking to the active
+  // job rather than an error toast.
+  const admin = createAdminClient();
+  const inFlight = await findUserInFlightJob(admin, user.id);
+  if (inFlight) {
+    return NextResponse.json(
+      {
+        reason: 'job_in_flight',
+        message: 'You already have a review in progress. Wait for it to finish or cancel it.',
+        activeJobId: inFlight.id,
+      },
+      { status: 409 },
+    );
+  }
+
+  // 4. Re-resolve head_sha from GitHub (always — the client value is a
   // hint, not a source of truth). Token errors map to the same shape the
   // picker already handles.
   let headSha: string;
@@ -88,14 +106,14 @@ export async function POST(request: Request) {
     if (error instanceof GithubAuthError || isAuthError(error)) {
       return githubErrorResponse(error);
     }
-    console.error('[api/jobs] head_sha resolution failed', error);
+    logger.error({ err: error, user_id: user.id }, '[api/jobs] head_sha resolution failed');
     return NextResponse.json(
       { message: 'failed to resolve head SHA from GitHub' },
       { status: 502 },
     );
   }
 
-  // 4. Pull the GitHub token off the session — the worker needs it to
+  // 5. Pull the GitHub token off the session — the worker needs it to
   // clone the user's repo. Stored encrypted on the job row via pgsodium
   // (see migration 0003) and NULLed by the worker as soon as the clone
   // returns. Missing token => same 401 shape the picker handles.
@@ -112,9 +130,8 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  // 5. Insert via service role using the encrypt-and-create RPC so the
+  // 6. Insert via service role using the encrypt-and-create RPC so the
   // row is never visible without its token.
-  const admin = createAdminClient();
   const { data: jobId, error: insertError } = await admin.rpc('create_review_job_with_token', {
     p_user_id: user.id,
     p_github_login: githubLogin,
@@ -124,7 +141,7 @@ export async function POST(request: Request) {
   });
 
   if (insertError || !jobId) {
-    console.error('[api/jobs] insert failed', insertError);
+    logger.error({ err: insertError, user_id: user.id }, '[api/jobs] insert failed');
     return NextResponse.json({ message: 'failed to create job' }, { status: 500 });
   }
 

@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { getGithubLogin } from '@/lib/auth/allowlist';
 import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
+import { findUserInFlightJob } from '@/lib/jobs/concurrency';
+import { logger } from '@/lib/log';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient as createServerSupabase } from '@/lib/supabase/server';
 
@@ -61,7 +63,23 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
   }
   const target = source.target;
 
-  // 3. Re-resolve head_sha from GitHub. The whole point of re-running is
+  // 3. Per-user concurrency cap. Re-run is just another submission, so
+  // the same gate applies — point the user at their existing in-flight
+  // job rather than queueing a duplicate.
+  const admin = createAdminClient();
+  const inFlight = await findUserInFlightJob(admin, user.id);
+  if (inFlight) {
+    return NextResponse.json(
+      {
+        reason: 'job_in_flight',
+        message: 'You already have a review in progress. Wait for it to finish or cancel it.',
+        activeJobId: inFlight.id,
+      },
+      { status: 409 },
+    );
+  }
+
+  // 4. Re-resolve head_sha from GitHub. The whole point of re-running is
   // to capture commits added since the original review.
   let headSha: string;
   try {
@@ -85,14 +103,17 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     if (error instanceof GithubAuthError || isAuthError(error)) {
       return githubErrorResponse(error);
     }
-    console.error('[api/jobs/rerun] head_sha resolution failed', error);
+    logger.error(
+      { err: error, source_job_id: id, user_id: user.id },
+      '[api/jobs/rerun] head_sha resolution failed',
+    );
     return NextResponse.json(
       { message: 'failed to resolve head SHA from GitHub' },
       { status: 502 },
     );
   }
 
-  // 4. Pull the viewer's GitHub token for the worker's clone.
+  // 5. Pull the viewer's GitHub token for the worker's clone.
   let providerToken: string;
   try {
     providerToken = await getGithubToken();
@@ -106,8 +127,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     throw error;
   }
 
-  // 5. Insert the new job, attributed to the viewer.
-  const admin = createAdminClient();
+  // 6. Insert the new job, attributed to the viewer.
   const { data: jobId, error: insertError } = await admin.rpc('create_review_job_with_token', {
     p_user_id: user.id,
     p_github_login: githubLogin,
@@ -117,7 +137,10 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
   });
 
   if (insertError || !jobId) {
-    console.error('[api/jobs/rerun] insert failed', insertError);
+    logger.error(
+      { err: insertError, source_job_id: id, user_id: user.id },
+      '[api/jobs/rerun] insert failed',
+    );
     return NextResponse.json({ message: 'failed to create job' }, { status: 500 });
   }
 

@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { claimNext, type Querier, resetRunning, selectStatus } from './db';
+import {
+  claimNext,
+  markRunningAsCrashed,
+  markStuckAsTimedOut,
+  type Querier,
+  selectStatus,
+  sweepStuckJobs,
+} from './db';
 
 interface FakeRow {
   id: string;
@@ -23,18 +30,46 @@ function fakePg(handler: (sql: string, params?: unknown[]) => unknown): FakePg {
   return { calls, query: query as unknown as Querier['query'] };
 }
 
-describe('resetRunning', () => {
-  it('resets every running row to pending', async () => {
+describe('markRunningAsCrashed', () => {
+  it('marks every running row as error with worker_crashed', async () => {
     const pg = fakePg(() => ({ rows: [], rowCount: 3 }));
-    const reset = await resetRunning(pg);
-    expect(reset).toBe(3);
-    expect(pg.calls[0]?.sql).toContain("set status = 'pending'");
+    const crashed = await markRunningAsCrashed(pg);
+    expect(crashed).toBe(3);
+    expect(pg.calls[0]?.sql).toContain("set status = 'error'");
     expect(pg.calls[0]?.sql).toContain("where status = 'running'");
+    expect(pg.calls[0]?.sql).toContain("error_message = 'worker crashed");
   });
 
   it('returns 0 when nothing was running', async () => {
     const pg = fakePg(() => ({ rows: [], rowCount: 0 }));
-    expect(await resetRunning(pg)).toBe(0);
+    expect(await markRunningAsCrashed(pg)).toBe(0);
+  });
+});
+
+describe('markStuckAsTimedOut', () => {
+  it('marks the row error only when status is still running', async () => {
+    const pg = fakePg(() => ({ rows: [], rowCount: 1 }));
+    const updated = await markStuckAsTimedOut(pg, 'job-1', 'timeout: 15 min');
+    expect(updated).toBe(1);
+    expect(pg.calls[0]?.params).toEqual(['job-1', 'timeout: 15 min']);
+    expect(pg.calls[0]?.sql).toContain("status = 'running'");
+    expect(pg.calls[0]?.sql).toContain('id = $1');
+  });
+
+  it('is a no-op when the job already left the running state', async () => {
+    const pg = fakePg(() => ({ rows: [], rowCount: 0 }));
+    expect(await markStuckAsTimedOut(pg, 'job-x', 'timeout')).toBe(0);
+  });
+});
+
+describe('sweepStuckJobs', () => {
+  it('errors rows whose started_at is older than the timeout', async () => {
+    const pg = fakePg(() => ({ rows: [], rowCount: 2 }));
+    const swept = await sweepStuckJobs(pg, 15 * 60_000);
+    expect(swept).toBe(2);
+    expect(pg.calls[0]?.sql).toContain("status = 'running'");
+    expect(pg.calls[0]?.sql).toContain('started_at < now()');
+    expect(pg.calls[0]?.params).toEqual([15 * 60_000]);
   });
 });
 

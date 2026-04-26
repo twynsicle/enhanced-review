@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { describeTarget, type ReviewJobRow } from '@/lib/jobs/types';
+import { logger } from '@/lib/log';
 import { createClient } from '@/lib/supabase/server';
 
 /**
@@ -46,7 +47,7 @@ export default async function HistoryPage({
 
   const { data: jobs, error } = await query.returns<ReviewJobRow[]>();
   if (error) {
-    console.error('[history] fetch failed', error);
+    logger.error({ err: error, user_id: user.id }, '[history] fetch failed');
   }
 
   const rows = jobs ?? [];
@@ -169,17 +170,34 @@ function EmptyState({ status }: { status: StatusFilter }) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          No reviews with status <code className="rounded bg-muted px-1 py-0.5">{status}</code>.
+          No reviews with status <code className="rounded bg-muted px-1 py-0.5">{status}</code>.{' '}
+          <Link href="/history" className="font-medium text-foreground hover:underline">
+            Show all →
+          </Link>
         </CardContent>
       </Card>
     );
   }
   return (
     <Card>
-      <CardContent className="py-8 text-center text-sm text-muted-foreground">
-        No reviews yet.{' '}
-        <Link href="/picker" className="font-medium text-foreground hover:underline">
-          Pick a repo to start one →
+      <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+        <div
+          aria-hidden
+          className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-2xl"
+        >
+          📝
+        </div>
+        <div className="space-y-1">
+          <p className="text-base font-medium">No reviews yet</p>
+          <p className="text-sm text-muted-foreground">
+            Pick a repo, choose a PR or branch, and we&apos;ll generate a narrative review.
+          </p>
+        </div>
+        <Link
+          href="/picker"
+          className="mt-1 inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Browse repos →
         </Link>
       </CardContent>
     </Card>

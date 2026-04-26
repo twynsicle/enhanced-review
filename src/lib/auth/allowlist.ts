@@ -31,6 +31,8 @@ export async function isAllowed(admin: SupabaseClient, githubLogin: string): Pro
     .maybeSingle();
 
   if (error) {
+    // Imported from proxy.ts (middleware) — keep console.error to avoid
+    // pulling pino into the middleware bundle.
     console.error('[allowlist] lookup failed', error);
     return false;
   }

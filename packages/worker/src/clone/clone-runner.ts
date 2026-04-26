@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { logger } from '../log';
 import { GitCommandError, runGit, runGitOrThrow, type GitRunner } from './git-runner';
 
 /**
@@ -132,7 +133,7 @@ export async function cleanupWorkDir(cloneDir: string): Promise<void> {
   try {
     await rm(cloneDir, { recursive: true, force: true });
   } catch (err) {
-    console.error(`[worker] cleanupWorkDir(${cloneDir}) failed`, err);
+    logger.error({ clone_dir: cloneDir, err }, 'cleanupWorkDir failed');
   }
 }
 

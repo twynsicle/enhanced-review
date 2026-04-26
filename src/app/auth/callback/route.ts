@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { logger } from '@/lib/log';
 import { createClient } from '@/lib/supabase/server';
 
 /**
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    console.error('[auth/callback] exchange failed', error);
+    logger.error({ err: error }, '[auth/callback] exchange failed');
     return NextResponse.redirect(new URL('/login?error=exchange_failed', url.origin));
   }
 
