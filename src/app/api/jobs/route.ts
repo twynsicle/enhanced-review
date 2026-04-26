@@ -6,26 +6,21 @@ import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
 import { findUserInFlightJob } from '@/lib/jobs/concurrency';
 import { logger } from '@/lib/log';
 import { ReviewTargetSchema } from '@/lib/jobs/target';
-import { getCurrentUser, pbAdmin } from '@/lib/pb';
+import { getCurrentUser, pbAdmin, readGithubTokenCookie } from '@/lib/pb';
+import * as registry from '@/lib/jobs/runner/registry';
+import { runJob } from '@/lib/jobs/runner/run';
 
 /**
  * POST /api/jobs
  *
- * Create a `review_jobs` row for the supplied `ReviewTarget`. The picker
- * page POSTs here when the user clicks the "Review" button.
+ * Create a `review_jobs` row for the supplied `ReviewTarget`, then kick off
+ * the in-process runner fire-and-forget. Returns `{ id }` immediately.
  *
  * Auth model:
- *   - Session is verified via `getCurrentUser()` (PB).
- *   - The route then re-resolves `head_sha` server-side — the picker may
- *     have selected a target before recent pushes landed.
- *   - The insert runs through `pbAdmin()` because `review_jobs.createRule`
- *     is server-only.
- *
- * Returns `{ id }` on success. 401 on missing session. 400 on bad body.
- *
- * Phase 3: row is created at status `pending` but no runner is hooked up
- * yet, so the job sits at `pending` forever. Phase 4 wires the in-process
- * runner in and starts pulling the GitHub token off the session here.
+ *   - Session verified via `getCurrentUser()` (PB).
+ *   - GitHub token read from the HttpOnly `gh_access_token` cookie — set at
+ *     OAuth time by /api/auth/post-signin and never persisted to the DB.
+ *   - Row insert uses `pbAdmin()` because `review_jobs.createRule` is server-only.
  */
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +34,14 @@ export async function POST(request: Request) {
   if (!githubLogin) {
     return NextResponse.json(
       { reason: 'github_token_invalid', message: 'No GitHub identity on this session.' },
+      { status: 401 },
+    );
+  }
+
+  const token = await readGithubTokenCookie();
+  if (!token) {
+    return NextResponse.json(
+      { reason: 'github_token_missing', message: 'GitHub token missing — re-link your account.' },
       { status: 401 },
     );
   }
@@ -101,6 +104,7 @@ export async function POST(request: Request) {
     );
   }
 
+  let jobId: string;
   try {
     const record = await admin.collection('review_jobs').create({
       user: user.id,
@@ -109,9 +113,39 @@ export async function POST(request: Request) {
       status: 'pending',
       head_sha: headSha,
     });
-    return NextResponse.json({ id: record.id });
+    jobId = record.id;
   } catch (err) {
     logger.error({ err, user_id: user.id }, '[api/jobs] insert failed');
     return NextResponse.json({ message: 'failed to create job' }, { status: 500 });
   }
+
+  // Fire-and-forget: register the controller, start the runner, return immediately.
+  const controller = new AbortController();
+  const timeoutMin = Math.max(1, parseInt(process.env.REVIEW_TIMEOUT_MIN ?? '15', 10));
+  const timeoutId = setTimeout(() => {
+    // Write timeout error status before aborting so runJob's signal.aborted
+    // check skips further status writes.
+    admin
+      .collection('review_jobs')
+      .update(jobId, {
+        status: 'error',
+        completed_at: new Date().toISOString(),
+        error_message: `timeout: job exceeded ${timeoutMin} min`,
+      })
+      .catch(() => { /* best-effort */ })
+      .finally(() => controller.abort());
+  }, timeoutMin * 60_000);
+
+  registry.register(jobId, controller);
+
+  runJob(jobId, token, headSha, target, controller.signal)
+    .finally(() => {
+      clearTimeout(timeoutId);
+      registry.unregister(jobId);
+    })
+    .catch((err) => {
+      logger.error({ err, job_id: jobId }, '[api/jobs] runJob rejected unexpectedly');
+    });
+
+  return NextResponse.json({ id: jobId });
 }

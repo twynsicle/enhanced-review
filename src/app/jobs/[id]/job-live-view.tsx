@@ -6,18 +6,18 @@ import { RerunButton } from '@/app/reviews/[id]/rerun-button';
 import { Button } from '@/components/ui/button';
 import { describeTarget, type ReviewChunkRow, type ReviewJobRow } from '@/lib/jobs/types';
 import { extractChapterTitles } from '@/lib/jobs/partial-narrative-parse';
-import { createClient } from '@/lib/supabase/client';
+import { pbBrowser } from '@/lib/pb/browser';
 
 /**
  * Live view of a single review job: status pill, chapter-title checklist
  * driven by the partial-narrative parser, cancel button. Subscribes to
- * Supabase Realtime for `review_jobs` row updates (status flips) and
+ * PocketBase Realtime for `review_jobs` record updates (status flips) and
  * `review_chunks` inserts (streamed partial output).
  *
- * The chunks themselves are an implementation detail — the user sees
- * detected chapter titles forming with a typing cursor on the in-progress
- * one. When status flips to `done`, the cursor goes away and a CTA links
- * to `/reviews/:id` (Phase 6 owns that page).
+ * PB realtime does not send a snapshot on reconnect. We subscribe to
+ * PB_CONNECT and re-fetch both the job record and all chunks whenever the
+ * SSE connection is re-established, so gaps caused by network drops are
+ * filled automatically.
  */
 export function JobLiveView({
   initialJob,
@@ -34,48 +34,69 @@ export function JobLiveView({
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`jobs:${job.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'review_jobs',
-          filter: `id=eq.${job.id}`,
-        },
-        (payload) => {
-          const next = payload.new as ReviewJobRow;
-          setJob((prev) => ({ ...prev, ...next }));
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'review_chunks',
-          filter: `job_id=eq.${job.id}`,
-        },
-        (payload) => {
-          const incoming = payload.new as ReviewChunkRow;
-          setChunks((prev) => {
-            // Realtime can in theory deliver duplicates after reconnect;
-            // dedupe on (id) and keep order by seq.
-            if (prev.some((c) => c.id === incoming.id)) return prev;
-            const next = [...prev, incoming];
-            next.sort((a, b) => a.seq - b.seq);
-            return next;
-          });
-        },
-      )
-      .subscribe();
+    const pb = pbBrowser();
+    let mounted = true;
+    const unsubFns: Array<() => void> = [];
+
+    async function setup() {
+      const [unsubJob, unsubChunks, unsubConnect] = await Promise.all([
+        // Subscribe to updates on this specific job record.
+        pb.collection('review_jobs').subscribe<ReviewJobRow>(job.id, (e) => {
+          if (!mounted || e.action !== 'update') return;
+          setJob((prev) => ({ ...prev, ...e.record }));
+        }),
+
+        // Subscribe to new chunks for this job.
+        pb.collection('review_chunks').subscribe<ReviewChunkRow>(
+          '*',
+          (e) => {
+            if (!mounted || e.action !== 'create') return;
+            const incoming = e.record;
+            setChunks((prev) => {
+              // Dedupe on id; keep sorted by seq (PB may deliver out of order
+              // after reconnect before the re-fetch lands).
+              if (prev.some((c) => c.id === incoming.id)) return prev;
+              const next = [...prev, incoming];
+              next.sort((a, b) => a.seq - b.seq);
+              return next;
+            });
+          },
+          { filter: `job = "${job.id}"` },
+        ),
+
+        // Re-fetch on reconnect to fill gaps from any missed events.
+        pb.realtime.subscribe('PB_CONNECT', async () => {
+          if (!mounted) return;
+          try {
+            const [latestJob, latestChunks] = await Promise.all([
+              pb.collection('review_jobs').getOne<ReviewJobRow>(job.id),
+              pb
+                .collection('review_chunks')
+                .getFullList<ReviewChunkRow>({ filter: `job = "${job.id}"`, sort: 'seq' }),
+            ]);
+            if (mounted) {
+              setJob(latestJob);
+              setChunks(latestChunks);
+            }
+          } catch {
+            /* swallowed: page still has the server-fetched snapshot */
+          }
+        }),
+      ]);
+
+      unsubFns.push(unsubJob, unsubChunks, unsubConnect);
+
+      // Cleanup may have fired while setup was awaiting — call unsubs now.
+      if (!mounted) {
+        for (const fn of unsubFns) fn();
+      }
+    }
+
+    setup().catch(() => { /* swallowed */ });
 
     return () => {
-      supabase.removeChannel(channel).catch(() => {
-        /* swallowed: page is unmounting */
-      });
+      mounted = false;
+      for (const fn of unsubFns) fn();
     };
   }, [job.id]);
 
@@ -102,9 +123,6 @@ export function JobLiveView({
   const isOwner = job.user === viewerUserId;
   const targetLine = useMemo(() => describeTarget(job.target), [job.target]);
 
-  // Accumulate the raw stream into a single buffer so the partial parser
-  // sees the full prefix. Memoised on `chunks` reference so re-renders
-  // from unrelated state don't re-concat.
   const buffer = useMemo(() => chunks.map((c) => c.content).join(''), [chunks]);
   const snapshot = useMemo(() => extractChapterTitles(buffer), [buffer]);
 
@@ -166,7 +184,6 @@ export function JobLiveView({
 
 /**
  * Map a `review_jobs.error_message` to a one-line "what now" suggestion.
- * The worker error formats are stable enough to switch on prefixes.
  */
 function whatNowFor(errorMessage: string): string {
   const m = errorMessage.toLowerCase();
@@ -230,8 +247,6 @@ function ChapterChecklist({
   hasAnyChunk: boolean;
 }) {
   const isStreaming = status === 'pending' || status === 'running';
-  // Once streaming has finished, ignore any in-flight title — it's a
-  // partial-parse artefact, not a real chapter.
   const titles = isStreaming
     ? snapshot.titles
     : [...snapshot.titles, ...(snapshot.inProgressTitle ? [snapshot.inProgressTitle] : [])];
@@ -322,9 +337,6 @@ function ChecklistFooter({
   completedAt: string | null;
   hasAnyChunk: boolean;
 }) {
-  // Snapshot of `Date.now()` updated by the running-state interval. Reads
-  // are pure during render. The first second shows "Streaming…" before
-  // the first tick lands — acceptable.
   const [nowMs, setNowMs] = useState<number | null>(null);
   useEffect(() => {
     if (status !== 'running') return;

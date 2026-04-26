@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/pb', () => ({
   pbAdmin: vi.fn(),
   getCurrentUser: vi.fn(),
+  readGithubTokenCookie: vi.fn().mockResolvedValue('gh-token'),
 }));
 vi.mock('@/lib/github/server', async () => {
   const actual =
@@ -14,6 +15,14 @@ vi.mock('@/lib/github/server', async () => {
 });
 vi.mock('@/lib/auth/allowlist', () => ({
   getGithubLogin: vi.fn().mockReturnValue('alice'),
+}));
+vi.mock('@/lib/jobs/runner/registry', () => ({
+  register: vi.fn(),
+  signal: vi.fn(),
+  unregister: vi.fn(),
+}));
+vi.mock('@/lib/jobs/runner/run', () => ({
+  runJob: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { NextRequest } from 'next/server';

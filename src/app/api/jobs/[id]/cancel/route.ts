@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { logger } from '@/lib/log';
 import { getCurrentUser, pbServer } from '@/lib/pb';
+import * as registry from '@/lib/jobs/runner/registry';
 
 /**
  * POST /api/jobs/[id]/cancel
@@ -42,6 +43,9 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
       status: 'cancelled',
       cancelled_at: new Date().toISOString(),
     });
+    // Signal the in-process runner (no-op if the job isn't currently running
+    // in this process, e.g. already completed or not yet started).
+    registry.signal(id);
     return NextResponse.json({ id: record.id });
   } catch (err: unknown) {
     if (isNotFound(err)) {

@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react';
 import { ToastAction } from '@/components/ui/toast';
 import { toast } from '@/hooks/use-toast';
 import type { ReviewJobRow } from '@/lib/jobs/types';
-import { createClient } from '@/lib/supabase/client';
+import { pbBrowser } from '@/lib/pb/browser';
 
 /**
  * App-wide subscriber that fires a toast (and optional browser
@@ -13,11 +13,17 @@ import { createClient } from '@/lib/supabase/client';
  * status while they're on a different page. Mounted once in the root
  * layout.
  *
+ * PocketBase realtime does not expose the previous record value, so we
+ * cannot check `wasInFlight` directly. Instead we track which job IDs
+ * have already triggered a notification in a ref and fire exactly once
+ * per terminal transition per session.
+ *
  * Suppression rules:
- *   - Only the viewer's own jobs (server-side filter on `user_id`).
- *   - Only `pending|running → done|error|cancelled` transitions.
- *   - Suppressed when the user is *currently* on `/jobs/:id` for that
- *     job — they can already see the status flip live.
+ *   - Only the viewer's own jobs (server-side filter on `user`).
+ *   - Only `pending|running → done|error|cancelled` transitions (tracked
+ *     locally via `notifiedRef`).
+ *   - Suppressed when the user is *currently* on `/jobs/:id` or
+ *     `/reviews/:id` for that job — they can already see the status live.
  *   - Browser Notification only fires when permission is granted *and*
  *     the tab is hidden, to avoid double-notifying a focused user.
  */
@@ -27,42 +33,54 @@ export function JobNotifications({ userId }: { userId: string }) {
   const pathRef = useRef(pathname);
   pathRef.current = pathname;
 
+  const notifiedRef = useRef(new Set<string>());
+
   useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`user-jobs:${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'review_jobs',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          const next = payload.new as ReviewJobRow;
-          const prev = payload.old as Partial<ReviewJobRow> | null;
-          const wasInFlight =
-            prev?.status === 'pending' || prev?.status === 'running' || prev === null;
+    const pb = pbBrowser();
+    let mounted = true;
+    const unsubFns: Array<() => void> = [];
+
+    async function setup() {
+      const unsubJobs = await pb.collection('review_jobs').subscribe<ReviewJobRow>(
+        '*',
+        (e) => {
+          if (!mounted || e.action !== 'update') return;
+          const job = e.record;
+
           const isTerminal =
-            next.status === 'done' || next.status === 'error' || next.status === 'cancelled';
-          if (!wasInFlight || !isTerminal) return;
+            job.status === 'done' || job.status === 'error' || job.status === 'cancelled';
+          if (!isTerminal) return;
+
+          // Fire at most once per job per session.
+          if (notifiedRef.current.has(job.id)) return;
+          notifiedRef.current.add(job.id);
 
           // Suppress when the user is already viewing that job.
-          if (pathRef.current === `/jobs/${next.id}` || pathRef.current === `/reviews/${next.id}`) {
+          if (
+            pathRef.current === `/jobs/${job.id}` ||
+            pathRef.current === `/reviews/${job.id}`
+          ) {
             return;
           }
 
-          fireToast({ job: next, router });
-          maybeFireBrowserNotification(next);
+          fireToast({ job, router });
+          maybeFireBrowserNotification(job);
         },
-      )
-      .subscribe();
+        { filter: `user = "${userId}"` },
+      );
+
+      unsubFns.push(unsubJobs);
+
+      if (!mounted) {
+        for (const fn of unsubFns) fn();
+      }
+    }
+
+    setup().catch(() => { /* swallowed */ });
 
     return () => {
-      supabase.removeChannel(channel).catch(() => {
-        /* swallowed: layout unmounting */
-      });
+      mounted = false;
+      for (const fn of unsubFns) fn();
     };
   }, [userId, router]);
 

@@ -302,30 +302,41 @@ the row stays at `pending` (no runner yet).
 Goal: end-to-end review flow works. Submitting a job runs it, chunks stream
 to the live view via PB realtime.
 
-- [ ] Move `packages/worker/src/` logic into `src/lib/jobs/runner/`:
-  - `src/lib/jobs/runner/run.ts` — top-level `runJob({ jobId, token, target, model })`
-    function. Pure async function, no daemon loop, no `LISTEN`, no pg
-    client.
-  - Port the executor selection (`stub` vs `opencode`), chunk emission,
-    error handling, cancellation flag. Cancellation: keep an in-process
-    `Map<jobId, AbortController>` that the cancel route signals.
+- [x] Move `packages/worker/src/` logic into `src/lib/jobs/runner/`:
+  - `src/lib/jobs/runner/run.ts` — top-level `runJob(jobId, token, headSha, target, signal)`
+    function. Pure async function, no daemon loop, no `LISTEN`, no pg client.
+  - Port executor selection (`stub` vs `opencode`), chunk emission (direct
+    PB inserts, no batcher — fire-and-forget with `inFlight[]` drain before
+    finalizing), error handling, cancellation flag.
+  - Cancellation: `src/lib/jobs/runner/registry.ts` holds a module-level
+    `Map<jobId, AbortController>`. Cancel route signals it after updating PB.
+    Runner's finally block re-applies `status='cancelled'` to handle the
+    narrow race where `markRunning` overwrote the cancel route's update.
   - All DB writes via `pbAdmin()` (chunks insert, status updates).
-- [ ] Wire it into `src/app/api/jobs/route.ts`:
-  - After creating the `review_jobs` row, get the GitHub token from the
-    user's session, call `runJob(...)` *without awaiting* (fire-and-forget).
-  - Catch and log unhandled rejections — they would otherwise crash the
-    Node process.
-- [ ] Wire cancellation in `src/app/api/jobs/[id]/cancel/route.ts`: after
-      updating the row, call into the runner's cancellation registry to
-      abort the in-flight job.
-- [ ] Replace the two realtime subscription sites:
-  - `src/app/jobs/[id]/job-live-view.tsx:38–73` — subscribe to
-    `review_jobs/${id}` for status and `review_chunks` filtered by
-    `job = "${id}"` for streaming chunks. Verify PB realtime delivers
-    inserts in `seq` order; if not, keep the existing client-side dedup +
-    sort logic.
-  - `src/components/notifications/job-notifications.tsx:33` — subscribe to
-    `review_jobs` filtered by `user = "${userId}"`.
+  - Ported clone, executor, prompt, and github modules verbatim from the
+    worker into runner subdirectories; only logger import changed
+    (`'../log'` → `'@/lib/log'`).
+- [x] Wire it into `src/app/api/jobs/route.ts` and `src/app/api/jobs/[id]/rerun/route.ts`:
+  - Read GitHub token from `readGithubTokenCookie()` (HttpOnly cookie).
+  - Create AbortController, register in registry, fire-and-forget `runJob`.
+  - Timeout via `setTimeout` (REVIEW_TIMEOUT_MIN env var): writes
+    `status='error'` then aborts the controller.
+  - Unhandled rejections caught and logged.
+- [x] Wire cancellation in `src/app/api/jobs/[id]/cancel/route.ts`: after
+      updating the row, call `registry.signal(id)` to abort the in-flight job.
+- [x] Replace the two realtime subscription sites:
+  - `src/app/jobs/[id]/job-live-view.tsx` — PB `collection.subscribe` for
+    job record updates + chunk inserts (with filter). Added `PB_CONNECT`
+    handler that re-fetches job + all chunks on reconnect to fill gaps (PB
+    does not send a snapshot on reconnect). Kept dedup+sort logic for safety.
+  - `src/components/notifications/job-notifications.tsx` — PB `collection.subscribe`
+    filtered by `user = "${userId}"`. Uses a `notifiedRef` Set (instead of
+    `payload.old` — PB doesn't provide old record) to fire exactly once per
+    terminal transition per session.
+- [x] Added `REVIEW_EXECUTOR`, `REVIEW_MODEL`, `REVIEW_TIMEOUT_MIN` to
+      `.env.example`. Default `REVIEW_EXECUTOR=stub` for local dev.
+- [x] Tests updated: rerun route test mocks `readGithubTokenCookie`,
+      `registry`, and `runJob`. 199 tests pass.
 
 **Verifiable**: submit a review of a small public PR; chunks stream into the
 live view in real time; the row reaches `status = 'done'`; the reviewed

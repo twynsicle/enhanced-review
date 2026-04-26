@@ -6,7 +6,9 @@ import { getGithubLogin } from '@/lib/auth/allowlist';
 import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
 import { findUserInFlightJob } from '@/lib/jobs/concurrency';
 import { logger } from '@/lib/log';
-import { getCurrentUser, pbAdmin } from '@/lib/pb';
+import { getCurrentUser, pbAdmin, readGithubTokenCookie } from '@/lib/pb';
+import * as registry from '@/lib/jobs/runner/registry';
+import { runJob } from '@/lib/jobs/runner/run';
 
 /**
  * POST /api/jobs/[id]/rerun
@@ -44,6 +46,14 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
   if (!githubLogin) {
     return NextResponse.json(
       { reason: 'github_token_invalid', message: 'No GitHub identity on this session.' },
+      { status: 401 },
+    );
+  }
+
+  const token = await readGithubTokenCookie();
+  if (!token) {
+    return NextResponse.json(
+      { reason: 'github_token_missing', message: 'GitHub token missing — re-link your account.' },
       { status: 401 },
     );
   }
@@ -108,6 +118,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     );
   }
 
+  let jobId: string;
   try {
     const record = await admin.collection('review_jobs').create({
       user: user.id,
@@ -116,7 +127,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
       status: 'pending',
       head_sha: headSha,
     });
-    return NextResponse.json({ id: record.id });
+    jobId = record.id;
   } catch (err) {
     logger.error(
       { err, source_job_id: id, user_id: user.id },
@@ -124,6 +135,33 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     );
     return NextResponse.json({ message: 'failed to create job' }, { status: 500 });
   }
+
+  const controller = new AbortController();
+  const timeoutMin = Math.max(1, parseInt(process.env.REVIEW_TIMEOUT_MIN ?? '15', 10));
+  const timeoutId = setTimeout(() => {
+    admin
+      .collection('review_jobs')
+      .update(jobId, {
+        status: 'error',
+        completed_at: new Date().toISOString(),
+        error_message: `timeout: job exceeded ${timeoutMin} min`,
+      })
+      .catch(() => { /* best-effort */ })
+      .finally(() => controller.abort());
+  }, timeoutMin * 60_000);
+
+  registry.register(jobId, controller);
+
+  runJob(jobId, token, headSha, target, controller.signal)
+    .finally(() => {
+      clearTimeout(timeoutId);
+      registry.unregister(jobId);
+    })
+    .catch((err) => {
+      logger.error({ err, job_id: jobId }, '[api/jobs/rerun] runJob rejected unexpectedly');
+    });
+
+  return NextResponse.json({ id: jobId });
 }
 
 function isNotFound(err: unknown): boolean {
