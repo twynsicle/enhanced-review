@@ -10,9 +10,11 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@enhanced-review/review-types';
 import type { ReviewTarget } from '@enhanced-review/github-client';
-import type { PullMetadata } from '@/lib/github/view-time';
+import type { PullMetadata, PullReviewer } from '@/lib/github/view-time';
 import { ChapterCard } from '@/components/narrative/chapter-card';
 import { ChapterSidebar } from '@/components/narrative/chapter-sidebar';
+import { FileView } from '@/components/narrative/file-view';
+import type { AiReviewerData } from '@/components/narrative/people-card';
 import { SummaryCard } from '@/components/narrative/summary-card';
 import { useNarrativeKeyboard } from '@/components/narrative/use-narrative-keyboard';
 import { RerunButton } from './rerun-button';
@@ -25,6 +27,8 @@ interface ChapterReaderProps {
   review: NarrativeReview;
   target: ReviewTarget;
   pullMetadata: PullMetadata | null;
+  reviewers: PullReviewer[];
+  aiReviewer: AiReviewerData;
   owner: string;
   repo: string;
   baseRef: string;
@@ -46,6 +50,8 @@ export function ChapterReader({
   review,
   target,
   pullMetadata,
+  reviewers,
+  aiReviewer,
   owner,
   repo,
   baseRef,
@@ -59,13 +65,21 @@ export function ChapterReader({
   const searchParams = useSearchParams();
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const urlActive = searchParams.get('ch');
-  const activeId = isKnownId(urlActive, review.chapters)
-    ? (urlActive ?? SUMMARY_SECTION_ID)
-    : initialActiveId;
+  const urlFile = searchParams.get('file');
+  const activeFile = urlFile && fileExists(urlFile, review) ? urlFile : null;
+  // ?file= takes precedence over ?ch= when both are set; the chapter
+  // selection is what gets restored when the user clears the file view.
+  const activeId =
+    activeFile === null
+      ? isKnownId(urlActive, review.chapters)
+        ? (urlActive ?? SUMMARY_SECTION_ID)
+        : initialActiveId
+      : SUMMARY_SECTION_ID;
 
   const onSelect = useCallback(
     (id: string) => {
       const next = new URLSearchParams(searchParams.toString());
+      next.delete('file');
       if (id === SUMMARY_SECTION_ID) {
         next.delete('ch');
       } else {
@@ -73,6 +87,16 @@ export function ChapterReader({
       }
       const queryString = next.toString();
       router.push(queryString.length === 0 ? '?' : `?${queryString}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  const onSelectFile = useCallback(
+    (filename: string) => {
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete('ch');
+      next.set('file', filename);
+      router.push(`?${next.toString()}`, { scroll: false });
     },
     [router, searchParams],
   );
@@ -120,9 +144,11 @@ export function ChapterReader({
           chapters={review.chapters}
           files={review.files}
           activeId={activeId}
+          activeFile={activeFile}
           reviewTitle={review.prTitle}
           riskAssessment={review.riskAssessment}
           onSelect={onSelect}
+          onSelectFile={onSelectFile}
         />
         <button
           type="button"
@@ -141,11 +167,23 @@ export function ChapterReader({
       </aside>
 
       <section aria-live="polite" className="min-w-0">
-        {isSummary || !activeChapter ? (
+        {activeFile ? (
+          <FileView
+            filename={activeFile}
+            chapters={review.chapters}
+            files={review.files}
+            owner={owner}
+            repo={repo}
+            baseRef={baseRef}
+            headRef={headRef}
+          />
+        ) : isSummary || !activeChapter ? (
           <SummaryCard
             review={review}
             target={target}
             pullMetadata={pullMetadata}
+            reviewers={reviewers}
+            aiReviewer={aiReviewer}
             byline={{ author: jobAuthor, sha: jobHeadSha }}
             actions={<RerunButton jobId={jobId} />}
           />
@@ -162,6 +200,14 @@ export function ChapterReader({
       </section>
     </div>
   );
+}
+
+function fileExists(filename: string, review: NarrativeReview): boolean {
+  if (review.files?.some((f) => f.filename === filename)) return true;
+  for (const chapter of review.chapters) {
+    if (chapter.diffChunks.some((chunk) => chunk.filename === filename)) return true;
+  }
+  return false;
 }
 
 function clampSidebarWidth(width: number): number {

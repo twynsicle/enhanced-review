@@ -6,7 +6,6 @@ import type { editor } from 'monaco-editor';
 import type { DiffChunk } from '@enhanced-review/review-types';
 import {
   buildInlineDiffSnippets,
-  formatSelectedHunkLabel,
   type InlineDiffSnippet,
 } from '@/lib/narrative/inline-diff-snippets';
 import { detectLanguage } from '@/lib/narrative/language-map';
@@ -296,11 +295,6 @@ export function InlineDiffChunk({ chunk, owner, repo, baseRef, headRef }: Inline
     };
   }, [owner, repo, chunk.filename, baseRef, headRef]);
 
-  const rangeLabel = useMemo(() => {
-    if (chunkHunks.length === 0) return '';
-    return formatSelectedHunkLabel(chunkHunks);
-  }, [chunkHunks]);
-
   const snippets = useMemo<InlineDiffSnippet[]>(() => {
     if (state.kind !== 'ok') return [];
     const data = state.data;
@@ -344,6 +338,7 @@ export function InlineDiffChunk({ chunk, owner, repo, baseRef, headRef }: Inline
   }, []);
 
   const language = state.kind === 'ok' ? state.data.language : chunk.language;
+  const { dirname, basename } = splitFilename(chunk.filename);
 
   return (
     <div
@@ -352,11 +347,11 @@ export function InlineDiffChunk({ chunk, owner, repo, baseRef, headRef }: Inline
       aria-label={`Diff for ${chunk.filename}`}
     >
       <div className="flex flex-wrap items-center gap-2 border-b border-foreground/10 bg-muted/30 px-3 py-2 text-xs">
-        <span className="font-mono break-all">{chunk.filename}</span>
+        <span className="min-w-0 font-mono break-all">
+          {dirname.length > 0 && <span className="text-[11px] text-subtle">{dirname}/</span>}
+          <span className="text-[13px] font-semibold text-foreground">{basename}</span>
+        </span>
         <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">{language}</span>
-        {!expanded && rangeLabel && (
-          <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">{rangeLabel}</span>
-        )}
         {state.kind === 'ok' && (
           <button
             type="button"
@@ -395,6 +390,12 @@ function DiffErrorBody({ error }: { error: ViewTimeError }) {
       <p>{message}</p>
     </div>
   );
+}
+
+function splitFilename(path: string): { dirname: string; basename: string } {
+  const slash = path.lastIndexOf('/');
+  if (slash === -1) return { dirname: '', basename: path };
+  return { dirname: path.slice(0, slash), basename: path.slice(slash + 1) };
 }
 
 function describeError(error: ViewTimeError): string {

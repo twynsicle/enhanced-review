@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter_Tight, JetBrains_Mono, Source_Serif_4 } from 'next/font/google';
 import { JobNotifications } from '@/components/notifications/job-notifications';
+import { LayoutWidthInitScript } from '@/components/theme/layout-width-init-script';
 import { ThemeInitScript } from '@/components/theme/theme-init-script';
 import { Toaster } from '@/components/ui/toaster';
 import { getCurrentUser } from '@/lib/pb';
@@ -50,6 +51,7 @@ export default async function RootLayout({
     >
       <head>
         <ThemeInitScript />
+        <LayoutWidthInitScript />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}

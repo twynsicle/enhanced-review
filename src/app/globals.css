@@ -17,6 +17,20 @@
   --color-iris: var(--iris);
   --color-iris-soft: var(--iris-soft);
   --color-iris-ink: var(--iris-ink);
+  --color-before: var(--before);
+  --color-before-soft: var(--before-soft);
+  --color-before-ink: var(--before-ink);
+  --color-after: var(--after);
+  --color-after-soft: var(--after-soft);
+  --color-after-ink: var(--after-ink);
+  --color-risk: var(--risk);
+  --color-risk-soft: var(--risk-soft);
+  --color-praise: var(--praise);
+  --color-praise-soft: var(--praise-soft);
+  --color-suggestion: var(--suggestion);
+  --color-suggestion-soft: var(--suggestion-soft);
+  --color-question: var(--question);
+  --color-question-soft: var(--question-soft);
   --color-surface-2: var(--surface-2);
   --color-subtle: var(--subtle);
   --color-add: var(--add);
@@ -59,93 +73,134 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Editorial Iris — light surface with iris/violet accent. */
+/* Editorial Iris — dual-accent palette pulled from the app icon.
+   Cobalt (hue 240) is the "before / current state" accent and the primary
+   chrome colour; mint (hue 160) is the "after / new state / approved"
+   counterpart. Insights pick a hue per kind. */
 :root {
-  --background: oklch(0.985 0.004 280);
-  --foreground: oklch(0.2 0.02 280);
+  --background: oklch(0.985 0.004 245);
+  --foreground: oklch(0.2 0.02 245);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.02 280);
+  --card-foreground: oklch(0.2 0.02 245);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.02 280);
-  --primary: oklch(0.52 0.18 285);
-  --primary-foreground: oklch(0.985 0.004 280);
-  --secondary: oklch(0.96 0.03 285);
-  --secondary-foreground: oklch(0.3 0.14 285);
-  --muted: oklch(0.95 0.008 285);
-  --muted-foreground: oklch(0.5 0.02 280);
-  --accent: oklch(0.96 0.03 285);
-  --accent-foreground: oklch(0.3 0.14 285);
-  --destructive: oklch(0.55 0.16 25);
-  --border: oklch(0.91 0.01 280);
-  --input: oklch(0.91 0.01 280);
-  --ring: oklch(0.52 0.18 285);
-  --chart-1: oklch(0.52 0.18 285);
-  --chart-2: oklch(0.66 0.015 280);
-  --chart-3: oklch(0.5 0.02 280);
-  --chart-4: oklch(0.3 0.14 285);
-  --chart-5: oklch(0.2 0.02 280);
+  --popover-foreground: oklch(0.2 0.02 245);
+  --primary: oklch(0.52 0.18 240);
+  --primary-foreground: oklch(0.985 0.004 245);
+  --secondary: oklch(0.96 0.04 240);
+  --secondary-foreground: oklch(0.32 0.16 240);
+  --muted: oklch(0.95 0.008 245);
+  --muted-foreground: oklch(0.5 0.02 245);
+  --accent: oklch(0.96 0.04 240);
+  --accent-foreground: oklch(0.32 0.16 240);
+  --destructive: oklch(0.55 0.18 35);
+  --border: oklch(0.91 0.012 245);
+  --input: oklch(0.91 0.012 245);
+  --ring: oklch(0.52 0.18 240);
+  --chart-1: oklch(0.52 0.18 240);
+  --chart-2: oklch(0.52 0.16 160);
+  --chart-3: oklch(0.55 0.16 80);
+  --chart-4: oklch(0.32 0.16 240);
+  --chart-5: oklch(0.2 0.02 245);
   --radius: 0.75rem;
-  --sidebar: oklch(0.985 0.004 280);
-  --sidebar-foreground: oklch(0.2 0.02 280);
-  --sidebar-primary: oklch(0.52 0.18 285);
-  --sidebar-primary-foreground: oklch(0.985 0.004 280);
-  --sidebar-accent: oklch(0.96 0.03 285);
-  --sidebar-accent-foreground: oklch(0.3 0.14 285);
-  --sidebar-border: oklch(0.91 0.01 280);
-  --sidebar-ring: oklch(0.52 0.18 285);
+  --sidebar: oklch(0.985 0.004 245);
+  --sidebar-foreground: oklch(0.2 0.02 245);
+  --sidebar-primary: oklch(0.52 0.18 240);
+  --sidebar-primary-foreground: oklch(0.985 0.004 245);
+  --sidebar-accent: oklch(0.96 0.04 240);
+  --sidebar-accent-foreground: oklch(0.32 0.16 240);
+  --sidebar-border: oklch(0.91 0.012 245);
+  --sidebar-ring: oklch(0.52 0.18 240);
 
-  /* Editorial Iris extras (light) */
-  --iris: oklch(0.52 0.18 285);
-  --iris-soft: oklch(0.96 0.03 285);
-  --iris-ink: oklch(0.3 0.14 285);
-  --surface-2: oklch(0.97 0.008 285);
-  --subtle: oklch(0.66 0.015 280);
-  --add: oklch(0.5 0.13 145);
-  --del: oklch(0.55 0.16 25);
+  /* Dual accents — shared with dark mode so the cobalt/mint pair feels
+     the same in either theme rather than muddy on white. `--iris` is
+     preserved as a legacy alias for the "before" hue. */
+  --before: oklch(0.6 0.21 245);
+  --before-soft: oklch(0.96 0.04 240);
+  --before-ink: oklch(0.32 0.16 240);
+  --after: oklch(0.64 0.18 165);
+  --after-soft: oklch(0.94 0.05 160);
+  --after-ink: oklch(0.32 0.13 160);
+  --iris: var(--before);
+  --iris-soft: var(--before-soft);
+  --iris-ink: var(--before-ink);
+
+  /* Insight kinds (used as borders / icon tints). */
+  --risk: oklch(0.62 0.21 30);
+  --risk-soft: oklch(0.95 0.05 35);
+  --praise: oklch(0.64 0.18 165);
+  --praise-soft: oklch(0.94 0.05 160);
+  --suggestion: oklch(0.68 0.17 80);
+  --suggestion-soft: oklch(0.95 0.06 80);
+  --question: oklch(0.6 0.21 245);
+  --question-soft: oklch(0.96 0.04 240);
+
+  --surface-2: oklch(0.97 0.008 245);
+  --subtle: oklch(0.66 0.015 245);
+  --add: oklch(0.64 0.18 165);
+  --del: oklch(0.62 0.21 30);
 }
 
-/* Editorial Iris — deep blue-violet ink with lifted iris accent. */
+/* Editorial Iris (dark) — deep blue ink, with cobalt + mint dual
+   accents. Values mirror the `T` palette in the design source. */
 .dark {
-  --background: oklch(0.16 0.018 285);
-  --foreground: oklch(0.97 0.01 285);
-  --card: oklch(0.2 0.02 285);
-  --card-foreground: oklch(0.97 0.01 285);
-  --popover: oklch(0.2 0.02 285);
-  --popover-foreground: oklch(0.97 0.01 285);
-  --primary: oklch(0.78 0.16 290);
-  --primary-foreground: oklch(0.16 0.018 285);
-  --secondary: oklch(0.3 0.1 290);
-  --secondary-foreground: oklch(0.88 0.12 290);
-  --muted: oklch(0.24 0.022 285);
-  --muted-foreground: oklch(0.7 0.02 285);
-  --accent: oklch(0.3 0.1 290);
-  --accent-foreground: oklch(0.88 0.12 290);
-  --destructive: oklch(0.74 0.18 25);
-  --border: oklch(0.3 0.02 285);
-  --input: oklch(0.3 0.02 285);
-  --ring: oklch(0.78 0.16 290);
-  --chart-1: oklch(0.78 0.16 290);
-  --chart-2: oklch(0.7 0.02 285);
-  --chart-3: oklch(0.55 0.025 285);
-  --chart-4: oklch(0.88 0.12 290);
-  --chart-5: oklch(0.97 0.01 285);
-  --sidebar: oklch(0.2 0.02 285);
-  --sidebar-foreground: oklch(0.97 0.01 285);
-  --sidebar-primary: oklch(0.78 0.16 290);
-  --sidebar-primary-foreground: oklch(0.16 0.018 285);
-  --sidebar-accent: oklch(0.3 0.1 290);
-  --sidebar-accent-foreground: oklch(0.88 0.12 290);
-  --sidebar-border: oklch(0.3 0.02 285);
-  --sidebar-ring: oklch(0.78 0.16 290);
+  --background: oklch(0.17 0.014 245);
+  --foreground: oklch(0.97 0.005 245);
+  --card: oklch(0.21 0.016 245);
+  --card-foreground: oklch(0.97 0.005 245);
+  --popover: oklch(0.21 0.016 245);
+  --popover-foreground: oklch(0.97 0.005 245);
+  --primary: oklch(0.72 0.17 240);
+  --primary-foreground: oklch(0.17 0.014 245);
+  --secondary: oklch(0.3 0.1 240);
+  --secondary-foreground: oklch(0.86 0.13 240);
+  --muted: oklch(0.25 0.018 245);
+  --muted-foreground: oklch(0.72 0.012 245);
+  --accent: oklch(0.3 0.1 240);
+  --accent-foreground: oklch(0.86 0.13 240);
+  --destructive: oklch(0.74 0.17 35);
+  --border: oklch(0.3 0.014 245);
+  --input: oklch(0.3 0.014 245);
+  --ring: oklch(0.72 0.17 240);
+  --chart-1: oklch(0.72 0.17 240);
+  --chart-2: oklch(0.78 0.18 160);
+  --chart-3: oklch(0.74 0.16 80);
+  --chart-4: oklch(0.86 0.13 240);
+  --chart-5: oklch(0.97 0.005 245);
+  --sidebar: oklch(0.21 0.016 245);
+  --sidebar-foreground: oklch(0.97 0.005 245);
+  --sidebar-primary: oklch(0.72 0.17 240);
+  --sidebar-primary-foreground: oklch(0.17 0.014 245);
+  --sidebar-accent: oklch(0.3 0.1 240);
+  --sidebar-accent-foreground: oklch(0.86 0.13 240);
+  --sidebar-border: oklch(0.3 0.014 245);
+  --sidebar-ring: oklch(0.72 0.17 240);
 
-  /* Editorial Iris extras (dark) */
-  --iris: oklch(0.78 0.16 290);
-  --iris-soft: oklch(0.3 0.1 290);
-  --iris-ink: oklch(0.88 0.12 290);
-  --surface-2: oklch(0.24 0.022 285);
-  --subtle: oklch(0.55 0.025 285);
-  --add: oklch(0.78 0.14 145);
-  --del: oklch(0.74 0.18 25);
+  /* Dual accents (dark) — main hues match light mode; soft/ink stay
+     mode-specific so chips read on a dark background. */
+  --before: oklch(0.6 0.21 245);
+  --before-soft: oklch(0.3 0.1 240);
+  --before-ink: oklch(0.86 0.13 240);
+  --after: oklch(0.64 0.18 165);
+  --after-soft: oklch(0.3 0.1 160);
+  --after-ink: oklch(0.88 0.14 160);
+  --iris: var(--before);
+  --iris-soft: var(--before-soft);
+  --iris-ink: var(--before-ink);
+
+  /* Insight kinds (dark). */
+  --risk: oklch(0.62 0.21 30);
+  --risk-soft: oklch(0.28 0.09 35);
+  --praise: oklch(0.64 0.18 165);
+  --praise-soft: oklch(0.28 0.09 160);
+  --suggestion: oklch(0.68 0.17 80);
+  --suggestion-soft: oklch(0.28 0.08 80);
+  --question: oklch(0.6 0.21 245);
+  --question-soft: oklch(0.28 0.08 240);
+
+  --surface-2: oklch(0.25 0.018 245);
+  --subtle: oklch(0.55 0.015 245);
+  --add: oklch(0.64 0.18 165);
+  --del: oklch(0.62 0.21 30);
 }
 
 @layer base {

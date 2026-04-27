@@ -10,9 +10,11 @@ import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
 import {
   type BranchHead,
   type PullMetadata,
+  type PullReviewer,
   getBranchHead,
   getCommitsAhead,
   getPullMetadata,
+  getPullReviewers,
 } from '@/lib/github/view-time';
 import type { ReviewJobRow, ReviewRow } from '@/lib/jobs/types';
 import { ChapterReader } from './chapter-reader';
@@ -88,6 +90,7 @@ export default async function ReviewPage({
   let pullMetadata: PullMetadata | null = null;
   let currentHeadSha: string | null = null;
   let commitsAhead = 0;
+  let reviewers: PullReviewer[] = [];
 
   if (token) {
     if (target.kind === 'pr') {
@@ -101,6 +104,13 @@ export default async function ReviewPage({
         pullMetadata = md.data;
         currentHeadSha = md.data.headSha;
       }
+      const rev = await getPullReviewers({
+        owner,
+        repo,
+        number: target.number,
+        token,
+      });
+      if (rev.ok) reviewers = rev.data;
     } else {
       const branch = await getBranchHead({ owner, repo, ref: target.ref, token });
       if (branch.ok) {
@@ -123,6 +133,11 @@ export default async function ReviewPage({
     }
   }
 
+  const aiReviewer = {
+    durationMs: deriveDurationMs(job.started_at, job.completed_at),
+    insightCount: review.content.chapters.reduce((sum, ch) => sum + ch.insights.length, 0),
+  };
+
   const isStale = currentHeadSha !== null && currentHeadSha !== job.head_sha;
   const activeId = parseActiveId(sp.ch, review.content.chapters);
 
@@ -137,7 +152,7 @@ export default async function ReviewPage({
   return (
     <>
       <Topbar user={{ login, fullName, avatarUrl }} />
-      <main className="mx-auto flex min-h-full w-full max-w-[92rem] flex-col gap-4 px-6 py-8">
+      <main className="mx-auto flex min-h-full w-full max-w-[var(--review-max-width,92rem)] flex-col gap-4 px-6 py-8">
         {review.diff_truncated && <TruncationBanner />}
         {isStale && <StalenessBanner jobId={job.id} commitsAhead={commitsAhead} />}
 
@@ -145,6 +160,8 @@ export default async function ReviewPage({
           review={review.content}
           target={target}
           pullMetadata={pullMetadata}
+          reviewers={reviewers}
+          aiReviewer={aiReviewer}
           owner={owner}
           repo={repo}
           baseRef={baseRef}
@@ -157,6 +174,15 @@ export default async function ReviewPage({
       </main>
     </>
   );
+}
+
+function deriveDurationMs(started: string | null, completed: string | null): number | null {
+  if (!started || !completed) return null;
+  const startMs = Date.parse(started);
+  const endMs = Date.parse(completed);
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) return null;
+  const diff = endMs - startMs;
+  return diff > 0 ? diff : null;
 }
 
 function synthesizeBranchSummary(

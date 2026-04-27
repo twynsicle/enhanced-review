@@ -5,16 +5,16 @@ import { InsightCallout } from './insight-callout';
 describe('<InsightCallout />', () => {
   it('renders the editorial label and the insight text', () => {
     render(<InsightCallout insight={{ type: 'rationale', text: 'Why we did X' }} />);
-    expect(screen.getByText(/Why this matters/)).toBeDefined();
+    expect(screen.getByText(/Praise/)).toBeDefined();
     expect(screen.getByText('Why we did X')).toBeDefined();
   });
 
   it('renders a distinct label per insight type', () => {
     const cases = [
-      { type: 'context', label: /Context worth knowing/ },
-      { type: 'rationale', label: /Why this matters/ },
-      { type: 'highlight', label: /Worth flagging/ },
-      { type: 'reference', label: /For reference/ },
+      { type: 'context', label: /Context/ },
+      { type: 'rationale', label: /Praise/ },
+      { type: 'highlight', label: /Risk/ },
+      { type: 'reference', label: /Suggestion/ },
     ] as const;
 
     for (const { type, label } of cases) {
@@ -23,5 +23,15 @@ describe('<InsightCallout />', () => {
       expect(screen.getByText(`${type} body`)).toBeDefined();
       unmount();
     }
+  });
+
+  it('renders the optional title above the body when present', () => {
+    render(
+      <InsightCallout
+        insight={{ type: 'highlight', title: 'Buffer can grow unbounded', text: 'Long story…' }}
+      />,
+    );
+    expect(screen.getByRole('heading', { name: 'Buffer can grow unbounded' })).toBeDefined();
+    expect(screen.getByText('Long story…')).toBeDefined();
   });
 });

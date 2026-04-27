@@ -108,6 +108,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
       "insights": [
         {
           "type": "context | rationale | highlight | reference",
+          "title": "string — short 4-10 word headline naming the takeaway",
           "text": "string — concise reviewer aid, 1-2 sentences"
         }
       ],
@@ -133,6 +134,7 @@ Guidelines:
   - "rationale": why this approach was chosen over alternatives
   - "highlight": key change the reviewer should focus on
   - "reference": pointers to related code, docs, or patterns
+- Each insight has a "title" (4–10 word phrase that names the takeaway, e.g., "Buffer can grow unbounded under reconnect") and a "text" (the 1–2 sentence explanation). Title and text must not duplicate each other — the title is the headline, the text is the supporting detail.
 - Prefer concise insights. If an idea needs more explanation, put the broader explanation in the chapter description and keep the insight focused.
 - Each diffChunk must use only hunk IDs listed in "Changed Hunks". Do not invent IDs.
 - Keep hunk IDs file-consistent: only use hunk IDs that belong to the same filename as the diffChunk.

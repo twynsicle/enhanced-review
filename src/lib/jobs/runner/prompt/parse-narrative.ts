@@ -162,8 +162,12 @@ export function parseNarrativeReview(text: string, hunkIndex?: DiffHunkIndex): P
       )
       .map((ins) => {
         const record = ins as Record<string, unknown>;
+        const rawTitle = record['title'];
+        const title =
+          typeof rawTitle === 'string' && rawTitle.trim().length > 0 ? rawTitle.trim() : undefined;
         return {
           type: toInsightType(record['type']),
+          ...(title !== undefined ? { title } : {}),
           text: record['text'] as string,
         } satisfies Insight;
       });

@@ -1,6 +1,7 @@
 import { Sparkles } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
+import { BrandMark } from '@/components/topbar/brand-mark';
 import { getCurrentUser } from '@/lib/pb';
 import { SignInButton } from './sign-in-button';
 
@@ -25,14 +26,11 @@ export default async function LoginPage() {
       <div className="flex flex-1 items-center justify-center px-4 pb-16">
         <div className="w-full max-w-md">
           <div className="flex flex-col items-center gap-6 text-center">
-            <span
-              aria-hidden
-              className="inline-flex size-12 items-center justify-center rounded-2xl bg-foreground text-background shadow-lg ring-1 ring-foreground/20"
-            >
-              <span className="text-sm font-bold tracking-tight">er</span>
-            </span>
+            <BrandMark size={48} />
             <div className="flex flex-col gap-2">
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">enhanced-review</h1>
+              <h1 className="font-serif text-3xl font-semibold tracking-[-0.015em] sm:text-4xl">
+                Enhanced&nbsp;Review
+              </h1>
               <p className="text-sm text-muted-foreground">
                 AI code-review that reads like a senior engineer&rsquo;s walkthrough.
               </p>

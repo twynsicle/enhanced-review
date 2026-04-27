@@ -11,6 +11,8 @@ export type InsightType = 'context' | 'rationale' | 'highlight' | 'reference';
 
 export interface Insight {
   type: InsightType;
+  /** Short headline (4–10 words) — naming the takeaway. May be absent on older reviews. */
+  title?: string;
   text: string;
 }
 

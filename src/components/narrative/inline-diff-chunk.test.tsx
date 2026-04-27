@@ -68,7 +68,9 @@ describe('<InlineDiffChunk />', () => {
     fetchMock.mockReturnValue(new Promise(() => {})); // never resolves
     render(<InlineDiffChunk {...PROPS} />);
 
-    expect(screen.getByText('src/main.ts')).toBeDefined();
+    // Filename is split into dirname + basename for visual emphasis.
+    expect(screen.getByText('src/')).toBeDefined();
+    expect(screen.getByText('main.ts')).toBeDefined();
     expect(screen.getByText('typescript')).toBeDefined();
     expect(screen.getByText('Loading…')).toBeDefined();
   });

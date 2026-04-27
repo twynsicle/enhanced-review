@@ -229,8 +229,13 @@ export function ReviewComposer({ userId }: { userId: string }) {
   return (
     <section
       aria-label="Start a review"
-      className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_0_rgba(140,100,255,0.04),0_18px_50px_-28px_rgba(140,100,255,0.55)]"
+      className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_0_rgba(140,200,255,0.04),0_18px_50px_-28px_rgba(80,200,200,0.45)]"
     >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-6 top-0 h-px"
+        style={{ background: 'linear-gradient(90deg, var(--before), var(--after))' }}
+      />
       <div className="grid gap-5 p-6 sm:grid-cols-[1.3fr_auto_1.2fr] sm:items-end sm:gap-6">
         <Field label="Repository">
           {reposError ? (
@@ -364,7 +369,10 @@ export function ReviewComposer({ userId }: { userId: string }) {
             onClick={onSubmit}
             disabled={!target || submitting}
             aria-busy={submitting}
-            className="h-9 rounded-full px-4"
+            className="h-9 rounded-full px-4 text-background hover:opacity-90 disabled:opacity-50"
+            style={{
+              background: 'linear-gradient(135deg, var(--before), var(--after))',
+            }}
           >
             {submitting ? 'Starting…' : 'Start review'}
             <ArrowRight className="size-4" data-icon="inline-end" />

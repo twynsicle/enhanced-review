@@ -3,38 +3,40 @@ import { cn } from '@/lib/utils';
 
 interface InsightTone {
   label: string;
-  classes: string;
+  /** Tailwind class for the colored left rail. */
+  rail: string;
+  /** Tailwind class for the eyebrow label tint. */
+  eyebrow: string;
 }
 
+/**
+ * Color-coded by kind: highlight reads as risk (coral), rationale as
+ * praise (mint), reference as suggestion (amber), context as question
+ * (cobalt). The kind shows as a 3px solid left rail in the accent hue
+ * — editorial marginalia, sitting directly on the page background with
+ * no card chrome of its own.
+ */
 const TYPE_TONE: Record<InsightType, InsightTone> = {
-  context: {
-    label: 'Context worth knowing',
-    classes: 'border-iris bg-iris-soft text-iris',
-  },
-  rationale: {
-    label: 'Why this matters',
-    classes: 'border-add bg-add/10 text-add',
-  },
-  highlight: {
-    label: 'Worth flagging',
-    classes: 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  },
-  reference: {
-    label: 'For reference',
-    classes: 'border-sky-500 bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  },
+  context: { label: 'Context', rail: 'border-question', eyebrow: 'text-question' },
+  rationale: { label: 'Praise', rail: 'border-praise', eyebrow: 'text-praise' },
+  highlight: { label: 'Risk', rail: 'border-risk', eyebrow: 'text-risk' },
+  reference: { label: 'Suggestion', rail: 'border-suggestion', eyebrow: 'text-suggestion' },
 };
 
-/**
- * Compact insight callout. Colour carries the insight category while the
- * body stays small enough to sit near code without dominating the page.
- */
 export function InsightCallout({ insight }: { insight: Insight }) {
   const tone = TYPE_TONE[insight.type] ?? TYPE_TONE.context;
+  const hasTitle = typeof insight.title === 'string' && insight.title.trim().length > 0;
   return (
-    <aside className={cn('flex flex-col gap-2 rounded-lg border-l-2 px-4 py-3.5', tone.classes)}>
-      <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">{tone.label}</span>
-      <p className="text-[14px] leading-[1.5] text-foreground/85">{insight.text}</p>
+    <aside className={cn('flex flex-col gap-2 border-l-[3px] pr-2 pl-5', tone.rail)}>
+      <span className={cn('text-[10.5px] font-semibold uppercase tracking-[0.14em]', tone.eyebrow)}>
+        {tone.label}
+      </span>
+      {hasTitle && (
+        <h3 className="text-[15px] font-semibold leading-snug text-foreground text-pretty">
+          {insight.title}
+        </h3>
+      )}
+      <p className="text-[13.5px] leading-[1.55] text-foreground/80 text-pretty">{insight.text}</p>
     </aside>
   );
 }

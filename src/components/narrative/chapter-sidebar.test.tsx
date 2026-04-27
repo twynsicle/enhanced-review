@@ -13,6 +13,8 @@ const chapters: NarrativeChapter[] = [
   { id: 'ch2', title: 'Risks and follow-ups', insights: [], diffChunks: [] },
 ];
 
+const noop = () => {};
+
 describe('<ChapterSidebar />', () => {
   it('renders summary plus each chapter title', () => {
     render(
@@ -20,7 +22,8 @@ describe('<ChapterSidebar />', () => {
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
         reviewTitle="My PR"
-        onSelect={() => {}}
+        onSelect={noop}
+        onSelectFile={noop}
       />,
     );
     expect(screen.getByText('Summary')).toBeDefined();
@@ -35,7 +38,8 @@ describe('<ChapterSidebar />', () => {
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
         reviewTitle="t"
-        onSelect={() => {}}
+        onSelect={noop}
+        onSelectFile={noop}
       />,
     );
     expect(screen.getByText('Summary').closest('button')?.getAttribute('aria-current')).toBe(
@@ -46,7 +50,13 @@ describe('<ChapterSidebar />', () => {
     ).toBeNull();
 
     rerender(
-      <ChapterSidebar chapters={chapters} activeId="ch2" reviewTitle="t" onSelect={() => {}} />,
+      <ChapterSidebar
+        chapters={chapters}
+        activeId="ch2"
+        reviewTitle="t"
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
     );
     expect(
       screen.getByText('Risks and follow-ups').closest('button')?.getAttribute('aria-current'),
@@ -61,6 +71,7 @@ describe('<ChapterSidebar />', () => {
         activeId={SUMMARY_SECTION_ID}
         reviewTitle="t"
         onSelect={onSelect}
+        onSelectFile={noop}
       />,
     );
     fireEvent.click(screen.getByText('Risks and follow-ups'));
@@ -81,17 +92,22 @@ describe('<ChapterSidebar />', () => {
           factors: [],
         }}
         onSelect={onSelect}
+        onSelectFile={noop}
       />,
     );
 
-    expect(screen.getByText('Review risk')).toBeDefined();
+    // The card surfaces the "Risk" eyebrow + a score caption ("4/5 · High");
+    // the label component carries an accessible title for screen readers.
+    const riskCard = screen.getByLabelText(/Risk 4 of 5/);
+    expect(riskCard).toBeDefined();
     expect(screen.getByTitle('Risk 4 of 5: High')).toBeDefined();
-    fireEvent.click(screen.getByText('Review risk'));
+    fireEvent.click(riskCard);
     expect(onSelect).toHaveBeenCalledWith(SUMMARY_SECTION_ID);
   });
 
-  it('renders changed files and routes mapped files to their chapter', () => {
+  it('clicking a file row routes via onSelectFile, not onSelect', () => {
     const onSelect = vi.fn();
+    const onSelectFile = vi.fn();
     render(
       <ChapterSidebar
         chapters={chapters}
@@ -106,12 +122,44 @@ describe('<ChapterSidebar />', () => {
           },
         ]}
         onSelect={onSelect}
+        onSelectFile={onSelectFile}
       />,
     );
 
-    fireEvent.click(screen.getByText('src/app/page.tsx'));
-    expect(screen.getByText('+12')).toBeDefined();
-    expect(screen.getByText('-3')).toBeDefined();
-    expect(onSelect).toHaveBeenCalledWith('ch1');
+    // Filename is split: basename ("page.tsx") on the main row,
+    // dirname ("src/app/") underneath. Click the basename — the whole
+    // button is the click target. Stats appear twice (Files header
+    // totals + per-row stats) when there's a single file with stats.
+    fireEvent.click(screen.getByText('page.tsx'));
+    expect(screen.getByText('src/app/')).toBeDefined();
+    expect(screen.getAllByText('+12').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('-3').length).toBeGreaterThanOrEqual(1);
+    expect(onSelectFile).toHaveBeenCalledWith('src/app/page.tsx');
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('marks the active file row with aria-current', () => {
+    render(
+      <ChapterSidebar
+        chapters={chapters}
+        activeId={SUMMARY_SECTION_ID}
+        activeFile="src/app/page.tsx"
+        reviewTitle="t"
+        files={[
+          {
+            filename: 'src/app/page.tsx',
+            status: 'modified',
+            additions: 1,
+            deletions: 0,
+          },
+        ]}
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+
+    expect(screen.getByText('page.tsx').closest('button')?.getAttribute('aria-current')).toBe(
+      'true',
+    );
   });
 });

@@ -1,6 +1,7 @@
 import type { NarrativeChapter } from '@enhanced-review/review-types';
 import { InlineDiffChunk } from './inline-diff-chunk';
 import { InsightCallout } from './insight-callout';
+import { LeadMarkdown } from './lead-markdown';
 
 interface ChapterCardProps {
   chapter: NarrativeChapter;
@@ -60,35 +61,52 @@ export function ChapterCard({
         >
           {chapter.title}
         </h1>
-        {chapter.description && chapter.description.trim().length > 0 && (
-          <p className="max-w-[82ch] text-[15px] leading-[1.6] text-muted-foreground text-pretty">
-            {chapter.description}
-          </p>
-        )}
         <p className="text-[13px] text-muted-foreground">
           {fileCount} file{fileCount === 1 ? '' : 's'} touched · {insightCount} insight
           {insightCount === 1 ? '' : 's'}
         </p>
       </header>
 
-      {chapter.insights.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {chapter.insights.map((insight, i) => (
-            <InsightCallout key={i} insight={insight} />
-          ))}
-        </div>
+      {chapter.description && chapter.description.trim().length > 0 && (
+        <LeadMarkdown text={chapter.description} size={18} />
       )}
 
-      {chapter.diffChunks.map((chunk, i) => (
-        <InlineDiffChunk
-          key={`${chunk.filename}-${String(i)}`}
-          chunk={chunk}
-          owner={owner}
-          repo={repo}
-          baseRef={baseRef}
-          headRef={headRef}
-        />
-      ))}
+      {chapter.insights.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <header className="flex items-baseline justify-between border-b border-border pb-2">
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-subtle">
+              Insights
+            </span>
+            <span className="font-mono text-[11px] text-subtle">{insightCount}</span>
+          </header>
+          <div className="grid gap-4 md:grid-cols-2">
+            {chapter.insights.map((insight, i) => (
+              <InsightCallout key={i} insight={insight} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {chapter.diffChunks.length > 0 && (
+        <section className="flex flex-col gap-5">
+          <header className="flex items-baseline justify-between border-b border-border pb-2">
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-subtle">
+              Files in this chapter
+            </span>
+            <span className="font-mono text-[11px] text-subtle">{fileCount}</span>
+          </header>
+          {chapter.diffChunks.map((chunk, i) => (
+            <InlineDiffChunk
+              key={`${chunk.filename}-${String(i)}`}
+              chunk={chunk}
+              owner={owner}
+              repo={repo}
+              baseRef={baseRef}
+              headRef={headRef}
+            />
+          ))}
+        </section>
+      )}
     </article>
   );
 }

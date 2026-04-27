@@ -62,6 +62,15 @@ export interface BranchHead {
   commitMessage: string;
 }
 
+export type ReviewerState = 'approved' | 'changes_requested' | 'commented' | 'pending';
+
+export interface PullReviewer {
+  login: string;
+  avatarUrl: string | null;
+  state: ReviewerState;
+  submittedAt: string | null;
+}
+
 export interface CommitsAhead {
   count: number;
 }
@@ -92,6 +101,16 @@ interface GithubBranchResponse {
 
 interface GithubCompareResponse {
   total_commits: number;
+}
+
+interface GithubReviewResponse {
+  user: { login: string; avatar_url: string } | null;
+  state: string;
+  submitted_at: string | null;
+}
+
+interface GithubRequestedReviewersResponse {
+  users: { login: string; avatar_url: string }[];
 }
 
 async function callGithub<T>(path: string, token: string): Promise<ViewTimeResult<T>> {
@@ -251,6 +270,79 @@ export async function getBranchHead(args: {
       commitMessage: result.data.commit.commit?.message ?? '',
     },
   };
+}
+
+/**
+ * Reviewers on a PR — submitted reviews collapsed to one row per user
+ * (latest review wins) plus any still-pending requested reviewers. Used
+ * by the SummaryCard's PEOPLE column.
+ */
+export async function getPullReviewers(args: {
+  owner: string;
+  repo: string;
+  number: number;
+  token: string;
+}): Promise<ViewTimeResult<PullReviewer[]>> {
+  const { owner, repo, number, token } = args;
+  const ownerEnc = encodeURIComponent(owner);
+  const repoEnc = encodeURIComponent(repo);
+  const numberStr = String(number);
+
+  const reviewsResult = await callGithub<GithubReviewResponse[]>(
+    `/repos/${ownerEnc}/${repoEnc}/pulls/${numberStr}/reviews`,
+    token,
+  );
+  if (!reviewsResult.ok) return reviewsResult;
+
+  const latestByLogin = new Map<string, PullReviewer>();
+  for (const review of reviewsResult.data) {
+    const login = review.user?.login;
+    if (!login) continue;
+    const state = mapReviewState(review.state);
+    if (state === null) continue;
+    const submittedAt = review.submitted_at;
+    const existing = latestByLogin.get(login);
+    if (existing && existing.submittedAt && submittedAt && submittedAt <= existing.submittedAt) {
+      continue;
+    }
+    latestByLogin.set(login, {
+      login,
+      avatarUrl: review.user?.avatar_url ?? null,
+      state,
+      submittedAt,
+    });
+  }
+
+  const requestedResult = await callGithub<GithubRequestedReviewersResponse>(
+    `/repos/${ownerEnc}/${repoEnc}/pulls/${numberStr}/requested_reviewers`,
+    token,
+  );
+  if (requestedResult.ok) {
+    for (const user of requestedResult.data.users) {
+      if (latestByLogin.has(user.login)) continue;
+      latestByLogin.set(user.login, {
+        login: user.login,
+        avatarUrl: user.avatar_url,
+        state: 'pending',
+        submittedAt: null,
+      });
+    }
+  }
+
+  return { ok: true, data: Array.from(latestByLogin.values()) };
+}
+
+function mapReviewState(raw: string): ReviewerState | null {
+  switch (raw.toUpperCase()) {
+    case 'APPROVED':
+      return 'approved';
+    case 'CHANGES_REQUESTED':
+      return 'changes_requested';
+    case 'COMMENTED':
+      return 'commented';
+    default:
+      return null;
+  }
 }
 
 /**

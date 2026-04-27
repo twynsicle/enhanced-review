@@ -41,10 +41,12 @@ const STUB_REVIEW: NarrativeReview = {
       insights: [
         {
           type: 'context',
+          title: 'Stub did not read the diff',
           text: 'The diff touches a handful of files; the stub executor did not actually read them.',
         },
         {
           type: 'highlight',
+          title: 'Phase 4 swaps in the real reviewer',
           text: 'Phase 4 produces a real AI-generated narrative.',
         },
       ],
@@ -58,6 +60,7 @@ const STUB_REVIEW: NarrativeReview = {
       insights: [
         {
           type: 'rationale',
+          title: 'No real risk analysis in stub mode',
           text: 'No risk analysis is performed by the stub. Treat all PRs as low-risk for now.',
         },
       ],
@@ -71,6 +74,7 @@ const STUB_REVIEW: NarrativeReview = {
       insights: [
         {
           type: 'context',
+          title: 'Inline review chunks are absent',
           text: 'No inline review chunks in the stub.',
         },
       ],

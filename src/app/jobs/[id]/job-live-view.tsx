@@ -374,7 +374,7 @@ function Timeline({ phases }: { phases: Phase[] }) {
       <span
         aria-hidden
         className="absolute left-[11px] top-2 bottom-2 w-px"
-        style={{ background: 'linear-gradient(var(--iris), var(--border))' }}
+        style={{ background: 'linear-gradient(var(--before), var(--after), var(--border))' }}
       />
       {phases.map((p) => (
         <li key={p.id} className="relative flex flex-col gap-1.5">
@@ -385,13 +385,13 @@ function Timeline({ phases }: { phases: Phase[] }) {
           </div>
           <p className="text-[13px] text-muted-foreground text-pretty">{p.detail}</p>
           {p.titles && p.titles.length > 0 && (
-            <div className="mt-2 flex flex-col gap-1 rounded-lg border border-iris/25 bg-iris-soft p-3">
+            <div className="mt-2 flex flex-col gap-1 rounded-lg border border-before/25 bg-before-soft p-3">
               {p.titles.map((t, i) => (
                 <span
                   key={`${i.toString()}:${t.text}`}
                   className={cn(
                     'font-serif text-[14px]',
-                    t.state === 'done' ? 'text-iris-ink' : 'italic text-muted-foreground',
+                    t.state === 'done' ? 'text-after-ink' : 'italic text-muted-foreground',
                   )}
                 >
                   {t.state === 'done' ? '✓' : '◦'} {t.text}
@@ -414,12 +414,12 @@ function PhaseMarker({ state }: { state: PhaseState }) {
   const symbol = state === 'done' ? '✓' : state === 'active' ? '●' : state === 'error' ? '!' : '';
   const styles = (() => {
     if (state === 'pending')
-      return { bg: 'var(--background)', border: 'var(--border)', fg: 'var(--iris)' };
+      return { bg: 'var(--background)', border: 'var(--border)', fg: 'var(--before)' };
     if (state === 'active')
-      return { bg: 'var(--iris)', border: 'var(--iris)', fg: 'var(--background)' };
+      return { bg: 'var(--before)', border: 'var(--before)', fg: 'var(--background)' };
     if (state === 'error')
       return { bg: 'var(--destructive)', border: 'var(--destructive)', fg: 'var(--background)' };
-    return { bg: 'var(--surface-2)', border: 'var(--iris)', fg: 'var(--iris)' };
+    return { bg: 'var(--surface-2)', border: 'var(--after)', fg: 'var(--after)' };
   })();
   return (
     <span

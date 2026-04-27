@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getBranchHead, getCommitsAhead, getFileAtRef, getPullMetadata } from './view-time';
+import {
+  getBranchHead,
+  getCommitsAhead,
+  getFileAtRef,
+  getPullMetadata,
+  getPullReviewers,
+} from './view-time';
 
 function jsonResponse(
   status: number,
@@ -326,5 +332,82 @@ describe('getCommitsAhead', () => {
       token: 't',
     });
     expect(result).toEqual({ ok: false, error: { kind: 'no-access', status: 403 } });
+  });
+});
+
+describe('getPullReviewers', () => {
+  it('keeps only the latest review per login and merges in requested reviewers', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, [
+        {
+          user: { login: 'jonas', avatar_url: 'https://example/jonas' },
+          state: 'COMMENTED',
+          submitted_at: '2026-04-20T10:00:00Z',
+        },
+        {
+          user: { login: 'jonas', avatar_url: 'https://example/jonas' },
+          state: 'APPROVED',
+          submitted_at: '2026-04-21T12:00:00Z',
+        },
+        {
+          user: { login: 'kira', avatar_url: 'https://example/kira' },
+          state: 'CHANGES_REQUESTED',
+          submitted_at: '2026-04-21T14:00:00Z',
+        },
+        {
+          user: { login: 'noisy', avatar_url: 'https://example/noisy' },
+          state: 'DISMISSED',
+          submitted_at: '2026-04-21T15:00:00Z',
+        },
+      ]),
+    );
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        users: [
+          { login: 'newcomer', avatar_url: 'https://example/newcomer' },
+          { login: 'jonas', avatar_url: 'https://example/jonas' },
+        ],
+      }),
+    );
+
+    const result = await getPullReviewers({ owner: 'a', repo: 'r', number: 7, token: 't' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const byLogin = Object.fromEntries(result.data.map((r) => [r.login, r]));
+    expect(Object.keys(byLogin).sort()).toEqual(['jonas', 'kira', 'newcomer']);
+    expect(byLogin.jonas).toMatchObject({
+      state: 'approved',
+      submittedAt: '2026-04-21T12:00:00Z',
+    });
+    expect(byLogin.kira).toMatchObject({ state: 'changes_requested' });
+    expect(byLogin.newcomer).toMatchObject({ state: 'pending', submittedAt: null });
+  });
+
+  it('still returns submitted reviews when the requested-reviewers fetch fails', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, [
+        {
+          user: { login: 'alice', avatar_url: 'https://example/alice' },
+          state: 'APPROVED',
+          submitted_at: '2026-04-21T12:00:00Z',
+        },
+      ]),
+    );
+    fetchMock.mockResolvedValueOnce(emptyResponse(404));
+
+    const result = await getPullReviewers({ owner: 'a', repo: 'r', number: 7, token: 't' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]).toMatchObject({ login: 'alice', state: 'approved' });
+  });
+
+  it('propagates the reviews-endpoint error without calling requested_reviewers', async () => {
+    fetchMock.mockResolvedValueOnce(emptyResponse(401));
+
+    const result = await getPullReviewers({ owner: 'a', repo: 'r', number: 7, token: 't' });
+    expect(result).toEqual({ ok: false, error: { kind: 'unauthorized', status: 401 } });
+    expect(fetchMock.mock.calls).toHaveLength(1);
   });
 });
