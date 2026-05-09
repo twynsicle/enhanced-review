@@ -1,5 +1,4 @@
 # Outputs are added in subsequent commits as their resources land.
-# Commit 5 — ACM cert outputs.
 # Commit 6 — ALB + Cognito outputs.
 
 # --- VPC (commit 2) ---
@@ -66,4 +65,11 @@ output "route53_name_servers" {
 output "domain_name" {
   description = "Parent domain. Mirrors var.domain_name; exposed as an output so the app module can compose its subdomain URL without re-declaring the variable."
   value       = var.domain_name
+}
+
+# --- ACM (commit 5) ---
+
+output "acm_certificate_arn" {
+  description = "Validated wildcard ACM cert ARN (*.<domain> + apex SAN). Platform's ALB listener uses this; app module doesn't need to read it directly because the listener already terminates TLS."
+  value       = aws_acm_certificate_validation.wildcard.certificate_arn
 }
