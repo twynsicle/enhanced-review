@@ -4,56 +4,19 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from './schema';
 
 /**
- * Lazy singletons for the Postgres pool and Drizzle handle. The pool is
- * constructed on first access — not at module load — so test environments
- * that import this module transitively don't crash when `DATABASE_URL` is
- * unset. Real misconfiguration still surfaces the first time a query runs.
+ * Singleton Postgres pool + Drizzle handle. Constructed eagerly at module
+ * load — `new Pool()` only stores config and does not open a connection
+ * until the first query, so a missing or wrong DATABASE_URL surfaces at
+ * first use rather than module load (matching the previous behavior). An
+ * eager Drizzle instance is required so `@auth/drizzle-adapter`'s
+ * `is(db, PgDatabase)` check succeeds at build-time page-data collection.
  */
-let _pool: Pool | undefined;
-let _db: NodePgDatabase<typeof schema> | undefined;
-
-function ensurePool(): Pool {
-  if (_pool) return _pool;
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error(
-      'DATABASE_URL is not set. See .env.example for the docker-compose default.',
-    );
-  }
-  _pool = new Pool({
-    connectionString,
-    max: 20,
-    idleTimeoutMillis: 30_000,
-  });
-  return _pool;
-}
-
-function ensureDb(): NodePgDatabase<typeof schema> {
-  if (_db) return _db;
-  _db = drizzle(ensurePool(), { schema });
-  return _db;
-}
-
-type DbHandle = NodePgDatabase<typeof schema>;
-
-export const db: DbHandle = new Proxy({} as DbHandle, {
-  get(_target, prop) {
-    const real = ensureDb() as unknown as Record<PropertyKey, unknown>;
-    const value = real[prop];
-    return typeof value === 'function'
-      ? (value as (...args: unknown[]) => unknown).bind(real)
-      : value;
-  },
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30_000,
 });
 
-export const pool = new Proxy({} as Pool, {
-  get(_target, prop) {
-    const real = ensurePool() as unknown as Record<PropertyKey, unknown>;
-    const value = real[prop];
-    return typeof value === 'function'
-      ? (value as (...args: unknown[]) => unknown).bind(real)
-      : value;
-  },
-});
+export const db: NodePgDatabase<typeof schema> = drizzle(pool, { schema });
 
-export type DbClient = DbHandle;
+export type DbClient = NodePgDatabase<typeof schema>;
