@@ -1,5 +1,4 @@
 # Outputs are added in subsequent commits as their resources land.
-# Commit 3 — ECS cluster + ECR + OIDC outputs.
 # Commit 4 — Route 53 zone outputs.
 # Commit 5 — ACM cert outputs.
 # Commit 6 — ALB + Cognito outputs.
@@ -19,4 +18,36 @@ output "public_subnet_ids" {
 output "availability_zones" {
   description = "Availability zone names corresponding to public_subnet_ids (same order)."
   value       = local.azs
+}
+
+# --- ECS cluster + ECR + OIDC (commit 3) ---
+
+output "ecs_cluster_id" {
+  description = "ECS cluster ID. App module's aws_ecs_service uses this."
+  value       = aws_ecs_cluster.main.id
+}
+
+output "ecs_cluster_name" {
+  description = "ECS cluster name (used by ops commands like aws ecs execute-command)."
+  value       = aws_ecs_cluster.main.name
+}
+
+output "ecs_cluster_arn" {
+  description = "ECS cluster ARN."
+  value       = aws_ecs_cluster.main.arn
+}
+
+output "ecr_repository_urls" {
+  description = "Map of registered app name to ECR repository URL (e.g. \"123456789012.dkr.ecr.us-west-2.amazonaws.com/enhanced-review\"). App module looks up its own repo by app_name."
+  value       = { for k, v in aws_ecr_repository.app : k => v.repository_url }
+}
+
+output "ecr_repository_arns" {
+  description = "Map of registered app name to ECR repository ARN. Used by app's IAM policies (deploy role's ECR push permissions, task execution role's ECR pull permissions)."
+  value       = { for k, v in aws_ecr_repository.app : k => v.arn }
+}
+
+output "github_oidc_provider_arn" {
+  description = "ARN of the GitHub Actions OIDC provider. App module's deploy roles trust this."
+  value       = aws_iam_openid_connect_provider.github.arn
 }
