@@ -12,14 +12,14 @@ Web-based AI code-review tool (closed beta). Sign in with GitHub, pick a repo + 
 
 ## Authoritative docs — read these first
 
-| File                       | When to read                                                                            |
-| -------------------------- | --------------------------------------------------------------------------------------- |
-| `README.md`                | Top-level summary, scripts table, prerequisites.                                        |
-| `docs/README.md`           | Architecture, decisions, repo layout table.                                             |
-| `docs/RUNNING.md`          | First-time local setup (Postgres via docker-compose, OAuth app, allowlist seed).        |
-| `docs/OPERATIONS.md`       | Day-2 runbook: allowlist, key rotation, logs, stuck jobs, health, log-shape, env knobs. |
-| `docs/ecs-migration/`      | Active migration plan (Postgres + ECS + Cognito). Read 00-overview.md first.            |
-| `docs/archive/`            | Historical migration plans — context only, not current state.                           |
+| File                  | When to read                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| `README.md`           | Top-level summary, scripts table, prerequisites.                                        |
+| `docs/README.md`      | Architecture, decisions, repo layout table.                                             |
+| `docs/RUNNING.md`     | First-time local setup (Postgres via docker-compose, OAuth app, allowlist seed).        |
+| `docs/OPERATIONS.md`  | Day-2 runbook: allowlist, key rotation, logs, stuck jobs, health, log-shape, env knobs. |
+| `docs/ecs-migration/` | Active migration plan (Postgres + ECS + Cognito). Read 00-overview.md first.            |
+| `docs/archive/`       | Historical migration plans — context only, not current state.                           |
 
 If a question is covered there, read the doc rather than re-deriving from code.
 
@@ -54,10 +54,10 @@ src/
   hooks/                       use-toast.ts
   lib/
     auth/                      Auth.js v5 config (auth.ts) + Drizzle allowlist gate
-    db/                        Drizzle schema (schema.ts) + lazy pg.Pool client (client.ts)
+    db/                        Drizzle schema (schema.ts) + pg.Pool / Drizzle handle (client.ts)
     github/                    Octokit factory, accounts-table token reader, fetcher, view-time helpers
     jobs/                      concurrency, target schema, start-review, partial-narrative-parse
-    jobs/runner/               In-process review runner: clone/, executor/ (claude + stub), prompt/, registry, run.ts, writes.ts (Drizzle + NOTIFY), shutdown.ts, recover-on-startup.ts, github.ts
+    jobs/runner/               In-process review runner: clone/, executor/ (claude + stub), prompt/, registry, run.ts, writes.ts (Drizzle + NOTIFY), shutdown.ts, github.ts
     narrative/                 inline-diff-snippets, language-map
     log.ts                     pino logger (job_id / executor child loggers)
 
@@ -65,15 +65,17 @@ packages/
   github-client/               Octokit wrapper used by API routes (workspace package)
   review-types/                Shared NarrativeReview shape (chapters + insights + diffChunks)
 
-drizzle/                       Generated SQL migrations + migrate.ts entrypoint
-docker-compose.yml             Local Postgres service (Phase A — Phase B will add the web service)
+drizzle/                       Generated SQL migrations + migrate.mts (compiled to migrate.mjs at Docker build)
+docker-compose.yml             Local Postgres + web service. Two flows: full Docker, or postgres-only + host npm dev.
+Dockerfile                     Multi-stage build (deps → build → runtime) for the web container, pinned linux/amd64
+.dockerignore                  Excludes node_modules, .next, .env*, docs, .github, etc.
 drizzle.config.ts              drizzle-kit config (schema → drizzle/)
-instrumentation.ts             Next 16 boot hook: SIGTERM handler + orphan-job recovery
+instrumentation.ts             Next 16 boot hook: SIGTERM handler. (Recovery moved to scripts/recover-jobs.cjs.)
 next-auth.d.ts                 Type augmentation: Session.user gains githubLogin + id
-scripts/                       db-seed.ts (allowlist seeder)
+scripts/                       db-seed.ts (allowlist seeder), recover-jobs.cjs (orphan-job flip), entrypoint.sh (Docker)
 docs/                          README, RUNNING, OPERATIONS, ecs-migration/, archive/
 test/                          server-only.shim.ts (Vitest alias for next/server-only)
-.github/workflows/ci.yml       Format / lint / typecheck / test on PR + push to main
+.github/workflows/ci.yml       Format / lint / typecheck / test + docker-build verification on PR + push to main
 ```
 
 ## How the system fits together
@@ -90,33 +92,35 @@ test/                          server-only.shim.ts (Vitest alias for next/server
 
 ## Postgres tables (see `src/lib/db/schema.ts`)
 
-| Table                 | Notes                                                                                                                  |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `users`               | Auth.js standard fields + custom `github_login` (unique).                                                              |
-| `accounts`            | Auth.js standard. Stores the GitHub access token in `access_token`.                                                    |
-| `sessions`            | Auth.js standard (database session strategy).                                                                          |
-| `verification_tokens` | Auth.js standard (unused for OAuth-only flows but required by the adapter).                                            |
-| `allowed_users`       | App-level allowlist. Unique on `github_login`.                                                                         |
-| `review_jobs`         | `status` enum {pending, running, done, error, cancelled}. `target` JSONB. Indexes on status, user_id, created_at.       |
-| `reviews`             | One per completed job (`job_id` unique). `content` JSONB (`NarrativeReview`).                                          |
-| `review_chunks`       | Streamed partials. Unique on `(job_id, seq)` — runner relies on this for idempotent chunk inserts.                      |
+| Table                 | Notes                                                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `users`               | Auth.js standard fields + custom `github_login` (unique).                                                         |
+| `accounts`            | Auth.js standard. Stores the GitHub access token in `access_token`.                                               |
+| `sessions`            | Auth.js standard (database session strategy).                                                                     |
+| `verification_tokens` | Auth.js standard (unused for OAuth-only flows but required by the adapter).                                       |
+| `allowed_users`       | App-level allowlist. Unique on `github_login`.                                                                    |
+| `review_jobs`         | `status` enum {pending, running, done, error, cancelled}. `target` JSONB. Indexes on status, user_id, created_at. |
+| `reviews`             | One per completed job (`job_id` unique). `content` JSONB (`NarrativeReview`).                                     |
+| `review_chunks`       | Streamed partials. Unique on `(job_id, seq)` — runner relies on this for idempotent chunk inserts.                |
 
 All runner writes use the same connection pool (no separate admin/user split). NOTIFY channels: `job_<id>` (per-job stream) and `user_<userId>:terminal` (per-user terminal).
 
 ## Common scripts
 
-| Script                            | What                                                       |
-| --------------------------------- | ---------------------------------------------------------- |
-| `npm run dev`                     | Next.js dev server (Turbopack) on `localhost:3000`         |
-| `npm run build`                   | Production build                                           |
-| `npm run lint`                    | ESLint                                                     |
-| `npm run typecheck`               | `tsc --noEmit`                                             |
-| `npm run format` / `format:check` | Prettier write / check                                     |
-| `npm test` / `test:watch`         | Vitest                                                     |
-| `npm run db:generate`             | `drizzle-kit generate` (regenerate SQL after schema edits) |
-| `npm run db:migrate`              | Apply pending migrations against `DATABASE_URL`            |
+| Script                            | What                                                         |
+| --------------------------------- | ------------------------------------------------------------ |
+| `npm run dev`                     | Next.js dev server (Turbopack) on `localhost:3000`           |
+| `npm run build`                   | Production build                                             |
+| `npm run lint`                    | ESLint                                                       |
+| `npm run typecheck`               | `tsc --noEmit`                                               |
+| `npm run format` / `format:check` | Prettier write / check                                       |
+| `npm test` / `test:watch`         | Vitest                                                       |
+| `npm run db:generate`             | `drizzle-kit generate` (regenerate SQL after schema edits)   |
+| `npm run db:migrate`              | Apply pending migrations against `DATABASE_URL`              |
 | `npm run db:seed`                 | Insert `SEED_GITHUB_LOGIN` into `allowed_users` (idempotent) |
-| `docker compose up postgres -d`   | Local Postgres on 127.0.0.1:5432                            |
+| `npm run db:recover`              | Flip orphan `running` jobs to `error` after a host crash     |
+| `docker compose up postgres -d`   | Local Postgres on 127.0.0.1:5432                             |
+| `docker compose up --build`       | Full stack (postgres + web) — Flow 1 / closest-to-prod       |
 
 ## Environment
 

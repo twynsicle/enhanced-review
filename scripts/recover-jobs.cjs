@@ -45,10 +45,7 @@ async function main() {
       const userPayload = JSON.stringify({ jobId: row.id, status: 'error' });
       try {
         await pool.query('SELECT pg_notify($1, $2)', [`job_${row.id}`, jobPayload]);
-        await pool.query('SELECT pg_notify($1, $2)', [
-          `user_${row.user_id}:terminal`,
-          userPayload,
-        ]);
+        await pool.query('SELECT pg_notify($1, $2)', [`user_${row.user_id}:terminal`, userPayload]);
       } catch (err) {
         console.warn(`[recover] notify failed for job ${row.id}:`, err && err.message);
       }

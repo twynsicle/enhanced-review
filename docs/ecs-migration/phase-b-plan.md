@@ -4,7 +4,7 @@
 
 This file is the ordered task list for Phase B: take the working Phase A app off `npm run dev` against a host-postgres compose service and produce a Dockerfile + extended docker-compose.yml such that `docker compose up --build` from a fresh clone is the single command that runs the full system. Same artifact will later be tagged + pushed to ECR in Phase D.
 
-If anything here disagrees with [05-local-docker.md](./05-local-docker.md) it is because doc 05 has been edited in-place to reflect the decisions below — they should agree. Treat this file as the *playbook*; doc 05 as the *reference*.
+If anything here disagrees with [05-local-docker.md](./05-local-docker.md) it is because doc 05 has been edited in-place to reflect the decisions below — they should agree. Treat this file as the _playbook_; doc 05 as the _reference_.
 
 ---
 
@@ -12,7 +12,7 @@ If anything here disagrees with [05-local-docker.md](./05-local-docker.md) it is
 
 A maintainer who clones the repo, copies `.env.example` to `.env.local`, fills in three OAuth + one Anthropic value, and runs `docker compose up --build` ends up at `http://localhost:3000` able to sign in (after seeding allowlist), kick off a stub review, and watch it stream — without ever installing Node, npm, or Postgres on the host.
 
-Nothing else changes: data layer is already Postgres + Drizzle, auth is already Auth.js, realtime is already SSE + LISTEN/NOTIFY. We are only changing how the app is *packaged* and *run*.
+Nothing else changes: data layer is already Postgres + Drizzle, auth is already Auth.js, realtime is already SSE + LISTEN/NOTIFY. We are only changing how the app is _packaged_ and _run_.
 
 ---
 
@@ -20,24 +20,24 @@ Nothing else changes: data layer is already Postgres + Drizzle, auth is already 
 
 These are the answers chosen on 2026-05-09 when the plan was drafted. Doc 05 has been edited in-place to match.
 
-| Topic                          | Decision                                                                                              | Rationale                                                                                                                       |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Postgres data volume           | Named volume `pgdata` (keep current state)                                                            | Avoids Windows WSL2 bind-mount permission issues. Doc 05 itself flagged this as a Windows gotcha.                                |
-| Postgres image version         | Bump local from `postgres:16-alpine` → `postgres:17-alpine`                                           | Aligns local image tag with what we'll use in the ECS task in Phase C. Throwaway POC data, so `down -v` reset is acceptable.    |
-| Migrations runner in container | Compile existing `drizzle/migrate.ts` to JS in the build stage; runtime calls `node drizzle/migrate.js` | One source of truth. Avoids bundling `tsx` into the runtime image and avoids hand-rolling a separate `.cjs` sibling.            |
-| Orphan-job recovery            | Run **only** in `entrypoint.sh` via a standalone CJS script. Drop the call from `instrumentation.ts`. | Recovery happens before any HTTP route can serve a stale `running` row. One source of truth; no duplicated work on every boot. |
-| Local Postgres password        | Keep current `app` (not doc 05's illustrative `localdevpw`)                                           | Already wired through `.env.example` and `RUNNING.md`; no value in renaming.                                                    |
-| CI verification                | Add a `docker build` job to `.github/workflows/ci.yml`                                                | Catches Dockerfile rot before Phase D's deploy pipeline depends on it.                                                          |
-| Legacy PocketBase cleanup      | Full cleanup (delete `pb_migrations/`, `scripts/pb*.mjs`, prune `next.config.ts`)                     | Keep the Phase B branch self-contained.                                                                                         |
-| Entrypoint script location     | `scripts/entrypoint.sh`                                                                               | Co-located with other operational scripts (`db-seed.ts`, `recover-jobs.cjs`).                                                   |
-| Dockerfile platform            | Pin `--platform=linux/amd64` on every `FROM` line                                                     | ECS Fargate is amd64; avoids accidental drift if a contributor builds on ARM later.                                             |
-| Compose web image tag          | `image: enhanced-review:local`                                                                        | Identifiable in `docker images`; distinct from Phase D's ECR-tagged production builds.                                          |
+| Topic                          | Decision                                                                                                | Rationale                                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Postgres data volume           | Named volume `pgdata` (keep current state)                                                              | Avoids Windows WSL2 bind-mount permission issues. Doc 05 itself flagged this as a Windows gotcha.                              |
+| Postgres image version         | Bump local from `postgres:16-alpine` → `postgres:17-alpine`                                             | Aligns local image tag with what we'll use in the ECS task in Phase C. Throwaway POC data, so `down -v` reset is acceptable.   |
+| Migrations runner in container | Compile existing `drizzle/migrate.ts` to JS in the build stage; runtime calls `node drizzle/migrate.js` | One source of truth. Avoids bundling `tsx` into the runtime image and avoids hand-rolling a separate `.cjs` sibling.           |
+| Orphan-job recovery            | Run **only** in `entrypoint.sh` via a standalone CJS script. Drop the call from `instrumentation.ts`.   | Recovery happens before any HTTP route can serve a stale `running` row. One source of truth; no duplicated work on every boot. |
+| Local Postgres password        | Keep current `app` (not doc 05's illustrative `localdevpw`)                                             | Already wired through `.env.example` and `RUNNING.md`; no value in renaming.                                                   |
+| CI verification                | Add a `docker build` job to `.github/workflows/ci.yml`                                                  | Catches Dockerfile rot before Phase D's deploy pipeline depends on it.                                                         |
+| Legacy PocketBase cleanup      | Full cleanup (delete `pb_migrations/`, `scripts/pb*.mjs`, prune `next.config.ts`)                       | Keep the Phase B branch self-contained.                                                                                        |
+| Entrypoint script location     | `scripts/entrypoint.sh`                                                                                 | Co-located with other operational scripts (`db-seed.ts`, `recover-jobs.cjs`).                                                  |
+| Dockerfile platform            | Pin `--platform=linux/amd64` on every `FROM` line                                                       | ECS Fargate is amd64; avoids accidental drift if a contributor builds on ARM later.                                            |
+| Compose web image tag          | `image: enhanced-review:local`                                                                          | Identifiable in `docker images`; distinct from Phase D's ECR-tagged production builds.                                         |
 
 ---
 
 ## Pre-flight (current state of the branch)
 
-Phase A is already merged on `migrate-ecs`. The audit below is what the workspace looks like *now*, so the diff Phase B applies is precise.
+Phase A is already merged on `migrate-ecs`. The audit below is what the workspace looks like _now_, so the diff Phase B applies is precise.
 
 - `docker-compose.yml` exists with one `postgres` service on `postgres:16-alpine`, named volume `pgdata`, port 5432 published.
 - `next.config.ts` still contains the PB-era `pbRemote` IIFE + `dangerouslyAllowLocalIP` — dead code post-Phase A.
@@ -98,7 +98,7 @@ Each section below describes one commit. They are ordered so that any prefix is 
  };
 ```
 
-**Why standalone commit:** affects build output regardless of Docker. Useful to ship even if the rest of Phase B were reverted. Verifies the standalone tree builds cleanly *before* the Dockerfile depends on it.
+**Why standalone commit:** affects build output regardless of Docker. Useful to ship even if the rest of Phase B were reverted. Verifies the standalone tree builds cleanly _before_ the Dockerfile depends on it.
 
 **Verify:** `npm run build` succeeds. Inspect `.next/standalone/server.js` exists. `node .next/standalone/server.js` boots (with appropriate env vars and the `.next/static` + `public/` copied next to `server.js`, OR don't bother — Docker will exercise this in step 6).
 
@@ -174,32 +174,32 @@ Don't try to run it standalone — that's step 6's job.
 **Files:** `docker-compose.yml`
 
 ```yaml
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: enhanced-review:local
-    container_name: enhanced-review-web
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgres://app:app@postgres:5432/enhanced_review
-      AUTH_SECRET: ${AUTH_SECRET}
-      AUTH_URL: http://localhost:3000
-      AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
-      AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
-      AUTH_TRUST_HOST: "true"
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      REVIEW_EXECUTOR: ${REVIEW_EXECUTOR:-stub}
-      REVIEW_MODEL: ${REVIEW_MODEL:-claude-haiku-4-5}
-      REVIEW_TIMEOUT_MIN: ${REVIEW_TIMEOUT_MIN:-15}
-      MAX_JOBS_PER_USER: ${MAX_JOBS_PER_USER:-1}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      LOG_PRETTY: ${LOG_PRETTY:-0}
-    ports:
-      - "3000:3000"
+web:
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: enhanced-review:local
+  container_name: enhanced-review-web
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+  environment:
+    DATABASE_URL: postgres://app:app@postgres:5432/enhanced_review
+    AUTH_SECRET: ${AUTH_SECRET}
+    AUTH_URL: http://localhost:3000
+    AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
+    AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
+    AUTH_TRUST_HOST: 'true'
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    REVIEW_EXECUTOR: ${REVIEW_EXECUTOR:-stub}
+    REVIEW_MODEL: ${REVIEW_MODEL:-claude-haiku-4-5}
+    REVIEW_TIMEOUT_MIN: ${REVIEW_TIMEOUT_MIN:-15}
+    MAX_JOBS_PER_USER: ${MAX_JOBS_PER_USER:-1}
+    LOG_LEVEL: ${LOG_LEVEL:-info}
+    LOG_PRETTY: ${LOG_PRETTY:-0}
+  ports:
+    - '3000:3000'
 ```
 
 Existing `postgres` service stays as-is (already 17-alpine after step 2, named `pgdata` volume).
@@ -233,21 +233,21 @@ Existing `postgres` service stays as-is (already 17-alpine after step 2, named `
 Add a parallel job (`docker-build`) that runs after the existing `ci` job (or in parallel — they're independent). Use Docker buildx + GitHub Actions cache so PR runs are fast on warm caches.
 
 ```yaml
-  docker-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Build image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64
-          push: false
-          load: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          tags: enhanced-review:ci
+docker-build:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: docker/setup-buildx-action@v3
+    - name: Build image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        platforms: linux/amd64
+        push: false
+        load: false
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        tags: enhanced-review:ci
 ```
 
 No push, no run — just a build that exercises the Dockerfile on every PR. Phase D's deploy pipeline will reuse the same Dockerfile so any breakage shows up here first.
@@ -258,7 +258,7 @@ No push, no run — just a build that exercises the Dockerfile on every PR. Phas
 
 ### 8. Update existing user-facing docs
 
-This is the slice of doc 10's work that makes sense to land *with* Phase B (the rest waits for Phase E). Specifically:
+This is the slice of doc 10's work that makes sense to land _with_ Phase B (the rest waits for Phase E). Specifically:
 
 - **`README.md`** — Quickstart section: replace any `npm run pb`-era instructions with `cp .env.example .env.local && docker compose up --build`. Scripts table: add `db:recover`. Add a one-line note "Phase B containerization complete; Phase C onwards see `docs/ecs-migration/`".
 - **`docs/RUNNING.md`** — rewrite the "Run" section to describe Flow 1 and Flow 2 (per doc 05's "Two flows in dev"). Document the named-volume reset (`docker compose down -v`) as the canonical "wipe the DB" step. Document the allowlist seeding via `docker compose exec postgres psql …`.
@@ -279,7 +279,7 @@ Defer to Phase E:
 
 - **Standalone tree + workspace packages.** `output: 'standalone'` traces dependencies; the `transpilePackages` entries (`@enhanced-review/github-client`, `@enhanced-review/review-types`) need to land in `.next/standalone/node_modules/` correctly. If you see `Cannot find module '@enhanced-review/...'` at runtime, suspect this. Mitigation: confirm during step 3 verification, before the Docker layer depends on it.
 - **`drizzle/migrate.ts` compilation in build stage.** The TS file uses `import.meta.url` for `path.dirname(fileURLToPath(import.meta.url))` to locate migrations relative to itself. After tsc compilation, this still works in ESM output. If you fall back to CommonJS output (`--module commonjs`), `import.meta` is invalid — switch to `__dirname` (which CJS provides) or use `process.cwd() + '/drizzle'` since the entrypoint runs from `/app`. Test the compiled output before shipping.
-- **CRLF on Windows.** Without `.gitattributes` set first, a Windows clone may have committed `entrypoint.sh` as CRLF, producing `/usr/bin/env: 'sh\r': No such file or directory` inside Alpine. Land step 5 with `.gitattributes` *in the same commit* and re-checkout the file so it's stored as LF.
+- **CRLF on Windows.** Without `.gitattributes` set first, a Windows clone may have committed `entrypoint.sh` as CRLF, producing `/usr/bin/env: 'sh\r': No such file or directory` inside Alpine. Land step 5 with `.gitattributes` _in the same commit_ and re-checkout the file so it's stored as LF.
 - **Postgres 16 → 17 on dev volumes.** Anyone with a pre-existing `pgdata` volume will hit "incompatible data directory" on first PG17 boot. The fix is `docker compose down -v` once, and re-seed. Mention in commit body and RUNNING.md.
 - **`AUTH_URL` mismatch on first sign-in.** If `AUTH_URL` is `http://localhost:3000` but you visit via `127.0.0.1:3000`, GitHub OAuth will return to localhost and the cookie won't bind. Stick to `localhost:3000` consistently in dev.
 - **Recovery script DB races.** `recover-jobs.cjs` runs after `migrations` and before `node server.js`. If migrations changed the `review_jobs` schema, recovery's hand-rolled SQL must still match. Today the SQL is plain `UPDATE … WHERE status='running'` — robust against schema additions, fragile against renaming `status` or its enum values. If you ever rename, audit this script too.
@@ -311,4 +311,4 @@ These came up during planning but don't block Phase B. Captured here so they're 
 - **Multi-platform image.** Phase B builds amd64 only. If we ever want to run locally on Apple Silicon at native speed, add an `arm64` variant to the buildx matrix (Phase D pipeline is the natural home). Not needed for the Windows-primary user.
 - **Dockerfile health check.** Adding `HEALTHCHECK CMD curl -f http://localhost:3000/api/health` would let docker / ECS detect a hung Node process. Worth adding when Phase C wires up the ALB target group health check anyway — same `/api/health` endpoint, same semantics.
 - **`libc6-compat`.** Doc 05 includes it preemptively. Ship without first; add only if a runtime symbol-resolution error surfaces (typical with `sharp`, which we don't use, or some `node-postgres` native bits, which we shouldn't hit).
-- **Compose `profiles`.** If we ever want `docker compose up` (default) to start *only* postgres for Flow 2 and `--profile full` to add web, profiles are the mechanism. Not needed yet — `docker compose up postgres` is explicit enough.
+- **Compose `profiles`.** If we ever want `docker compose up` (default) to start _only_ postgres for Flow 2 and `--profile full` to add web, profiles are the mechanism. Not needed yet — `docker compose up postgres` is explicit enough.

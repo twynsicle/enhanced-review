@@ -1,8 +1,8 @@
 # Running enhanced-review locally
 
 Every manual step required to take a fresh clone of this repo to a working
-local deployment. You need Node, Docker (for local Postgres only), and a
-GitHub OAuth app.
+local deployment. You need Docker, optionally Node (for the host-dev flow),
+and a GitHub OAuth app.
 
 For day-2 operations on a running stack (allowlist, key rotation, log
 tailing) see [docs/OPERATIONS.md](OPERATIONS.md). For the architecture
@@ -17,14 +17,38 @@ diverge, both are shown.
 
 ---
 
+## Pick a flow
+
+Two ways to run the stack locally:
+
+| Flow                                  | What runs where                                              | When to use                                                 |
+| ------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------- |
+| **Flow 1 — full Docker**              | Both `postgres` and `web` services in `docker compose`       | Closest to prod. Verifying the Dockerfile / shipping image. |
+| **Flow 2 — host dev** (default below) | `postgres` in compose, Next.js on the host via `npm run dev` | Fastest iteration. Hot reload. Day-to-day development.      |
+
+**Flow 1 short version** (after the one-time `.env.local` setup in steps 6–8 below):
+
+```bash
+docker compose up --build
+```
+
+Logs show postgres healthy → web running migrations → web "ready in Xms".
+Visit <http://localhost:3000>. Reset the database with `docker compose down -v`.
+
+The full walkthrough below covers Flow 2; almost every step applies to
+Flow 1 too, just substitute "the running web container" for "your `npm
+run dev` window".
+
+---
+
 ## 1. Prerequisites — install on your machine
 
-| Tool                                                                      | Version  | Purpose                                                            |
-| ------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------ |
-| [Node.js for Windows](https://nodejs.org/en/download)                     | >= 20.9  | Next.js 16 minimum, also runs the in-process review runner        |
-| npm (bundled with Node)                                                   | >= 10    | Workspace support                                                  |
-| [Git for Windows](https://git-scm.com/download/win)                       | recent   | `git` on PATH for the runner's clone step; provides Git Bash       |
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/)         | recent   | Local Postgres (one container; no app container until Phase B)     |
+| Tool                                                              | Version | Purpose                                                      |
+| ----------------------------------------------------------------- | ------- | ------------------------------------------------------------ |
+| [Node.js for Windows](https://nodejs.org/en/download)             | >= 20.9 | Next.js 16 minimum, also runs the in-process review runner   |
+| npm (bundled with Node)                                           | >= 10   | Workspace support                                            |
+| [Git for Windows](https://git-scm.com/download/win)               | recent  | `git` on PATH for the runner's clone step; provides Git Bash |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | recent  | Postgres in both flows; the `web` service in Flow 1          |
 
 Verify before continuing:
 
@@ -37,11 +61,11 @@ docker --version
 
 ## 2. External accounts and credentials you need
 
-| Credential                            | Where to get it                                          | Used by                              | Consequence if missing                                                                                    |
-| ------------------------------------- | -------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| GitHub OAuth app (Client ID + Secret) | <https://github.com/settings/developers> → New OAuth App | Auth.js (`AUTH_GITHUB_*`)            | Cannot sign in. App is unusable.                                                                          |
-| Anthropic API key                     | <https://console.anthropic.com> → API Keys               | Review runner (`ANTHROPIC_API_KEY`)  | Runner cannot run real reviews. The stub executor (`REVIEW_EXECUTOR=stub`) still works without one.       |
-| GitHub username (yours)               | the username you'll sign in with                         | `allowed_users` row in Postgres      | OAuth login is rejected by the allowlist gate.                                                            |
+| Credential                            | Where to get it                                          | Used by                             | Consequence if missing                                                                              |
+| ------------------------------------- | -------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------- |
+| GitHub OAuth app (Client ID + Secret) | <https://github.com/settings/developers> → New OAuth App | Auth.js (`AUTH_GITHUB_*`)           | Cannot sign in. App is unusable.                                                                    |
+| Anthropic API key                     | <https://console.anthropic.com> → API Keys               | Review runner (`ANTHROPIC_API_KEY`) | Runner cannot run real reviews. The stub executor (`REVIEW_EXECUTOR=stub`) still works without one. |
+| GitHub username (yours)               | the username you'll sign in with                         | `allowed_users` row in Postgres     | OAuth login is rejected by the allowlist gate.                                                      |
 
 The stub executor is enough to exercise the full streaming path without
 spending Anthropic credits.
@@ -60,10 +84,11 @@ npm install
 docker compose up postgres -d
 ```
 
-The `docker-compose.yml` at the repo root brings up a single
-`postgres:16-alpine` service on `127.0.0.1:5432` with user/password/db all
-set to `app` / `app` / `enhanced_review`. State persists in the named
-volume `enhanced-review_pgdata`.
+The `docker-compose.yml` at the repo root brings up `postgres:17-alpine`
+on `127.0.0.1:5432` with user/password/db all set to `app` / `app` /
+`enhanced_review`. State persists in the named volume
+`enhanced-review_pgdata`. (The compose file also defines a `web` service
+for Flow 1 — `docker compose up postgres` only starts the database.)
 
 To stop:
 
@@ -103,13 +128,13 @@ Copy-Item .env.example .env.local
 
 Edit `.env.local` and fill in:
 
-| `.env.local` key       | Value                                                                                                      |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `AUTH_SECRET`          | random secret used to sign session cookies. Generate with `openssl rand -base64 32` (or any 32-byte hex). |
-| `AUTH_GITHUB_ID`       | the Client ID from step 6                                                                                  |
-| `AUTH_GITHUB_SECRET`   | the Client Secret from step 6                                                                              |
-| `SEED_GITHUB_LOGIN`    | your GitHub handle (the account you'll sign in with)                                                       |
-| `ANTHROPIC_API_KEY`    | (optional) your Anthropic API key — only needed for `REVIEW_EXECUTOR=claude`                                |
+| `.env.local` key     | Value                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------- |
+| `AUTH_SECRET`        | random secret used to sign session cookies. Generate with `openssl rand -base64 32` (or any 32-byte hex). |
+| `AUTH_GITHUB_ID`     | the Client ID from step 6                                                                                 |
+| `AUTH_GITHUB_SECRET` | the Client Secret from step 6                                                                             |
+| `SEED_GITHUB_LOGIN`  | your GitHub handle (the account you'll sign in with)                                                      |
+| `ANTHROPIC_API_KEY`  | (optional) your Anthropic API key — only needed for `REVIEW_EXECUTOR=claude`                              |
 
 `DATABASE_URL` and `AUTH_URL` are already set to local defaults in the
 template; no changes needed for the dev workflow.
@@ -160,10 +185,10 @@ If anything goes wrong, check:
 
 ## File-by-file: where every secret lives
 
-| File                    | Gitignored? | Contains                                                                                  | Read by                          |
-| ----------------------- | ----------- | ----------------------------------------------------------------------------------------- | -------------------------------- |
-| `.env.local`            | yes         | DB URL, Auth.js secret, GitHub OAuth client id + secret, Anthropic API key, runner knobs | Next.js dev server, db scripts   |
-| Postgres volume         | yes (Docker) | Sessions, accounts (incl. GitHub access tokens), allowlist, jobs/reviews/chunks          | Postgres container                |
+| File            | Gitignored?  | Contains                                                                                 | Read by                        |
+| --------------- | ------------ | ---------------------------------------------------------------------------------------- | ------------------------------ |
+| `.env.local`    | yes          | DB URL, Auth.js secret, GitHub OAuth client id + secret, Anthropic API key, runner knobs | Next.js dev server, db scripts |
+| Postgres volume | yes (Docker) | Sessions, accounts (incl. GitHub access tokens), allowlist, jobs/reviews/chunks          | Postgres container             |
 
 ## Stop / reset
 
@@ -188,3 +213,23 @@ npm run dev                     # Next.js dev server in the foreground
 
 Schema, allowlist rows, sessions, accounts, and any data you've created
 all persist in the Postgres volume across host reboots.
+
+## Recovering after a host crash
+
+If `npm run dev` is killed while a review is mid-flight (Ctrl+C is fine —
+the SIGINT handler aborts cleanly; ungraceful kills are the issue), the
+`review_jobs` row stays in `status='running'` with no in-process runner.
+Subsequent visits to the live view will hang.
+
+Fix:
+
+```bash
+npm run db:recover
+```
+
+Flips every orphan `running` row to `error` and emits a terminal NOTIFY
+so any reconnecting subscriber sees the final state. Idempotent — safe
+to run any time.
+
+In Flow 1 this happens automatically on container restart (the entrypoint
+runs the same script before `node server.js` accepts requests).

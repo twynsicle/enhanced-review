@@ -2,7 +2,7 @@
 
 **Status:** planning. **Audience:** the maintainer (Steven) and any future contributor walking into this work cold.
 
-This is the index document for the migration of `enhanced-review` off PocketBase onto a Postgres + Next.js + AWS ECS stack. It captures the *why*, the *target architecture*, the *decisions made*, and the *order of work*. Every other doc in this folder is a sub-plan that elaborates one slice; this doc is the map.
+This is the index document for the migration of `enhanced-review` off PocketBase onto a Postgres + Next.js + AWS ECS stack. It captures the _why_, the _target architecture_, the _decisions made_, and the _order of work_. Every other doc in this folder is a sub-plan that elaborates one slice; this doc is the map.
 
 If you only have time to read one file in this folder, read this one.
 
@@ -56,20 +56,20 @@ This is a personal POC; **no data migration is required** (the existing PB data 
 
 These were made by the user during planning. Marked as **DECIDED** so future-you doesn't re-litigate them.
 
-| #   | Question                                          | Decision                                                          | Why / where to find more                                            |
-| --- | ------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
-| D1  | Backend shape                                     | Keep Next.js monolith                                             | Smallest diff. Single web container.                                |
-| D2  | Auth library                                      | Auth.js v5 (NextAuth) + Drizzle adapter, keep GitHub OAuth        | Standard for Next.js 16 App Router. See [02](./02-auth-replacement.md). |
-| D3  | DB toolkit                                        | Drizzle ORM + drizzle-kit migrations                              | Lightweight, SQL-first, typed. See [01](./01-postgres-data-layer.md).  |
-| D4  | Realtime                                          | SSE route handler backed by Postgres LISTEN/NOTIFY                | Lowest-latency replacement for PB realtime. See [03](./03-realtime.md). |
-| D5  | Hosting                                           | ECS Fargate, single task, two containers (web + postgres)         | Mid-cost, mid-complexity. See [06](./06-aws-infra-terraform.md).       |
-| D6  | DB storage                                        | Postgres in container, EFS-backed volume                          | Acceptable I/O for POC traffic. See [06](./06-aws-infra-terraform.md). |
-| D7  | Access control                                    | Public ALB + Cognito user pool                                    | Managed, AWS-native. See [06](./06-aws-infra-terraform.md).            |
-| D8  | Domain / TLS                                      | Register a domain in Route53 (~$12/yr) + ACM cert                 | Cleanest TLS path. Required by Cognito ALB integration.              |
-| D9  | Secrets                                           | AWS Secrets Manager                                               | See [06](./06-aws-infra-terraform.md).                                |
-| D10 | GH Actions ↔ AWS                                  | OIDC federation                                                   | No long-lived keys. See [07](./07-cd-image.md), [08](./08-cd-infra.md). |
-| D11 | Subnet topology                                   | Public subnet for the Fargate task (no NAT Gateway)               | NAT is ~$32/mo and would dominate cost. ALB + SG handle exposure.   |
-| D12 | Org-facing proposal docs                          | Write 11 (SRE) and 12 (engineer) after implementation lands       | Claims need to be grounded in the working system. See plan Phase F. |
+| #   | Question                 | Decision                                                    | Why / where to find more                                                |
+| --- | ------------------------ | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
+| D1  | Backend shape            | Keep Next.js monolith                                       | Smallest diff. Single web container.                                    |
+| D2  | Auth library             | Auth.js v5 (NextAuth) + Drizzle adapter, keep GitHub OAuth  | Standard for Next.js 16 App Router. See [02](./02-auth-replacement.md). |
+| D3  | DB toolkit               | Drizzle ORM + drizzle-kit migrations                        | Lightweight, SQL-first, typed. See [01](./01-postgres-data-layer.md).   |
+| D4  | Realtime                 | SSE route handler backed by Postgres LISTEN/NOTIFY          | Lowest-latency replacement for PB realtime. See [03](./03-realtime.md). |
+| D5  | Hosting                  | ECS Fargate, single task, two containers (web + postgres)   | Mid-cost, mid-complexity. See [06](./06-aws-infra-terraform.md).        |
+| D6  | DB storage               | Postgres in container, EFS-backed volume                    | Acceptable I/O for POC traffic. See [06](./06-aws-infra-terraform.md).  |
+| D7  | Access control           | Public ALB + Cognito user pool                              | Managed, AWS-native. See [06](./06-aws-infra-terraform.md).             |
+| D8  | Domain / TLS             | Register a domain in Route53 (~$12/yr) + ACM cert           | Cleanest TLS path. Required by Cognito ALB integration.                 |
+| D9  | Secrets                  | AWS Secrets Manager                                         | See [06](./06-aws-infra-terraform.md).                                  |
+| D10 | GH Actions ↔ AWS         | OIDC federation                                             | No long-lived keys. See [07](./07-cd-image.md), [08](./08-cd-infra.md). |
+| D11 | Subnet topology          | Public subnet for the Fargate task (no NAT Gateway)         | NAT is ~$32/mo and would dominate cost. ALB + SG handle exposure.       |
+| D12 | Org-facing proposal docs | Write 11 (SRE) and 12 (engineer) after implementation lands | Claims need to be grounded in the working system. See plan Phase F.     |
 
 Trade-offs flagged in the master plan but worth re-reading at execution time:
 
@@ -85,31 +85,31 @@ Trade-offs flagged in the master plan but worth re-reading at execution time:
 
 ### Implementation planning (00–10)
 
-What to build for *this* migration, scoped to this repo.
+What to build for _this_ migration, scoped to this repo.
 
-| Doc                                                       | What it covers                                                              |
-| --------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **[00-overview.md](./00-overview.md)**                    | This file. Index, decisions, phase order.                                   |
-| **[01-postgres-data-layer.md](./01-postgres-data-layer.md)** | Drizzle schema, migrations, write-path migration checklist.              |
-| **[02-auth-replacement.md](./02-auth-replacement.md)**    | Auth.js v5 setup, allowlist gate rewrite, Cognito layering.                 |
-| **[03-realtime.md](./03-realtime.md)**                    | SSE + LISTEN/NOTIFY pattern.                                                |
-| **[04-job-runner-rewrite.md](./04-job-runner-rewrite.md)** | Runner write paths, graceful shutdown, abort registry.                     |
-| **[05-local-docker.md](./05-local-docker.md)**            | Dockerfile, docker-compose, local dev flow.                                 |
-| **[06-aws-infra-terraform.md](./06-aws-infra-terraform.md)** | All AWS resources via Terraform.                                         |
-| **[07-cd-image.md](./07-cd-image.md)**                    | GitHub Actions image deploy pipeline.                                       |
-| **[08-cd-infra.md](./08-cd-infra.md)**                    | GitHub Actions Terraform apply pipeline.                                    |
-| **[09-cost-and-operations.md](./09-cost-and-operations.md)** | Monthly cost, kill-switch, day-2 ops runbook.                            |
-| **[10-existing-docs-updates.md](./10-existing-docs-updates.md)** | Edits to README, RUNNING, OPERATIONS, AGENTS.                         |
-| **[phase-b-plan.md](./phase-b-plan.md)**                  | Phase B execution playbook: ordered commits, decisions log, verification. |
+| Doc                                                              | What it covers                                                            |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| **[00-overview.md](./00-overview.md)**                           | This file. Index, decisions, phase order.                                 |
+| **[01-postgres-data-layer.md](./01-postgres-data-layer.md)**     | Drizzle schema, migrations, write-path migration checklist.               |
+| **[02-auth-replacement.md](./02-auth-replacement.md)**           | Auth.js v5 setup, allowlist gate rewrite, Cognito layering.               |
+| **[03-realtime.md](./03-realtime.md)**                           | SSE + LISTEN/NOTIFY pattern.                                              |
+| **[04-job-runner-rewrite.md](./04-job-runner-rewrite.md)**       | Runner write paths, graceful shutdown, abort registry.                    |
+| **[05-local-docker.md](./05-local-docker.md)**                   | Dockerfile, docker-compose, local dev flow.                               |
+| **[06-aws-infra-terraform.md](./06-aws-infra-terraform.md)**     | All AWS resources via Terraform.                                          |
+| **[07-cd-image.md](./07-cd-image.md)**                           | GitHub Actions image deploy pipeline.                                     |
+| **[08-cd-infra.md](./08-cd-infra.md)**                           | GitHub Actions Terraform apply pipeline.                                  |
+| **[09-cost-and-operations.md](./09-cost-and-operations.md)**     | Monthly cost, kill-switch, day-2 ops runbook.                             |
+| **[10-existing-docs-updates.md](./10-existing-docs-updates.md)** | Edits to README, RUNNING, OPERATIONS, AGENTS.                             |
+| **[phase-b-plan.md](./phase-b-plan.md)**                         | Phase B execution playbook: ordered commits, decisions log, verification. |
 
 ### Org-facing proposals (11–12)
 
 For pitching the pattern as a reusable template.
 
-| Doc                                                                         | Audience                            | Purpose                                                                |
-| --------------------------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------- |
-| **[11-proposal-lightweight-infra.md](./11-proposal-lightweight-infra.md)** | SREs, platform engineers            | Pitch the AWS pattern; defend cost, security, ops decisions.          |
-| **[12-proposal-software-stack.md](./12-proposal-software-stack.md)**       | Application engineers               | Pitch the libraries / patterns; show what fits and what doesn't.     |
+| Doc                                                                        | Audience                 | Purpose                                                          |
+| -------------------------------------------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
+| **[11-proposal-lightweight-infra.md](./11-proposal-lightweight-infra.md)** | SREs, platform engineers | Pitch the AWS pattern; defend cost, security, ops decisions.     |
+| **[12-proposal-software-stack.md](./12-proposal-software-stack.md)**       | Application engineers    | Pitch the libraries / patterns; show what fits and what doesn't. |
 
 ---
 
@@ -132,23 +132,23 @@ The 13 docs map onto six execution phases. Each phase ends in a working, demo-ab
 
 When reading PB-era code or docs, this is the cheat sheet.
 
-| PocketBase                                              | Replacement                                                                       |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `users` collection (built-in auth)                      | `users` table (Auth.js standard schema) + custom `github_login` column            |
-| `_superusers` (admin auth)                              | None — server uses the same DB connection at full privilege; no separate admin    |
-| `allowed_users` collection                              | `allowed_users` table                                                             |
-| `review_jobs`, `reviews`, `review_chunks` collections   | Same names as Postgres tables, JSONB for `target` / `content`                     |
-| `pbServer()` (per-request, session-bound client)        | Auth.js `auth()` for session + Drizzle handle for queries                         |
-| `pbAdmin()` (rule-bypassing admin client)               | Plain Drizzle handle (no rule layer; access control lives in route handlers)      |
+| PocketBase                                              | Replacement                                                                           |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `users` collection (built-in auth)                      | `users` table (Auth.js standard schema) + custom `github_login` column                |
+| `_superusers` (admin auth)                              | None — server uses the same DB connection at full privilege; no separate admin        |
+| `allowed_users` collection                              | `allowed_users` table                                                                 |
+| `review_jobs`, `reviews`, `review_chunks` collections   | Same names as Postgres tables, JSONB for `target` / `content`                         |
+| `pbServer()` (per-request, session-bound client)        | Auth.js `auth()` for session + Drizzle handle for queries                             |
+| `pbAdmin()` (rule-bypassing admin client)               | Plain Drizzle handle (no rule layer; access control lives in route handlers)          |
 | `pbBrowser()` (browser singleton, realtime SSE)         | `EventSource` against `/api/jobs/[id]/stream` + `useSession()` from `next-auth/react` |
-| `pb.collection().subscribe(filter, cb)`                 | SSE handler holding a `pg.Client` doing `LISTEN job_<id>`                          |
-| `pb.collection().authWithOAuth2()`                      | `signIn('github')` from `next-auth/react`                                         |
-| `pb.authStore.loadFromCookie/exportToCookie`            | Auth.js manages `authjs.session-token` cookie automatically                       |
-| `pb_data/settings.json` (OAuth client config)           | `AUTH_GITHUB_ID` + `AUTH_GITHUB_SECRET` env vars (from Secrets Manager)           |
-| Collection access rules (`@request.auth.id != ""` etc.) | Per-route checks in handlers + middleware in `src/proxy.ts`                       |
-| `pb_migrations/*.js` (JSVM)                             | `drizzle/*.sql` (drizzle-kit generated)                                           |
-| `npm run pb` (start binary)                             | `docker compose up postgres` (or full stack)                                      |
-| PB realtime SSE (`/api/realtime`)                       | App-owned SSE route at `/api/jobs/[id]/stream`                                    |
+| `pb.collection().subscribe(filter, cb)`                 | SSE handler holding a `pg.Client` doing `LISTEN job_<id>`                             |
+| `pb.collection().authWithOAuth2()`                      | `signIn('github')` from `next-auth/react`                                             |
+| `pb.authStore.loadFromCookie/exportToCookie`            | Auth.js manages `authjs.session-token` cookie automatically                           |
+| `pb_data/settings.json` (OAuth client config)           | `AUTH_GITHUB_ID` + `AUTH_GITHUB_SECRET` env vars (from Secrets Manager)               |
+| Collection access rules (`@request.auth.id != ""` etc.) | Per-route checks in handlers + middleware in `src/proxy.ts`                           |
+| `pb_migrations/*.js` (JSVM)                             | `drizzle/*.sql` (drizzle-kit generated)                                               |
+| `npm run pb` (start binary)                             | `docker compose up postgres` (or full stack)                                          |
+| PB realtime SSE (`/api/realtime`)                       | App-owned SSE route at `/api/jobs/[id]/stream`                                        |
 
 ---
 

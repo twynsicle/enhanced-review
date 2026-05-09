@@ -41,7 +41,7 @@ Two edits:
 
 ```typescript
 const nextConfig: NextConfig = {
-  output: 'standalone',                    // <-- add this
+  output: 'standalone', // <-- add this
   reactStrictMode: true,
   transpilePackages: ['@enhanced-review/github-client', '@enhanced-review/review-types'],
   images: {
@@ -154,7 +154,7 @@ Notes:
 - **`set -eu`, not `set -euo pipefail`.** Alpine's BusyBox `sh` doesn't reliably support `pipefail`. `set -eu` is enough for this script.
 - **Migrations first.** If they fail, container exits and ECS retries. Postgres sidecar is unaffected.
 - **Recovery pass second.** Marks orphaned `running` jobs as `error` (see [04](./04-job-runner-rewrite.md)). The `|| echo …` swallows a recovery failure so a stale data layer doesn't block startup — the live view just reports "error" later.
-- **Recovery is here, not in `instrumentation.ts`.** Phase B moves the orphan-flip step out of Next's boot hook and into a standalone CJS script (`scripts/recover-jobs.cjs`) that runs *before* `node server.js` accepts requests. The Next.js `instrumentation.ts` keeps only the SIGTERM handler. This means there's a single source of truth for recovery and no duplicate work on every boot.
+- **Recovery is here, not in `instrumentation.ts`.** Phase B moves the orphan-flip step out of Next's boot hook and into a standalone CJS script (`scripts/recover-jobs.cjs`) that runs _before_ `node server.js` accepts requests. The Next.js `instrumentation.ts` keeps only the SIGTERM handler. This means there's a single source of truth for recovery and no duplicate work on every boot.
 - **`exec "$@"`** — replaces the shell process with `node server.js` so signals reach Node directly (in addition to tini).
 
 The migration runner reuses `drizzle/migrate.mts` (the same file `npm run db:migrate` runs through tsx); the build stage compiles it with `tsc` to `drizzle/migrate.mjs`. The `.mts` → `.mjs` extension preserves the source's ESM-only `import.meta.url` lookup of the migrations folder. Single source of truth, no `tsx` in the runtime image, no hand-rolled `.cjs` sibling to drift.
@@ -191,10 +191,7 @@ async function main() {
       const userPayload = JSON.stringify({ jobId: row.id, status: 'error' });
       try {
         await pool.query('SELECT pg_notify($1, $2)', [`job_${row.id}`, jobPayload]);
-        await pool.query('SELECT pg_notify($1, $2)', [
-          `user_${row.user_id}:terminal`,
-          userPayload,
-        ]);
+        await pool.query('SELECT pg_notify($1, $2)', [`user_${row.user_id}:terminal`, userPayload]);
       } catch (err) {
         console.warn('[recover] notify failed', err);
       }
@@ -237,7 +234,7 @@ Thumbs.db
 
 Aggressive: anything that bloats the image without being needed at build/runtime.
 
-> Keep `.env.example` so the runtime image doesn't 404 on missing-file checks if any tooling looks for it. `.env*` patterns block the *real* `.env`/`.env.local` from leaking in.
+> Keep `.env.example` so the runtime image doesn't 404 on missing-file checks if any tooling looks for it. `.env*` patterns block the _real_ `.env`/`.env.local` from leaking in.
 
 ---
 
@@ -254,11 +251,11 @@ services:
       POSTGRES_PASSWORD: app
       POSTGRES_DB: enhanced_review
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d enhanced_review"]
+      test: ['CMD-SHELL', 'pg_isready -U app -d enhanced_review']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -279,7 +276,7 @@ services:
       AUTH_URL: http://localhost:3000
       AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
       AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
-      AUTH_TRUST_HOST: "true"
+      AUTH_TRUST_HOST: 'true'
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       REVIEW_EXECUTOR: ${REVIEW_EXECUTOR:-stub}
       REVIEW_MODEL: ${REVIEW_MODEL:-claude-haiku-4-5}
@@ -288,7 +285,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_PRETTY: ${LOG_PRETTY:-0}
     ports:
-      - "3000:3000"
+      - '3000:3000'
 
 volumes:
   pgdata:
@@ -299,7 +296,7 @@ volumes:
 - **Named `pgdata` volume, not a bind mount.** Avoids Windows WSL2 bind-mount permission errors on a Windows host, which is the user's primary platform. Reset is `docker compose down -v` (one command, no manual `rm -rf`). The Postgres data is throwaway POC data anyway.
 - **Postgres port published to host.** Lets you connect with `psql -h 127.0.0.1 -U app enhanced_review` from your shell. Optional; remove for slightly tighter dev posture.
 - **`depends_on: condition: service_healthy`.** Web waits for Postgres to be ready before booting. Avoids the migration race on first up.
-- **`AUTH_URL` *and* `AUTH_TRUST_HOST=true`.** `AUTH_URL` pins the canonical origin; `AUTH_TRUST_HOST` is the explicit Auth.js v5 toggle that lets it trust the Host header in non-Vercel deployments. Setting both mirrors how the prod ECS task will be configured in Phase C.
+- **`AUTH_URL` _and_ `AUTH_TRUST_HOST=true`.** `AUTH_URL` pins the canonical origin; `AUTH_TRUST_HOST` is the explicit Auth.js v5 toggle that lets it trust the Host header in non-Vercel deployments. Setting both mirrors how the prod ECS task will be configured in Phase C.
 - **`image: enhanced-review:local`.** Tags the build so it's identifiable in `docker images` (vs an auto-generated `<project>-web` name). Distinct from Phase D's ECR-tagged production builds.
 - **`POSTGRES_PASSWORD: app`.** Stays consistent with the existing `.env.example` and `docs/RUNNING.md`. Safe because port 5432 is bound to localhost, no external reach.
 

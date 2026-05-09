@@ -17,11 +17,11 @@ services:
       POSTGRES_PASSWORD: app
       POSTGRES_DB: enhanced_review
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d enhanced_review"]
+      test: ['CMD-SHELL', 'pg_isready -U app -d enhanced_review']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -42,7 +42,7 @@ services:
       AUTH_URL: http://localhost:3000
       AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
       AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
-      AUTH_TRUST_HOST: "true"
+      AUTH_TRUST_HOST: 'true'
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       REVIEW_EXECUTOR: ${REVIEW_EXECUTOR:-stub}
       REVIEW_MODEL: ${REVIEW_MODEL:-claude-haiku-4-5}
@@ -51,7 +51,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_PRETTY: ${LOG_PRETTY:-0}
     ports:
-      - "3000:3000"
+      - '3000:3000'
 
 volumes:
   pgdata:
