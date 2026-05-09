@@ -13,13 +13,7 @@ import { ClaudeExecutor } from './executor/claude-executor';
 import { StubExecutor } from './executor/stub-executor';
 import { ExecutorParseError, ExecutorProcessError } from './executor/types';
 import { fetchPullMetadata, GithubFetchError } from './github';
-import {
-  finalizeAsDone,
-  insertChunk,
-  markCancelled,
-  markErrored,
-  markRunning,
-} from './writes';
+import { finalizeAsDone, insertChunk, markCancelled, markErrored, markRunning } from './writes';
 import type { PrData } from './prompt/types';
 
 interface ParsedTarget {

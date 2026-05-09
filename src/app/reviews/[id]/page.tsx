@@ -45,11 +45,7 @@ export default async function ReviewPage({
   const session = await auth();
   if (!session?.user) redirect('/login');
 
-  const jobRows = await db
-    .select()
-    .from(reviewJobs)
-    .where(eq(reviewJobs.id, id))
-    .limit(1);
+  const jobRows = await db.select().from(reviewJobs).where(eq(reviewJobs.id, id)).limit(1);
   if (jobRows.length === 0) notFound();
   const job: ReviewJobRow = toJobRow(jobRows[0]);
 
@@ -57,11 +53,7 @@ export default async function ReviewPage({
     redirect(`/jobs/${id}`);
   }
 
-  const reviewRows = await db
-    .select()
-    .from(reviews)
-    .where(eq(reviews.jobId, id))
-    .limit(1);
+  const reviewRows = await db.select().from(reviews).where(eq(reviews.jobId, id)).limit(1);
   if (reviewRows.length === 0) {
     redirect(`/jobs/${id}`);
   }

@@ -22,11 +22,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const session = await auth();
   if (!session?.user) redirect('/login');
 
-  const jobRows = await db
-    .select()
-    .from(reviewJobs)
-    .where(eq(reviewJobs.id, id))
-    .limit(1);
+  const jobRows = await db.select().from(reviewJobs).where(eq(reviewJobs.id, id)).limit(1);
   if (jobRows.length === 0) notFound();
   const job = toJobRow(jobRows[0]);
 

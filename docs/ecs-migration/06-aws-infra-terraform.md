@@ -82,7 +82,7 @@ terraform/
   README.md              # how to bootstrap and apply
 ```
 
-> Why one big root module instead of separate modules? Cost-of-abstraction. The whole stack is ~250 lines of HCL; splitting it adds ceremony without benefit. If we ever templatize for multiple apps (the proposal in [11](./11-proposal-lightweight-infra.md)), *that's* the point to extract a module.
+> Why one big root module instead of separate modules? Cost-of-abstraction. The whole stack is ~250 lines of HCL; splitting it adds ceremony without benefit. If we ever templatize for multiple apps (the proposal in [11](./11-proposal-lightweight-infra.md)), _that's_ the point to extract a module.
 
 ### State backend (chicken-and-egg)
 
@@ -153,14 +153,14 @@ ALB requires two AZs for the target group (it's a hard ALB requirement, even if 
 
 Private subnet + NAT Gateway is the usual "production-correct" pattern. For us:
 
-| Aspect          | Public subnet (default)                          | Private + NAT                                       |
-| --------------- | ------------------------------------------------ | --------------------------------------------------- |
-| Monthly cost    | ~$0 in extra networking                          | ~$32/mo NAT Gateway + per-GB egress                 |
-| Egress IP       | Task ENI's public IP (changes per task)          | NAT EIP (stable, allowlist-friendly)                |
-| Inbound surface | Task has a public IP (locked by SG)              | Task has only private IP                            |
-| Operational     | Slightly less "production correct"               | Standard pattern                                    |
+| Aspect          | Public subnet (default)                 | Private + NAT                        |
+| --------------- | --------------------------------------- | ------------------------------------ |
+| Monthly cost    | ~$0 in extra networking                 | ~$32/mo NAT Gateway + per-GB egress  |
+| Egress IP       | Task ENI's public IP (changes per task) | NAT EIP (stable, allowlist-friendly) |
+| Inbound surface | Task has a public IP (locked by SG)     | Task has only private IP             |
+| Operational     | Slightly less "production correct"      | Standard pattern                     |
 
-For a personal POC where the task has nothing public-listening *except* through the ALB, the public-subnet pattern is acceptable and saves the bill from ballooning. Doc [09](./09-cost-and-operations.md) has the cost breakdown; doc [11](./11-proposal-lightweight-infra.md) frames this for SREs as a "POC pattern" with the upgrade path.
+For a personal POC where the task has nothing public-listening _except_ through the ALB, the public-subnet pattern is acceptable and saves the bill from ballooning. Doc [09](./09-cost-and-operations.md) has the cost breakdown; doc [11](./11-proposal-lightweight-infra.md) frames this for SREs as a "POC pattern" with the upgrade path.
 
 ---
 

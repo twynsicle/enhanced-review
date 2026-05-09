@@ -42,9 +42,7 @@ export function JobLiveView({
       try {
         const payload = JSON.parse(e.data) as { job: ReviewJobRow; chunks: ReviewChunkRow[] };
         setJob(payload.job);
-        setChunks(
-          [...payload.chunks].sort((a, b) => a.seq - b.seq),
-        );
+        setChunks([...payload.chunks].sort((a, b) => a.seq - b.seq));
       } catch {
         /* swallowed */
       }

@@ -31,11 +31,7 @@ export async function GET(req: Request, ctx: RouteContext<'/api/jobs/[id]/stream
   const session = await auth();
   if (!session?.user) return new Response('Unauthorized', { status: 401 });
 
-  const jobRows = await db
-    .select()
-    .from(reviewJobs)
-    .where(eq(reviewJobs.id, id))
-    .limit(1);
+  const jobRows = await db.select().from(reviewJobs).where(eq(reviewJobs.id, id)).limit(1);
   if (jobRows.length === 0) return new Response('Not found', { status: 404 });
 
   const initialJob = toJobRow(jobRows[0]);

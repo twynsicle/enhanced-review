@@ -55,10 +55,10 @@ on:
 
 concurrency:
   group: deploy-image-${{ github.ref }}
-  cancel-in-progress: false   # never cancel a deploy mid-flight
+  cancel-in-progress: false # never cancel a deploy mid-flight
 
 permissions:
-  id-token: write    # OIDC
+  id-token: write # OIDC
   contents: read
 
 env:
@@ -69,7 +69,7 @@ env:
 
 jobs:
   ci:
-    uses: ./.github/workflows/ci.yml   # require CI green before deploying
+    uses: ./.github/workflows/ci.yml # require CI green before deploying
 
   deploy:
     needs: ci
@@ -102,13 +102,13 @@ jobs:
             ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          provenance: false   # avoid surprising attestations on a small repo
+          provenance: false # avoid surprising attestations on a small repo
 
       - name: Render new task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: terraform/task-definition.json   # exported via terraform output
+          task-definition: terraform/task-definition.json # exported via terraform output
           container-name: web
           image: ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:sha-${{ github.sha }}
 
@@ -179,14 +179,14 @@ ECS deployment circuit breaker (enabled in [06](./06-aws-infra-terraform.md)) de
 
 Every successful build pushes two tags:
 
-| Tag                | Mutability | Purpose                                                        |
-| ------------------ | ---------- | -------------------------------------------------------------- |
-| `sha-<commit-sha>` | Immutable  | Trace provenance; what's deployed at any time                  |
-| `latest`           | Mutable    | Convenience; emergency `docker run :latest` smoke              |
+| Tag                | Mutability | Purpose                                           |
+| ------------------ | ---------- | ------------------------------------------------- |
+| `sha-<commit-sha>` | Immutable  | Trace provenance; what's deployed at any time     |
+| `latest`           | Mutable    | Convenience; emergency `docker run :latest` smoke |
 
 **Don't tag with version numbers.** The repo doesn't ship versions. Commit SHA is the only stable identifier.
 
-ECR lifecycle policy ([06](./06-aws-infra-terraform.md)) keeps the last 10 `sha-` images, expires the rest. So a 6-month-old build is gone — *that's intentional*. If you need to deploy old code, build it from source.
+ECR lifecycle policy ([06](./06-aws-infra-terraform.md)) keeps the last 10 `sha-` images, expires the rest. So a 6-month-old build is gone — _that's intentional_. If you need to deploy old code, build it from source.
 
 ---
 

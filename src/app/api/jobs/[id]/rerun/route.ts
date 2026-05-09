@@ -118,10 +118,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
         .select({ id: reviewJobs.id })
         .from(reviewJobs)
         .where(
-          and(
-            eq(reviewJobs.userId, userId),
-            inArray(reviewJobs.status, ['pending', 'running']),
-          ),
+          and(eq(reviewJobs.userId, userId), inArray(reviewJobs.status, ['pending', 'running'])),
         )
         .limit(cap);
       if (activeRows.length >= cap) {
@@ -151,10 +148,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
         { status: 409 },
       );
     }
-    logger.error(
-      { err, source_job_id: id, user_id: userId },
-      '[api/jobs/rerun] insert failed',
-    );
+    logger.error({ err, source_job_id: id, user_id: userId }, '[api/jobs/rerun] insert failed');
     return NextResponse.json({ message: 'failed to create job' }, { status: 500 });
   }
 

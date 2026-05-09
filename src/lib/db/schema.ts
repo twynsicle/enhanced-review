@@ -79,18 +79,10 @@ export const allowedUsers = pgTable('allowed_users', {
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   githubLogin: text('github_login').notNull().unique(),
-  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
 });
 
-export const jobStatus = pgEnum('job_status', [
-  'pending',
-  'running',
-  'done',
-  'error',
-  'cancelled',
-]);
+export const jobStatus = pgEnum('job_status', ['pending', 'running', 'done', 'error', 'cancelled']);
 
 export const reviewJobs = pgTable(
   'review_jobs',
@@ -110,12 +102,8 @@ export const reviewJobs = pgTable(
     cancelledAt: timestamp('cancelled_at', { mode: 'date', withTimezone: true }),
     errorMessage: text('error_message'),
     riskScore: integer('risk_score'),
-    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('review_jobs_status_idx').on(t.status),
@@ -134,9 +122,7 @@ export const reviews = pgTable('reviews', {
     .references(() => reviewJobs.id, { onDelete: 'cascade' }),
   content: jsonb('content').notNull().$type<NarrativeReview>(),
   diffTruncated: boolean('diff_truncated').notNull().default(false),
-  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
 });
 
 export const reviewChunks = pgTable(
@@ -150,9 +136,7 @@ export const reviewChunks = pgTable(
       .references(() => reviewJobs.id, { onDelete: 'cascade' }),
     seq: integer('seq').notNull(),
     content: text('content').notNull(),
-    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('review_chunks_job_seq_unique').on(t.jobId, t.seq)],
 );

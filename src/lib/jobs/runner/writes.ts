@@ -70,11 +70,7 @@ export async function finalizeAsDone(
   await notify(`user_${userId}:terminal`, { jobId, status: 'done', riskScore });
 }
 
-export async function markErrored(
-  jobId: string,
-  userId: string,
-  message: string,
-): Promise<void> {
+export async function markErrored(jobId: string, userId: string, message: string): Promise<void> {
   const truncated = message.slice(0, 500);
   try {
     await db
@@ -106,12 +102,7 @@ export async function markCancelled(jobId: string, userId: string): Promise<numb
       cancelledAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(
-      and(
-        eq(reviewJobs.id, jobId),
-        inArray(reviewJobs.status, ['pending', 'running']),
-      ),
-    )
+    .where(and(eq(reviewJobs.id, jobId), inArray(reviewJobs.status, ['pending', 'running'])))
     .returning({ id: reviewJobs.id });
   if (result.length > 0) {
     await notify(`job_${jobId}`, { type: 'status', status: 'cancelled' });

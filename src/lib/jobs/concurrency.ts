@@ -42,12 +42,7 @@ export async function findUserInFlightJob(userId: string): Promise<ActiveJob | n
   const rows = await db
     .select({ id: reviewJobs.id, status: reviewJobs.status })
     .from(reviewJobs)
-    .where(
-      and(
-        eq(reviewJobs.userId, userId),
-        inArray(reviewJobs.status, ['pending', 'running']),
-      ),
-    )
+    .where(and(eq(reviewJobs.userId, userId), inArray(reviewJobs.status, ['pending', 'running'])))
     .orderBy(desc(reviewJobs.createdAt))
     .limit(cap);
   if (rows.length < cap) return null;
@@ -64,11 +59,6 @@ export async function countActiveForUser(userId: string): Promise<number> {
   const [{ n }] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(reviewJobs)
-    .where(
-      and(
-        eq(reviewJobs.userId, userId),
-        inArray(reviewJobs.status, ['pending', 'running']),
-      ),
-    );
+    .where(and(eq(reviewJobs.userId, userId), inArray(reviewJobs.status, ['pending', 'running'])));
   return n;
 }

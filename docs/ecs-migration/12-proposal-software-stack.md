@@ -30,25 +30,25 @@ Pick a different stack for those. For everything in between, this stack hits the
 
 ## 2. Stack at a glance
 
-| Layer                     | Library / framework                | Role                                                  |
-| ------------------------- | ---------------------------------- | ----------------------------------------------------- |
-| Runtime                   | Node 22                            | Standard JS runtime, ESM-native                       |
-| Web framework             | **Next.js 16** (App Router)        | Server + client; routing; server actions; SSR/RSC     |
-| UI library                | React 19                           | Component model                                       |
-| Styling                   | Tailwind CSS v4                    | Utility-first; v4 native CSS engine                   |
-| Component primitives      | shadcn/ui (on Radix)               | Accessible primitives, copied not depended-on         |
-| Auth                      | **Auth.js v5** (NextAuth)          | OAuth, sessions, account storage                      |
-| Auth adapter              | `@auth/drizzle-adapter`            | Sessions/users/accounts in Drizzle tables             |
-| ORM                       | **Drizzle ORM**                    | Schema-as-code, typed queries, lightweight            |
-| Migrations                | `drizzle-kit`                      | Generate + apply SQL migrations                       |
-| DB driver                 | `pg` (node-postgres)               | Pool + per-stream `Client` for LISTEN                 |
-| Database                  | **Postgres 17**                    | Relational + JSONB + LISTEN/NOTIFY + full-text        |
-| Logging                   | pino                               | Structured logs; child loggers per request/job        |
-| Test runner               | Vitest                             | Vite-native; fast; good DX                            |
-| Linting / formatting      | ESLint + Prettier                  | Standard                                              |
-| Container                 | Docker (multi-stage, Alpine)       | Reproducible deploys                                  |
-| Local stack               | docker-compose                     | Postgres + app for local dev                          |
-| AI integration (optional) | `@anthropic-ai/claude-agent-sdk`   | When the app needs an LLM agent                       |
+| Layer                     | Library / framework              | Role                                              |
+| ------------------------- | -------------------------------- | ------------------------------------------------- |
+| Runtime                   | Node 22                          | Standard JS runtime, ESM-native                   |
+| Web framework             | **Next.js 16** (App Router)      | Server + client; routing; server actions; SSR/RSC |
+| UI library                | React 19                         | Component model                                   |
+| Styling                   | Tailwind CSS v4                  | Utility-first; v4 native CSS engine               |
+| Component primitives      | shadcn/ui (on Radix)             | Accessible primitives, copied not depended-on     |
+| Auth                      | **Auth.js v5** (NextAuth)        | OAuth, sessions, account storage                  |
+| Auth adapter              | `@auth/drizzle-adapter`          | Sessions/users/accounts in Drizzle tables         |
+| ORM                       | **Drizzle ORM**                  | Schema-as-code, typed queries, lightweight        |
+| Migrations                | `drizzle-kit`                    | Generate + apply SQL migrations                   |
+| DB driver                 | `pg` (node-postgres)             | Pool + per-stream `Client` for LISTEN             |
+| Database                  | **Postgres 17**                  | Relational + JSONB + LISTEN/NOTIFY + full-text    |
+| Logging                   | pino                             | Structured logs; child loggers per request/job    |
+| Test runner               | Vitest                           | Vite-native; fast; good DX                        |
+| Linting / formatting      | ESLint + Prettier                | Standard                                          |
+| Container                 | Docker (multi-stage, Alpine)     | Reproducible deploys                              |
+| Local stack               | docker-compose                   | Postgres + app for local dev                      |
+| AI integration (optional) | `@anthropic-ai/claude-agent-sdk` | When the app needs an LLM agent                   |
 
 The reference impl uses every line in this table. New apps should treat this as the default; deviate only if you have a specific reason.
 
@@ -63,7 +63,7 @@ The reference impl uses every line in this table. New apps should treat this as 
 - **Streaming is first-class.** Server-Sent Events via `ReadableStream` works inside route handlers; React's `<Suspense>` boundaries stream HTML. The reference impl uses both.
 - **Turbopack is the default in 16.** Sub-second incremental builds; production builds in a fraction of the time of webpack-era Next.
 
-When *not* to choose Next.js:
+When _not_ to choose Next.js:
 
 - Pure static site → use Astro.
 - Edge-runtime everywhere → Next has limits at the App Router level for some primitives; Hono on Cloudflare Workers may fit better.
@@ -76,7 +76,7 @@ When *not* to choose Next.js:
 - **Database sessions over JWT.** Lets you store provider tokens server-side (e.g. the user's GitHub access token) without exposing them to the client. JWT mode requires you to invent your own token store; database sessions plus the Drizzle adapter give you one out of the box.
 - **Allowlist gate via the `signIn` callback.** Idiomatic place to enforce "only members of org X" or "only emails ending in @company.com." See [02](./02-auth-replacement.md) for the pattern.
 
-When *not* to choose Auth.js:
+When _not_ to choose Auth.js:
 
 - B2B SaaS with org switching, SCIM, MFA, SSO certificates → use Clerk, WorkOS, or Stytch.
 - Apps that don't need login → don't pull it in.
@@ -85,12 +85,12 @@ When *not* to choose Auth.js:
 ### Drizzle ORM (with drizzle-kit)
 
 - **SQL-first.** Queries look like SQL. No "let's hide the database" magic.
-- **Schema-as-code in TypeScript.** The schema *is* the source of truth; types flow naturally. Generated migrations are plain SQL files you review.
+- **Schema-as-code in TypeScript.** The schema _is_ the source of truth; types flow naturally. Generated migrations are plain SQL files you review.
 - **Lightweight.** No engine binary, no codegen step that runs at boot. Adds ~1MB to the bundle.
 - **First-class Auth.js integration.** `@auth/drizzle-adapter` reads/writes the four standard tables.
 - **Postgres-rich.** JSONB, partial indexes, generated columns, custom enums, all expressible in the schema.
 
-When *not* to choose Drizzle:
+When _not_ to choose Drizzle:
 
 - Strong preference for an active-record / "look mom, no SQL" style → Prisma.
 - You hate writing schemas in TypeScript → Knex, Kysely, or raw SQL.
@@ -103,7 +103,7 @@ When *not* to choose Drizzle:
 - **Full-text search.** `tsvector` + `tsquery` is good enough for most internal-app needs.
 - **`gen_random_uuid()`.** No app-side UUID library needed.
 
-When *not* to choose Postgres:
+When _not_ to choose Postgres:
 
 - Heavy denormalized writes / huge time series → DynamoDB or ClickHouse.
 - Truly key-value workloads → DynamoDB or Redis.
@@ -114,7 +114,7 @@ When *not* to choose Postgres:
 - **Tailwind v4** uses a new native CSS engine; massive perf jump over v3. Same DX.
 - **shadcn/ui** is a set of accessible Radix-based components you copy into your repo. You own them. No upgrade-the-library treadmill; if you need to customize a Dialog, edit the file. Has a CLI to add new components on demand.
 
-When *not* to choose:
+When _not_ to choose:
 
 - Design-system-heavy product where consistency >> velocity → Stitches, Vanilla Extract, or a custom token system.
 - Utility CSS allergy → Mantine, Chakra, Mui.
@@ -168,6 +168,7 @@ Rule of thumb: **server actions for human-triggered mutations, route handlers fo
 The runner emits via `pg_notify` after each chunk insert.
 
 This pattern replaces:
+
 - Polling
 - WebSockets
 - Adding Redis or another pubsub
@@ -196,7 +197,7 @@ When to use JSONB: payloads that are read together, written together, and rarely
 
 Web container's entrypoint runs `drizzle-kit migrate` before booting Next.js. Ensures every deploy lands in a known schema state. See [05](./05-local-docker.md).
 
-When *not* to do this: long migrations (multi-minute) — split into a one-off ECS task or init container.
+When _not_ to do this: long migrations (multi-minute) — split into a one-off ECS task or init container.
 
 ### HttpOnly session cookies + DB-backed sessions
 
@@ -225,6 +226,7 @@ Postgres FTS is fine for ~99% of internal-tool needs. Beyond that: Meilisearch (
 ### Caching beyond Postgres
 
 When you've measured a query that's actually slow:
+
 - **In-process LRU** (`lru-cache` package). Survives only for the task lifetime; that's often enough.
 - **Redis**: when in-process can't share state across instances. We don't run multiple instances yet, so this is rarely needed.
 
@@ -334,7 +336,9 @@ Auth.js supports multiple providers in one config. Common pattern: **Google for 
 
 ```typescript
 // In a route handler that needs to call GitHub
-const ghAccount = await db.select().from(accounts)
+const ghAccount = await db
+  .select()
+  .from(accounts)
   .where(and(eq(accounts.userId, session.user.id), eq(accounts.provider, 'github')))
   .limit(1);
 if (!ghAccount[0]) return new Response('Link a GitHub account first', { status: 400 });

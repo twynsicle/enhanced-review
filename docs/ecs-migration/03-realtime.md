@@ -17,18 +17,18 @@ This doc assumes the data layer in [01](./01-postgres-data-layer.md) is in place
 
 Today the client-side does three PB realtime subscriptions:
 
-| Subscription                                                | Delivers                                          | Lives in                                           |
-| ----------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------- |
-| `pb.collection('review_jobs').subscribe(jobId, ...)`        | Status transitions for a single job               | `src/app/jobs/[id]/job-live-view.tsx`              |
-| `pb.collection('review_chunks').subscribe('*', f)`          | Each chunk insert for that job                    | `src/app/jobs/[id]/job-live-view.tsx`              |
-| `pb.collection('review_jobs').subscribe('*', f)`            | Terminal status transitions across all my jobs    | `src/components/notifications/job-notifications.tsx` |
+| Subscription                                         | Delivers                                       | Lives in                                             |
+| ---------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------- |
+| `pb.collection('review_jobs').subscribe(jobId, ...)` | Status transitions for a single job            | `src/app/jobs/[id]/job-live-view.tsx`                |
+| `pb.collection('review_chunks').subscribe('*', f)`   | Each chunk insert for that job                 | `src/app/jobs/[id]/job-live-view.tsx`                |
+| `pb.collection('review_jobs').subscribe('*', f)`     | Terminal status transitions across all my jobs | `src/components/notifications/job-notifications.tsx` |
 
 Plus `pb.realtime.subscribe('PB_CONNECT', ...)` re-fetches snapshot on reconnect — a workaround we'll preserve in our own design.
 
 After migration, two SSE endpoints replace all of the above:
 
 - **`GET /api/jobs/[id]/stream`** — per-job stream: snapshot of current state, then live updates (status changes + chunk inserts).
-- **`GET /api/me/notifications`** — per-user stream: terminal status transitions for *my* jobs.
+- **`GET /api/me/notifications`** — per-user stream: terminal status transitions for _my_ jobs.
 
 Both are server-sent-events (`text/event-stream`), consumed by the browser via `EventSource`.
 
@@ -51,9 +51,9 @@ WebSockets would work but: ALB sticky sessions, Fargate task lifecycle interacti
 
 Postgres NOTIFY channels are flat strings (no hierarchy). We use a simple naming scheme:
 
-| Channel                  | Emitted by                                               | Purpose                                                                                |
-| ------------------------ | -------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `job_<id>`               | Runner: chunk inserts and status transitions for job `id` | Per-job stream. SSE handler `LISTEN`s on this channel.                                 |
+| Channel                  | Emitted by                                                | Purpose                                                                                 |
+| ------------------------ | --------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `job_<id>`               | Runner: chunk inserts and status transitions for job `id` | Per-job stream. SSE handler `LISTEN`s on this channel.                                  |
 | `user_<userId>:terminal` | Runner: when a job reaches `done`/`error`/`cancelled`     | Cross-page notification stream. One per user. `:` works in channel names (just a char). |
 
 Payloads are JSON, kept under 8KB (Postgres's `NOTIFY` payload limit). For chunks, we send only `{type: 'chunk', seq, jobId}` — the SSE handler then SELECTs the chunk content and re-emits to clients. This avoids round-tripping the chunk text through Postgres twice and keeps payloads small.
@@ -119,7 +119,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       };
 
       // Initial snapshot.
-      const chunks = await db.select().from(reviewChunks)
+      const chunks = await db
+        .select()
+        .from(reviewChunks)
         .where(eq(reviewChunks.jobId, params.id))
         .orderBy(asc(reviewChunks.seq));
       send('snapshot', { job, chunks });
@@ -129,7 +131,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         try {
           const payload = JSON.parse(msg.payload ?? '{}');
           if (payload.type === 'chunk') {
-            const rows = await db.select().from(reviewChunks)
+            const rows = await db
+              .select()
+              .from(reviewChunks)
               .where(and(eq(reviewChunks.jobId, params.id), eq(reviewChunks.seq, payload.seq)))
               .limit(1);
             if (rows[0]) send('chunk', rows[0]);
@@ -157,7 +161,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       // Cleanup on client disconnect.
       req.signal.addEventListener('abort', async () => {
         clearInterval(heartbeat);
-        try { await client.query(`UNLISTEN "job_${params.id}"`); } catch {}
+        try {
+          await client.query(`UNLISTEN "job_${params.id}"`);
+        } catch {}
         await client.end();
         controller.close();
       });
@@ -168,7 +174,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'X-Accel-Buffering': 'no', // ALB ignores; harmless. Helps if a proxy is added later.
     },
   });
@@ -203,7 +209,7 @@ es.addEventListener('snapshot', (e) => {
 });
 es.addEventListener('chunk', (e) => {
   const chunk = JSON.parse(e.data);
-  setChunks((prev) => upsertBySeq(prev, chunk));  // dedupe by seq
+  setChunks((prev) => upsertBySeq(prev, chunk)); // dedupe by seq
 });
 es.addEventListener('status', (e) => {
   const { status, ...rest } = JSON.parse(e.data);
@@ -252,7 +258,7 @@ For the POC: one client per stream is fine. Document the limit in [09](./09-cost
 
 - **NOTIFY payload size cap is 8000 bytes** (default Postgres setting). We never come close because we send only metadata, but if you ever inline chunk content in the payload, this will bite you.
 - **NOTIFY is fire-and-forget within Postgres.** If the LISTENER isn't connected, the notification is gone. That's why we always snapshot on connect — to recover anything missed during disconnection.
-- **NOTIFY is delivered after transaction commit.** The runner must `commit` the chunk insert *before* `pg_notify`. We use Drizzle's auto-commit per query, so this is automatic — but documented here in case someone later wraps the runner in a transaction.
+- **NOTIFY is delivered after transaction commit.** The runner must `commit` the chunk insert _before_ `pg_notify`. We use Drizzle's auto-commit per query, so this is automatic — but documented here in case someone later wraps the runner in a transaction.
 - **Two writes per chunk** (the insert + the notify) — both very cheap. ~1ms for the insert, sub-ms for NOTIFY. Acceptable.
 - **`asyncDispose` on client cleanup.** Using `req.signal.abort` works but requires care. Test that closing a tab during a streaming review actually releases the connection (use `pg_stat_activity` to verify).
 

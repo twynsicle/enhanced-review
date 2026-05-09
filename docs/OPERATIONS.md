@@ -154,21 +154,21 @@ Use it from a deploy platform's health check or a curl one-liner.
 
 ## Tunable knobs
 
-| Env var              | Default            | Read by      | What                                                                |
-| -------------------- | ------------------ | ------------ | ------------------------------------------------------------------- |
-| `DATABASE_URL`       | (none)             | Next.js, db scripts | Postgres connection string. Required.                        |
-| `AUTH_SECRET`        | (none)             | Auth.js v5   | Secret for signing session cookies / CSRF tokens. Required.         |
-| `AUTH_URL`           | dev: localhost:3000 | Auth.js v5  | Public origin for OAuth callback URL construction.                  |
-| `AUTH_GITHUB_ID`     | (none)             | Auth.js v5   | GitHub OAuth app client id.                                          |
-| `AUTH_GITHUB_SECRET` | (none)             | Auth.js v5   | GitHub OAuth app client secret.                                      |
-| `SEED_GITHUB_LOGIN`  | unset              | `db:seed`    | `npm run db:seed` inserts this into `allowed_users`. No-op if unset. |
-| `MAX_JOBS_PER_USER`  | `1`                | Next.js      | Maximum pending+running jobs per user.                               |
-| `REVIEW_TIMEOUT_MIN` | `15`               | Next.js      | Per-job wall-clock budget (minutes).                                 |
-| `REVIEW_EXECUTOR`    | `claude`           | Next.js      | `stub` runs a deterministic fake executor (no API key needed).      |
-| `REVIEW_MODEL`       | `claude-haiku-4-5` | Next.js      | Claude model id passed to the Claude Agent SDK.                     |
-| `ANTHROPIC_API_KEY`  | unset              | Next.js      | Required when `REVIEW_EXECUTOR=claude`. Read by the SDK from env.   |
-| `LOG_LEVEL`          | `info`             | Next.js      | pino level: `trace` `debug` `info` `warn` `error` `fatal`.          |
-| `LOG_PRETTY`         | unset              | Next.js      | `1` swaps in pino-pretty for human-friendly local dev.              |
+| Env var              | Default             | Read by             | What                                                                 |
+| -------------------- | ------------------- | ------------------- | -------------------------------------------------------------------- |
+| `DATABASE_URL`       | (none)              | Next.js, db scripts | Postgres connection string. Required.                                |
+| `AUTH_SECRET`        | (none)              | Auth.js v5          | Secret for signing session cookies / CSRF tokens. Required.          |
+| `AUTH_URL`           | dev: localhost:3000 | Auth.js v5          | Public origin for OAuth callback URL construction.                   |
+| `AUTH_GITHUB_ID`     | (none)              | Auth.js v5          | GitHub OAuth app client id.                                          |
+| `AUTH_GITHUB_SECRET` | (none)              | Auth.js v5          | GitHub OAuth app client secret.                                      |
+| `SEED_GITHUB_LOGIN`  | unset               | `db:seed`           | `npm run db:seed` inserts this into `allowed_users`. No-op if unset. |
+| `MAX_JOBS_PER_USER`  | `1`                 | Next.js             | Maximum pending+running jobs per user.                               |
+| `REVIEW_TIMEOUT_MIN` | `15`                | Next.js             | Per-job wall-clock budget (minutes).                                 |
+| `REVIEW_EXECUTOR`    | `claude`            | Next.js             | `stub` runs a deterministic fake executor (no API key needed).       |
+| `REVIEW_MODEL`       | `claude-haiku-4-5`  | Next.js             | Claude model id passed to the Claude Agent SDK.                      |
+| `ANTHROPIC_API_KEY`  | unset               | Next.js             | Required when `REVIEW_EXECUTOR=claude`. Read by the SDK from env.    |
+| `LOG_LEVEL`          | `info`              | Next.js             | pino level: `trace` `debug` `info` `warn` `error` `fatal`.           |
+| `LOG_PRETTY`         | unset               | Next.js             | `1` swaps in pino-pretty for human-friendly local dev.               |
 
 Changing any of these requires restarting the Next.js process; nothing
 is hot-reloadable.

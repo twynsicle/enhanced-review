@@ -12,22 +12,22 @@ Estimates for `us-east-1`, post-launch, no traffic. Real numbers will vary by ±
 
 ### Default (public subnet, no NAT)
 
-| Line item                                     | Cost             | Notes                                                                                       |
-| --------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------- |
-| Application Load Balancer                     | **~$18/mo**      | Fixed. ~$0.0225/h * 720h + LCU charges. The single biggest item.                            |
-| Fargate task (0.5 vCPU + 1 GB, 24/7)          | **~$15/mo**      | $0.04/h * 720h. Two-container task uses one set of vCPU/memory.                              |
-| EFS (1 GB, bursting throughput)               | **~$0.30/mo**    | $0.30/GB/mo for standard. Tiny.                                                              |
-| Route 53 hosted zone                          | **~$0.50/mo**    | $0.50/zone, no per-query at our volume.                                                      |
-| Secrets Manager (5 secrets)                   | **~$2/mo**       | $0.40/secret/mo. Plus $0.05 per 10k API calls (we make ~3 per task start).                   |
-| CloudWatch Logs (under 5 GB/mo, 7d retention) | **~$0**          | First 5 GB ingestion + storage free.                                                         |
-| ECR storage (10 images, ~150 MB each)         | **~$0.15/mo**    | $0.10/GB/mo. Plus pulls (free for same-region).                                              |
-| Data egress (GitHub clones + Anthropic API)   | **~$1-3/mo**     | Wild guess. ~$0.09/GB after first 100 GB free. Minimal for a personal POC.                   |
-| Cognito user pool (1 user)                    | **$0**           | First 50,000 MAU free.                                                                       |
-| ACM certificate                               | **$0**           | Free.                                                                                        |
-| GitHub OIDC IAM role                          | **$0**           | Free.                                                                                        |
-| S3 state bucket + DynamoDB lock               | **~$0.50/mo**    | Pennies.                                                                                     |
-| Domain registration                           | **~$1/mo**       | Amortized: $12/yr `.com`, ~$5/yr `.dev`.                                                     |
-| **TOTAL**                                     | **~$37/mo**      |                                                                                              |
+| Line item                                     | Cost          | Notes                                                                      |
+| --------------------------------------------- | ------------- | -------------------------------------------------------------------------- |
+| Application Load Balancer                     | **~$18/mo**   | Fixed. ~$0.0225/h \* 720h + LCU charges. The single biggest item.          |
+| Fargate task (0.5 vCPU + 1 GB, 24/7)          | **~$15/mo**   | $0.04/h \* 720h. Two-container task uses one set of vCPU/memory.           |
+| EFS (1 GB, bursting throughput)               | **~$0.30/mo** | $0.30/GB/mo for standard. Tiny.                                            |
+| Route 53 hosted zone                          | **~$0.50/mo** | $0.50/zone, no per-query at our volume.                                    |
+| Secrets Manager (5 secrets)                   | **~$2/mo**    | $0.40/secret/mo. Plus $0.05 per 10k API calls (we make ~3 per task start). |
+| CloudWatch Logs (under 5 GB/mo, 7d retention) | **~$0**       | First 5 GB ingestion + storage free.                                       |
+| ECR storage (10 images, ~150 MB each)         | **~$0.15/mo** | $0.10/GB/mo. Plus pulls (free for same-region).                            |
+| Data egress (GitHub clones + Anthropic API)   | **~$1-3/mo**  | Wild guess. ~$0.09/GB after first 100 GB free. Minimal for a personal POC. |
+| Cognito user pool (1 user)                    | **$0**        | First 50,000 MAU free.                                                     |
+| ACM certificate                               | **$0**        | Free.                                                                      |
+| GitHub OIDC IAM role                          | **$0**        | Free.                                                                      |
+| S3 state bucket + DynamoDB lock               | **~$0.50/mo** | Pennies.                                                                   |
+| Domain registration                           | **~$1/mo**    | Amortized: $12/yr `.com`, ~$5/yr `.dev`.                                   |
+| **TOTAL**                                     | **~$37/mo**   |                                                                            |
 
 ### If we'd chosen private subnet + NAT (rejected)
 

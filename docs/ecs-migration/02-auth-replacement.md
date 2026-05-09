@@ -43,7 +43,7 @@ Browser ──▶ ALB ──── Cognito hosted UI ────▶ "is this St
 - **Cognito** answers "is this person allowed to talk to the ALB at all?" — one user pool, one user. Free for one user. Hosted UI on a Cognito-managed subdomain. ALB drops requests with no Cognito session.
 - **Auth.js** answers "what's the active user's GitHub identity, and how do I act on their behalf?" — the runner reads the GitHub access token from `accounts` to do `git clone`.
 
-You log into Cognito *once* per browser-session (very long expiry); you log into GitHub via Auth.js *once* per app session (rolling). They don't talk to each other directly. The user experience is two separate sign-in screens the first time; both have very long-lived sessions, so day-to-day it's invisible.
+You log into Cognito _once_ per browser-session (very long expiry); you log into GitHub via Auth.js _once_ per app session (rolling). They don't talk to each other directly. The user experience is two separate sign-in screens the first time; both have very long-lived sessions, so day-to-day it's invisible.
 
 > **Why both?** Cognito alone can't act as a GitHub user. Auth.js alone can't gate the ALB. The combination gives us network-level access control (Cognito) and identity-with-a-token (Auth.js).
 
@@ -136,7 +136,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async session({ session, user }) {
       // Expose github_login on the session so server components can read it.
-      (session.user as { githubLogin?: string }).githubLogin = (user as { githubLogin?: string }).githubLogin;
+      (session.user as { githubLogin?: string }).githubLogin = (
+        user as { githubLogin?: string }
+      ).githubLogin;
       return session;
     },
   },
@@ -305,7 +307,7 @@ The Next.js app **does not read** the Cognito headers. They only matter to the A
 
 ## Provider-swap appendix: Google OAuth for org SSO
 
-The user asked: *"how could similar apps use Google OAuth so users SSO in with their work accounts?"*
+The user asked: _"how could similar apps use Google OAuth so users SSO in with their work accounts?"_
 
 Short answer: **trivially, with two important nuances** depending on whether the app needs identity-only or on-behalf API access.
 
@@ -351,12 +353,12 @@ For apps that only do SSO (the common case), skip all of this.
 
 ### When to choose which
 
-| If your app...                                          | Use                                                                          |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Acts on the user's GitHub repos / orgs / actions        | GitHub OAuth (this POC)                                                      |
-| Just needs to know who someone is, with org SSO         | Google OAuth, restrict via `hd`                                              |
-| Acts on Google Workspace data on the user's behalf      | Google OAuth + scope-per-API + refresh tokens                                |
-| Has both kinds of users / both kinds of work            | Both providers in the same Auth.js config (tested pattern, just two blocks)  |
+| If your app...                                     | Use                                                                         |
+| -------------------------------------------------- | --------------------------------------------------------------------------- |
+| Acts on the user's GitHub repos / orgs / actions   | GitHub OAuth (this POC)                                                     |
+| Just needs to know who someone is, with org SSO    | Google OAuth, restrict via `hd`                                             |
+| Acts on Google Workspace data on the user's behalf | Google OAuth + scope-per-API + refresh tokens                               |
+| Has both kinds of users / both kinds of work       | Both providers in the same Auth.js config (tested pattern, just two blocks) |
 
 The infrastructure (Cognito, ALB, ECS, Drizzle, all the Terraform) is **identical** regardless. The auth choice is a software-side decision. This is exactly the kind of orthogonality the proposal docs in [11](./11-proposal-lightweight-infra.md) and [12](./12-proposal-software-stack.md) lean on.
 
@@ -366,7 +368,7 @@ The infrastructure (Cognito, ALB, ECS, Drizzle, all the Terraform) is **identica
 
 - **Auth.js manages its own cookie** (`authjs.session-token`). The legacy `pb_auth` cookie can be ignored — it expires on its own. No special cleanup needed.
 - **Sessions don't carry over.** Anyone who was signed in before the migration has to sign in again. For a one-user POC, this is a non-event; for the proposal docs, flag it as a one-time disruption.
-- **`signIn` callback ordering with the Drizzle adapter.** Auth.js v5 calls the adapter's `createUser` *before* the `signIn` callback fires (the adapter needs an id to attach the new session to). When `signIn` returns `false`, the user row is left behind. For a single-user POC this is harmless — verify the observed behaviour and document the cleanup option (a `DELETE FROM users WHERE id = ...` in the `signIn` callback before returning `false`) if it ever matters.
+- **`signIn` callback ordering with the Drizzle adapter.** Auth.js v5 calls the adapter's `createUser` _before_ the `signIn` callback fires (the adapter needs an id to attach the new session to). When `signIn` returns `false`, the user row is left behind. For a single-user POC this is harmless — verify the observed behaviour and document the cleanup option (a `DELETE FROM users WHERE id = ...` in the `signIn` callback before returning `false`) if it ever matters.
 - **Allowlist updates require a DB write, not an admin UI click.** [09](./09-cost-and-operations.md) documents the runbook for adding/removing allowlist rows via ECS Exec.
 - **GitHub OAuth app callback URL** changes from PB's URL to Auth.js's: `https://<your-domain>/api/auth/callback/github`. Update in the GitHub OAuth app settings during deploy.
 

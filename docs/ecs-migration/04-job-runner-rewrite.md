@@ -74,7 +74,7 @@ No more `pbAdmin()` import, no more `withAdminRetry` retry helper (Drizzle's poo
 
 Five functions in this file (after a small mechanical extraction). Each becomes a Drizzle `update`/`insert` followed by a `pg_notify` for the realtime layer.
 
-> **Prerequisite — extract `insertChunk`.** Today the chunk insert lives **inline** in `run.ts`'s `onChunk` callback (around lines 201–211). Pull it into `writes.ts:insertChunk(jobId, seq, content)` as a separate, mechanical commit *before* swapping to Drizzle so the Drizzle-rewrite diff stays focused on the call shape, not on file moves.
+> **Prerequisite — extract `insertChunk`.** Today the chunk insert lives **inline** in `run.ts`'s `onChunk` callback (around lines 201–211). Pull it into `writes.ts:insertChunk(jobId, seq, content)` as a separate, mechanical commit _before_ swapping to Drizzle so the Drizzle-rewrite diff stays focused on the call shape, not on file moves.
 
 > **`markCancelled` is new.** The legacy code applied the cancel transition inline in `run.ts`'s `finally` block. The Drizzle rewrite breaks it out into a dedicated `markCancelled(jobId, userId)` so the cancel route and the runner's `finally` share one idempotent path. Keep the same guard: `WHERE status IN ('pending','running')`, NOTIFY only when a row actually flipped.
 
@@ -103,47 +103,83 @@ import { reviewJobs, reviewChunks, reviews } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function markRunning(jobId: string) {
-  await db.update(reviewJobs)
+  await db
+    .update(reviewJobs)
     .set({ status: 'running', startedAt: new Date(), updatedAt: new Date() })
     .where(eq(reviewJobs.id, jobId));
-  await pool.query(`SELECT pg_notify($1, $2)`, [`job_${jobId}`, JSON.stringify({ type: 'status', status: 'running' })]);
+  await pool.query(`SELECT pg_notify($1, $2)`, [
+    `job_${jobId}`,
+    JSON.stringify({ type: 'status', status: 'running' }),
+  ]);
 }
 
 export async function insertChunk(jobId: string, seq: number, content: string) {
   await db.insert(reviewChunks).values({ jobId, seq, content }).onConflictDoNothing();
-  await pool.query(`SELECT pg_notify($1, $2)`, [`job_${jobId}`, JSON.stringify({ type: 'chunk', seq })]);
+  await pool.query(`SELECT pg_notify($1, $2)`, [
+    `job_${jobId}`,
+    JSON.stringify({ type: 'chunk', seq }),
+  ]);
 }
 
-export async function finalizeAsDone(jobId: string, userId: string, content: NarrativeReview, riskScore: number | null, diffTruncated: boolean) {
+export async function finalizeAsDone(
+  jobId: string,
+  userId: string,
+  content: NarrativeReview,
+  riskScore: number | null,
+  diffTruncated: boolean,
+) {
   await db.transaction(async (tx) => {
     await tx.insert(reviews).values({ jobId, content, diffTruncated });
-    await tx.update(reviewJobs)
+    await tx
+      .update(reviewJobs)
       .set({ status: 'done', completedAt: new Date(), riskScore, updatedAt: new Date() })
       .where(eq(reviewJobs.id, jobId));
   });
   // Notify after commit, so subscribers SELECTing `reviews` see the row.
   const payload = JSON.stringify({ type: 'status', status: 'done', riskScore });
   await pool.query(`SELECT pg_notify($1, $2)`, [`job_${jobId}`, payload]);
-  await pool.query(`SELECT pg_notify($1, $2)`, [`user_${userId}:terminal`, JSON.stringify({ jobId, status: 'done', riskScore })]);
+  await pool.query(`SELECT pg_notify($1, $2)`, [
+    `user_${userId}:terminal`,
+    JSON.stringify({ jobId, status: 'done', riskScore }),
+  ]);
 }
 
 export async function markErrored(jobId: string, userId: string, errorMessage: string) {
-  await db.update(reviewJobs)
-    .set({ status: 'error', completedAt: new Date(), errorMessage: errorMessage.slice(0, 500), updatedAt: new Date() })
+  await db
+    .update(reviewJobs)
+    .set({
+      status: 'error',
+      completedAt: new Date(),
+      errorMessage: errorMessage.slice(0, 500),
+      updatedAt: new Date(),
+    })
     .where(eq(reviewJobs.id, jobId));
-  await pool.query(`SELECT pg_notify($1, $2)`, [`job_${jobId}`, JSON.stringify({ type: 'status', status: 'error', errorMessage })]);
-  await pool.query(`SELECT pg_notify($1, $2)`, [`user_${userId}:terminal`, JSON.stringify({ jobId, status: 'error' })]);
+  await pool.query(`SELECT pg_notify($1, $2)`, [
+    `job_${jobId}`,
+    JSON.stringify({ type: 'status', status: 'error', errorMessage }),
+  ]);
+  await pool.query(`SELECT pg_notify($1, $2)`, [
+    `user_${userId}:terminal`,
+    JSON.stringify({ jobId, status: 'error' }),
+  ]);
 }
 
 export async function markCancelled(jobId: string, userId: string) {
   // Used by the runner's finally block on abort. Idempotent: only writes if still pending/running.
-  const result = await db.update(reviewJobs)
+  const result = await db
+    .update(reviewJobs)
     .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
     .where(and(eq(reviewJobs.id, jobId), inArray(reviewJobs.status, ['pending', 'running'])))
     .returning({ id: reviewJobs.id });
   if (result.length > 0) {
-    await pool.query(`SELECT pg_notify($1, $2)`, [`job_${jobId}`, JSON.stringify({ type: 'status', status: 'cancelled' })]);
-    await pool.query(`SELECT pg_notify($1, $2)`, [`user_${userId}:terminal`, JSON.stringify({ jobId, status: 'cancelled' })]);
+    await pool.query(`SELECT pg_notify($1, $2)`, [
+      `job_${jobId}`,
+      JSON.stringify({ type: 'status', status: 'cancelled' }),
+    ]);
+    await pool.query(`SELECT pg_notify($1, $2)`, [
+      `user_${userId}:terminal`,
+      JSON.stringify({ jobId, status: 'cancelled' }),
+    ]);
   }
 }
 ```
@@ -165,7 +201,8 @@ PB's cancel rule (`@request.auth.id = user.id && status in ('pending','running')
 const session = await auth();
 if (!session?.user) return new Response('Unauthorized', { status: 401 });
 
-const result = await db.update(reviewJobs)
+const result = await db
+  .update(reviewJobs)
   .set({ status: 'cancelled', cancelledAt: new Date() })
   .where(
     and(
@@ -179,7 +216,10 @@ const result = await db.update(reviewJobs)
 if (result.length === 0) return new Response('Conflict', { status: 409 });
 
 registry.signal(params.id); // abort the in-process AbortController
-await pool.query(`SELECT pg_notify($1, $2)`, [`job_${params.id}`, JSON.stringify({ type: 'status', status: 'cancelled' })]);
+await pool.query(`SELECT pg_notify($1, $2)`, [
+  `job_${params.id}`,
+  JSON.stringify({ type: 'status', status: 'cancelled' }),
+]);
 return new Response(null, { status: 204 });
 ```
 
@@ -194,21 +234,28 @@ Notes:
 
 ```typescript
 const newJob = await db.transaction(async (tx) => {
-  const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(reviewJobs)
-    .where(and(
-      eq(reviewJobs.userId, session.user.id),
-      inArray(reviewJobs.status, ['pending', 'running']),
-    ));
+  const [{ n }] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(reviewJobs)
+    .where(
+      and(
+        eq(reviewJobs.userId, session.user.id),
+        inArray(reviewJobs.status, ['pending', 'running']),
+      ),
+    );
   if (n >= maxJobsPerUser()) {
     throw new ConcurrencyError(`Limit reached: ${n}/${maxJobsPerUser()}`);
   }
-  const [row] = await tx.insert(reviewJobs).values({
-    userId: session.user.id,
-    githubLogin: session.user.githubLogin,
-    target,
-    status: 'pending',
-    headSha,
-  }).returning();
+  const [row] = await tx
+    .insert(reviewJobs)
+    .values({
+      userId: session.user.id,
+      githubLogin: session.user.githubLogin,
+      target,
+      status: 'pending',
+      headSha,
+    })
+    .returning();
   return row;
 });
 ```
@@ -221,7 +268,9 @@ Today:
 
 ```typescript
 const timeoutId = setTimeout(() => {
-  admin.collection('review_jobs').update(jobId, { status: 'error', error_message: 'Timeout' })
+  admin
+    .collection('review_jobs')
+    .update(jobId, { status: 'error', error_message: 'Timeout' })
     .finally(() => controller.abort('timeout'));
 }, timeoutMin * 60_000);
 ```
@@ -230,8 +279,14 @@ Becomes:
 
 ```typescript
 const timeoutId = setTimeout(async () => {
-  await db.update(reviewJobs).set({ status: 'error', errorMessage: 'Timeout', completedAt: new Date() }).where(eq(reviewJobs.id, jobId));
-  await pool.query(`SELECT pg_notify($1, $2)`, [`job_${jobId}`, JSON.stringify({ type: 'status', status: 'error', errorMessage: 'Timeout' })]);
+  await db
+    .update(reviewJobs)
+    .set({ status: 'error', errorMessage: 'Timeout', completedAt: new Date() })
+    .where(eq(reviewJobs.id, jobId));
+  await pool.query(`SELECT pg_notify($1, $2)`, [
+    `job_${jobId}`,
+    JSON.stringify({ type: 'status', status: 'error', errorMessage: 'Timeout' }),
+  ]);
   controller.abort('timeout');
 }, timeoutMin * 60_000);
 ```
@@ -255,7 +310,9 @@ export function maxJobsPerUser(): number {
 }
 
 export async function countActiveForUser(userId: string): Promise<number> {
-  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(reviewJobs)
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(reviewJobs)
     .where(and(eq(reviewJobs.userId, userId), inArray(reviewJobs.status, ['pending', 'running'])));
   return n;
 }
@@ -291,13 +348,28 @@ Called once from the Next.js custom server entrypoint, or from a top-level modul
 ```typescript
 // src/lib/jobs/runner/recover-on-startup.ts
 export async function recoverInterruptedJobs() {
-  const result = await db.update(reviewJobs)
-    .set({ status: 'error', completedAt: new Date(), errorMessage: 'Container restarted; in-flight job lost' })
+  const result = await db
+    .update(reviewJobs)
+    .set({
+      status: 'error',
+      completedAt: new Date(),
+      errorMessage: 'Container restarted; in-flight job lost',
+    })
     .where(eq(reviewJobs.status, 'running'))
     .returning({ id: reviewJobs.id, userId: reviewJobs.userId });
   for (const row of result) {
-    await pool.query(`SELECT pg_notify($1, $2)`, [`job_${row.id}`, JSON.stringify({ type: 'status', status: 'error', errorMessage: 'Container restarted; in-flight job lost' })]);
-    await pool.query(`SELECT pg_notify($1, $2)`, [`user_${row.userId}:terminal`, JSON.stringify({ jobId: row.id, status: 'error' })]);
+    await pool.query(`SELECT pg_notify($1, $2)`, [
+      `job_${row.id}`,
+      JSON.stringify({
+        type: 'status',
+        status: 'error',
+        errorMessage: 'Container restarted; in-flight job lost',
+      }),
+    ]);
+    await pool.query(`SELECT pg_notify($1, $2)`, [
+      `user_${row.userId}:terminal`,
+      JSON.stringify({ jobId: row.id, status: 'error' }),
+    ]);
   }
 }
 ```

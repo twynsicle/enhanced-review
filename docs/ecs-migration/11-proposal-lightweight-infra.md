@@ -89,19 +89,19 @@ This proposal defines a reusable AWS pattern that occupies the gap: cheap enough
 
 ### Component-by-component rationale
 
-| Component                    | Why this                                                                                                  | Why not the alternative                                                                              |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **ECS Fargate**              | Per-second billing. Runs anywhere. Native multi-container task. No host management.                       | Lambda: 15-min limit, no streaming, no in-process state. App Runner: less Terraform-friendly.        |
-| **Single multi-container task** | Web + DB share a task ENI; talk over `localhost`. Zero networking complexity. Cheaper than two tasks.   | Two tasks: cleaner boundaries but ~2x base cost and more Terraform.                                  |
-| **Postgres in container**    | Engineers already know Postgres. Drizzle/Prisma/Knex first-class. JSONB removes most schema-design pain.  | DynamoDB: scales further but worse DX for relational ad-hoc queries. SQLite-on-EFS: not concurrent-write-safe. |
-| **EFS for DB volume**        | Fargate's only native persistent volume option. Cheap (~$0.30/GB/mo). Survives task restarts.             | EBS: not available to Fargate. RDS: ~$13/mo, considered later.                                       |
-| **Public subnet, no NAT**    | Saves ~$32/mo. Task SG locks ingress to ALB only. Outbound traffic goes through IGW (free).               | Private subnet + NAT: standard pattern, but doubles the bill.                                        |
-| **ALB + Cognito**            | Network-level auth gate. Engineers don't have to roll their own login. AWS-native, free for low MAU.      | App-level auth only: works, but every app rolls its own. Cloudflare Access: cheaper but adds a dep. |
-| **Route 53 + ACM**           | TLS for free; managed DNS at $0.50/mo per zone.                                                            | Self-managed certs: free but operationally awful.                                                    |
-| **Secrets Manager**          | Native ECS integration via task definition `secrets[]`. Each secret rotates independently.                | SSM Parameter Store: cheaper but no native rotation; less enforcement.                               |
-| **GitHub OIDC**              | No long-lived AWS keys. Trust policy scopes to repo + branch.                                              | Static keys: rotation burden, blast radius if leaked.                                                |
-| **Terraform**                | Declarative, dry-runnable, drift-detectable. Industry standard.                                           | CDK / Pulumi: more code-y, fewer engineers fluent.                                                   |
-| **CloudWatch Logs**          | Native ECS integration. 7-day retention is cheap.                                                          | Self-hosted ELK: hilariously not worth it for one app.                                               |
+| Component                       | Why this                                                                                                 | Why not the alternative                                                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **ECS Fargate**                 | Per-second billing. Runs anywhere. Native multi-container task. No host management.                      | Lambda: 15-min limit, no streaming, no in-process state. App Runner: less Terraform-friendly.                  |
+| **Single multi-container task** | Web + DB share a task ENI; talk over `localhost`. Zero networking complexity. Cheaper than two tasks.    | Two tasks: cleaner boundaries but ~2x base cost and more Terraform.                                            |
+| **Postgres in container**       | Engineers already know Postgres. Drizzle/Prisma/Knex first-class. JSONB removes most schema-design pain. | DynamoDB: scales further but worse DX for relational ad-hoc queries. SQLite-on-EFS: not concurrent-write-safe. |
+| **EFS for DB volume**           | Fargate's only native persistent volume option. Cheap (~$0.30/GB/mo). Survives task restarts.            | EBS: not available to Fargate. RDS: ~$13/mo, considered later.                                                 |
+| **Public subnet, no NAT**       | Saves ~$32/mo. Task SG locks ingress to ALB only. Outbound traffic goes through IGW (free).              | Private subnet + NAT: standard pattern, but doubles the bill.                                                  |
+| **ALB + Cognito**               | Network-level auth gate. Engineers don't have to roll their own login. AWS-native, free for low MAU.     | App-level auth only: works, but every app rolls its own. Cloudflare Access: cheaper but adds a dep.            |
+| **Route 53 + ACM**              | TLS for free; managed DNS at $0.50/mo per zone.                                                          | Self-managed certs: free but operationally awful.                                                              |
+| **Secrets Manager**             | Native ECS integration via task definition `secrets[]`. Each secret rotates independently.               | SSM Parameter Store: cheaper but no native rotation; less enforcement.                                         |
+| **GitHub OIDC**                 | No long-lived AWS keys. Trust policy scopes to repo + branch.                                            | Static keys: rotation burden, blast radius if leaked.                                                          |
+| **Terraform**                   | Declarative, dry-runnable, drift-detectable. Industry standard.                                          | CDK / Pulumi: more code-y, fewer engineers fluent.                                                             |
+| **CloudWatch Logs**             | Native ECS integration. 7-day retention is cheap.                                                        | Self-hosted ELK: hilariously not worth it for one app.                                                         |
 
 ---
 
@@ -109,20 +109,20 @@ This proposal defines a reusable AWS pattern that occupies the gap: cheap enough
 
 Per-app monthly cost in `us-east-1` with no traffic (idle baseline). Real apps with users add a few % of egress and Cognito MAU once you cross 50,000 MAU.
 
-| Item                                    | Cost            | Note                                                      |
-| --------------------------------------- | --------------- | --------------------------------------------------------- |
-| ALB                                     | **~$18.00/mo**  | Fixed. Single biggest line item.                          |
-| Fargate (0.5 vCPU + 1 GB, 24/7)         | **~$15.00/mo**  | Two-container task uses one set of vCPU/memory.           |
-| EFS (1 GB)                              | **~$0.30/mo**   |                                                           |
-| Route 53 hosted zone                    | **~$0.50/mo**   |                                                           |
-| Secrets Manager (5 secrets)             | **~$2.00/mo**   |                                                           |
-| ECR                                     | **~$0.15/mo**   | Lifecycle policy keeps 10 images.                         |
-| CloudWatch Logs                         | **~$0.00**      | Under free tier at this volume.                           |
-| Cognito                                 | **$0.00**       | First 50,000 MAU free.                                    |
-| ACM cert                                | **$0.00**       |                                                           |
-| Egress (GitHub clones + Anthropic API)  | **~$1-3/mo**    |                                                           |
-| Domain registration                     | **~$1.00/mo**   | Amortized.                                                |
-| **TOTAL**                               | **~$37/mo**     |                                                           |
+| Item                                   | Cost           | Note                                            |
+| -------------------------------------- | -------------- | ----------------------------------------------- |
+| ALB                                    | **~$18.00/mo** | Fixed. Single biggest line item.                |
+| Fargate (0.5 vCPU + 1 GB, 24/7)        | **~$15.00/mo** | Two-container task uses one set of vCPU/memory. |
+| EFS (1 GB)                             | **~$0.30/mo**  |                                                 |
+| Route 53 hosted zone                   | **~$0.50/mo**  |                                                 |
+| Secrets Manager (5 secrets)            | **~$2.00/mo**  |                                                 |
+| ECR                                    | **~$0.15/mo**  | Lifecycle policy keeps 10 images.               |
+| CloudWatch Logs                        | **~$0.00**     | Under free tier at this volume.                 |
+| Cognito                                | **$0.00**      | First 50,000 MAU free.                          |
+| ACM cert                               | **$0.00**      |                                                 |
+| Egress (GitHub clones + Anthropic API) | **~$1-3/mo**   |                                                 |
+| Domain registration                    | **~$1.00/mo**  | Amortized.                                      |
+| **TOTAL**                              | **~$37/mo**    |                                                 |
 
 ### Cost-cutting levers (in order of impact)
 
@@ -137,18 +137,18 @@ Per-app monthly cost in `us-east-1` with no traffic (idle baseline). Real apps w
 
 ### What's protected
 
-| Concern                                | Mitigation                                                                                                              |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Unauthorized access to the app         | ALB authenticate-cognito action; only authenticated users see anything beyond `/oauth2/idpresponse`.                    |
-| Direct access to the Fargate task      | Task SG ingress restricted to `[ALB SG]:3000`. Public IP exists for egress only; no ports listen externally.            |
-| Direct access to Postgres              | Postgres listens on `127.0.0.1:5432` inside the task netns. Sidecar; never exposed.                                     |
-| Secrets in code or env                 | Secrets Manager + task definition `secrets[]`. Task execution role has scoped `secretsmanager:GetSecretValue`.          |
-| Long-lived AWS credentials in CI       | GitHub OIDC federation; no AWS access keys stored in GitHub.                                                            |
-| Encryption in transit (browser ↔ ALB)  | TLS 1.3 via ACM cert.                                                                                                   |
-| Encryption in transit (task ↔ EFS)     | EFS transit encryption enabled.                                                                                         |
-| Encryption at rest (EFS, ECR, S3)      | All AWS-default-encrypted.                                                                                              |
-| Container image vulnerabilities        | ECR `scan_on_push = true`. Findings visible in ECR console; alerts via EventBridge if needed.                           |
-| TF state secrets exposure              | State bucket has `BlockPublicAccess` + versioning. Lock table prevents concurrent modification.                         |
+| Concern                               | Mitigation                                                                                                     |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Unauthorized access to the app        | ALB authenticate-cognito action; only authenticated users see anything beyond `/oauth2/idpresponse`.           |
+| Direct access to the Fargate task     | Task SG ingress restricted to `[ALB SG]:3000`. Public IP exists for egress only; no ports listen externally.   |
+| Direct access to Postgres             | Postgres listens on `127.0.0.1:5432` inside the task netns. Sidecar; never exposed.                            |
+| Secrets in code or env                | Secrets Manager + task definition `secrets[]`. Task execution role has scoped `secretsmanager:GetSecretValue`. |
+| Long-lived AWS credentials in CI      | GitHub OIDC federation; no AWS access keys stored in GitHub.                                                   |
+| Encryption in transit (browser ↔ ALB) | TLS 1.3 via ACM cert.                                                                                          |
+| Encryption in transit (task ↔ EFS)    | EFS transit encryption enabled.                                                                                |
+| Encryption at rest (EFS, ECR, S3)     | All AWS-default-encrypted.                                                                                     |
+| Container image vulnerabilities       | ECR `scan_on_push = true`. Findings visible in ECR console; alerts via EventBridge if needed.                  |
+| TF state secrets exposure             | State bucket has `BlockPublicAccess` + versioning. Lock table prevents concurrent modification.                |
 
 ### What's NOT protected (out of scope for this pattern)
 
@@ -172,16 +172,16 @@ Three roles per app:
 
 ### Who owns what
 
-| Concern                              | Owner                                                                            |
-| ------------------------------------ | -------------------------------------------------------------------------------- |
-| App code, Dockerfile                 | App team                                                                         |
-| `terraform/` for the app             | App team                                                                         |
-| GitHub Actions workflows             | App team                                                                         |
-| AWS account / billing                | Central platform / SRE                                                           |
-| Account-level IAM policies / SCP     | Central platform / SRE                                                           |
-| Pattern itself (this doc)            | Central platform / SRE — owns the reference implementation                       |
-| App-level secrets                    | App team (via Secrets Manager)                                                   |
-| Domain                               | App team (per-app subdomain) or central (delegated zone)                         |
+| Concern                          | Owner                                                      |
+| -------------------------------- | ---------------------------------------------------------- |
+| App code, Dockerfile             | App team                                                   |
+| `terraform/` for the app         | App team                                                   |
+| GitHub Actions workflows         | App team                                                   |
+| AWS account / billing            | Central platform / SRE                                     |
+| Account-level IAM policies / SCP | Central platform / SRE                                     |
+| Pattern itself (this doc)        | Central platform / SRE — owns the reference implementation |
+| App-level secrets                | App team (via Secrets Manager)                             |
+| Domain                           | App team (per-app subdomain) or central (delegated zone)   |
 
 ### Runbook items (per-app)
 
@@ -220,41 +220,41 @@ Total time: an afternoon if everything's smooth, a day if it's the first time.
 
 ### Hosting
 
-| Option                  | Pros                                                  | Cons                                                                     | When to pick                                       |
-| ----------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| **ECS Fargate** (chosen) | No host mgmt; per-second billing; native multi-container | ~$15/mo idle minimum                                                    | Default                                            |
-| ECS on EC2              | ~$3/mo with t4g.nano spot; full host control          | Capacity planning; OS patching; agent management                          | When you've got >3 apps and want to share an EC2   |
-| Lambda + API Gateway    | Pennies at idle; zero ops                              | 15-min timeout; cold start; no SSE / WebSockets; limited streaming        | Stateless small APIs                               |
-| App Runner              | Cheaper than Fargate; managed                          | Less Terraform-friendly; less control over networking                     | If you don't need ALB / VPC integration            |
-| Self-host on EC2        | Most flexibility                                      | Build everything yourself                                                 | Don't                                              |
+| Option                   | Pros                                                     | Cons                                                               | When to pick                                     |
+| ------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------ |
+| **ECS Fargate** (chosen) | No host mgmt; per-second billing; native multi-container | ~$15/mo idle minimum                                               | Default                                          |
+| ECS on EC2               | ~$3/mo with t4g.nano spot; full host control             | Capacity planning; OS patching; agent management                   | When you've got >3 apps and want to share an EC2 |
+| Lambda + API Gateway     | Pennies at idle; zero ops                                | 15-min timeout; cold start; no SSE / WebSockets; limited streaming | Stateless small APIs                             |
+| App Runner               | Cheaper than Fargate; managed                            | Less Terraform-friendly; less control over networking              | If you don't need ALB / VPC integration          |
+| Self-host on EC2         | Most flexibility                                         | Build everything yourself                                          | Don't                                            |
 
 ### Database
 
-| Option                  | Pros                                                  | Cons                                                                     | When to pick                                       |
-| ----------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| **Postgres in task** (chosen) | Cheap ($0); engineers know it; sidecar pattern  | Backups manual; limited IOPS via EFS; deploy restarts DB                  | POC, internal-only, ~5 users                       |
-| RDS db.t4g.micro        | Managed backups, patching, snapshots                  | ~$13/mo extra; cold-start during minor version upgrades                   | Once data is valuable or backups become required   |
-| Aurora Serverless v2    | Auto-scaling                                          | ~$43/mo floor (0.5 ACU min)                                               | High-variance workloads                            |
-| DynamoDB                | Serverless; unlimited scale; per-request billing      | Different mental model; ad-hoc queries painful                            | Heavy-write or denormalized-by-design workloads    |
-| Sidecar SQLite on EFS   | Simplest possible                                     | Not concurrent-write-safe; corrupted on multi-task                        | Don't                                              |
+| Option                        | Pros                                             | Cons                                                     | When to pick                                     |
+| ----------------------------- | ------------------------------------------------ | -------------------------------------------------------- | ------------------------------------------------ |
+| **Postgres in task** (chosen) | Cheap ($0); engineers know it; sidecar pattern   | Backups manual; limited IOPS via EFS; deploy restarts DB | POC, internal-only, ~5 users                     |
+| RDS db.t4g.micro              | Managed backups, patching, snapshots             | ~$13/mo extra; cold-start during minor version upgrades  | Once data is valuable or backups become required |
+| Aurora Serverless v2          | Auto-scaling                                     | ~$43/mo floor (0.5 ACU min)                              | High-variance workloads                          |
+| DynamoDB                      | Serverless; unlimited scale; per-request billing | Different mental model; ad-hoc queries painful           | Heavy-write or denormalized-by-design workloads  |
+| Sidecar SQLite on EFS         | Simplest possible                                | Not concurrent-write-safe; corrupted on multi-task       | Don't                                            |
 
 ### Auth / access
 
-| Option                  | Pros                                                  | Cons                                                                     | When to pick                                       |
-| ----------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| **ALB + Cognito** (chosen) | AWS-native; free for low MAU; OIDC                  | $18/mo for ALB; one user pool per app                                     | Default                                            |
-| Cloudflare Access       | Free; identity-aware; SSO with Google/GitHub          | Cloudflare account dependency                                             | When you want absolute-cheapest                    |
-| Tailscale                | Tightest network boundary; zero-trust                 | Tailscale on every device; not for unauthenticated public access          | Internal-only apps used from known devices         |
-| ALB + IP allowlist (no auth) | Cheapest                                          | Breaks when you travel; no audit; no UX                                   | Don't, unless throwaway demo                       |
-| App-level auth only     | Familiar; flexible                                    | Every app rolls its own; ALB is wide open                                  | If you have a strong app-level auth system         |
+| Option                       | Pros                                         | Cons                                                             | When to pick                               |
+| ---------------------------- | -------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------ |
+| **ALB + Cognito** (chosen)   | AWS-native; free for low MAU; OIDC           | $18/mo for ALB; one user pool per app                            | Default                                    |
+| Cloudflare Access            | Free; identity-aware; SSO with Google/GitHub | Cloudflare account dependency                                    | When you want absolute-cheapest            |
+| Tailscale                    | Tightest network boundary; zero-trust        | Tailscale on every device; not for unauthenticated public access | Internal-only apps used from known devices |
+| ALB + IP allowlist (no auth) | Cheapest                                     | Breaks when you travel; no audit; no UX                          | Don't, unless throwaway demo               |
+| App-level auth only          | Familiar; flexible                           | Every app rolls its own; ALB is wide open                        | If you have a strong app-level auth system |
 
 ### Networking
 
-| Option                  | Pros                                                  | Cons                                                                     | When to pick                                       |
-| ----------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| **Public subnet, no NAT** (chosen) | Free; SG protects ingress                  | Task has public IP (locked to no listener); not "production-correct"     | POC tier                                           |
-| Private subnet + NAT GW | Standard; clean egress story                          | $32/mo NAT                                                                | Production tier                                    |
-| Private subnet + VPC endpoints | Free egress to AWS services                   | GitHub & Anthropic still need NAT or proxy                                | If your traffic is 90% AWS-internal                |
+| Option                             | Pros                         | Cons                                                                 | When to pick                        |
+| ---------------------------------- | ---------------------------- | -------------------------------------------------------------------- | ----------------------------------- |
+| **Public subnet, no NAT** (chosen) | Free; SG protects ingress    | Task has public IP (locked to no listener); not "production-correct" | POC tier                            |
+| Private subnet + NAT GW            | Standard; clean egress story | $32/mo NAT                                                           | Production tier                     |
+| Private subnet + VPC endpoints     | Free egress to AWS services  | GitHub & Anthropic still need NAT or proxy                           | If your traffic is 90% AWS-internal |
 
 ### Auth provider (orthogonal to "which auth pattern")
 
@@ -285,6 +285,7 @@ Cognito user pool with Google as a federated IdP. ALB authenticate-cognito flow 
 **When to choose:** the app doesn't need the user's Google access token. It just needs to know "this person signed in via SSO and Cognito has identified them." Most internal dashboards.
 
 **Configuration:**
+
 - Add a Google IdP to the Cognito user pool (`aws_cognito_identity_provider` Terraform resource).
 - Set `attribute_mapping` to map Google's `email` and `name` to Cognito's standard attributes.
 - Restrict the user pool client to the Google IdP (`supported_identity_providers = ["Google"]`).
@@ -294,22 +295,25 @@ Cognito user pool with Google as a federated IdP. ALB authenticate-cognito flow 
 
 Skip the Cognito layer entirely. ALB just forwards (no auth action). App handles all auth via Auth.js with the Google provider.
 
-**When to choose:** Cognito's $0 floor is misleading once you want federated IdPs — adding Google federation requires the Cognito Plus tier ($0.0055/MAU after 50,000 free, but the *features* are the gate not the price). Sometimes simpler to skip Cognito and let Auth.js handle Google directly. App has full control.
+**When to choose:** Cognito's $0 floor is misleading once you want federated IdPs — adding Google federation requires the Cognito Plus tier ($0.0055/MAU after 50,000 free, but the _features_ are the gate not the price). Sometimes simpler to skip Cognito and let Auth.js handle Google directly. App has full control.
 
 **Configuration:**
+
 - Drop the `authenticate-cognito` action on the ALB listener (now `default_action: forward`).
 - Drop the Cognito user pool resources.
 - App's `auth.ts` config:
   ```typescript
-  providers: [Google({ clientId, clientSecret, authorization: { params: { hd: 'yourcompany.com' }}})]
+  providers: [
+    Google({ clientId, clientSecret, authorization: { params: { hd: 'yourcompany.com' } } }),
+  ];
   ```
 - The `hd` parameter restricts to a specific Google Workspace domain. Strong, simple, native.
 
-**Note:** this *removes* the network-level access gate. Anyone hitting the ALB sees the Google sign-in screen, but otherwise the route is open. For most internal apps this is fine — Google's `hd` is the gate.
+**Note:** this _removes_ the network-level access gate. Anyone hitting the ALB sees the Google sign-in screen, but otherwise the route is open. For most internal apps this is fine — Google's `hd` is the gate.
 
 #### (c) Both layers (Cognito + app-level Auth.js)
 
-Cognito federates Google for the network-level gate; Auth.js *also* does Google OAuth for app-level identity (e.g. to get a refresh token for Workspace API calls).
+Cognito federates Google for the network-level gate; Auth.js _also_ does Google OAuth for app-level identity (e.g. to get a refresh token for Workspace API calls).
 
 **When to choose:** rare. Apps that act on Google APIs on behalf of the user (Drive, Calendar, Gmail). The Cognito sign-in handles "is this person allowed to access the network endpoint"; Auth.js handles "give me a refresh token for their account."
 
@@ -319,13 +323,13 @@ Cognito federates Google for the network-level gate; Auth.js *also* does Google 
 
 For SREs deciding which integration to recommend per app:
 
-| App pattern                                                     | Recommended                                  | Why                                                                          |
-| --------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------- |
-| Internal dashboard, no on-behalf API calls                      | (a) Google as Cognito federated IdP          | Single sign-in. Network-level gate. Org SSO native.                          |
-| Internal dashboard, dev-tools-flavored (acts on user GitHub)    | App-level Auth.js GitHub provider            | Cognito layer adds friction without value. Use the reference impl pattern.   |
-| Internal app calling Google Workspace APIs (Drive, Calendar)    | (b) Google as Auth.js provider, with refresh | One sign-in. Direct token access.                                            |
-| External-facing app, "log in with Google"                       | (b) Google as Auth.js provider               | Cognito only adds value for SaaS-style multi-tenancy.                        |
-| Mixed: some users sign in with Google, some with GitHub         | App-level Auth.js with both providers        | Trivial: Auth.js supports many providers in one config.                      |
+| App pattern                                                  | Recommended                                  | Why                                                                        |
+| ------------------------------------------------------------ | -------------------------------------------- | -------------------------------------------------------------------------- |
+| Internal dashboard, no on-behalf API calls                   | (a) Google as Cognito federated IdP          | Single sign-in. Network-level gate. Org SSO native.                        |
+| Internal dashboard, dev-tools-flavored (acts on user GitHub) | App-level Auth.js GitHub provider            | Cognito layer adds friction without value. Use the reference impl pattern. |
+| Internal app calling Google Workspace APIs (Drive, Calendar) | (b) Google as Auth.js provider, with refresh | One sign-in. Direct token access.                                          |
+| External-facing app, "log in with Google"                    | (b) Google as Auth.js provider               | Cognito only adds value for SaaS-style multi-tenancy.                      |
+| Mixed: some users sign in with Google, some with GitHub      | App-level Auth.js with both providers        | Trivial: Auth.js supports many providers in one config.                    |
 
 ### Auth.js code-level swap (for reviewers familiar with the library)
 
@@ -334,11 +338,23 @@ GitHub → Google is a config diff, not a refactor. The `users` / `accounts` / `
 ```typescript
 // before (GitHub)
 import GitHub from 'next-auth/providers/github';
-providers: [GitHub({ clientId: env.AUTH_GITHUB_ID, clientSecret: env.AUTH_GITHUB_SECRET, authorization: { params: { scope: 'repo' }}})]
+providers: [
+  GitHub({
+    clientId: env.AUTH_GITHUB_ID,
+    clientSecret: env.AUTH_GITHUB_SECRET,
+    authorization: { params: { scope: 'repo' } },
+  }),
+];
 
 // after (Google for org SSO)
 import Google from 'next-auth/providers/google';
-providers: [Google({ clientId: env.AUTH_GOOGLE_ID, clientSecret: env.AUTH_GOOGLE_SECRET, authorization: { params: { hd: 'yourcompany.com' }}})]
+providers: [
+  Google({
+    clientId: env.AUTH_GOOGLE_ID,
+    clientSecret: env.AUTH_GOOGLE_SECRET,
+    authorization: { params: { hd: 'yourcompany.com' } },
+  }),
+];
 ```
 
 That's literally the diff for an identity-only app.
@@ -368,6 +384,7 @@ That's literally the diff for an identity-only app.
 Each new app following this pattern needs:
 
 ### Repo bootstrap
+
 - [ ] `Dockerfile` (start from the reference impl's)
 - [ ] `docker-compose.yml` (start from the reference impl's)
 - [ ] `terraform/` directory (copy + replace app name)
@@ -375,11 +392,13 @@ Each new app following this pattern needs:
 - [ ] Reference impl's `.env.example` template
 
 ### AWS prereqs (one-time per app, by central platform)
+
 - [ ] GitHub OIDC trust policy in the account (if not already set up at account level)
 - [ ] Domain registered in Route53 (or delegated subdomain)
 - [ ] App team has access to `terraform/bootstrap.sh` execution
 
 ### App team
+
 - [ ] Run `bootstrap.sh` once
 - [ ] First `terraform apply`
 - [ ] Create GitHub OAuth App (if using GitHub OAuth)
@@ -390,6 +409,7 @@ Each new app following this pattern needs:
 - [ ] Set up cost alarm
 
 ### Per-app post-launch
+
 - [ ] Set up CloudWatch alarms for ALB unhealthy hosts + error log filter
 - [ ] Document allowlist management runbook for the app team
 - [ ] Manual backup procedure tested and documented

@@ -42,9 +42,7 @@ export default async function HistoryPage({
   let rows: ReviewJobRow[] = [];
   try {
     const where =
-      status === 'all'
-        ? undefined
-        : eq(reviewJobs.status, status as Exclude<StatusFilter, 'all'>);
+      status === 'all' ? undefined : eq(reviewJobs.status, status as Exclude<StatusFilter, 'all'>);
     const result = await db
       .select()
       .from(reviewJobs)

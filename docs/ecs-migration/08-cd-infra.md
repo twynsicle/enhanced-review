@@ -55,7 +55,7 @@ on:
 permissions:
   id-token: write
   contents: read
-  pull-requests: write   # for plan-as-comment
+  pull-requests: write # for plan-as-comment
 
 env:
   AWS_REGION: us-east-1
@@ -128,7 +128,7 @@ jobs:
     needs: plan
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment: production   # requires manual approval per GitHub Env config
+    environment: production # requires manual approval per GitHub Env config
     timeout-minutes: 30
     defaults:
       run:
@@ -191,7 +191,7 @@ name: Drift detect
 
 on:
   schedule:
-    - cron: '0 14 * * *'   # 14:00 UTC daily
+    - cron: '0 14 * * *' # 14:00 UTC daily
   workflow_dispatch:
 
 permissions:
@@ -228,7 +228,7 @@ jobs:
         continue-on-error: true
 
       - name: Open issue if drift detected
-        if: steps.plan.outputs.exit == '2'   # 2 = changes pending
+        if: steps.plan.outputs.exit == '2' # 2 = changes pending
         uses: actions/github-script@v7
         with:
           script: |
