@@ -13,10 +13,6 @@ const eslintConfig = defineConfig([
     'build/**',
     'next-env.d.ts',
     'src/components/ui/**',
-    // PB-managed: auto-generated JSVM type definitions and migration
-    // files using PB's `migrate(...)` global + triple-slash references.
-    'pb_data/**',
-    'pb_migrations/**',
   ]),
 ]);
 
