@@ -25,3 +25,11 @@ export function signal(jobId: string): boolean {
 export function unregister(jobId: string): void {
   controllers.delete(jobId);
 }
+
+/**
+ * Iterate registered controllers. Used by the SIGTERM handler to abort
+ * every in-flight job at shutdown.
+ */
+export function entries(): IterableIterator<[string, AbortController]> {
+  return controllers.entries();
+}

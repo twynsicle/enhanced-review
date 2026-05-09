@@ -1,5 +1,4 @@
 import 'server-only';
-import { pbAdmin } from '@/lib/pb';
 import { logger } from '@/lib/log';
 import {
   cloneAndDiff,
@@ -14,7 +13,13 @@ import { ClaudeExecutor } from './executor/claude-executor';
 import { StubExecutor } from './executor/stub-executor';
 import { ExecutorParseError, ExecutorProcessError } from './executor/types';
 import { fetchPullMetadata, GithubFetchError } from './github';
-import { markRunning, finalizeAsDone, markErrored } from './writes';
+import {
+  finalizeAsDone,
+  insertChunk,
+  markCancelled,
+  markErrored,
+  markRunning,
+} from './writes';
 import type { PrData } from './prompt/types';
 
 interface ParsedTarget {
@@ -116,6 +121,7 @@ function isTimeoutAbort(signal: AbortSignal): boolean {
  */
 export async function runJob(
   jobId: string,
+  userId: string,
   token: string,
   headSha: string,
   target: unknown,
@@ -130,14 +136,10 @@ export async function runJob(
   let seq = 0;
   const inFlight: Promise<void>[] = [];
 
-  // Grab the admin client once; reuse throughout so auth isn't re-checked per write.
-  const pb = await pbAdmin();
-
   try {
-    // Fast-path: already aborted before we start (narrow race with cancel).
     if (signal.aborted) return;
 
-    await markRunning(pb, jobId);
+    await markRunning(jobId);
     log.info('job running');
 
     if (signal.aborted) return;
@@ -201,13 +203,9 @@ export async function runJob(
     const onChunk = (text: string): void => {
       const currentSeq = seq++;
       inFlight.push(
-        pb
-          .collection('review_chunks')
-          .create({ job: jobId, seq: currentSeq, content: text })
-          .then(() => {})
-          .catch((err: unknown) => {
-            log.error({ err, seq: currentSeq }, 'insertChunk failed');
-          }),
+        insertChunk(jobId, currentSeq, text).catch((err: unknown) => {
+          log.error({ err, seq: currentSeq }, 'insertChunk failed');
+        }),
       );
     };
 
@@ -229,8 +227,8 @@ export async function runJob(
     await Promise.allSettled(inFlight);
 
     await finalizeAsDone(
-      pb,
       jobId,
+      userId,
       {
         ...result.review,
         files: prData.files.map((file) => ({
@@ -247,22 +245,18 @@ export async function runJob(
     if (signal.aborted) return;
     const message = formatJobError(err);
     log.error({ err }, `job errored: ${message}`);
-    await markErrored(pb, jobId, message);
+    await markErrored(jobId, userId, message);
   } finally {
-    // Tail flush: ensures partial chunks survive cancel/error paths.
+    // Tail flush — partial chunks survive cancel/error paths.
     await Promise.allSettled(inFlight);
     // Ensure 'cancelled' status is written if aborted (handles the narrow
     // race where markRunning overwrote a cancel the route set just before us).
+    // Skip when the abort reason is 'timeout' — the timeout writer already
+    // set status='error' and overwriting it with 'cancelled' would lie.
     if (signal.aborted && !isTimeoutAbort(signal)) {
-      await pb
-        .collection('review_jobs')
-        .update(jobId, {
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-        })
-        .catch((err: unknown) => {
-          log.warn({ err }, 'failed to mark job cancelled');
-        });
+      await markCancelled(jobId, userId).catch((err: unknown) => {
+        log.warn({ err }, 'failed to mark job cancelled');
+      });
     }
     if (cloneDir) await cleanupWorkDir(cloneDir);
   }

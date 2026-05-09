@@ -1,58 +1,51 @@
 import { notFound, redirect } from 'next/navigation';
+import { asc, eq } from 'drizzle-orm';
 import { Topbar } from '@/components/topbar/topbar';
-import { getGithubLogin } from '@/lib/auth/allowlist';
-import { getCurrentUser, pbServer } from '@/lib/pb';
-import type { UserRecord } from '@/lib/pb';
-import type { ReviewChunkRow, ReviewJobRow } from '@/lib/jobs/types';
+import { auth } from '@/lib/auth/auth';
+import { db } from '@/lib/db/client';
+import { reviewChunks, reviewJobs } from '@/lib/db/schema';
+import { toChunkRow, toJobRow } from '@/lib/jobs/types';
 import { JobLiveView } from './job-live-view';
 
 /**
  * `/jobs/:id` — live view of a single review job.
  *
  * Server-rendered shell hydrates the page with the current job row + any
- * chunks already written; the client component then subscribes to
- * realtime for updates. PB rules allow any authenticated user to view
- * here (workspace visibility), so two beta users can watch the same job
- * side-by-side.
+ * chunks already written; the client component subscribes to the SSE
+ * stream for updates (post-A5).
  */
 export const dynamic = 'force-dynamic';
 
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const user = await getCurrentUser();
-  if (!user) redirect('/login');
+  const session = await auth();
+  if (!session?.user) redirect('/login');
 
-  const pb = await pbServer();
+  const jobRows = await db
+    .select()
+    .from(reviewJobs)
+    .where(eq(reviewJobs.id, id))
+    .limit(1);
+  if (jobRows.length === 0) notFound();
+  const job = toJobRow(jobRows[0]);
 
-  let job: ReviewJobRow;
-  try {
-    job = await pb.collection('review_jobs').getOne<ReviewJobRow>(id);
-  } catch {
-    notFound();
-  }
+  const chunkRows = await db
+    .select()
+    .from(reviewChunks)
+    .where(eq(reviewChunks.jobId, id))
+    .orderBy(asc(reviewChunks.seq));
+  const chunks = chunkRows.map(toChunkRow);
 
-  const chunks = await pb
-    .collection('review_chunks')
-    .getFullList<ReviewChunkRow>({
-      filter: `job = "${id}"`,
-      sort: 'seq',
-    })
-    .catch(() => [] as ReviewChunkRow[]);
-
-  const userRecord = pb.authStore.record as UserRecord;
-  const login = getGithubLogin(userRecord) ?? userRecord.email ?? userRecord.id;
-  const avatarUrl =
-    userRecord.avatar && userRecord.avatar.length > 0
-      ? pb.files.getURL(userRecord, userRecord.avatar)
-      : null;
-  const fullName = userRecord.name && userRecord.name.length > 0 ? userRecord.name : null;
+  const login = session.user.githubLogin ?? session.user.email ?? session.user.id;
+  const avatarUrl = session.user.image ?? null;
+  const fullName = session.user.name && session.user.name.length > 0 ? session.user.name : null;
 
   return (
     <>
       <Topbar user={{ login, fullName, avatarUrl }} />
       <main className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-10 px-7 py-12">
-        <JobLiveView initialJob={job} initialChunks={chunks} viewerUserId={user.id} />
+        <JobLiveView initialJob={job} initialChunks={chunks} viewerUserId={session.user.id} />
       </main>
     </>
   );

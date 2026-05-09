@@ -1,69 +1,75 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/pb', () => ({
-  pbAdmin: vi.fn(),
-}));
-
-import { GET } from './route';
-import { pbAdmin } from '@/lib/pb';
-
-const pbAdminMock = vi.mocked(pbAdmin);
-
 interface HealthRows {
   pendingCount?: number;
-  oldestPendingCreated?: string | null;
+  oldestPendingCreated?: Date | null;
   errorCount?: number;
 }
 
-function fakePb(rows: HealthRows) {
-  // Each handler builds its own getList call; we discriminate by the
-  // filter string passed in `options` so a single mock can serve all
-  // three. The route reads `totalItems` for counts and `items[0]` for
-  // the oldest-pending lookup.
+const rowsRef: { current: HealthRows } = vi.hoisted(() => ({
+  current: {
+    pendingCount: 3,
+    oldestPendingCreated: new Date(Date.now() - 30_000),
+    errorCount: 1,
+  },
+}));
+
+// Mock the db client. Three queries run in parallel; we identify which
+// builder a call belongs to by what `select()` was called with.
+vi.mock('@/lib/db/client', () => {
+  type Q = 'queueDepth' | 'oldestPending' | 'errorsLast24h';
+
+  function chainFor(kind: Q) {
+    const finalResult = (): unknown[] => {
+      if (kind === 'queueDepth') return [{ n: rowsRef.current.pendingCount ?? 0 }];
+      if (kind === 'errorsLast24h') return [{ n: rowsRef.current.errorCount ?? 0 }];
+      const created = rowsRef.current.oldestPendingCreated;
+      return created ? [{ createdAt: created }] : [];
+    };
+
+    const builder: Record<string, unknown> = {};
+    builder.from = vi.fn(() => builder);
+    builder.where = vi.fn(() => {
+      if (kind === 'oldestPending') return builder;
+      // For count queries the chain ends at .where (returns a Promise-like).
+      return Promise.resolve(finalResult());
+    });
+    builder.orderBy = vi.fn(() => builder);
+    builder.limit = vi.fn(() => Promise.resolve(finalResult()));
+    return builder;
+  }
+
+  let countCallIndex = 0;
+
   return {
-    collection: vi.fn(() => ({
-      getList: vi.fn(
-        (page: number, perPage: number, options: { filter?: string; sort?: string }) => {
-          const filter = options.filter ?? '';
-          if (filter.includes('completed_at')) {
-            return Promise.resolve({
-              page,
-              perPage,
-              totalItems: rows.errorCount ?? 0,
-              totalPages: 1,
-              items: [],
-            });
-          }
-          if (options.sort === 'created') {
-            return Promise.resolve({
-              page,
-              perPage,
-              totalItems: rows.oldestPendingCreated ? 1 : 0,
-              totalPages: 1,
-              items: rows.oldestPendingCreated ? [{ created: rows.oldestPendingCreated }] : [],
-            });
-          }
-          return Promise.resolve({
-            page,
-            perPage,
-            totalItems: rows.pendingCount ?? 0,
-            totalPages: 1,
-            items: [],
-          });
-        },
-      ),
-    })),
-  } as unknown as Awaited<ReturnType<typeof pbAdmin>>;
-}
+    db: {
+      select: vi.fn((cols?: Record<string, unknown>) => {
+        // The oldest-pending query selects `{ createdAt: ... }` whereas the
+        // count queries select `{ n: ... }`.
+        if (cols && 'createdAt' in cols) return chainFor('oldestPending');
+        // Counts run in this order: queueDepth, then errorsLast24h.
+        const kind: 'queueDepth' | 'errorsLast24h' =
+          countCallIndex === 0 ? 'queueDepth' : 'errorsLast24h';
+        countCallIndex += 1;
+        return chainFor(kind);
+      }),
+      __resetCountCallIndex: () => {
+        countCallIndex = 0;
+      },
+    },
+  };
+});
+
+import { GET } from './route';
+import { db } from '@/lib/db/client';
 
 beforeEach(() => {
-  pbAdminMock.mockResolvedValue(
-    fakePb({
-      pendingCount: 3,
-      oldestPendingCreated: new Date(Date.now() - 30_000).toISOString(),
-      errorCount: 1,
-    }),
-  );
+  rowsRef.current = {
+    pendingCount: 3,
+    oldestPendingCreated: new Date(Date.now() - 30_000),
+    errorCount: 1,
+  };
+  (db as unknown as { __resetCountCallIndex: () => void }).__resetCountCallIndex();
 });
 
 afterEach(() => {
@@ -83,9 +89,8 @@ describe('GET /api/health', () => {
   });
 
   it('reports null oldestPendingAgeSec when nothing is pending', async () => {
-    pbAdminMock.mockResolvedValue(
-      fakePb({ pendingCount: 0, oldestPendingCreated: null, errorCount: 0 }),
-    );
+    rowsRef.current = { pendingCount: 0, oldestPendingCreated: null, errorCount: 0 };
+    (db as unknown as { __resetCountCallIndex: () => void }).__resetCountCallIndex();
     const res = await GET();
     const body = await res.json();
     expect(body.oldestPendingAgeSec).toBeNull();

@@ -3,7 +3,7 @@
 import { Bell, Clock, LogOut } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import { useCallback, useEffect, useState } from 'react';
 import {
   DropdownMenu,
@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/hooks/use-toast';
-import { pbBrowser } from '@/lib/pb/browser';
 
 export interface TopbarUser {
   login: string;
@@ -23,32 +22,21 @@ export interface TopbarUser {
 }
 
 export function UserMenu({ user }: { user: TopbarUser }) {
-  const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>(
     'unsupported',
   );
 
   useEffect(() => {
-    // Read the browser-API permission state once after mount. We can't
-    // read it during render (would mismatch SSR) and the value isn't
-    // reactive enough to justify a useSyncExternalStore subscription.
     if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNotifPermission(Notification.permission);
   }, []);
 
-  const signOut = useCallback(async () => {
+  const handleSignOut = useCallback(async () => {
     setSigningOut(true);
-    // Belt: clear PB auth state (localStorage + pb_auth cookie via
-    // pbBrowser's onChange). Suspenders: hit the server endpoint to clear
-    // the HttpOnly gh_access_token cookie that the browser can't touch.
-    pbBrowser().authStore.clear();
-    await fetch('/api/auth/sign-out', { method: 'POST' }).catch(() => {
-      /* swallowed: best-effort */
-    });
-    router.replace('/login');
-  }, [router]);
+    await signOut({ callbackUrl: '/login' });
+  }, []);
 
   const enableNotifs = useCallback(async () => {
     if (typeof Notification === 'undefined') return;
@@ -119,7 +107,7 @@ export function UserMenu({ user }: { user: TopbarUser }) {
           variant="destructive"
           onSelect={(e) => {
             e.preventDefault();
-            void signOut();
+            void handleSignOut();
           }}
           disabled={signingOut}
         >

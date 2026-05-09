@@ -6,20 +6,14 @@ import { RerunButton } from '@/app/reviews/[id]/rerun-button';
 import { Button } from '@/components/ui/button';
 import { describeTarget, type ReviewChunkRow, type ReviewJobRow } from '@/lib/jobs/types';
 import { extractChapterTitles } from '@/lib/jobs/partial-narrative-parse';
-import { pbBrowser } from '@/lib/pb/browser';
 import { cn } from '@/lib/utils';
 
 /**
  * Live view of a single review job, rendered as a typographic timeline.
- * Three logical phases derived from the actual job state — Setting up
- * (pending) → Reading the diff (running, no chunks yet) → Composing the
- * narrative (running with chunks). The active phase shows the
- * partial-narrative parser's chapter-title checklist nested inside it.
- *
- * Subscribes to PocketBase realtime for `review_jobs` updates (status
- * flips) and `review_chunks` inserts (streamed partial output). PB
- * realtime does not send a snapshot on reconnect — we re-fetch on
- * `PB_CONNECT` so gaps caused by network drops are filled.
+ * Subscribes to the per-job SSE stream at `/api/jobs/[id]/stream`. The
+ * stream sends an initial `snapshot` (job + chunks), then `chunk` /
+ * `status` / `terminal` events. EventSource auto-reconnects on drop —
+ * each reconnect yields a fresh snapshot, so gaps are filled.
  */
 export function JobLiveView({
   initialJob,
@@ -34,89 +28,72 @@ export function JobLiveView({
   const [chunks, setChunks] = useState<ReviewChunkRow[]>(initialChunks);
   const [cancelInFlight, setCancelInFlight] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
-  const terminalRefreshRef = useRef<string | null>(null);
+  const jobIdRef = useRef(initialJob.id);
 
   useEffect(() => {
-    const pb = pbBrowser();
-    let mounted = true;
-    const unsubFns: Array<() => void> = [];
-
-    async function refreshSnapshot() {
-      try {
-        const [latestJob, latestChunks] = await Promise.all([
-          pb.collection('review_jobs').getOne<ReviewJobRow>(job.id),
-          pb
-            .collection('review_chunks')
-            .getFullList<ReviewChunkRow>({ filter: `job = "${job.id}"`, sort: 'seq' }),
-        ]);
-        if (mounted) {
-          setJob(latestJob);
-          setChunks(latestChunks);
-        }
-      } catch {
-        /* swallowed: page still has the latest realtime state we know about */
-      }
-    }
-
-    async function setup() {
-      const [unsubJob, unsubChunks, unsubConnect] = await Promise.all([
-        pb.collection('review_jobs').subscribe<ReviewJobRow>(job.id, (e) => {
-          if (!mounted || e.action !== 'update') return;
-          setJob((prev) => ({ ...prev, ...e.record }));
-          if (isTerminalStatus(e.record.status)) {
-            void refreshSnapshot();
-          }
-        }),
-
-        pb.collection('review_chunks').subscribe<ReviewChunkRow>(
-          '*',
-          (e) => {
-            if (!mounted || e.action !== 'create') return;
-            const incoming = e.record;
-            setChunks((prev) => {
-              if (prev.some((c) => c.id === incoming.id)) return prev;
-              const next = [...prev, incoming];
-              next.sort((a, b) => a.seq - b.seq);
-              return next;
-            });
-          },
-          { filter: `job = "${job.id}"` },
-        ),
-
-        pb.realtime.subscribe('PB_CONNECT', async () => {
-          if (!mounted) return;
-          await refreshSnapshot();
-        }),
-      ]);
-
-      unsubFns.push(unsubJob, unsubChunks, unsubConnect);
-
-      if (!mounted) {
-        for (const fn of unsubFns) fn();
-      }
-    }
-
-    setup().catch(() => {
-      /* swallowed */
-    });
-
-    return () => {
-      mounted = false;
-      for (const fn of unsubFns) fn();
-    };
+    jobIdRef.current = job.id;
   }, [job.id]);
 
   useEffect(() => {
-    if (!isTerminalStatus(job.status) || terminalRefreshRef.current === job.id) return;
-    terminalRefreshRef.current = job.id;
-    const pb = pbBrowser();
-    pb.collection('review_chunks')
-      .getFullList<ReviewChunkRow>({ filter: `job = "${job.id}"`, sort: 'seq' })
-      .then(setChunks)
-      .catch(() => {
+    const id = job.id;
+    const es = new EventSource(`/api/jobs/${id}/stream`);
+
+    const onSnapshot = (e: MessageEvent) => {
+      try {
+        const payload = JSON.parse(e.data) as { job: ReviewJobRow; chunks: ReviewChunkRow[] };
+        setJob(payload.job);
+        setChunks(
+          [...payload.chunks].sort((a, b) => a.seq - b.seq),
+        );
+      } catch {
         /* swallowed */
-      });
-  }, [job.id, job.status]);
+      }
+    };
+
+    const onChunk = (e: MessageEvent) => {
+      try {
+        const chunk = JSON.parse(e.data) as ReviewChunkRow;
+        setChunks((prev) => upsertBySeq(prev, chunk));
+      } catch {
+        /* swallowed */
+      }
+    };
+
+    const onStatus = (e: MessageEvent) => {
+      try {
+        const payload = JSON.parse(e.data) as {
+          status?: ReviewJobRow['status'];
+          riskScore?: number | null;
+          errorMessage?: string;
+        };
+        setJob((prev) => ({
+          ...prev,
+          status: payload.status ?? prev.status,
+          risk_score: payload.riskScore ?? prev.risk_score,
+          error_message: payload.errorMessage ?? prev.error_message,
+        }));
+      } catch {
+        /* swallowed */
+      }
+    };
+
+    const onTerminal = () => {
+      es.close();
+    };
+
+    es.addEventListener('snapshot', onSnapshot);
+    es.addEventListener('chunk', onChunk);
+    es.addEventListener('status', onStatus);
+    es.addEventListener('terminal', onTerminal);
+
+    return () => {
+      es.removeEventListener('snapshot', onSnapshot);
+      es.removeEventListener('chunk', onChunk);
+      es.removeEventListener('status', onStatus);
+      es.removeEventListener('terminal', onTerminal);
+      es.close();
+    };
+  }, [job.id]);
 
   const onCancel = useCallback(async () => {
     setCancelInFlight(true);
@@ -206,6 +183,18 @@ export function JobLiveView({
       </footer>
     </>
   );
+}
+
+function upsertBySeq(prev: ReviewChunkRow[], next: ReviewChunkRow): ReviewChunkRow[] {
+  const idx = prev.findIndex((c) => c.seq === next.seq);
+  if (idx >= 0) {
+    const out = prev.slice();
+    out[idx] = next;
+    return out;
+  }
+  const out = [...prev, next];
+  out.sort((a, b) => a.seq - b.seq);
+  return out;
 }
 
 type PhaseState = 'done' | 'active' | 'pending' | 'error' | 'cancelled';
@@ -320,10 +309,6 @@ function writingPhaseDetail(state: PhaseState, chunkCount: number, titleCount: n
   return '';
 }
 
-function isTerminalStatus(status: ReviewJobRow['status']): boolean {
-  return status === 'done' || status === 'error' || status === 'cancelled';
-}
-
 function phaseEyebrow(status: ReviewJobRow['status']): string {
   if (status === 'done') return 'Review complete';
   if (status === 'error') return 'Review errored';
@@ -341,7 +326,6 @@ function describeTargetTitle(target: ReviewJobRow['target']): string {
   return target.ref;
 }
 
-/** Map a `review_jobs.error_message` to a one-line "what now" suggestion. */
 function whatNowFor(errorMessage: string): string {
   const m = errorMessage.toLowerCase();
   if (m.startsWith('timeout')) {

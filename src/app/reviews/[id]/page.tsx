@@ -1,12 +1,13 @@
 import 'server-only';
 import { notFound, redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@enhanced-review/review-types';
 import type { ReviewTarget } from '@enhanced-review/github-client';
 import { Topbar } from '@/components/topbar/topbar';
-import { getGithubLogin } from '@/lib/auth/allowlist';
-import { getCurrentUser, pbServer } from '@/lib/pb';
-import type { UserRecord } from '@/lib/pb';
-import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
+import { auth } from '@/lib/auth/auth';
+import { db } from '@/lib/db/client';
+import { reviewJobs, reviews } from '@/lib/db/schema';
+import { MissingProviderTokenError, getGithubTokenFor } from '@/lib/github/token';
 import {
   type BranchHead,
   type PullMetadata,
@@ -16,21 +17,18 @@ import {
   getPullMetadata,
   getPullReviewers,
 } from '@/lib/github/view-time';
-import type { ReviewJobRow, ReviewRow } from '@/lib/jobs/types';
+import { toJobRow, toReviewRow, type ReviewJobRow } from '@/lib/jobs/types';
 import { ChapterReader } from './chapter-reader';
 import { RerunButton } from './rerun-button';
 
 /**
  * `/reviews/:id` — the rendered review reader.
  *
- * `:id` is the **`review_jobs.id`** (preserves the `/jobs/:id → /reviews/:id`
- * link Phase 5 wired up). The page fetches the joined `reviews` row and
- * fans out to GitHub for the SummaryCard metadata + staleness check.
+ * `:id` is the **`review_jobs.id`**. The page fetches the joined `reviews`
+ * row and fans out to GitHub for the SummaryCard metadata + staleness check.
  *
- * The page only renders for `done` jobs that produced a `reviews` row.
- * Unfinished or errored jobs send the user back to `/jobs/:id`. PB rules
- * let every workspace member read both collections — anyone in the beta
- * can view anyone's reviews.
+ * Renders only for `done` jobs that produced a `reviews` row. Unfinished
+ * or errored jobs send the user back to `/jobs/:id`.
  */
 export const dynamic = 'force-dynamic';
 
@@ -44,33 +42,30 @@ export default async function ReviewPage({
   const { id } = await params;
   const sp = await searchParams;
 
-  const user = await getCurrentUser();
-  if (!user) redirect('/login');
+  const session = await auth();
+  if (!session?.user) redirect('/login');
 
-  const pb = await pbServer();
+  const jobRows = await db
+    .select()
+    .from(reviewJobs)
+    .where(eq(reviewJobs.id, id))
+    .limit(1);
+  if (jobRows.length === 0) notFound();
+  const job: ReviewJobRow = toJobRow(jobRows[0]);
 
-  let job: ReviewJobRow;
-  try {
-    job = await pb.collection('review_jobs').getOne<ReviewJobRow>(id);
-  } catch {
-    notFound();
-  }
-
-  // The reader is only meaningful for done jobs; pending / running /
-  // error / cancelled jobs live on /jobs/:id.
   if (job.status !== 'done') {
     redirect(`/jobs/${id}`);
   }
 
-  let review: ReviewRow;
-  try {
-    review = await pb.collection('reviews').getFirstListItem<ReviewRow>(`job = "${id}"`);
-  } catch {
-    // status=done but no row — should be impossible per Phase 4 guarantees.
-    // Send the user back to the live view so they can see whatever state
-    // exists rather than rendering an empty reader.
+  const reviewRows = await db
+    .select()
+    .from(reviews)
+    .where(eq(reviews.jobId, id))
+    .limit(1);
+  if (reviewRows.length === 0) {
     redirect(`/jobs/${id}`);
   }
+  const review = toReviewRow(reviewRows[0]);
 
   const target = job.target;
   const owner = target.owner;
@@ -78,11 +73,9 @@ export default async function ReviewPage({
   const baseRef = target.baseSha;
   const headRef = job.head_sha;
 
-  // GitHub view-time fetches. All graceful: if the viewer can't reach
-  // GitHub, the chapters / insights / markdown still render.
   let token: string | null = null;
   try {
-    token = await getGithubToken();
+    token = await getGithubTokenFor(session.user.id);
   } catch (error) {
     if (!(error instanceof MissingProviderTokenError)) throw error;
   }
@@ -115,8 +108,6 @@ export default async function ReviewPage({
       const branch = await getBranchHead({ owner, repo, ref: target.ref, token });
       if (branch.ok) {
         currentHeadSha = branch.data.sha;
-        // Synthesise a thin PullMetadata-shaped record for the SummaryCard
-        // so the branch case doesn't need its own component.
         pullMetadata = synthesizeBranchSummary(target, branch.data, job);
       }
     }
@@ -141,13 +132,9 @@ export default async function ReviewPage({
   const isStale = currentHeadSha !== null && currentHeadSha !== job.head_sha;
   const activeId = parseActiveId(sp.ch, review.content.chapters);
 
-  const userRecord = pb.authStore.record as UserRecord;
-  const login = getGithubLogin(userRecord) ?? userRecord.email ?? userRecord.id;
-  const avatarUrl =
-    userRecord.avatar && userRecord.avatar.length > 0
-      ? pb.files.getURL(userRecord, userRecord.avatar)
-      : null;
-  const fullName = userRecord.name && userRecord.name.length > 0 ? userRecord.name : null;
+  const login = session.user.githubLogin ?? session.user.email ?? session.user.id;
+  const avatarUrl = session.user.image ?? null;
+  const fullName = session.user.name && session.user.name.length > 0 ? session.user.name : null;
 
   return (
     <>

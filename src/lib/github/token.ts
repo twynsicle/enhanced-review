@@ -1,34 +1,36 @@
 import 'server-only';
-import { readGithubTokenCookie } from '@/lib/pb';
+import { and, eq } from 'drizzle-orm';
+import { db } from '@/lib/db/client';
+import { accounts } from '@/lib/db/schema';
 
 /**
- * Thrown when the HttpOnly GitHub access-token cookie isn't set or has been
- * cleared. Happens before first sign-in, after sign-out, or if the user
- * signed in via a flow that didn't persist the token. Callers translate
+ * Thrown when the GitHub access token isn't available. Callers translate
  * this into a redirect to `/relink`.
  */
 export class MissingProviderTokenError extends Error {
-  constructor(message = 'No GitHub access token cookie on this request') {
+  constructor(message = 'No GitHub access token available for this user') {
     super(message);
     this.name = 'MissingProviderTokenError';
   }
 }
 
 /**
- * Read the user's GitHub OAuth access token from the HttpOnly
- * `gh_access_token` cookie set by `POST /api/auth/post-signin` after the
- * browser-side PB OAuth handshake completes.
+ * Read the user's GitHub OAuth access token from the Auth.js `accounts`
+ * table. Server-only, never exposed to the client.
  *
- * The token isn't persisted server-side (per the migration's "never store
- * the GitHub token" rule). We do **not** attempt to refresh it: GitHub
- * OAuth Apps don't issue refresh tokens, and PB doesn't expose one either.
- * If the token is rejected by GitHub, callers redirect the user to
- * `/relink` to re-run the OAuth flow.
+ * Returns `null` when no row exists (e.g. the user signed in but the
+ * provider didn't return an access token for some reason). Callers that
+ * need a hard error should throw `MissingProviderTokenError`.
+ *
+ * GitHub OAuth Apps issue non-expiring tokens, so no refresh logic is
+ * needed. If we ever migrate to GitHub Apps, see the Auth.js refresh-token
+ * recipe.
  */
-export async function getGithubToken(): Promise<string> {
-  const token = await readGithubTokenCookie();
-  if (!token) {
-    throw new MissingProviderTokenError();
-  }
-  return token;
+export async function getGithubTokenFor(userId: string): Promise<string | null> {
+  const rows = await db
+    .select({ token: accounts.access_token })
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.provider, 'github')))
+    .limit(1);
+  return rows[0]?.token ?? null;
 }

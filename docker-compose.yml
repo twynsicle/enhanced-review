@@ -1,0 +1,30 @@
+# Local Postgres for `enhanced-review` development.
+#
+# Phase A scope: only the database. The Next.js app runs on the host via
+# `npm run dev` and connects via DATABASE_URL=postgres://app:app@127.0.0.1:5432/enhanced_review.
+#
+# Phase B will extend this file with a `web` service (the containerised Next.js app)
+# sharing the same compose network. Don't restructure this file in ways that would
+# make that extension awkward.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: enhanced-review-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: enhanced_review
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d enhanced_review"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

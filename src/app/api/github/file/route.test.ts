@@ -1,16 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/pb', () => ({
-  getCurrentUser: vi.fn(),
+const sessionRef: { current: { user: { id: string; githubLogin: string | null } } | null } =
+  vi.hoisted(() => ({ current: { user: { id: 'user-1', githubLogin: 'alice' } } }));
+
+vi.mock('@/lib/auth/auth', () => ({
+  auth: vi.fn(() => Promise.resolve(sessionRef.current)),
 }));
 vi.mock('@/lib/github/token', () => ({
-  getGithubToken: vi.fn(),
-  MissingProviderTokenError: class MissingProviderTokenError extends Error {
-    constructor(message = 'No GitHub access token cookie on this request') {
-      super(message);
-      this.name = 'MissingProviderTokenError';
-    }
-  },
+  getGithubTokenFor: vi.fn(),
 }));
 vi.mock('@/lib/github/view-time', () => ({
   getFileAtRef: vi.fn(),
@@ -18,17 +15,11 @@ vi.mock('@/lib/github/view-time', () => ({
 
 import { NextRequest } from 'next/server';
 import { GET } from './route';
-import { getCurrentUser } from '@/lib/pb';
-import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
+import { getGithubTokenFor } from '@/lib/github/token';
 import { getFileAtRef } from '@/lib/github/view-time';
 
-const getCurrentUserMock = vi.mocked(getCurrentUser);
-const getGithubTokenMock = vi.mocked(getGithubToken);
+const getGithubTokenForMock = vi.mocked(getGithubTokenFor);
 const getFileAtRefMock = vi.mocked(getFileAtRef);
-
-function fakeUser(id: string) {
-  return { id, github_login: 'alice' } as Awaited<ReturnType<typeof getCurrentUser>>;
-}
 
 function buildRequest(query: Record<string, string>): NextRequest {
   const url = new URL('http://test.local/api/github/file');
@@ -44,8 +35,8 @@ const VALID_QUERY = {
 };
 
 beforeEach(() => {
-  getCurrentUserMock.mockResolvedValue(fakeUser('user-1'));
-  getGithubTokenMock.mockResolvedValue('gh-token');
+  sessionRef.current = { user: { id: 'user-1', githubLogin: 'alice' } };
+  getGithubTokenForMock.mockResolvedValue('gh-token');
 });
 
 afterEach(() => {
@@ -54,7 +45,7 @@ afterEach(() => {
 
 describe('GET /api/github/file', () => {
   it('returns 401 when no session', async () => {
-    getCurrentUserMock.mockResolvedValue(null);
+    sessionRef.current = null;
 
     const res = await GET(buildRequest(VALID_QUERY));
     expect(res.status).toBe(401);
@@ -69,8 +60,8 @@ describe('GET /api/github/file', () => {
     expect(getFileAtRefMock).not.toHaveBeenCalled();
   });
 
-  it('returns 401 with github_token_invalid when provider_token is missing', async () => {
-    getGithubTokenMock.mockRejectedValueOnce(new MissingProviderTokenError());
+  it('returns 401 with github_token_invalid when no accounts row exists', async () => {
+    getGithubTokenForMock.mockResolvedValueOnce(null);
 
     const res = await GET(buildRequest(VALID_QUERY));
     expect(res.status).toBe(401);

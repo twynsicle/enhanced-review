@@ -4,7 +4,7 @@ import { JobNotifications } from '@/components/notifications/job-notifications';
 import { LayoutWidthInitScript } from '@/components/theme/layout-width-init-script';
 import { ThemeInitScript } from '@/components/theme/theme-init-script';
 import { Toaster } from '@/components/ui/toaster';
-import { getCurrentUser } from '@/lib/pb';
+import { auth } from '@/lib/auth/auth';
 import './globals.css';
 
 const interTight = Inter_Tight({
@@ -36,12 +36,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Look up the signed-in user once for the cross-page job notifier.
-  // The proxy.ts gate ensures only authenticated users reach the
-  // protected pages; on /login and /denied `user` is null and the
-  // notifier doesn't mount. Toaster is always available so unauthed
-  // pages can still surface error toasts.
-  const user = await getCurrentUser();
+  // Look up the signed-in user once for the cross-page job notifier. The
+  // proxy.ts gate ensures only authenticated users reach the protected
+  // pages; on /login and /denied `session` is null and the notifier doesn't
+  // mount. Toaster is always available so unauthed pages can still surface
+  // error toasts.
+  const session = await auth();
 
   return (
     <html
@@ -56,7 +56,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
         <Toaster />
-        {user ? <JobNotifications userId={user.id} /> : null}
+        {session?.user ? <JobNotifications userId={session.user.id} /> : null}
       </body>
     </html>
   );

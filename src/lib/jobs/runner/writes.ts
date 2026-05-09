@@ -1,51 +1,121 @@
 import 'server-only';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { NarrativeReview } from '@enhanced-review/review-types';
-import type PocketBase from 'pocketbase';
+import { db, pool } from '@/lib/db/client';
+import { reviewChunks, reviewJobs, reviews } from '@/lib/db/schema';
 import { logger } from '@/lib/log';
 
-export async function markRunning(pb: PocketBase, jobId: string): Promise<void> {
-  await pb.collection('review_jobs').update(jobId, {
-    status: 'running',
-    started_at: new Date().toISOString(),
-  });
+/**
+ * Runner write paths. Each function writes via Drizzle and (where the
+ * realtime layer cares) emits a `pg_notify` AFTER the commit so SSE
+ * subscribers can SELECT consistent state. NOTIFY payloads are minimal
+ * (`{ type, ... }`) — chunk content stays out of the payload to keep
+ * under Postgres's 8KB cap.
+ *
+ * Channels:
+ *   - `job_<id>`              per-job stream (chunk inserts + status flips)
+ *   - `user_<userId>:terminal` per-user stream, terminal status only
+ */
+
+async function notify(channel: string, payload: unknown): Promise<void> {
+  await pool.query('SELECT pg_notify($1, $2)', [channel, JSON.stringify(payload)]);
 }
 
-export async function insertChunk(
-  pb: PocketBase,
-  jobId: string,
-  seq: number,
-  content: string,
-): Promise<void> {
-  await pb.collection('review_chunks').create({ job: jobId, seq, content });
+export async function markRunning(jobId: string): Promise<void> {
+  const now = new Date();
+  await db
+    .update(reviewJobs)
+    .set({ status: 'running', startedAt: now, updatedAt: now })
+    .where(eq(reviewJobs.id, jobId));
+  await notify(`job_${jobId}`, { type: 'status', status: 'running' });
+}
+
+/**
+ * Idempotent — `(jobId, seq)` is unique, duplicate inserts are no-ops.
+ * Caller (run.ts onChunk) treats this as fire-and-forget; failures land
+ * in the inFlight promise array via the standard `.catch`.
+ */
+export async function insertChunk(jobId: string, seq: number, content: string): Promise<void> {
+  await db
+    .insert(reviewChunks)
+    .values({ jobId, seq, content })
+    .onConflictDoNothing({ target: [reviewChunks.jobId, reviewChunks.seq] });
+  await notify(`job_${jobId}`, { type: 'chunk', seq });
 }
 
 export async function finalizeAsDone(
-  pb: PocketBase,
   jobId: string,
+  userId: string,
   content: NarrativeReview,
   options: { diffTruncated?: boolean } = {},
 ): Promise<void> {
-  // Insert review row first so a subscriber observing status='done' already finds it.
-  await pb.collection('reviews').create({
-    job: jobId,
-    content,
-    diff_truncated: options.diffTruncated ?? false,
+  const riskScore = content.riskAssessment?.score ?? null;
+  await db.transaction(async (tx) => {
+    await tx.insert(reviews).values({
+      jobId,
+      content,
+      diffTruncated: options.diffTruncated ?? false,
+    });
+    await tx
+      .update(reviewJobs)
+      .set({
+        status: 'done',
+        completedAt: new Date(),
+        riskScore,
+        updatedAt: new Date(),
+      })
+      .where(eq(reviewJobs.id, jobId));
   });
-  await pb.collection('review_jobs').update(jobId, {
-    status: 'done',
-    completed_at: new Date().toISOString(),
-    risk_score: content.riskAssessment?.score ?? null,
-  });
+  await notify(`job_${jobId}`, { type: 'status', status: 'done', riskScore });
+  await notify(`user_${userId}:terminal`, { jobId, status: 'done', riskScore });
 }
 
-export async function markErrored(pb: PocketBase, jobId: string, message: string): Promise<void> {
+export async function markErrored(
+  jobId: string,
+  userId: string,
+  message: string,
+): Promise<void> {
+  const truncated = message.slice(0, 500);
   try {
-    await pb.collection('review_jobs').update(jobId, {
-      status: 'error',
-      completed_at: new Date().toISOString(),
-      error_message: message.slice(0, 500),
-    });
+    await db
+      .update(reviewJobs)
+      .set({
+        status: 'error',
+        completedAt: new Date(),
+        errorMessage: truncated,
+        updatedAt: new Date(),
+      })
+      .where(eq(reviewJobs.id, jobId));
+    await notify(`job_${jobId}`, { type: 'status', status: 'error', errorMessage: truncated });
+    await notify(`user_${userId}:terminal`, { jobId, status: 'error' });
   } catch (err) {
     logger.error({ job_id: jobId, err }, 'markErrored failed');
   }
+}
+
+/**
+ * Idempotent — only writes if the row is still pending/running. Returns
+ * the rowcount so callers can distinguish "this call did the cancel" vs
+ * "someone beat us to it".
+ */
+export async function markCancelled(jobId: string, userId: string): Promise<number> {
+  const result = await db
+    .update(reviewJobs)
+    .set({
+      status: 'cancelled',
+      cancelledAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(reviewJobs.id, jobId),
+        inArray(reviewJobs.status, ['pending', 'running']),
+      ),
+    )
+    .returning({ id: reviewJobs.id });
+  if (result.length > 0) {
+    await notify(`job_${jobId}`, { type: 'status', status: 'cancelled' });
+    await notify(`user_${userId}:terminal`, { jobId, status: 'cancelled' });
+  }
+  return result.length;
 }

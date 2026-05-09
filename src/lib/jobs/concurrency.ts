@@ -1,5 +1,7 @@
 import 'server-only';
-import type PocketBase from 'pocketbase';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { db } from '@/lib/db/client';
+import { reviewJobs } from '@/lib/db/schema';
 
 /**
  * Per-user concurrency cap shared by `POST /api/jobs` and
@@ -8,8 +10,10 @@ import type PocketBase from 'pocketbase';
  * flight returns a 409 the UI surfaces as a "you already have a review
  * running — view it" prompt linking to that in-flight job.
  *
- * Race window: count + insert isn't atomic. For closed beta (low rate,
- * one user at a time clicking) this is fine.
+ * Race window: count + insert isn't atomic outside a transaction. The
+ * jobs route inlines the check inside `db.transaction(...)` to close
+ * that race; this exposed helper is for non-transactional callers
+ * (`/api/jobs/[id]/rerun`) where the race is acceptable for closed beta.
  */
 
 export const DEFAULT_MAX_JOBS_PER_USER = 1;
@@ -31,21 +35,40 @@ export interface ActiveJob {
 
 /**
  * Returns the user's most recently created in-flight job, or null when
- * they're under the cap. Reads via the supplied PB client — pass the
- * superuser admin client (`pbAdmin()`) to keep the count consistent
- * regardless of collection rule state.
+ * they're under the cap. Reads via Drizzle.
  */
-export async function findUserInFlightJob(
-  pb: PocketBase,
-  userId: string,
-): Promise<ActiveJob | null> {
+export async function findUserInFlightJob(userId: string): Promise<ActiveJob | null> {
   const cap = maxJobsPerUser();
-  const result = await pb.collection('review_jobs').getList(1, cap, {
-    filter: `user = "${userId}" && (status = "pending" || status = "running")`,
-    sort: '-created',
-    fields: 'id,status',
-  });
-  const rows = result.items as unknown as ActiveJob[];
+  const rows = await db
+    .select({ id: reviewJobs.id, status: reviewJobs.status })
+    .from(reviewJobs)
+    .where(
+      and(
+        eq(reviewJobs.userId, userId),
+        inArray(reviewJobs.status, ['pending', 'running']),
+      ),
+    )
+    .orderBy(desc(reviewJobs.createdAt))
+    .limit(cap);
   if (rows.length < cap) return null;
-  return rows[0] ?? null;
+  const top = rows[0];
+  if (!top) return null;
+  return { id: top.id, status: top.status as 'pending' | 'running' };
+}
+
+/**
+ * Count active jobs for a user. Used inside the transactional
+ * concurrency-check in `POST /api/jobs`.
+ */
+export async function countActiveForUser(userId: string): Promise<number> {
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(reviewJobs)
+    .where(
+      and(
+        eq(reviewJobs.userId, userId),
+        inArray(reviewJobs.status, ['pending', 'running']),
+      ),
+    );
+  return n;
 }

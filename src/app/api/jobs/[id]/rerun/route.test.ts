@@ -1,86 +1,126 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/pb', () => ({
-  pbAdmin: vi.fn(),
-  getCurrentUser: vi.fn(),
-  readGithubTokenCookie: vi.fn().mockResolvedValue('gh-token'),
+// Mock infra dependencies before importing the route. `auth()` returns the
+// session shape Auth.js produces; the db/pool are stubbed via a queue-driven
+// chainable mock that the test seeds per-scenario.
+
+const sessionRef: { current: { user: { id: string; githubLogin: string | null } } | null } =
+  vi.hoisted(() => ({
+    current: { user: { id: 'user-2', githubLogin: 'alice' } },
+  }));
+
+interface DbState {
+  source: { id: string; target: unknown } | null;
+  inFlightCount: number;
+  insertResult: { id: string };
+  insertError?: unknown;
+}
+
+const dbState: { current: DbState } = vi.hoisted(() => ({
+  current: {
+    source: null,
+    inFlightCount: 0,
+    insertResult: { id: 'new-job-id' },
+  },
 }));
-vi.mock('@/lib/github/server', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/github/server')>('@/lib/github/server');
-  return {
-    ...actual,
-    createServerOctokit: vi.fn(),
-  };
-});
-vi.mock('@/lib/auth/allowlist', () => ({
-  getGithubLogin: vi.fn().mockReturnValue('alice'),
+
+vi.mock('@/lib/auth/auth', () => ({
+  auth: vi.fn(() => Promise.resolve(sessionRef.current)),
 }));
+
+vi.mock('@/lib/github/token', () => ({
+  getGithubTokenFor: vi.fn().mockResolvedValue('gh-token'),
+}));
+
 vi.mock('@/lib/jobs/runner/registry', () => ({
   register: vi.fn(),
   signal: vi.fn(),
   unregister: vi.fn(),
 }));
+
 vi.mock('@/lib/jobs/runner/run', () => ({
   runJob: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@/lib/github/server', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/github/server')>('@/lib/github/server');
+  return { ...actual, createServerOctokit: vi.fn() };
+});
+
+const insertCallSpy = vi.hoisted(() => vi.fn());
+
+let selectCallIndex = 0;
+
+vi.mock('@/lib/db/client', () => {
+  function selectChain(kind: 'source' | 'inflight'): unknown {
+    const chain: Record<string, unknown> = {};
+    chain.from = vi.fn(() => chain);
+    chain.where = vi.fn(() => chain);
+    chain.orderBy = vi.fn(() => chain);
+    chain.limit = vi.fn((n: number) => {
+      if (kind === 'source') {
+        return Promise.resolve(dbState.current.source ? [dbState.current.source] : []);
+      }
+      const rows = Array.from({ length: dbState.current.inFlightCount }, (_, i) => ({
+        id: `inflight-${String(i)}`,
+      }));
+      return Promise.resolve(rows.slice(0, n));
+    });
+    return chain;
+  }
+  function nextSelect(): unknown {
+    // Order in route: 1) source lookup, 2) in-flight check (inside txn).
+    const kind: 'source' | 'inflight' = selectCallIndex === 0 ? 'source' : 'inflight';
+    selectCallIndex += 1;
+    return selectChain(kind);
+  }
+
+  function insertChain(): unknown {
+    const chain: Record<string, unknown> = {};
+    chain.values = vi.fn((args: unknown) => {
+      insertCallSpy(args);
+      return chain;
+    });
+    chain.returning = vi.fn(() => {
+      if (dbState.current.insertError) return Promise.reject(dbState.current.insertError);
+      return Promise.resolve([dbState.current.insertResult]);
+    });
+    return chain;
+  }
+
+  function updateChain(): unknown {
+    const chain: Record<string, unknown> = {};
+    chain.set = vi.fn(() => chain);
+    chain.where = vi.fn(() => Promise.resolve());
+    return chain;
+  }
+
+  const dbStub = {
+    select: vi.fn(() => nextSelect()),
+    insert: vi.fn(() => insertChain()),
+    update: vi.fn(() => updateChain()),
+    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        select: vi.fn(() => nextSelect()),
+        insert: vi.fn(() => insertChain()),
+      };
+      return fn(tx);
+    }),
+  };
+  return {
+    db: dbStub,
+    pool: { query: vi.fn().mockResolvedValue({ rows: [] }) },
+  };
+});
+
 import { NextRequest } from 'next/server';
 import { POST } from './route';
 import { createServerOctokit } from '@/lib/github/server';
-import { getCurrentUser, pbAdmin } from '@/lib/pb';
 
-const pbAdminMock = vi.mocked(pbAdmin);
 const createServerOctokitMock = vi.mocked(createServerOctokit);
-const getCurrentUserMock = vi.mocked(getCurrentUser);
 
-// PB IDs default to 15 alphanumeric chars. Use a representative value
-// that matches the route's id schema.
 const VALID_ID = 'abc123def456789';
 const NOT_FOUND_ID = 'notfoundid12345';
-
-interface FakePbOpts {
-  source?: { id: string; target: unknown } | null;
-  inFlightRows?: { id: string; status: 'pending' | 'running' }[];
-  newJobId?: string;
-  insertError?: unknown;
-}
-
-function fakePbAdmin(opts: FakePbOpts) {
-  const create = vi.fn().mockImplementation(() => {
-    if (opts.insertError) return Promise.reject(opts.insertError);
-    return Promise.resolve({ id: opts.newJobId ?? 'new-job-id' });
-  });
-  const getOne = vi.fn().mockImplementation((id: string) => {
-    if (opts.source && opts.source.id === id) return Promise.resolve(opts.source);
-    return Promise.reject({ status: 404, message: 'not found' });
-  });
-  const getList = vi.fn().mockResolvedValue({
-    page: 1,
-    perPage: 1,
-    totalItems: opts.inFlightRows?.length ?? 0,
-    totalPages: 1,
-    items: opts.inFlightRows ?? [],
-  });
-  const collection = vi.fn(() => ({ create, getOne, getList }));
-  return { collection, _create: create, _getOne: getOne, _getList: getList };
-}
-
-function fakeUser(id: string) {
-  return { id, github_login: 'alice' } as Awaited<ReturnType<typeof getCurrentUser>>;
-}
-
-function fakeOctokit(headSha: string) {
-  return {
-    request: vi.fn().mockResolvedValue({
-      data: {
-        title: 'fresh title',
-        head: { sha: headSha },
-        base: { sha: 'freshBaseSha' },
-        commit: { sha: headSha },
-      },
-    }),
-  } as unknown as Awaited<ReturnType<typeof createServerOctokit>>;
-}
 
 const PR_TARGET = {
   kind: 'pr',
@@ -100,11 +140,29 @@ function ctxFor(id: string) {
   return { params: Promise.resolve({ id }) } as RouteContext<'/api/jobs/[id]/rerun'>;
 }
 
+function fakeOctokit(headSha: string) {
+  return {
+    request: vi.fn().mockResolvedValue({
+      data: {
+        title: 'fresh title',
+        head: { sha: headSha },
+        base: { sha: 'freshBaseSha' },
+        commit: { sha: headSha },
+      },
+    }),
+  } as unknown as Awaited<ReturnType<typeof createServerOctokit>>;
+}
+
 beforeEach(() => {
-  getCurrentUserMock.mockResolvedValue(fakeUser('user-2'));
+  sessionRef.current = { user: { id: 'user-2', githubLogin: 'alice' } };
+  dbState.current = {
+    source: { id: VALID_ID, target: PR_TARGET },
+    inFlightCount: 0,
+    insertResult: { id: 'new-job-id' },
+  };
   createServerOctokitMock.mockResolvedValue(fakeOctokit('newSha'));
-  const fake = fakePbAdmin({ source: { id: VALID_ID, target: PR_TARGET } });
-  pbAdminMock.mockResolvedValue(fake as unknown as Awaited<ReturnType<typeof pbAdmin>>);
+  insertCallSpy.mockClear();
+  selectCallIndex = 0;
 });
 
 afterEach(() => {
@@ -120,37 +178,30 @@ describe('POST /api/jobs/[id]/rerun', () => {
   });
 
   it('returns 401 when no session', async () => {
-    getCurrentUserMock.mockResolvedValue(null);
+    sessionRef.current = null;
     const res = await POST(buildRequest(), ctxFor(VALID_ID));
     expect(res.status).toBe(401);
   });
 
   it('returns 404 when source job is not found', async () => {
-    const fake = fakePbAdmin({ source: null });
-    pbAdminMock.mockResolvedValue(fake as unknown as Awaited<ReturnType<typeof pbAdmin>>);
+    dbState.current.source = null;
     const res = await POST(buildRequest(), ctxFor(NOT_FOUND_ID));
     expect(res.status).toBe(404);
   });
 
   it('refreshes head SHA from GitHub and creates a new job owned by the viewer', async () => {
-    const fake = fakePbAdmin({
-      source: { id: VALID_ID, target: PR_TARGET },
-      newJobId: 'new-job-id',
-    });
-    pbAdminMock.mockResolvedValue(fake as unknown as Awaited<ReturnType<typeof pbAdmin>>);
-
     const res = await POST(buildRequest(), ctxFor(VALID_ID));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({ id: 'new-job-id' });
 
-    expect(fake._create).toHaveBeenCalledWith(
+    expect(insertCallSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        user: 'user-2',
-        github_login: 'alice',
+        userId: 'user-2',
+        githubLogin: 'alice',
         target: { ...PR_TARGET, title: 'fresh title', headSha: 'newSha', baseSha: 'freshBaseSha' },
         status: 'pending',
-        head_sha: 'newSha',
+        headSha: 'newSha',
       }),
     );
   });
@@ -165,15 +216,10 @@ describe('POST /api/jobs/[id]/rerun', () => {
   });
 
   it('returns 409 with job_in_flight when the user already has a pending or running job', async () => {
-    const fake = fakePbAdmin({
-      source: { id: VALID_ID, target: PR_TARGET },
-      inFlightRows: [{ id: 'existing-job', status: 'running' }],
-    });
-    pbAdminMock.mockResolvedValue(fake as unknown as Awaited<ReturnType<typeof pbAdmin>>);
-
+    dbState.current.inFlightCount = 1;
     const res = await POST(buildRequest(), ctxFor(VALID_ID));
     expect(res.status).toBe(409);
     const body = await res.json();
-    expect(body).toMatchObject({ reason: 'job_in_flight', activeJobId: 'existing-job' });
+    expect(body).toMatchObject({ reason: 'job_in_flight' });
   });
 });

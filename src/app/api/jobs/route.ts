@@ -1,13 +1,16 @@
 import 'server-only';
 import { GithubAuthError, isAuthError, type ReviewTarget } from '@enhanced-review/github-client';
 import { NextResponse } from 'next/server';
-import { getGithubLogin } from '@/lib/auth/allowlist';
+import { and, eq, inArray } from 'drizzle-orm';
+import { auth } from '@/lib/auth/auth';
+import { db, pool } from '@/lib/db/client';
+import { reviewJobs } from '@/lib/db/schema';
 import { createServerOctokit, githubErrorResponse } from '@/lib/github/server';
-import { findUserInFlightJob } from '@/lib/jobs/concurrency';
+import { getGithubTokenFor } from '@/lib/github/token';
+import { maxJobsPerUser } from '@/lib/jobs/concurrency';
 import { logger } from '@/lib/log';
 import { ReviewTargetSchema } from '@/lib/jobs/target';
 import { resolveFreshReviewTarget } from '@/lib/jobs/resolve-target';
-import { getCurrentUser, pbAdmin, readGithubTokenCookie } from '@/lib/pb';
 import * as registry from '@/lib/jobs/runner/registry';
 import { runJob } from '@/lib/jobs/runner/run';
 
@@ -17,21 +20,29 @@ import { runJob } from '@/lib/jobs/runner/run';
  * Create a `review_jobs` row for the supplied `ReviewTarget`, then kick off
  * the in-process runner fire-and-forget. Returns `{ id }` immediately.
  *
- * Auth model:
- *   - Session verified via `getCurrentUser()` (PB).
- *   - GitHub token read from the HttpOnly `gh_access_token` cookie — set at
- *     OAuth time by /api/auth/post-signin and never persisted to the DB.
- *   - Row insert uses `pbAdmin()` because `review_jobs.createRule` is server-only.
+ * Auth: Auth.js session via `auth()`. GitHub access token is read from the
+ * `accounts` table via `getGithubTokenFor(userId)`, never from a cookie.
+ *
+ * Concurrency check + insert run inside a single Drizzle transaction so two
+ * simultaneous submits can't both pass the count check.
  */
 export const dynamic = 'force-dynamic';
 
+class ConcurrencyError extends Error {
+  activeJobId: string;
+  constructor(activeJobId: string) {
+    super('job_in_flight');
+    this.activeJobId = activeJobId;
+  }
+}
+
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) {
+  const session = await auth();
+  if (!session?.user) {
     return NextResponse.json({ message: 'unauthorized' }, { status: 401 });
   }
 
-  const githubLogin = getGithubLogin(user);
+  const githubLogin = session.user.githubLogin;
   if (!githubLogin) {
     return NextResponse.json(
       { reason: 'github_token_invalid', message: 'No GitHub identity on this session.' },
@@ -39,7 +50,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const token = await readGithubTokenCookie();
+  const token = await getGithubTokenFor(session.user.id);
   if (!token) {
     return NextResponse.json(
       { reason: 'github_token_missing', message: 'GitHub token missing — re-link your account.' },
@@ -63,19 +74,6 @@ export async function POST(request: Request) {
   }
   let target: ReviewTarget = parsed.data;
 
-  const admin = await pbAdmin();
-  const inFlight = await findUserInFlightJob(admin, user.id);
-  if (inFlight) {
-    return NextResponse.json(
-      {
-        reason: 'job_in_flight',
-        message: 'You already have a review in progress. Wait for it to finish or cancel it.',
-        activeJobId: inFlight.id,
-      },
-      { status: 409 },
-    );
-  }
-
   let headSha: string;
   try {
     const octokit = await createServerOctokit();
@@ -86,7 +84,7 @@ export async function POST(request: Request) {
     if (error instanceof GithubAuthError || isAuthError(error)) {
       return githubErrorResponse(error);
     }
-    logger.error({ err: error, user_id: user.id }, '[api/jobs] head_sha resolution failed');
+    logger.error({ err: error, user_id: session.user.id }, '[api/jobs] head_sha resolution failed');
     return NextResponse.json(
       { message: 'failed to resolve head SHA from GitHub' },
       { status: 502 },
@@ -95,41 +93,88 @@ export async function POST(request: Request) {
 
   let jobId: string;
   try {
-    const record = await admin.collection('review_jobs').create({
-      user: user.id,
-      github_login: githubLogin,
-      target,
-      status: 'pending',
-      head_sha: headSha,
+    const cap = maxJobsPerUser();
+    const newJob = await db.transaction(async (tx) => {
+      const activeRows = await tx
+        .select({ id: reviewJobs.id })
+        .from(reviewJobs)
+        .where(
+          and(
+            eq(reviewJobs.userId, session.user.id),
+            inArray(reviewJobs.status, ['pending', 'running']),
+          ),
+        )
+        .limit(cap);
+      if (activeRows.length >= cap) {
+        throw new ConcurrencyError(activeRows[0]?.id ?? '');
+      }
+      const [row] = await tx
+        .insert(reviewJobs)
+        .values({
+          userId: session.user.id,
+          githubLogin,
+          target,
+          status: 'pending',
+          headSha,
+        })
+        .returning({ id: reviewJobs.id });
+      return row;
     });
-    jobId = record.id;
+    jobId = newJob.id;
   } catch (err) {
-    logger.error({ err, user_id: user.id }, '[api/jobs] insert failed');
+    if (err instanceof ConcurrencyError) {
+      return NextResponse.json(
+        {
+          reason: 'job_in_flight',
+          message: 'You already have a review in progress. Wait for it to finish or cancel it.',
+          activeJobId: err.activeJobId,
+        },
+        { status: 409 },
+      );
+    }
+    logger.error({ err, user_id: session.user.id }, '[api/jobs] insert failed');
     return NextResponse.json({ message: 'failed to create job' }, { status: 500 });
   }
 
   // Fire-and-forget: register the controller, start the runner, return immediately.
+  const userId = session.user.id;
   const controller = new AbortController();
   const timeoutMin = Math.max(1, parseInt(process.env.REVIEW_TIMEOUT_MIN ?? '15', 10));
   const timeoutId = setTimeout(() => {
-    // Write timeout error status before aborting so runJob's signal.aborted
-    // check skips further status writes.
-    admin
-      .collection('review_jobs')
-      .update(jobId, {
-        status: 'error',
-        completed_at: new Date().toISOString(),
-        error_message: `timeout: job exceeded ${timeoutMin} min`,
-      })
-      .catch(() => {
-        /* best-effort */
-      })
-      .finally(() => controller.abort('timeout'));
+    void (async () => {
+      try {
+        await db
+          .update(reviewJobs)
+          .set({
+            status: 'error',
+            completedAt: new Date(),
+            errorMessage: `timeout: job exceeded ${String(timeoutMin)} min`,
+            updatedAt: new Date(),
+          })
+          .where(eq(reviewJobs.id, jobId));
+        await pool.query('SELECT pg_notify($1, $2)', [
+          `job_${jobId}`,
+          JSON.stringify({
+            type: 'status',
+            status: 'error',
+            errorMessage: `timeout: job exceeded ${String(timeoutMin)} min`,
+          }),
+        ]);
+        await pool.query('SELECT pg_notify($1, $2)', [
+          `user_${userId}:terminal`,
+          JSON.stringify({ jobId, status: 'error' }),
+        ]);
+      } catch (err) {
+        logger.warn({ err, job_id: jobId }, '[api/jobs] timeout writer failed');
+      } finally {
+        controller.abort('timeout');
+      }
+    })();
   }, timeoutMin * 60_000);
 
   registry.register(jobId, controller);
 
-  runJob(jobId, token, headSha, target, controller.signal)
+  runJob(jobId, userId, token, headSha, target, controller.signal)
     .finally(() => {
       clearTimeout(timeoutId);
       registry.unregister(jobId);

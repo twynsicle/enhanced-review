@@ -2,7 +2,7 @@ import { Sparkles } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { BrandMark } from '@/components/topbar/brand-mark';
-import { getCurrentUser } from '@/lib/pb';
+import { auth } from '@/lib/auth/auth';
 import { SignInButton } from './sign-in-button';
 
 export const metadata = {
@@ -10,8 +10,8 @@ export const metadata = {
 };
 
 export default async function LoginPage() {
-  const user = await getCurrentUser();
-  if (user) redirect('/');
+  const session = await auth();
+  if (session?.user) redirect('/');
 
   return (
     <main className="relative flex min-h-full flex-col">

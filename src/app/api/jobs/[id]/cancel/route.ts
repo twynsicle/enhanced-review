@@ -1,29 +1,28 @@
 import 'server-only';
 import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { and, eq, inArray } from 'drizzle-orm';
+import { auth } from '@/lib/auth/auth';
+import { db, pool } from '@/lib/db/client';
+import { reviewJobs } from '@/lib/db/schema';
 import { logger } from '@/lib/log';
-import { getCurrentUser, pbServer } from '@/lib/pb';
 import * as registry from '@/lib/jobs/runner/registry';
 
 /**
  * POST /api/jobs/[id]/cancel
  *
- * Owner-only cancellation. The user-scoped PB client is used deliberately
- * so the `review_jobs.updateRule`
+ * Owner-only cancellation. The state-check that PB used to enforce in the
+ * collection rule
  * (`@request.auth.id = user.id && (status = "pending" || status = "running")`)
- * enforces the owner check + cancellable-state check at the DB layer —
- * no manual auth comparison in this handler.
+ * is now in the SQL WHERE clause. RETURNING tells us whether we did the
+ * cancel or someone beat us — zero rows means the job is no longer
+ * cancellable, which we map to 409.
  *
- * Returns 200 with `{ id }` on success, 409 when the job is no longer in
- * a cancellable state (already done/errored, already cancelled, or not
- * the user's job). PB returns 404 when a rule blocks an update — we map
- * that to 409 deliberately. The 409 conflates "wrong owner" with "wrong
- * status" on purpose: exposing the difference would leak job ownership.
+ * The 409 conflates "wrong owner" with "wrong status" on purpose: exposing
+ * the difference would leak job ownership across workspace members.
  */
 export const dynamic = 'force-dynamic';
 
-// PB IDs default to 15 alphanumeric chars; allow a bit of slack in case
-// of customised id length.
 const idSchema = z
   .string()
   .regex(/^[a-zA-Z0-9_-]+$/)
@@ -36,31 +35,45 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/
     return NextResponse.json({ message: 'invalid job id' }, { status: 400 });
   }
 
-  const user = await getCurrentUser();
-  if (!user) {
+  const session = await auth();
+  if (!session?.user) {
     return NextResponse.json({ message: 'unauthorized' }, { status: 401 });
   }
+  const userId = session.user.id;
 
-  const pb = await pbServer();
   try {
-    const record = await pb.collection('review_jobs').update(id, {
-      status: 'cancelled',
-      cancelled_at: new Date().toISOString(),
-    });
-    // Signal the in-process runner (no-op if the job isn't currently running
-    // in this process, e.g. already completed or not yet started).
-    registry.signal(id);
-    return NextResponse.json({ id: record.id });
-  } catch (err: unknown) {
-    if (isNotFound(err)) {
+    const result = await db
+      .update(reviewJobs)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(reviewJobs.id, id),
+          eq(reviewJobs.userId, userId),
+          inArray(reviewJobs.status, ['pending', 'running']),
+        ),
+      )
+      .returning({ id: reviewJobs.id });
+    if (result.length === 0) {
       return NextResponse.json({ message: 'job is not cancellable' }, { status: 409 });
     }
-    logger.error({ err, job_id: id, user_id: user.id }, '[api/jobs/cancel] update failed');
+    // Signal the in-process runner (no-op if already complete or running
+    // in another process — still single-task today).
+    registry.signal(id);
+    await pool.query('SELECT pg_notify($1, $2)', [
+      `job_${id}`,
+      JSON.stringify({ type: 'status', status: 'cancelled' }),
+    ]);
+    await pool.query('SELECT pg_notify($1, $2)', [
+      `user_${userId}:terminal`,
+      JSON.stringify({ jobId: id, status: 'cancelled' }),
+    ]);
+    return NextResponse.json({ id: result[0].id });
+  } catch (err) {
+    logger.error({ err, job_id: id, user_id: userId }, '[api/jobs/cancel] update failed');
     return NextResponse.json({ message: 'failed to cancel' }, { status: 500 });
   }
-}
-
-function isNotFound(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false;
-  return (err as { status?: unknown }).status === 404;
 }

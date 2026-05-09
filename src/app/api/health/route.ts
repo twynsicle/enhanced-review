@@ -1,16 +1,16 @@
 import 'server-only';
-import type PocketBase from 'pocketbase';
 import { NextResponse } from 'next/server';
+import { and, asc, eq, gte, sql } from 'drizzle-orm';
 import { logger } from '@/lib/log';
-import { pbAdmin } from '@/lib/pb';
+import { db } from '@/lib/db/client';
+import { reviewJobs } from '@/lib/db/schema';
 
 /**
  * GET /api/health — public, no secrets in payload.
  *
  * Cheap snapshot for ad-hoc ops checks: queue depth, age of the oldest
  * pending job, and the count of errored jobs in the last 24h. Three
- * lightweight queries (each `getList` with `perPage=1` reading
- * `totalItems` for counts); no per-user data, no internal IDs.
+ * lightweight Drizzle queries; no per-user data, no internal IDs.
  *
  * Always returns 200 so a green pinger sees a green dot. If a query
  * fails the value is null and `ok` flips to `false`, but the response
@@ -27,21 +27,20 @@ export interface HealthBody {
 }
 
 export async function GET() {
-  const admin = await pbAdmin();
   let ok = true;
 
   const [queueDepth, oldestPending, errorsLast24h] = await Promise.all([
-    countByStatus(admin, 'pending').catch((err: unknown) => {
+    countByStatus('pending').catch((err: unknown) => {
       logger.error({ err }, '[api/health] queueDepth failed');
       ok = false;
       return null;
     }),
-    oldestPendingAgeSeconds(admin).catch((err: unknown) => {
+    oldestPendingAgeSeconds().catch((err: unknown) => {
       logger.error({ err }, '[api/health] oldestPending failed');
       ok = false;
       return null;
     }),
-    countErrorsLast24h(admin).catch((err: unknown) => {
+    countErrorsLast24h().catch((err: unknown) => {
       logger.error({ err }, '[api/health] errorsLast24h failed');
       ok = false;
       return null;
@@ -58,34 +57,33 @@ export async function GET() {
 }
 
 async function countByStatus(
-  admin: PocketBase,
   status: 'pending' | 'running' | 'done' | 'error' | 'cancelled',
 ): Promise<number> {
-  const result = await admin.collection('review_jobs').getList(1, 1, {
-    filter: `status = "${status}"`,
-    fields: 'id',
-  });
-  return result.totalItems;
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(reviewJobs)
+    .where(eq(reviewJobs.status, status));
+  return n;
 }
 
-async function oldestPendingAgeSeconds(admin: PocketBase): Promise<number | null> {
-  const result = await admin.collection('review_jobs').getList<{ created: string }>(1, 1, {
-    filter: 'status = "pending"',
-    sort: 'created',
-    fields: 'created',
-  });
-  const oldest = result.items[0];
+async function oldestPendingAgeSeconds(): Promise<number | null> {
+  const rows = await db
+    .select({ createdAt: reviewJobs.createdAt })
+    .from(reviewJobs)
+    .where(eq(reviewJobs.status, 'pending'))
+    .orderBy(asc(reviewJobs.createdAt))
+    .limit(1);
+  const oldest = rows[0];
   if (!oldest) return null;
-  const ageMs = Date.now() - new Date(oldest.created).getTime();
+  const ageMs = Date.now() - oldest.createdAt.getTime();
   return Math.max(0, Math.round(ageMs / 1000));
 }
 
-async function countErrorsLast24h(admin: PocketBase): Promise<number> {
-  // PB filter datetimes accept space-separated `YYYY-MM-DD HH:mm:ss.SSSZ`.
-  const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString().replace('T', ' ');
-  const result = await admin.collection('review_jobs').getList(1, 1, {
-    filter: `status = "error" && completed_at >= "${cutoff}"`,
-    fields: 'id',
-  });
-  return result.totalItems;
+async function countErrorsLast24h(): Promise<number> {
+  const cutoff = new Date(Date.now() - 24 * 3600 * 1000);
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(reviewJobs)
+    .where(and(eq(reviewJobs.status, 'error'), gte(reviewJobs.completedAt, cutoff)));
+  return n;
 }

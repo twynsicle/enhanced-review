@@ -1,17 +1,16 @@
 import 'server-only';
 import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { MissingProviderTokenError, getGithubToken } from '@/lib/github/token';
+import { auth } from '@/lib/auth/auth';
+import { getGithubTokenFor } from '@/lib/github/token';
 import { getFileAtRef } from '@/lib/github/view-time';
-import { getCurrentUser } from '@/lib/pb';
 
 /**
  * GET /api/github/file?owner=...&repo=...&path=...&ref=...
  *
- * Server-side proxy that the Phase 6 `InlineDiffChunk` calls to load
- * base/head file blobs. Token never reaches the browser; the route
- * reads the *viewer's* GitHub OAuth access token from the HttpOnly
- * `gh_access_token` cookie and forwards it to GitHub's contents API.
+ * Server-side proxy that the diff reader calls to load base/head file
+ * blobs. The token is read from the Auth.js `accounts` table — never from
+ * a cookie, never reaches the browser.
  *
  * Response shape mirrors the {@link import('@/lib/github/view-time').ViewTimeResult}
  * discriminated union except for hard auth failures, which return 401
@@ -19,11 +18,9 @@ import { getCurrentUser } from '@/lib/pb';
  * trigger the `/relink` redirect.
  *
  * 200 + `{ ok: true, content, language, lineCount }` — file fetched.
- * 200 + `{ ok: false, error: 'no-access' | 'not-found' | 'too-large' |
- *        'rate-limited' | 'unknown' }` — handled gracefully by the
- *        component (renders a "no access" body etc.).
- * 401   — session missing / GitHub token rejected.
- * 400   — missing or malformed query params.
+ * 200 + `{ ok: false, error }` — handled gracefully by the component.
+ * 401  — session missing / GitHub token rejected.
+ * 400  — missing or malformed query params.
  */
 export const dynamic = 'force-dynamic';
 
@@ -35,13 +32,11 @@ const QuerySchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  // 1. Session check.
-  const user = await getCurrentUser();
-  if (!user) {
+  const session = await auth();
+  if (!session?.user) {
     return NextResponse.json({ message: 'unauthorized' }, { status: 401 });
   }
 
-  // 2. Query params.
   const params = QuerySchema.safeParse({
     owner: request.nextUrl.searchParams.get('owner'),
     repo: request.nextUrl.searchParams.get('repo'),
@@ -55,23 +50,14 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 3. GitHub access token. Missing = relink.
-  let token: string;
-  try {
-    token = await getGithubToken();
-  } catch (error) {
-    if (error instanceof MissingProviderTokenError) {
-      return NextResponse.json(
-        { reason: 'github_token_invalid', message: 'GitHub token is invalid; please re-link.' },
-        { status: 401 },
-      );
-    }
-    throw error;
+  const token = await getGithubTokenFor(session.user.id);
+  if (!token) {
+    return NextResponse.json(
+      { reason: 'github_token_invalid', message: 'GitHub token is invalid; please re-link.' },
+      { status: 401 },
+    );
   }
 
-  // 4. Forward to GitHub. `unauthorized` from view-time = bad token =
-  // relink; everything else passes through as a `200 ok:false` so the
-  // client can render the right fallback.
   const result = await getFileAtRef({ ...params.data, token });
 
   if (!result.ok && result.error.kind === 'unauthorized') {

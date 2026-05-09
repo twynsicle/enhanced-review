@@ -4,34 +4,41 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { ToastAction } from '@/components/ui/toast';
 import { toast } from '@/hooks/use-toast';
-import type { ReviewJobRow } from '@/lib/jobs/types';
-import { pbBrowser } from '@/lib/pb/browser';
 
 /**
- * App-wide subscriber that fires a toast (and optional browser
- * notification) when one of the viewer's review jobs reaches a terminal
- * status while they're on a different page. Mounted once in the root
- * layout.
+ * App-wide subscriber for cross-page review-completion toasts. Mounts in
+ * the root layout once per signed-in session and listens to
+ * `/api/me/notifications` (SSE backed by Postgres LISTEN/NOTIFY on
+ * channel `user_<userId>:terminal`).
  *
- * PocketBase realtime does not expose the previous record value, so we
- * cannot check `wasInFlight` directly. Instead we track which job IDs
- * have already triggered a notification in a ref and fire exactly once
- * per terminal transition per session.
+ * One event per terminal transition while connected; no replay on
+ * reconnect (matches the legacy PB-realtime semantics).
  *
  * Suppression rules:
- *   - Only the viewer's own jobs (server-side filter on `user`).
- *   - Only `pending|running → done|error|cancelled` transitions (tracked
- *     locally via `notifiedRef`).
- *   - Suppressed when the user is *currently* on `/jobs/:id` or
- *     `/reviews/:id` for that job — they can already see the status live.
+ *   - Fire at most once per job per session (tracked in `notifiedRef`).
+ *   - Suppress when the user is *currently* on `/jobs/:id` or
+ *     `/reviews/:id` for that job — the live view already shows it.
  *   - Browser Notification only fires when permission is granted *and*
  *     the tab is hidden, to avoid double-notifying a focused user.
+ *
+ * `userId` is taken from the Auth.js session in the root layout.
  */
+interface TerminalEvent {
+  jobId: string;
+  status: 'done' | 'error' | 'cancelled';
+  riskScore?: number | null;
+  errorMessage?: string;
+  target?: TerminalTarget;
+}
+
+type TerminalTarget =
+  | { kind: 'pr'; owner: string; repo: string; number: number; title?: string }
+  | { kind: 'branch'; owner: string; repo: string; ref: string };
+
 export function JobNotifications({ userId }: { userId: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const pathRef = useRef(pathname);
-
   const notifiedRef = useRef(new Set<string>());
 
   useEffect(() => {
@@ -39,58 +46,49 @@ export function JobNotifications({ userId }: { userId: string }) {
   }, [pathname]);
 
   useEffect(() => {
-    const pb = pbBrowser();
-    let mounted = true;
-    const unsubFns: Array<() => void> = [];
+    if (!userId) return;
+    const es = new EventSource('/api/me/notifications');
 
-    async function setup() {
-      const unsubJobs = await pb.collection('review_jobs').subscribe<ReviewJobRow>(
-        '*',
-        (e) => {
-          if (!mounted || e.action !== 'update') return;
-          const job = e.record;
-
-          const isTerminal =
-            job.status === 'done' || job.status === 'error' || job.status === 'cancelled';
-          if (!isTerminal) return;
-
-          // Fire at most once per job per session.
-          if (notifiedRef.current.has(job.id)) return;
-          notifiedRef.current.add(job.id);
-
-          // Suppress when the user is already viewing that job.
-          if (pathRef.current === `/jobs/${job.id}` || pathRef.current === `/reviews/${job.id}`) {
-            return;
-          }
-
-          fireToast({ job, router });
-          maybeFireBrowserNotification(job);
-        },
-        { filter: `user = "${userId}"` },
-      );
-
-      unsubFns.push(unsubJobs);
-
-      if (!mounted) {
-        for (const fn of unsubFns) fn();
+    const onTerminal = (e: MessageEvent) => {
+      let payload: TerminalEvent;
+      try {
+        payload = JSON.parse(e.data) as TerminalEvent;
+      } catch {
+        return;
       }
-    }
+      if (!payload.jobId || !payload.status) return;
+      if (notifiedRef.current.has(payload.jobId)) return;
+      notifiedRef.current.add(payload.jobId);
 
-    setup().catch(() => {
-      /* swallowed */
-    });
+      if (
+        pathRef.current === `/jobs/${payload.jobId}` ||
+        pathRef.current === `/reviews/${payload.jobId}`
+      ) {
+        return;
+      }
 
+      fireToast({ event: payload, router });
+      maybeFireBrowserNotification(payload);
+    };
+
+    es.addEventListener('terminal', onTerminal);
     return () => {
-      mounted = false;
-      for (const fn of unsubFns) fn();
+      es.removeEventListener('terminal', onTerminal);
+      es.close();
     };
   }, [userId, router]);
 
   return null;
 }
 
-function fireToast({ job, router }: { job: ReviewJobRow; router: ReturnType<typeof useRouter> }) {
-  const { title, description, variant, href } = describeTransition(job);
+function fireToast({
+  event,
+  router,
+}: {
+  event: TerminalEvent;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const { title, description, variant, href } = describeTransition(event);
   toast({
     title,
     description,
@@ -98,8 +96,8 @@ function fireToast({ job, router }: { job: ReviewJobRow; router: ReturnType<type
     action: (
       <ToastAction
         altText="View"
-        onClick={(event) => {
-          event.preventDefault();
+        onClick={(e) => {
+          e.preventDefault();
           router.push(href);
         }}
       >
@@ -109,16 +107,16 @@ function fireToast({ job, router }: { job: ReviewJobRow; router: ReturnType<type
   });
 }
 
-function maybeFireBrowserNotification(job: ReviewJobRow) {
+function maybeFireBrowserNotification(event: TerminalEvent) {
   if (typeof window === 'undefined') return;
   if (typeof Notification === 'undefined') return;
   if (Notification.permission !== 'granted') return;
   if (document.visibilityState !== 'hidden') return;
-  const { title, description, href } = describeTransition(job);
+  const { title, description, href } = describeTransition(event);
   try {
     const n = new Notification(title, {
       body: typeof description === 'string' ? description : 'Review finished',
-      tag: `review-${job.id}`,
+      tag: `review-${event.jobId}`,
     });
     n.onclick = () => {
       window.focus();
@@ -126,43 +124,43 @@ function maybeFireBrowserNotification(job: ReviewJobRow) {
       window.location.assign(href);
     };
   } catch {
-    /* swallowed: some browsers throw when out of focus */
+    /* swallowed */
   }
 }
 
-function describeTransition(job: ReviewJobRow): {
+function describeTransition(event: TerminalEvent): {
   title: string;
   description: string;
   variant: 'success' | 'destructive' | 'default';
   href: string;
 } {
-  const target = describeTargetShort(job);
-  if (job.status === 'done') {
+  const targetText = describeTargetShort(event.target);
+  if (event.status === 'done') {
     return {
       title: 'Review ready',
-      description: target,
+      description: targetText,
       variant: 'success',
-      href: `/reviews/${job.id}`,
+      href: `/reviews/${event.jobId}`,
     };
   }
-  if (job.status === 'error') {
+  if (event.status === 'error') {
     return {
       title: 'Review errored',
-      description: job.error_message ?? target,
+      description: event.errorMessage ?? targetText,
       variant: 'destructive',
-      href: `/jobs/${job.id}`,
+      href: `/jobs/${event.jobId}`,
     };
   }
   return {
     title: 'Review cancelled',
-    description: target,
+    description: targetText,
     variant: 'default',
-    href: `/jobs/${job.id}`,
+    href: `/jobs/${event.jobId}`,
   };
 }
 
-function describeTargetShort(job: ReviewJobRow): string {
-  const t = job.target;
-  if (t.kind === 'pr') return `${t.owner}/${t.repo} PR #${t.number}`;
-  return `${t.owner}/${t.repo} ${t.ref}`;
+function describeTargetShort(target: TerminalTarget | undefined): string {
+  if (!target) return 'review';
+  if (target.kind === 'pr') return `${target.owner}/${target.repo} PR #${String(target.number)}`;
+  return `${target.owner}/${target.repo} ${target.ref}`;
 }

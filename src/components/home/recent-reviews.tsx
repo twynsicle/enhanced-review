@@ -1,9 +1,12 @@
 import Link from 'next/link';
+import { desc } from 'drizzle-orm';
 import { RiskScorePill } from '@/components/narrative/risk-score';
 import { Sparkline } from '@/components/ui/sparkline';
-import type { ReviewJobRow } from '@/lib/jobs/types';
+import { auth } from '@/lib/auth/auth';
+import { db } from '@/lib/db/client';
+import { reviewJobs } from '@/lib/db/schema';
+import { toJobRow, type ReviewJobRow } from '@/lib/jobs/types';
 import { logger } from '@/lib/log';
-import { getCurrentUser, pbServer } from '@/lib/pb';
 import { timeAgo } from '@/lib/time-ago';
 import { cn } from '@/lib/utils';
 
@@ -28,27 +31,39 @@ function buildSparklineBuckets(rows: ReviewJobRow[]): number[] {
 }
 
 export async function RecentReviews() {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const session = await auth();
+  if (!session?.user) return null;
 
   let jobs: ReviewJobRow[] = [];
   let activity: ReviewJobRow[] = [];
   try {
-    const pb = await pbServer();
     const [recent, twoWeeks] = await Promise.all([
-      pb.collection('review_jobs').getList<ReviewJobRow>(1, RECENT_LIMIT, {
-        sort: '-created',
-      }),
-      pb.collection('review_jobs').getList<ReviewJobRow>(1, 200, {
-        sort: '-created',
-        // Keep payload small — only the timestamp matters for the sparkline.
-        fields: 'id,created',
-      }),
+      db.select().from(reviewJobs).orderBy(desc(reviewJobs.createdAt)).limit(RECENT_LIMIT),
+      db
+        .select({ id: reviewJobs.id, createdAt: reviewJobs.createdAt })
+        .from(reviewJobs)
+        .orderBy(desc(reviewJobs.createdAt))
+        .limit(200),
     ]);
-    jobs = recent.items;
-    activity = twoWeeks.items;
+    jobs = recent.map(toJobRow);
+    // The sparkline only needs the `created` timestamp — synthesize the
+    // minimum-shape rows it expects.
+    activity = twoWeeks.map((row) => ({
+      id: row.id,
+      user: '',
+      github_login: '',
+      target: { kind: 'pr', owner: '', repo: '', number: 0, headSha: '', baseSha: '', title: '' },
+      status: 'done',
+      head_sha: '',
+      created: row.createdAt.toISOString(),
+      updated: row.createdAt.toISOString(),
+      started_at: null,
+      completed_at: null,
+      cancelled_at: null,
+      error_message: null,
+    }));
   } catch (err) {
-    logger.error({ err, user_id: user.id }, '[recent-reviews] fetch failed');
+    logger.error({ err, user_id: session.user.id }, '[recent-reviews] fetch failed');
   }
 
   const sparklineData = buildSparklineBuckets(activity);

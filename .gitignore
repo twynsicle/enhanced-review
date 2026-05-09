@@ -41,10 +41,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# pocketbase
-/tools/pocketbase/
-/pb_data/
-
 # claude code (user-local permission overrides; project-shared settings.json is fine)
 .claude/settings.local.json
 

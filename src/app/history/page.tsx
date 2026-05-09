@@ -1,21 +1,20 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { desc, eq } from 'drizzle-orm';
 import { RiskScorePill } from '@/components/narrative/risk-score';
 import { Topbar } from '@/components/topbar/topbar';
 import { Button } from '@/components/ui/button';
-import { getGithubLogin } from '@/lib/auth/allowlist';
-import { describeTarget, type ReviewJobRow } from '@/lib/jobs/types';
+import { auth } from '@/lib/auth/auth';
+import { db } from '@/lib/db/client';
+import { reviewJobs } from '@/lib/db/schema';
+import { describeTarget, toJobRow, type ReviewJobRow } from '@/lib/jobs/types';
 import { logger } from '@/lib/log';
-import { getCurrentUser, pbServer } from '@/lib/pb';
-import type { UserRecord } from '@/lib/pb';
 import { cn } from '@/lib/utils';
 
 /**
  * `/history` — workspace-wide list of review jobs (yours + every beta
- * member's). PB collection rules allow any authenticated user to list
- * `review_jobs`, so the page reads through the user-scoped client; the
- * displayed `github_login` and `target` columns are denormalised on
- * each row so we don't need joins here.
+ * member's). Reads via Drizzle; the displayed `github_login` and `target`
+ * columns are denormalised on each row so we don't need joins here.
  */
 export const dynamic = 'force-dynamic';
 
@@ -37,29 +36,29 @@ export default async function HistoryPage({
   const params = await searchParams;
   const status = parseStatus(params.status);
 
-  const user = await getCurrentUser();
-  if (!user) redirect('/login');
-
-  const pb = await pbServer();
+  const session = await auth();
+  if (!session?.user) redirect('/login');
 
   let rows: ReviewJobRow[] = [];
   try {
-    const result = await pb.collection('review_jobs').getList<ReviewJobRow>(1, PAGE_SIZE, {
-      filter: status === 'all' ? '' : `status = "${status}"`,
-      sort: '-created',
-    });
-    rows = result.items;
+    const where =
+      status === 'all'
+        ? undefined
+        : eq(reviewJobs.status, status as Exclude<StatusFilter, 'all'>);
+    const result = await db
+      .select()
+      .from(reviewJobs)
+      .where(where)
+      .orderBy(desc(reviewJobs.createdAt))
+      .limit(PAGE_SIZE);
+    rows = result.map(toJobRow);
   } catch (err) {
-    logger.error({ err, user_id: user.id }, '[history] fetch failed');
+    logger.error({ err, user_id: session.user.id }, '[history] fetch failed');
   }
 
-  const userRecord = pb.authStore.record as UserRecord;
-  const login = getGithubLogin(userRecord) ?? userRecord.email ?? userRecord.id;
-  const avatarUrl =
-    userRecord.avatar && userRecord.avatar.length > 0
-      ? pb.files.getURL(userRecord, userRecord.avatar)
-      : null;
-  const fullName = userRecord.name && userRecord.name.length > 0 ? userRecord.name : null;
+  const login = session.user.githubLogin ?? session.user.email ?? session.user.id;
+  const avatarUrl = session.user.image ?? null;
+  const fullName = session.user.name && session.user.name.length > 0 ? session.user.name : null;
 
   const isEmpty = rows.length === 0 && status === 'all';
 
