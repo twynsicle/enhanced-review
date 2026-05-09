@@ -9,3 +9,8 @@ variable "registered_apps" {
   type        = list(string)
   default     = ["enhanced-review"]
 }
+
+variable "domain_name" {
+  description = "Parent domain (e.g. example.com). Apps live at <subdomain>.<domain_name>. Wildcard ACM cert covers *.<domain_name> + apex SAN. Domain must either be registered in Route 53 or have its NS records updated to point at this zone after commit 4 applies."
+  type        = string
+}
