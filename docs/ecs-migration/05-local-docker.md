@@ -1,8 +1,10 @@
 # 05 — Local Docker setup
 
-Replaces `npm run pb` + `npm run dev` with `docker compose up`. Produces a Dockerfile that doubles as the artifact ECS will run, plus a docker-compose.yml that spins up Next.js + Postgres locally with a persistent bind mount.
+Replaces `npm run pb` + `npm run dev` with `docker compose up`. Produces a Dockerfile that doubles as the artifact ECS will run, plus a docker-compose.yml that spins up Next.js + Postgres locally with a persistent named volume.
 
 This is Phase B. By this point the app is fully off PocketBase (Phase A done); now we containerize.
+
+> **Execution playbook:** see [phase-b-plan.md](./phase-b-plan.md) for the ordered task list and the decisions log that overrode parts of this doc during planning. The text below has been edited in-place to match those decisions.
 
 ---
 
@@ -63,24 +65,28 @@ Multi-stage. Three stages: deps, build, runtime. Targets Node 22 on Alpine for s
 # syntax=docker/dockerfile:1.7
 
 # --- Stage 1: deps ---
-FROM node:22-alpine AS deps
+FROM --platform=linux/amd64 node:22-alpine AS deps
 WORKDIR /app
-RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
 COPY packages/github-client/package.json ./packages/github-client/
 COPY packages/review-types/package.json ./packages/review-types/
 RUN npm ci
 
 # --- Stage 2: build ---
-FROM node:22-alpine AS build
+FROM --platform=linux/amd64 node:22-alpine AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
+# Compile the migrate runner so the runtime image doesn't need tsx.
+RUN npx --no-install tsc drizzle/migrate.ts \
+      --outDir drizzle \
+      --module nodenext --moduleResolution nodenext \
+      --target es2022 --esModuleInterop --skipLibCheck
 
 # --- Stage 3: runtime ---
-FROM node:22-alpine AS runtime
+FROM --platform=linux/amd64 node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -99,8 +105,10 @@ COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=build --chown=nextjs:nodejs /app/public ./public
 
-# Migrations: copy schema and generated SQL, plus a tiny migrate runner.
+# Migrations: copy SQL + the JS that the build stage compiled from
+# drizzle/migrate.ts. Also copy the recovery script.
 COPY --from=build --chown=nextjs:nodejs /app/drizzle ./drizzle
+COPY --chown=nextjs:nodejs scripts/recover-jobs.cjs /app/scripts/recover-jobs.cjs
 COPY --chown=nextjs:nodejs scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -113,7 +121,7 @@ CMD ["node", "server.js"]
 
 ### Why each piece
 
-- **Alpine + libc6-compat:** smaller image; the `libc6-compat` shim covers a few node-postgres / sharp edge cases.
+- **Alpine:** smaller image. We start without `libc6-compat`; add it back only if a runtime symbol-resolution error surfaces (typical with `sharp`, which we don't use). Keeps the runtime image leaner.
 - **`tini`:** PID 1 reaper. Without it, `SIGTERM` doesn't propagate to Node cleanly; ECS task stops would zombie children. Cheap insurance.
 - **`git` in runtime image:** required by the runner. Confirmed from the audit (`src/lib/jobs/runner/clone/git-runner.ts`).
 - **Non-root user:** standard hardening. `nextjs` user, `nodejs` group, both UID/GID 1001.
@@ -124,13 +132,13 @@ CMD ["node", "server.js"]
 
 ```sh
 #!/bin/sh
-set -euo pipefail
+set -eu
 
 echo "[entrypoint] running migrations…"
-node ./drizzle/migrate.cjs
+node /app/drizzle/migrate.js
 
 echo "[entrypoint] recovering interrupted jobs…"
-node -e "import('./.next/server/lib/jobs/runner/recover-on-startup.js').then(m => m.recoverInterruptedJobs()).catch(e => { console.error(e); process.exit(0); })" || true
+node /app/scripts/recover-jobs.cjs || echo "[entrypoint] recover failed (continuing)"
 
 echo "[entrypoint] starting next…"
 exec "$@"
@@ -138,25 +146,64 @@ exec "$@"
 
 Notes:
 
+- **`set -eu`, not `set -euo pipefail`.** Alpine's BusyBox `sh` doesn't reliably support `pipefail`. `set -eu` is enough for this script.
 - **Migrations first.** If they fail, container exits and ECS retries. Postgres sidecar is unaffected.
-- **Recovery pass second.** Marks orphaned `running` jobs as `error` (see [04](./04-job-runner-rewrite.md)). `|| true` so a recovery failure doesn't block startup — the data layer is just stale, not broken.
+- **Recovery pass second.** Marks orphaned `running` jobs as `error` (see [04](./04-job-runner-rewrite.md)). The `|| echo …` swallows a recovery failure so a stale data layer doesn't block startup — the live view just reports "error" later.
+- **Recovery is here, not in `instrumentation.ts`.** Phase B moves the orphan-flip step out of Next's boot hook and into a standalone CJS script (`scripts/recover-jobs.cjs`) that runs *before* `node server.js` accepts requests. The Next.js `instrumentation.ts` keeps only the SIGTERM handler. This means there's a single source of truth for recovery and no duplicate work on every boot.
 - **`exec "$@"`** — replaces the shell process with `node server.js` so signals reach Node directly (in addition to tini).
 
-`drizzle/migrate.cjs` is a tiny wrapper:
+The migration runner reuses `drizzle/migrate.ts` (already wired to `npm run db:migrate`); the build stage compiles it to `drizzle/migrate.js` so the runtime image runs it with plain `node`. Single source of truth, no `tsx` in the runtime image, no hand-rolled `.cjs` sibling to drift.
+
+`scripts/recover-jobs.cjs` is a small CommonJS script that uses `pg` directly:
 
 ```javascript
-const { drizzle } = require('drizzle-orm/node-postgres');
-const { migrate } = require('drizzle-orm/node-postgres/migrator');
 const { Pool } = require('pg');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const db = drizzle(pool);
-migrate(db, { migrationsFolder: './drizzle' })
-  .then(() => pool.end())
-  .catch((err) => { console.error(err); process.exit(1); });
-```
+async function main() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL is required');
 
-(Or generate this via drizzle-kit; this is the manual hand-rolled equivalent.)
+  const pool = new Pool({ connectionString: url, max: 1 });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE review_jobs
+          SET status = 'error',
+              completed_at = now(),
+              error_message = 'Container restarted; in-flight job lost',
+              updated_at = now()
+        WHERE status = 'running'
+        RETURNING id, user_id`,
+    );
+
+    for (const row of rows) {
+      const jobPayload = JSON.stringify({
+        type: 'status',
+        status: 'error',
+        errorMessage: 'Container restarted; in-flight job lost',
+      });
+      const userPayload = JSON.stringify({ jobId: row.id, status: 'error' });
+      try {
+        await pool.query('SELECT pg_notify($1, $2)', [`job_${row.id}`, jobPayload]);
+        await pool.query('SELECT pg_notify($1, $2)', [
+          `user_${row.user_id}:terminal`,
+          userPayload,
+        ]);
+      } catch (err) {
+        console.warn('[recover] notify failed', err);
+      }
+    }
+
+    if (rows.length) console.log(`[recover] flipped ${rows.length} orphan rows`);
+  } finally {
+    await pool.end();
+  }
+}
+
+main().catch((err) => {
+  console.error('[recover] failed', err);
+  process.exit(0); // never block startup
+});
+```
 
 ---
 
@@ -168,9 +215,6 @@ node_modules
 .git
 .env*
 !.env.example
-data
-pb_data
-tools
 docs
 .github
 *.md
@@ -181,6 +225,8 @@ playwright-report
 .DS_Store
 Thumbs.db
 ```
+
+> The `pb_data`, `tools`, and `data` entries from earlier drafts are dropped — none of those paths exist in the post-Phase-A repo, and we use a named volume (`pgdata`) for Postgres rather than a `./data` bind mount.
 
 Aggressive: anything that bloats the image without being needed at build/runtime.
 
@@ -194,36 +240,40 @@ Aggressive: anything that bloats the image without being needed at build/runtime
 services:
   postgres:
     image: postgres:17-alpine
+    container_name: enhanced-review-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: enhanced_review
       POSTGRES_USER: app
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdevpw}
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: enhanced_review
     ports:
-      - "5432:5432"  # exposed for local DB tools (psql, TablePlus)
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app -d enhanced_review"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 5
 
   web:
     build:
       context: .
       dockerfile: Dockerfile
+    image: enhanced-review:local
+    container_name: enhanced-review-web
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://app:${POSTGRES_PASSWORD:-localdevpw}@postgres:5432/enhanced_review
+      DATABASE_URL: postgres://app:app@postgres:5432/enhanced_review
       AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: http://localhost:3000
       AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
       AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
       AUTH_TRUST_HOST: "true"
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       REVIEW_EXECUTOR: ${REVIEW_EXECUTOR:-stub}
       REVIEW_MODEL: ${REVIEW_MODEL:-claude-haiku-4-5}
       REVIEW_TIMEOUT_MIN: ${REVIEW_TIMEOUT_MIN:-15}
@@ -232,15 +282,19 @@ services:
       LOG_PRETTY: ${LOG_PRETTY:-0}
     ports:
       - "3000:3000"
+
+volumes:
+  pgdata:
 ```
 
 ### Key choices
 
-- **`./data/postgres` bind mount.** Persists across `docker compose down`. Lives in the repo root, gitignored. Easy to nuke (`rm -rf data/postgres`) for a clean reset.
+- **Named `pgdata` volume, not a bind mount.** Avoids Windows WSL2 bind-mount permission errors on a Windows host, which is the user's primary platform. Reset is `docker compose down -v` (one command, no manual `rm -rf`). The Postgres data is throwaway POC data anyway.
 - **Postgres port published to host.** Lets you connect with `psql -h 127.0.0.1 -U app enhanced_review` from your shell. Optional; remove for slightly tighter dev posture.
 - **`depends_on: condition: service_healthy`.** Web waits for Postgres to be ready before booting. Avoids the migration race on first up.
-- **`AUTH_TRUST_HOST=true`.** Auth.js requires this in non-`localhost` environments (it's a CSRF mitigation flag). Setting it in dev keeps the config identical to prod.
-- **`POSTGRES_PASSWORD` defaulted** to a local-only value via `${POSTGRES_PASSWORD:-localdevpw}`. Safe because port 5432 is bound to localhost, no external reach.
+- **`AUTH_URL` *and* `AUTH_TRUST_HOST=true`.** `AUTH_URL` pins the canonical origin; `AUTH_TRUST_HOST` is the explicit Auth.js v5 toggle that lets it trust the Host header in non-Vercel deployments. Setting both mirrors how the prod ECS task will be configured in Phase C.
+- **`image: enhanced-review:local`.** Tags the build so it's identifiable in `docker images` (vs an auto-generated `<project>-web` name). Distinct from Phase D's ECR-tagged production builds.
+- **`POSTGRES_PASSWORD: app`.** Stays consistent with the existing `.env.example` and `docs/RUNNING.md`. Safe because port 5432 is bound to localhost, no external reach.
 
 ### Two flows in dev
 
@@ -257,7 +311,7 @@ docker compose up --build
 ```bash
 docker compose up postgres
 # in another shell:
-DATABASE_URL=postgres://app:localdevpw@127.0.0.1:5432/enhanced_review npm run dev
+DATABASE_URL=postgres://app:app@127.0.0.1:5432/enhanced_review npm run dev
 ```
 
 The README and `RUNNING.md` should document both.
@@ -274,8 +328,8 @@ AUTH_GITHUB_SECRET=              # from your GitHub OAuth App
 # AUTH_TRUST_HOST=true           # set in compose; required for non-localhost hosts
 
 # --- Database ---
-DATABASE_URL=postgres://app:localdevpw@127.0.0.1:5432/enhanced_review
-POSTGRES_PASSWORD=localdevpw     # used by docker-compose
+# Matches docker-compose.yml: user/password/db = app / app / enhanced_review.
+DATABASE_URL=postgres://app:app@127.0.0.1:5432/enhanced_review
 
 # --- Anthropic / Review executor ---
 REVIEW_EXECUTOR=stub             # stub | claude
@@ -312,11 +366,10 @@ For the deployed environment we'll create a separate OAuth App (different callba
 When Phase B lands:
 
 - Delete `scripts/pb.mjs`, `scripts/pb-install.mjs`.
-- Delete `tools/pocketbase/` (entire dir).
-- Delete `pb_data/` (gitignored anyway, but easier to delete now).
-- Remove `pocketbase` from `package.json` deps.
-- Remove `pb`, `pb:install` scripts from `package.json`.
-- Add `db:generate` (`drizzle-kit generate`), `db:migrate` (`drizzle-kit migrate`), `db:studio` (`drizzle-kit studio`) to scripts.
+- Delete `pb_migrations/` (4 historical JSVM files, dead post-Phase-A).
+- Prune `next.config.ts`: drop the `pbRemote` IIFE, `isLocalHost` helper, and `dangerouslyAllowLocalIP`.
+- (Already done in Phase A: `tools/pocketbase/` removed, `pb_data/` removed, `pocketbase` dep removed, `pb`/`pb:install` scripts removed, `db:generate`/`db:migrate` scripts added.)
+- Add `db:recover` (`node scripts/recover-jobs.cjs`) so the same recovery used in the entrypoint is reachable from Flow 2 / dev shells.
 
 ---
 
@@ -338,9 +391,10 @@ Build image is ~700 MB but doesn't get pushed (multi-stage). For the proposal do
 
 The user runs Windows; Docker Desktop on Windows uses WSL2 under the hood. Things to watch for:
 
-- **Bind mount permissions.** `./data/postgres` will be owned by the WSL user; Postgres runs as UID 999 inside the container. Compose handles this on most setups, but on a fresh Windows install you may see `permission denied` errors. Fix: `wsl -d docker-desktop -e chown -R 999:999 /mnt/wsl/...` or simpler — let Docker manage with a named volume (`postgres-data:/var/lib/...` with `volumes: postgres-data:` at the bottom). Document the named-volume escape hatch in `RUNNING.md`.
-- **Line endings.** Make sure `entrypoint.sh` is committed with LF line endings (add a `.gitattributes` rule: `*.sh text eol=lf`). CRLF will cause `bad interpreter` errors in the container.
+- **Volume strategy.** We use a named `pgdata` volume (not a `./data` bind mount) precisely to avoid the WSL2 bind-mount permission class of bug. Reset = `docker compose down -v`. If you ever need to inspect the raw data dir, `docker run --rm -v enhanced-review_pgdata:/data alpine ls /data` is the escape hatch.
+- **Line endings.** A `.gitattributes` rule (`*.sh text eol=lf`) is committed in Phase B so `entrypoint.sh` is stored as LF on every clone. Without it, CRLF causes `/usr/bin/env: 'sh\r': No such file or directory` inside Alpine.
 - **File watching in dev (Flow 2).** Hot reload via `npm run dev` runs on Windows directly, no compose involvement; standard Next.js dev flow applies.
+- **Postgres major version bumps.** PG16 → PG17 (or any major bump) is not forward-compatible at the data-dir level. After a bump, `docker compose down -v && docker volume rm enhanced-review_pgdata` once, then re-seed. POC data is throwaway; tolerable.
 
 ---
 

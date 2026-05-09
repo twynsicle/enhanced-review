@@ -100,6 +100,7 @@ What to build for *this* migration, scoped to this repo.
 | **[08-cd-infra.md](./08-cd-infra.md)**                    | GitHub Actions Terraform apply pipeline.                                    |
 | **[09-cost-and-operations.md](./09-cost-and-operations.md)** | Monthly cost, kill-switch, day-2 ops runbook.                            |
 | **[10-existing-docs-updates.md](./10-existing-docs-updates.md)** | Edits to README, RUNNING, OPERATIONS, AGENTS.                         |
+| **[phase-b-plan.md](./phase-b-plan.md)**                  | Phase B execution playbook: ordered commits, decisions log, verification. |
 
 ### Org-facing proposals (11–12)
 
