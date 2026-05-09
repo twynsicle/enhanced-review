@@ -611,7 +611,7 @@ resource "aws_secretsmanager_secret" "app" {
 }
 ```
 
-**`iam.tf`:** task execution role (read secrets + ECR + write logs), task role (empty), GitHub deploy role (image push + ECS update). Trust policy on the deploy role uses the platform OIDC provider ARN and is scoped to `repo:${var.github_owner}/${var.github_repo}:*`.
+**`iam.tf`:** task execution role (read secrets + ECR + write logs), task role (empty), GitHub deploy role (image push + ECS update). Trust policy on the deploy role uses the platform OIDC provider ARN and is scoped to `repo:${var.github_owner}/${var.github_repo}:ref:refs/heads/main` and `repo:${var.github_owner}/${var.github_repo}:pull_request` — tighter than a literal `:*` so only main-branch pushes and PR runs from the same repo can assume the deploy role.
 
 **`cloudwatch.tf`:**
 
@@ -783,7 +783,8 @@ resource "aws_lb_listener_rule" "app" {
   }
 
   action {
-    type = "authenticate-cognito"
+    type  = "authenticate-cognito"
+    order = 1
     authenticate_cognito {
       user_pool_arn       = local.platform.cognito_user_pool_arn
       user_pool_client_id = aws_cognito_user_pool_client.alb.id
@@ -793,6 +794,7 @@ resource "aws_lb_listener_rule" "app" {
   }
   action {
     type             = "forward"
+    order            = 2
     target_group_arn = aws_lb_target_group.web.arn
   }
 }
@@ -925,6 +927,7 @@ aws cognito-idp admin-create-user \
 - **ACM cert SAN apex.** The cert covers `*.{domain}` plus `{domain}` as a SAN. Apex SAN is only needed if you ever serve from the apex; we deliberately don't (subdomain pattern). The SAN is harmless and costs nothing — keeps the option open.
 - **Cost during placeholder phase.** Per the doc 09 cost model: ALB ($18) + Fargate ($15) + EFS ($0.30) + Route 53 ($0.50) + Secrets ($2) + ECR ($0.15) ≈ **$36/mo** even with placeholder traffic. Expected; if surprising, see doc 09's kill-switch section.
 - **Manual Cognito user creation.** Using `--message-action SUPPRESS` skips the verification email. The temporary password resets on first login. If the user forgets the temp password, run `admin-set-user-password` to reset it.
+- **Service ignores task-definition changes after first apply.** `service.tf` carries `lifecycle { ignore_changes = [task_definition] }` so Phase D's image-deploy pipeline (which registers a new task-def revision and calls `UpdateService` directly) doesn't fight Terraform on subsequent applies. Side effect: changing the task definition in Terraform alone won't actually update the running service — you have to either temporarily remove the `ignore_changes`, run an out-of-band `aws ecs update-service --force-new-deployment`, or push a new image through the Phase D pipeline.
 
 ---
 
