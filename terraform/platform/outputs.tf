@@ -1,5 +1,5 @@
-# Outputs are added in subsequent commits as their resources land.
-# Commit 6 — ALB + Cognito outputs.
+# All platform outputs land by commit 6; this file is the stable interface
+# the application module consumes via terraform_remote_state.
 
 # --- VPC (commit 2) ---
 
@@ -72,4 +72,46 @@ output "domain_name" {
 output "acm_certificate_arn" {
   description = "Validated wildcard ACM cert ARN (*.<domain> + apex SAN). Platform's ALB listener uses this; app module doesn't need to read it directly because the listener already terminates TLS."
   value       = aws_acm_certificate_validation.wildcard.certificate_arn
+}
+
+# --- ALB + Cognito (commit 6) ---
+
+output "alb_arn" {
+  description = "Platform ALB ARN."
+  value       = aws_lb.main.arn
+}
+
+output "alb_dns_name" {
+  description = "Platform ALB DNS name. App module's Route 53 ALIAS record points here."
+  value       = aws_lb.main.dns_name
+}
+
+output "alb_zone_id" {
+  description = "Platform ALB hosted-zone ID (used by Route 53 ALIAS records, not the same as the Route 53 zone the app's record lives in)."
+  value       = aws_lb.main.zone_id
+}
+
+output "alb_listener_https_arn" {
+  description = "Platform ALB HTTPS listener ARN. App module attaches its listener rule here."
+  value       = aws_lb_listener.https.arn
+}
+
+output "alb_security_group_id" {
+  description = "Platform ALB security group ID. App module's task SG ingress allows :3000 from this SG only."
+  value       = aws_security_group.alb.id
+}
+
+output "cognito_user_pool_id" {
+  description = "Shared Cognito user pool ID. App module creates a user pool client (per-app) inside this pool."
+  value       = aws_cognito_user_pool.main.id
+}
+
+output "cognito_user_pool_arn" {
+  description = "Shared Cognito user pool ARN. Listener rule's authenticate-cognito action references this."
+  value       = aws_cognito_user_pool.main.arn
+}
+
+output "cognito_user_pool_domain" {
+  description = "Cognito hosted UI domain prefix (e.g. \"platform-abc12345\"). Listener rule's authenticate-cognito action references this."
+  value       = aws_cognito_user_pool_domain.main.domain
 }
