@@ -7,8 +7,8 @@ import * as registry from './registry';
  * `stopTimeout` (default 30s) before SIGKILL. A 15-min review job can't
  * drain in 30s — best-effort: signal every registered controller to
  * abort. The runner's `finally` writes status='cancelled' for the ones
- * that have time to react; the rest get fixed by `recoverInterruptedJobs`
- * on the next boot.
+ * that have time to react; the rest get fixed by `scripts/recover-jobs.cjs`
+ * on the next container boot (run from the Docker entrypoint).
  */
 let installed = false;
 

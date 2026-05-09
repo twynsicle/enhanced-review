@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
     'build/**',
     'next-env.d.ts',
     'src/components/ui/**',
+    // Operational CommonJS scripts (run by `node` directly) — `require()`
+    // is the canonical syntax here, not a lint issue.
+    'scripts/*.cjs',
   ]),
 ]);
 
