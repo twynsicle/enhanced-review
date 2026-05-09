@@ -1,5 +1,4 @@
-# Outputs are added in subsequent commits as their resources land.
-# Commit 8 — ECS service, task definition, ALB target, Route 53, app URL.
+# All app outputs land by commit 8.
 
 # --- Commit 7: IAM, secrets, EFS, log group ---
 
@@ -26,4 +25,31 @@ output "secret_arns" {
 output "app_url" {
   description = "Public URL the app serves at after Cognito gating."
   value       = local.app_url
+}
+
+# --- Commit 8: task definition, service, ALB target, Cognito client, Route 53 ---
+
+output "ecs_service_arn" {
+  description = "ECS service ARN. Used by `aws ecs update-service ...`."
+  value       = aws_ecs_service.app.id
+}
+
+output "ecs_service_name" {
+  description = "ECS service name (matches var.app_name). Used by `aws ecs execute-command`."
+  value       = aws_ecs_service.app.name
+}
+
+output "ecs_task_definition_family" {
+  description = "Task definition family. Phase D's image-deploy pipeline registers new revisions of this family."
+  value       = aws_ecs_task_definition.app.family
+}
+
+output "alb_target_group_arn" {
+  description = "ALB target group ARN. Phase D's image-deploy pipeline references this when forcing a deployment."
+  value       = aws_lb_target_group.web.arn
+}
+
+output "cognito_user_pool_client_id" {
+  description = "App-specific Cognito user pool client ID. Useful for debugging ALB authenticate-cognito flow."
+  value       = aws_cognito_user_pool_client.alb.id
 }
