@@ -1,11 +1,11 @@
-# Local Postgres for `enhanced-review` development.
+# Local stack for `enhanced-review` development.
 #
-# Phase A scope: only the database. The Next.js app runs on the host via
-# `npm run dev` and connects via DATABASE_URL=postgres://app:app@127.0.0.1:5432/enhanced_review.
+# Two flows:
+#   - Flow 1 (closest to prod): `docker compose up --build` runs everything.
+#   - Flow 2 (fast iteration):  `docker compose up postgres` + host
+#     `npm run dev`. Hot reload, talks to the same Postgres.
 #
-# Phase B will extend this file with a `web` service (the containerised Next.js app)
-# sharing the same compose network. Don't restructure this file in ways that would
-# make that extension awkward.
+# Reset the database with `docker compose down -v` (drops the pgdata volume).
 
 services:
   postgres:
@@ -25,6 +25,33 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: enhanced-review:local
+    container_name: enhanced-review-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://app:app@postgres:5432/enhanced_review
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: http://localhost:3000
+      AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
+      AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
+      AUTH_TRUST_HOST: "true"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      REVIEW_EXECUTOR: ${REVIEW_EXECUTOR:-stub}
+      REVIEW_MODEL: ${REVIEW_MODEL:-claude-haiku-4-5}
+      REVIEW_TIMEOUT_MIN: ${REVIEW_TIMEOUT_MIN:-15}
+      MAX_JOBS_PER_USER: ${MAX_JOBS_PER_USER:-1}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_PRETTY: ${LOG_PRETTY:-0}
+    ports:
+      - "3000:3000"
 
 volumes:
   pgdata:
