@@ -9,7 +9,7 @@
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     container_name: enhanced-review-postgres
     restart: unless-stopped
     environment:
