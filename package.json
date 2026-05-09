@@ -16,7 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx drizzle/migrate.ts",
+    "db:migrate": "tsx drizzle/migrate.mts",
     "db:seed": "tsx scripts/db-seed.ts",
     "db:recover": "node scripts/recover-jobs.cjs"
   },

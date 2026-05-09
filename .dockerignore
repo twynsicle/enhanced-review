@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.env*
+!.env.example
+docs
+.github
+.claude
+*.md
+.vscode
+.idea
+coverage
+playwright-report
+.playwright-mcp
+.DS_Store
+Thumbs.db

@@ -131,15 +131,15 @@ Each section below describes one commit. They are ordered so that any prefix is 
 
 - `Dockerfile` (multi-stage; deps → build → runtime). Per doc 05 with these specifics:
   - All `FROM` lines pinned: `FROM --platform=linux/amd64 node:22-alpine AS deps`, etc.
-  - **Build stage** runs `npm run build` AND compiles `drizzle/migrate.ts` to `drizzle/migrate.js`. Simplest reliable approach:
+  - **Build stage** runs `npm run build` AND compiles `drizzle/migrate.mts` to `drizzle/migrate.mjs`. The source was renamed `.ts` → `.mts` during execution so `tsc` emits `.mjs` (ESM) regardless of the standalone tree's `package.json`, which has no `"type": "module"`. This preserves the source's `import.meta.url` migrations-folder lookup.
     ```dockerfile
-    RUN npx --no-install tsc drizzle/migrate.ts \
+    RUN npx --no-install tsc drizzle/migrate.mts \
         --outDir drizzle \
         --module nodenext --moduleResolution nodenext \
         --target es2022 --esModuleInterop --skipLibCheck
     ```
-    (Or use the project's `tsconfig.json` and `--outDir` override. Validate output is `drizzle/migrate.js` ESM with a `.js` extension that `node` will execute when the package's `type` is `module`. If the runtime base image's Node module-loader rejects the format, fall back to emitting CommonJS via `--module commonjs --target es2022` and renaming `migrate.cjs`.)
-  - **Runtime stage** copies: `.next/standalone` (whole tree, includes minimal `node_modules`), `.next/static`, `public/`, `drizzle/` (migrations + compiled migrate.js), and `scripts/recover-jobs.cjs`.
+  - **Runtime stage** copies: `.next/standalone` (whole tree, includes minimal `node_modules`), `.next/static`, `public/`, `drizzle/` (migrations + compiled `migrate.mjs`), `node_modules/drizzle-orm/` (see note below), and `scripts/recover-jobs.cjs`.
+  - **`drizzle-orm` copied explicitly.** Standalone tracing bundles drizzle into the server chunks for app routes, but the migrator subpath (`drizzle-orm/node-postgres/migrator`) is only imported from `drizzle/migrate.mjs`. Next never sees that file, so the migrator subpath isn't in standalone's `node_modules`. Copy `/app/node_modules/drizzle-orm` (~16 MB) into the runtime image so `node /app/drizzle/migrate.mjs` can resolve it. `pg` is already in standalone — no extra copy.
   - Installs `git`, `ca-certificates`, `tini` via `apk`. No `libc6-compat` unless the build surfaces a runtime error — start without and add only if needed.
   - Non-root user `nextjs:nodejs` (UID/GID 1001).
   - `ENTRYPOINT ["/sbin/tini", "--", "/entrypoint.sh"]`, `CMD ["node", "server.js"]`.
@@ -149,14 +149,14 @@ Each section below describes one commit. They are ordered so that any prefix is 
   #!/bin/sh
   set -eu
   echo "[entrypoint] running migrations…"
-  node /app/drizzle/migrate.js
+  node /app/drizzle/migrate.mjs
   echo "[entrypoint] recovering interrupted jobs…"
   node /app/scripts/recover-jobs.cjs || echo "[entrypoint] recover failed (continuing)"
   echo "[entrypoint] starting next…"
   exec "$@"
   ```
   Note: `set -euo pipefail` from doc 05's example uses `pipefail` which the BusyBox `sh` shipped with Alpine doesn't always support. `set -eu` is safer.
-- `.gitattributes` (new file at repo root): `*.sh text eol=lf` so `entrypoint.sh` doesn't get CRLF'd on Windows checkouts and become a `bad interpreter` error inside Alpine.
+- `.gitattributes` (already in the repo) already has `*.sh text eol=lf`, plus `Dockerfile`, `*.sql`, etc. No change needed.
 
 **Verify:**
 

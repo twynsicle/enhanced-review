@@ -79,8 +79,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
-# Compile the migrate runner so the runtime image doesn't need tsx.
-RUN npx --no-install tsc drizzle/migrate.ts \
+# Compile the migrate runner so the runtime image doesn't need tsx. The
+# source is `.mts` so tsc emits `.mjs` (ESM, preserves `import.meta.url`).
+RUN npx --no-install tsc drizzle/migrate.mts \
       --outDir drizzle \
       --module nodenext --moduleResolution nodenext \
       --target es2022 --esModuleInterop --skipLibCheck
@@ -105,10 +106,14 @@ COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=build --chown=nextjs:nodejs /app/public ./public
 
-# Migrations: copy SQL + the JS that the build stage compiled from
-# drizzle/migrate.ts. Also copy the recovery script.
+# Migrations: copy SQL + the .mjs the build stage compiled from
+# drizzle/migrate.mts. Then copy drizzle-orm itself — it's bundled into
+# the standalone server chunks for app usage but the migrator subpath
+# (`drizzle-orm/node-postgres/migrator`) is `import`-ed at runtime, so it
+# needs to be resolvable from /app/node_modules.
 COPY --from=build --chown=nextjs:nodejs /app/drizzle ./drizzle
-COPY --chown=nextjs:nodejs scripts/recover-jobs.cjs /app/scripts/recover-jobs.cjs
+COPY --from=build --chown=nextjs:nodejs /app/node_modules/drizzle-orm ./node_modules/drizzle-orm
+COPY --chown=nextjs:nodejs scripts/recover-jobs.cjs ./scripts/recover-jobs.cjs
 COPY --chown=nextjs:nodejs scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -135,7 +140,7 @@ CMD ["node", "server.js"]
 set -eu
 
 echo "[entrypoint] running migrations…"
-node /app/drizzle/migrate.js
+node /app/drizzle/migrate.mjs
 
 echo "[entrypoint] recovering interrupted jobs…"
 node /app/scripts/recover-jobs.cjs || echo "[entrypoint] recover failed (continuing)"
@@ -152,7 +157,9 @@ Notes:
 - **Recovery is here, not in `instrumentation.ts`.** Phase B moves the orphan-flip step out of Next's boot hook and into a standalone CJS script (`scripts/recover-jobs.cjs`) that runs *before* `node server.js` accepts requests. The Next.js `instrumentation.ts` keeps only the SIGTERM handler. This means there's a single source of truth for recovery and no duplicate work on every boot.
 - **`exec "$@"`** — replaces the shell process with `node server.js` so signals reach Node directly (in addition to tini).
 
-The migration runner reuses `drizzle/migrate.ts` (already wired to `npm run db:migrate`); the build stage compiles it to `drizzle/migrate.js` so the runtime image runs it with plain `node`. Single source of truth, no `tsx` in the runtime image, no hand-rolled `.cjs` sibling to drift.
+The migration runner reuses `drizzle/migrate.mts` (the same file `npm run db:migrate` runs through tsx); the build stage compiles it with `tsc` to `drizzle/migrate.mjs`. The `.mts` → `.mjs` extension preserves the source's ESM-only `import.meta.url` lookup of the migrations folder. Single source of truth, no `tsx` in the runtime image, no hand-rolled `.cjs` sibling to drift.
+
+> **Why `drizzle-orm` is copied separately:** Next.js's standalone tracing bundles drizzle into the server chunks for the routes that use it. The migrator subpath (`drizzle-orm/node-postgres/migrator`) is only imported from `drizzle/migrate.mjs`, which Next never sees, so it isn't traced into the standalone tree. Copying the full `node_modules/drizzle-orm/` (~16 MB) into the runtime image makes the runtime `import` resolve. `pg` is already in the standalone tree, so no extra copy needed for it.
 
 `scripts/recover-jobs.cjs` is a small CommonJS script that uses `pg` directly:
 

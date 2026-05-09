@@ -41,6 +41,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# build artifact: drizzle/migrate.mts is compiled to drizzle/migrate.mjs
+# inside the Docker build stage; never committed.
+drizzle/migrate.mjs
+
 # claude code (user-local permission overrides; project-shared settings.json is fine)
 .claude/settings.local.json
 
