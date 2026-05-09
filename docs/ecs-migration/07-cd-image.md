@@ -171,7 +171,7 @@ aws ecs update-service --cluster enhanced-review --service enhanced-review --tas
 
 ### Automatic rollback (default)
 
-ECS deployment circuit breaker (enabled in [06](./06-aws-infra-terraform.md)) detects failed deployments via target health and auto-reverts to the previous task definition. We don't have to do anything; just check CloudWatch and the ECS console.
+ECS deployment circuit breaker (enabled in [06b](./06b-application.md)) detects failed deployments via target health and auto-reverts to the previous task definition. We don't have to do anything; just check CloudWatch and the ECS console.
 
 ---
 
@@ -186,16 +186,16 @@ Every successful build pushes two tags:
 
 **Don't tag with version numbers.** The repo doesn't ship versions. Commit SHA is the only stable identifier.
 
-ECR lifecycle policy ([06](./06-aws-infra-terraform.md)) keeps the last 10 `sha-` images, expires the rest. So a 6-month-old build is gone — _that's intentional_. If you need to deploy old code, build it from source.
+ECR lifecycle policy ([06a](./06a-platform.md)) keeps the last 10 `sha-` images, expires the rest. So a 6-month-old build is gone — _that's intentional_. If you need to deploy old code, build it from source.
 
 ---
 
 ## OIDC trust gotchas
 
-The trust policy on `enhanced-review-github-deploy` (defined in [06](./06-aws-infra-terraform.md)) restricts the role to:
+The trust policy on `enhanced-review-github-image-deploy` (defined in [06b](./06b-application.md)) restricts the role to:
 
-- `repo:steven/enhanced-review:ref:refs/heads/main` (push-to-main deploys)
-- `repo:steven/enhanced-review:pull_request` (we don't currently let PR builds deploy, but this allows future workflow_dispatch from a fork PR; remove if you want to be strict)
+- `repo:twynsicle/enhanced-review:ref:refs/heads/main` (push-to-main deploys)
+- `repo:twynsicle/enhanced-review:pull_request` (we don't currently let PR builds deploy, but this allows future workflow_dispatch from a fork PR; remove if you want to be strict)
 
 Things that will trip you up if changed:
 

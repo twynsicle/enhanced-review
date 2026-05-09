@@ -73,6 +73,10 @@ drizzle.config.ts              drizzle-kit config (schema → drizzle/)
 instrumentation.ts             Next 16 boot hook: SIGTERM handler. (Recovery moved to scripts/recover-jobs.cjs.)
 next-auth.d.ts                 Type augmentation: Session.user gains githubLogin + id
 scripts/                       db-seed.ts (allowlist seeder), recover-jobs.cjs (orphan-job flip), entrypoint.sh (Docker)
+terraform/                     AWS infra. Two root modules:
+  bootstrap.sh                 Creates S3 state bucket + DynamoDB lock table (idempotent, run once per AWS account)
+  platform/                    Shared infra: VPC, ECS cluster, ALB+listener, Cognito user pool, Route 53 zone, wildcard ACM cert, GitHub OIDC provider, ECR repos. One apply per AWS account.
+  apps/enhanced-review/        Per-app: ECS task+service, EFS, listener rule, Cognito client, Route 53 record, secrets, scoped IAM, log group, SGs. Reads platform via terraform_remote_state.
 docs/                          README, RUNNING, OPERATIONS, ecs-migration/, archive/
 test/                          server-only.shim.ts (Vitest alias for next/server-only)
 .github/workflows/ci.yml       Format / lint / typecheck / test + docker-build verification on PR + push to main
@@ -136,6 +140,17 @@ All runner writes use the same connection pool (no separate admin/user split). N
 - The runner is single-process: ~5 concurrent jobs is the design budget. Don't add cross-process queues without revisiting `docs/README.md`.
 - No webhooks, no write-back to GitHub PRs, narrative-only (no Workspace mode). These are intentional cuts vs the diffy POC.
 
+## Deployment
+
+Production runs the same Docker image as local, plus a `postgres:17-alpine` sidecar in the same Fargate task. Two Terraform modules:
+
+- **`terraform/platform/`** — shared infra, applied once per AWS account: VPC, ECS cluster, ALB + listener (default 404 fixed-response), Cognito user pool, Route 53 zone, wildcard ACM cert, GitHub OIDC provider, ECR repos.
+- **`terraform/apps/enhanced-review/`** — per-app, applied per app: ECS task + service, EFS, ALB target group + listener rule (host header `enhanced-review.<domain>`, action: `authenticate-cognito + forward`), Cognito user pool client, Route 53 ALIAS record, Secrets Manager entries, scoped IAM, log group, security groups. Reads platform outputs via `terraform_remote_state`.
+
+Bring-up walkthrough in `terraform/README.md`; design in `docs/ecs-migration/06a-platform.md` + `06b-application.md`; commit-by-commit playbook in `docs/ecs-migration/phase-c-plan.md`. Day-2 ops (kill switch, secret rotation, allowlist via ECS Exec, manual backups) in `docs/ecs-migration/09-cost-and-operations.md`.
+
+Phase C ends at infra-only verification (ALB + Cognito gating, `hashicorp/http-echo` placeholder responding 200). Real GitHub OAuth + reviews land with Phase D's image-deploy pipeline; CD workflows (image deploy + infra deploy) don't exist yet.
+
 ## Working on Windows
 
 The user runs Windows. `bash` (Git Bash) and `powershell` are both available; the docs and scripts are written to work in either. When you suggest commands to the user, use forward-slash paths and POSIX-friendly syntax (Git Bash).
@@ -150,6 +165,8 @@ Treat AGENTS.md as a living map. **Update it in the same change that introduces 
 - A new env var, npm script, or executor backend.
 - Renames or removals of any of the above.
 - A change to the high-level data flow (auth, job lifecycle, streaming, cancel).
+- A change to the Terraform module shape — new resource type, renamed output, new app under `terraform/apps/`, new platform-level concept.
+- A change to how secrets are wired (which secrets exist, which container reads them).
 
 Pure refactors inside an already-named area (e.g. splitting `run.ts` into helpers under the same dir) do **not** require an AGENTS.md update — the directory entry still describes the area accurately.
 

@@ -1,12 +1,12 @@
 # Phase C — AWS infrastructure via Terraform — execution plan
 
-**Status:** ready to execute. **Companion to:** [06-aws-infra-terraform.md](./06-aws-infra-terraform.md) (design — to be split into `06a-platform.md` and `06b-application.md` as part of this phase) and [00-overview.md](./00-overview.md) (phase map).
+**Status:** ready to execute. **Companion to:** [06a-platform.md](./06a-platform.md) and [06b-application.md](./06b-application.md) (design references — split out of the original doc 06 in this plan's commit 9) and [00-overview.md](./00-overview.md) (phase map).
 
 This file is the ordered task list for Phase C: produce a working AWS deployment of `enhanced-review` with the `terraform/` directory under source control. By the end, two `terraform apply` invocations (one platform, one app) bring up VPC + ECS cluster + ALB + Cognito + Route 53 + ACM + ECR + GitHub OIDC + an ECS service running a placeholder image, gated by Cognito at `https://enhanced-review.{domain_name}`.
 
 Phase C ends at **infra-only** verification — placeholder image responds 200 behind Cognito. Real GitHub OAuth login + real reviews are Phase D's first image deploy.
 
-If anything here disagrees with [06-aws-infra-terraform.md](./06-aws-infra-terraform.md), the plan wins; doc 06's content will be split into 06a/06b in Phase C's final commit and the design will catch up.
+If anything here disagrees with [06a](./06a-platform.md) / [06b](./06b-application.md), the plan wins (the design docs were split out of doc 06 in commit 9 of this plan).
 
 ---
 

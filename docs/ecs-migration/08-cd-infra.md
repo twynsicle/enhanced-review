@@ -2,7 +2,7 @@
 
 GitHub Actions workflow that runs `terraform plan` on every PR touching `terraform/`, posts the plan as a PR comment, and runs `terraform apply` on merge to `main` (gated by a manual approval). Uses GitHub OIDC federation, separate IAM role from the image-deploy pipeline.
 
-This is Phase D-part-2. Builds on the state-backend bootstrap from [06](./06-aws-infra-terraform.md).
+This is Phase D-part-2. Builds on the state-backend bootstrap from [06a](./06a-platform.md). Two infra-deploy roles in scope: one for the platform module, one per app module — both follow the trust-policy pattern from [06b](./06b-application.md)'s image-deploy role.
 
 ---
 
@@ -255,7 +255,7 @@ We treat `2` as actionable. `1` we let fail loudly so we notice the workflow's b
 
 ## IAM role for Terraform (`enhanced-review-github-tf`)
 
-Defined in [06](./06-aws-infra-terraform.md) alongside the image-deploy role. Trust policy is the same shape (OIDC, restricted to this repo). Permissions are broader because Terraform creates/destroys things:
+To be defined in Phase D — alongside (or as a sibling of) the image-deploy role from [06b](./06b-application.md). Trust policy is the same shape (OIDC, restricted to this repo). Permissions are broader because Terraform creates/destroys things:
 
 ```hcl
 data "aws_iam_policy_document" "tf_permissions" {
@@ -286,12 +286,15 @@ For the POC, "scope by name prefix" is a sane shortcut. Org-wide adoption ([11](
 
 The chicken-and-egg problem: Terraform can't manage its own state backend.
 
-`terraform/bootstrap.sh` (already in [06](./06-aws-infra-terraform.md)) creates the S3 bucket + DynamoDB lock table. Run once, by hand, before the first `terraform init`:
+`terraform/bootstrap.sh` (described in [06a](./06a-platform.md)) creates the S3 bucket + DynamoDB lock table. Run once, by hand, before the first `terraform init`:
 
 ```bash
-cd terraform
-./bootstrap.sh
-terraform init   # picks up the backend block, prompts to migrate state from local — say yes (it's empty)
+bash terraform/bootstrap.sh
+cd terraform/platform
+terraform init -backend-config="bucket=…" -backend-config="key=platform/terraform.tfstate" …
+terraform apply
+cd ../apps/enhanced-review
+terraform init -backend-config="bucket=…" -backend-config="key=apps/enhanced-review/terraform.tfstate" …
 terraform apply
 ```
 

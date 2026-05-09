@@ -62,11 +62,11 @@ These were made by the user during planning. Marked as **DECIDED** so future-you
 | D2  | Auth library             | Auth.js v5 (NextAuth) + Drizzle adapter, keep GitHub OAuth  | Standard for Next.js 16 App Router. See [02](./02-auth-replacement.md). |
 | D3  | DB toolkit               | Drizzle ORM + drizzle-kit migrations                        | Lightweight, SQL-first, typed. See [01](./01-postgres-data-layer.md).   |
 | D4  | Realtime                 | SSE route handler backed by Postgres LISTEN/NOTIFY          | Lowest-latency replacement for PB realtime. See [03](./03-realtime.md). |
-| D5  | Hosting                  | ECS Fargate, single task, two containers (web + postgres)   | Mid-cost, mid-complexity. See [06](./06-aws-infra-terraform.md).        |
-| D6  | DB storage               | Postgres in container, EFS-backed volume                    | Acceptable I/O for POC traffic. See [06](./06-aws-infra-terraform.md).  |
-| D7  | Access control           | Public ALB + Cognito user pool                              | Managed, AWS-native. See [06](./06-aws-infra-terraform.md).             |
+| D5  | Hosting                  | ECS Fargate, single task, two containers (web + postgres)   | Mid-cost, mid-complexity. Platform: [06a](./06a-platform.md) (cluster). App: [06b](./06b-application.md) (task def). |
+| D6  | DB storage               | Postgres in container, EFS-backed volume                    | Acceptable I/O for POC traffic. See [06b](./06b-application.md).        |
+| D7  | Access control           | Public ALB + Cognito user pool                              | Managed, AWS-native. Platform: [06a](./06a-platform.md). App: [06b](./06b-application.md) (per-app client + listener rule). |
 | D8  | Domain / TLS             | Register a domain in Route53 (~$12/yr) + ACM cert           | Cleanest TLS path. Required by Cognito ALB integration.                 |
-| D9  | Secrets                  | AWS Secrets Manager                                         | See [06](./06-aws-infra-terraform.md).                                  |
+| D9  | Secrets                  | AWS Secrets Manager                                         | See [06b](./06b-application.md).                                        |
 | D10 | GH Actions ↔ AWS         | OIDC federation                                             | No long-lived keys. See [07](./07-cd-image.md), [08](./08-cd-infra.md). |
 | D11 | Subnet topology          | Public subnet for the Fargate task (no NAT Gateway)         | NAT is ~$32/mo and would dominate cost. ALB + SG handle exposure.       |
 | D12 | Org-facing proposal docs | Write 11 (SRE) and 12 (engineer) after implementation lands | Claims need to be grounded in the working system. See plan Phase F.     |
@@ -95,7 +95,8 @@ What to build for _this_ migration, scoped to this repo.
 | **[03-realtime.md](./03-realtime.md)**                           | SSE + LISTEN/NOTIFY pattern.                                              |
 | **[04-job-runner-rewrite.md](./04-job-runner-rewrite.md)**       | Runner write paths, graceful shutdown, abort registry.                    |
 | **[05-local-docker.md](./05-local-docker.md)**                   | Dockerfile, docker-compose, local dev flow.                               |
-| **[06-aws-infra-terraform.md](./06-aws-infra-terraform.md)**     | All AWS resources via Terraform.                                          |
+| **[06a-platform.md](./06a-platform.md)**                         | Shared Terraform module: VPC, cluster, ALB, Cognito pool, Route 53, ACM, ECR, OIDC. |
+| **[06b-application.md](./06b-application.md)**                   | Per-app Terraform module: task, service, EFS, listener rule, scoped IAM, secrets. |
 | **[07-cd-image.md](./07-cd-image.md)**                           | GitHub Actions image deploy pipeline.                                     |
 | **[08-cd-infra.md](./08-cd-infra.md)**                           | GitHub Actions Terraform apply pipeline.                                  |
 | **[09-cost-and-operations.md](./09-cost-and-operations.md)**     | Monthly cost, kill-switch, day-2 ops runbook.                             |

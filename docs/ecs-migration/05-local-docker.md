@@ -361,7 +361,7 @@ You need a GitHub OAuth App with the right callback URL:
 4. **Authorization callback URL:** `http://localhost:3000/api/auth/callback/github`.
 5. Generate a client secret. Drop both into `.env.local`.
 
-For the deployed environment we'll create a separate OAuth App (different callback URL). Documented in [06](./06-aws-infra-terraform.md).
+For the deployed environment we'll create a separate OAuth App (different callback URL). Documented in [06b](./06b-application.md).
 
 ---
 

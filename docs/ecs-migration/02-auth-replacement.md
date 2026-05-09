@@ -294,7 +294,7 @@ Drops the session row + cookie. `/api/auth/sign-out/route.ts` is deleted.
 
 ## Cognito setup (ALB-side)
 
-This is summarized here; the full Terraform lives in [06](./06-aws-infra-terraform.md).
+This is summarized here; the full Terraform lives in [06a](./06a-platform.md) (Cognito user pool) and [06b](./06b-application.md) (per-app client + listener rule).
 
 - **User pool** with one user (the maintainer's email). MFA optional but recommended.
 - **App client** with the ALB callback URL: `https://<your-domain>/oauth2/idpresponse` (this is the URL ALB exposes for OIDC).

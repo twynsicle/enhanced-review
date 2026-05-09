@@ -202,17 +202,22 @@ Detailed in [09](./09-cost-and-operations.md). Highlights:
 
 ### Per-app onboarding (proposed standard)
 
+The pattern is split into two Terraform modules ([06a](./06a-platform.md), [06b](./06b-application.md)):
+
+- **`terraform/platform/`** — applied once per AWS account by central platform. Provisions VPC, ECS cluster, ALB, Cognito user pool, Route 53 zone, wildcard ACM cert, GitHub OIDC provider, ECR repos. Reusable across apps.
+- **`terraform/apps/<app-name>/`** — applied per app by the app team. Provisions the ECS task/service, EFS, listener rule, Cognito client, secrets, scoped IAM, log group, DNS record. Reads platform outputs via `terraform_remote_state`.
+
 A new app teaming up with this pattern should:
 
-1. Fork or copy the reference repo's `terraform/` directory + GitHub Actions workflows.
-2. Replace `enhanced-review` with the app name throughout (resource names, log groups, ECR repo, Cognito user pool).
-3. Have central platform create the GitHub OIDC trust policy in the AWS account (one-time manual; the app team can't do it themselves because it requires account-root or a privileged role).
-4. Run `terraform/bootstrap.sh` to create state backend.
-5. `terraform apply`.
-6. Configure GitHub OAuth App + put credentials in Secrets Manager.
-7. Add the maintainer to the Cognito user pool.
+1. **(Central platform, one-time per AWS account)** Run `terraform/bootstrap.sh` and apply the platform module. Adds the new app's name to `var.registered_apps` so the platform provisions an ECR repo for it.
+2. **(App team)** Copy `terraform/apps/enhanced-review/` to `terraform/apps/<your-app>/`. Override `var.app_name`, `var.subdomain`, `var.github_owner`, `var.github_repo`. Pick the next available listener-rule priority (110, 120, …).
+3. **(App team)** Copy `.github/workflows/deploy-image.yml` and `deploy-infra.yml`, swap the app name.
+4. **(App team)** `terraform init` + `terraform apply` against the app module — first apply with `var.web_image` defaulted to the placeholder so the service comes up before any image exists.
+5. Configure GitHub OAuth App (or other auth provider) + put credentials in Secrets Manager.
+6. Add the maintainer to the platform's shared Cognito user pool.
+7. Push the first real image via the deploy-image workflow.
 
-Total time: an afternoon if everything's smooth, a day if it's the first time.
+Total time: an afternoon if everything's smooth, a day if the platform is also being set up for the first time.
 
 ---
 
@@ -387,15 +392,16 @@ Each new app following this pattern needs:
 
 - [ ] `Dockerfile` (start from the reference impl's)
 - [ ] `docker-compose.yml` (start from the reference impl's)
-- [ ] `terraform/` directory (copy + replace app name)
+- [ ] `terraform/apps/<app-name>/` directory (copy from `terraform/apps/enhanced-review/`, override `var.app_name`, `var.subdomain`, `var.github_owner`, `var.github_repo`, listener-rule priority)
 - [ ] `.github/workflows/deploy-image.yml` and `deploy-infra.yml`
 - [ ] Reference impl's `.env.example` template
 
-### AWS prereqs (one-time per app, by central platform)
+### AWS prereqs (one-time, by central platform)
 
-- [ ] GitHub OIDC trust policy in the account (if not already set up at account level)
-- [ ] Domain registered in Route53 (or delegated subdomain)
-- [ ] App team has access to `terraform/bootstrap.sh` execution
+- [ ] `terraform/platform/` applied (VPC, cluster, ALB, Cognito pool, Route 53 zone, wildcard cert, OIDC provider — shared across apps)
+- [ ] App's name added to `var.registered_apps` in the platform module → re-apply to provision the new ECR repo
+- [ ] Domain registered in Route 53 (or delegated subdomain)
+- [ ] App team has access to assume the platform's image-deploy role for their app
 
 ### App team
 

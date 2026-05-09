@@ -63,11 +63,16 @@ To resume: `--desired-count 1`. ~5 minutes to fully come back.
 
 ### Hard-kill (destroys app stack, keeps state)
 
-For longer pauses, additionally destroy the ALB + Fargate + log group:
+For longer pauses, destroy the platform's ALB + this app's ECS service. EFS data and Secrets Manager values are preserved (they're per-app resources but not targeted here).
 
 ```sh
-cd terraform
-terraform destroy -target=aws_lb.main -target=aws_ecs_service.app
+# In the app module, destroy just the service:
+cd terraform/apps/enhanced-review
+terraform destroy -target=aws_ecs_service.app
+
+# In the platform module, destroy the ALB:
+cd ../../platform
+terraform destroy -target=aws_lb.main
 ```
 
 Cost drops to:
@@ -76,20 +81,23 @@ Cost drops to:
 - Route 53 + ECR + Secrets Manager + S3 + domain: ~$4/mo.
 - **~$5/mo when hard-killed.**
 
-To resume: `terraform apply` (full apply, ~10 minutes). DNS A-ALIAS points at the new ALB automatically.
+To resume: `terraform apply` in platform (recreates ALB), then `terraform apply` in the app module (recreates the service). ~10 minutes total. DNS A-ALIAS points at the new ALB automatically because the app's `aws_route53_record.app` is recreated to alias the new ALB.
 
-> **Don't `terraform destroy` everything** — destroying the EFS and Cognito user pool is data loss. The targeted destroy above is the safe variant.
+> **Don't `terraform destroy` everything** — destroying the EFS volume in the app module or the Cognito user pool in the platform module is data loss. The targeted destroys above are the safe variant.
 
 ### Nuke (complete teardown)
 
-Only if you're done with the POC for good:
+Only if you're done with the POC for good. Destroy in reverse dependency order — app first, then platform:
 
 ```sh
-cd terraform
+cd terraform/apps/enhanced-review
+terraform destroy
+
+cd ../../platform
 terraform destroy
 ```
 
-EFS data, Cognito users, Secrets Manager values — gone. The S3 state bucket is also destroyed (since we `terraform destroy` it via Terraform). Deregister the domain in Route53 if you don't want to keep paying $12/yr.
+EFS data, Cognito users, Secrets Manager values — gone. Empty the S3 state bucket and delete the DynamoDB lock table by hand (they're not Terraform-managed). Deregister the domain in Route 53 if you don't want to keep paying $12/yr.
 
 ---
 
@@ -221,7 +229,7 @@ Common causes:
 
 - **Multiple tasks tried to mount EFS at once.** Should be impossible (`desiredCount=1`), but if you forced two during a deploy edge case, both may hold a lock. Fix: scale to 0, wait 60s, scale back to 1.
 - **EFS access point UID/GID mismatch.** The access point is configured with UID/GID 999. If you change the postgres image to a non-default user, this breaks. Fix: align the image and access point.
-- **`PGDATA` env var path drift.** Set to `/var/lib/postgresql/data/pgdata` to keep PG happy with EFS root having `lost+found`. Verify in [06](./06-aws-infra-terraform.md).
+- **`PGDATA` env var path drift.** Set to `/var/lib/postgresql/data/pgdata` to keep PG happy with EFS root having `lost+found`. Verify in [06b](./06b-application.md).
 
 ---
 
