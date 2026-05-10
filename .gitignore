@@ -45,6 +45,17 @@ next-env.d.ts
 # inside the Docker build stage; never committed.
 drizzle/migrate.mjs
 
+# terraform: provider cache, local state, and local var files. CI gets
+# vars from GitHub secrets via TF_VAR_* env in deploy-infra.yml; local
+# applies can use terraform.tfvars (not committed). State lives in S3.
+# .terraform.lock.hcl is intentionally NOT ignored — commit it for
+# reproducible provider versions across machines.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
 # claude code (user-local permission overrides; project-shared settings.json is fine)
 .claude/settings.local.json
 
