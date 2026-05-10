@@ -124,7 +124,7 @@ and CD pipelines see [ecs-migration/](./ecs-migration/) — start with
 | `packages/github-client/`         | Octokit wrapper used by API routes (workspace package)                                                       |
 | `packages/review-types/`          | Shared `NarrativeReview` shape                                                                               |
 | `drizzle/`                        | drizzle-kit-generated SQL migrations + `migrate.mts` (compiled to `migrate.mjs` in the Docker build)         |
-| `scripts/`                        | `db-seed.ts` (allowlist seed), `recover-jobs.cjs` (orphan-job recovery), `entrypoint.sh` (container start)    |
+| `scripts/`                        | `db-seed.ts` (allowlist seed), `recover-jobs.cjs` (orphan-job recovery), `entrypoint.sh` (container start)   |
 | `docker-compose.yml`              | Local Postgres + optional web service. Two flows: full Docker, or postgres-only + host `npm run dev`         |
 | `Dockerfile`                      | Multi-stage build (deps → build → runtime) for the web container, pinned `linux/amd64`                       |
 | `terraform/platform/`             | Shared infra: VPC, ECS cluster, ALB, Cognito user pool, Route 53 zone, ACM cert, ECR, GitHub OIDC            |
