@@ -1,14 +1,14 @@
 # 10 — Updates to canonical docs
 
-Catalog of edits required in the existing `README.md`, `docs/RUNNING.md`, `docs/OPERATIONS.md`, `AGENTS.md`, and the archive folder. These changes happen in a single cleanup commit at the **end of Phase E** so the docs reflect the new system, not a migration in progress.
+> **Status: largely superseded.** Doc 10 was originally a forward-looking checklist of doc rewrites to bundle into one Phase E commit. In practice every Phase B-D commit updated the relevant docs as it went (Phase B commit 8 refreshed README/RUNNING/AGENTS/.env.example; Phase C commit 9 split doc 06 + updated AGENTS for Terraform; Phase D commit 9 aligned doc 07/08 + AGENTS/README/RUNNING for CD). Phase E commit 1 picked up the only remaining drift (`docs/README.md`, overlooked in B-D), audited the rest, and decided to **skip** the prescribed `docs/archive/pocketbase-runbook.md` + `pocketbase-architecture.md` (the existing `docs/archive/migration-pocketbase.md` is sufficient historical context). This file is preserved as the decision record + per-doc ✓ checklist below; do not treat the prescriptions as a future work plan.
 
-This doc is itself a checklist; cross off items as the cleanup PR lands.
+Catalog of edits originally planned for the existing `README.md`, `docs/RUNNING.md`, `docs/OPERATIONS.md`, `AGENTS.md`, and the archive folder. The cleanup commit framing was abandoned in favor of incremental updates during B-D.
 
 ---
 
 ## Why a separate doc for this
 
-Documentation drift is the highest-leverage source of broken-system-onboarding. The migration changes the user-facing setup steps (PB binary install → docker compose), the day-2 ops (admin UI → DB queries via ECS Exec), and the architecture map (PB → Postgres + Auth.js). Each of those lives in a different file. This doc lists every line that needs to change so nothing falls through.
+Documentation drift is the highest-leverage source of broken-system-onboarding. The migration changes the user-facing setup steps (PB binary install → docker compose), the day-2 ops (admin UI → DB queries via ECS Exec), and the architecture map (PB → Postgres + Auth.js). Each of those lives in a different file. This doc was the catalog so nothing fell through. (See status note at the top — incremental B-D updates closed most items already.)
 
 ---
 
@@ -145,24 +145,14 @@ The existing "Keeping this file up to date" section is good — keep verbatim, j
 
 ## `docs/archive/`
 
-Move the soon-to-be-stale PB content here for posterity. Useful in case anyone needs to compare. Helpful for the proposal docs ([11](./11-proposal-lightweight-infra.md), [12](./12-proposal-software-stack.md)) when you want to point at "what we replaced".
+> **Decision (Phase E, 2026-05-09): skipped.** `docs/archive/migration-pocketbase.md` already exists as the historical record of the PB-era system (it was the migration plan from the original `pocketbase` → `pocketbase-with-streams` work). Re-extracting PB-specific OPERATIONS / README sections from pre-Phase-A git history into separate `pocketbase-runbook.md` / `pocketbase-architecture.md` files would duplicate that content with minimal added value. Anyone curious about the PB-era day-2 ops can read `migration-pocketbase.md` or `git log --all -- 'docs/OPERATIONS.md'` for the unfiltered history.
 
-### Files to create
+The original prescription is preserved below for the decision record.
 
-- `docs/archive/pocketbase-runbook.md` — extracted from the current `OPERATIONS.md`. The PB-specific sections (admin UI walkthroughs, key rotation, allowlist management).
-- `docs/archive/pocketbase-architecture.md` — extracted from the current `README.md` + `AGENTS.md`. The PB-specific architecture summary, collections list, auth flow.
+### Files prescribed (NOT created)
 
-Each archived file gets a header:
-
-```markdown
-# Archived: PocketBase runbook (pre-ECS migration)
-
-This document captures the day-2 runbook from when `enhanced-review` ran on PocketBase. Preserved for historical reference. The current architecture is documented in `docs/OPERATIONS.md`. The migration is in `docs/ecs-migration/`.
-
-> Last accurate: <date> at commit <sha>
-```
-
-Don't update these after archiving; they're snapshots, not living docs.
+- ~~`docs/archive/pocketbase-runbook.md`~~ — would have been extracted from the PB-era `OPERATIONS.md`.
+- ~~`docs/archive/pocketbase-architecture.md`~~ — would have been extracted from the PB-era `README.md` + `AGENTS.md`.
 
 ---
 
@@ -174,13 +164,15 @@ Already covered in [05](./05-local-docker.md). Listed here for completeness — 
 
 ## Cleanup commit ordering
 
-Recommended PR sequence to avoid in-between broken states:
+> **Superseded.** The original plan was: code + placeholder-TODOs in B-D PRs, then one big doc cleanup PR in Phase E. Reality was: each B-D commit updated the touched docs alongside the code change. By the time Phase E started, only `docs/README.md` was stale (not part of any of those edit-sites; missed). The "single Phase E cleanup PR" became Phase E commit 1 — a small drift fix + plan-of-record commit, not a megacommit.
+
+The original prescription is preserved below.
+
+### Original prescription
 
 1. **Phase A-D code changes land in their own PRs** (with placeholder doc updates that just say "TODO: rewrite for Postgres"). The repo is functionally migrated but docs are stale.
 2. **Phase E doc cleanup PR** — single commit that updates all the files in this checklist, archives the PB content, and deletes the placeholder TODOs.
 3. **Phase F proposal docs PR** — independent, can be in parallel with or after step 2.
-
-This keeps each PR reviewable. If you bundle docs with code, the PR is too big to review well; if you bundle them after, the docs are wrong for a few days. The placeholder TODOs are the bridge.
 
 ---
 

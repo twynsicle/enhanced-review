@@ -25,6 +25,7 @@ Estimates for `us-west-2`, post-launch, no traffic. Real numbers will vary by ±
 | Cognito user pool (1 user)                    | **$0**        | First 50,000 MAU free.                                                     |
 | ACM certificate                               | **$0**        | Free.                                                                      |
 | GitHub OIDC IAM role                          | **$0**        | Free.                                                                      |
+| AWS Budgets ($50/mo alarm)                    | **$0**        | First 2 budgets free per account. See "Cost alarm" below.                  |
 | S3 state bucket + DynamoDB lock               | **~$0.50/mo** | Pennies.                                                                   |
 | Domain registration                           | **~$1/mo**    | Amortized: $12/yr `.com`, ~$5/yr `.dev`.                                   |
 | **TOTAL**                                     | **~$37/mo**   |                                                                            |
@@ -37,6 +38,29 @@ Add **~$32/mo** for the NAT Gateway (`$0.045/h + $0.045/GB`) → ~$69/mo total. 
 
 Drop ALB (-$18) and Cognito (already $0), replace with Cloudflare Tunnel sidecar (free) → ~$18/mo total.
 That's the cheap path; we accepted ~$18/mo more for AWS-native auth. Documented in case the user changes their mind.
+
+---
+
+## Cost alarm
+
+Defined in `terraform/platform/budget.tf` as `aws_budgets_budget.monthly` (`platform-monthly-50usd`). Three notification thresholds, all emailing `var.budget_alert_email`:
+
+- **80% actual** ($40): mid-month heads-up.
+- **100% actual** ($50): month-end exceedance.
+- **120% forecasted** ($60 projected): heads-up that current burn rate will exceed the budget.
+
+AWS Budgets evaluates daily and emails directly (no SNS confirmation flow). First alert can take up to 24h to arrive — check spam if expected and not received.
+
+Adjust `limit_amount` or threshold percentages in `budget.tf` if false positives become annoying. Steady-state spend is ~$37/mo, so 80% of $50 ($40) may fire mid-month if Anthropic API spend is non-trivial. The simplest tune: bump `limit_amount` to "75" so 80% = $60 (well above steady state).
+
+To check the budget exists:
+
+```sh
+aws budgets describe-budgets --account-id $(aws sts get-caller-identity --query Account --output text)
+aws budgets describe-notifications-for-budget --account-id $(aws sts get-caller-identity --query Account --output text) --budget-name platform-monthly-50usd
+```
+
+The email address comes from GitHub secret `BUDGET_ALERT_EMAIL` (sourced into `TF_VAR_budget_alert_email` in `deploy-infra.yml`). Rotate by `gh secret set BUDGET_ALERT_EMAIL --body "new@example.com"` then re-running `deploy-infra.yml` (workflow_dispatch). The next plan will diff the notification subscribers; apply rolls them.
 
 ---
 
@@ -110,7 +134,33 @@ Two GitHub Actions workflows handle deploys; both use OIDC federation, no long-l
 
 Both workflows assume IAM roles defined in Terraform: `enhanced-review-github-image-deploy` (app module, scoped image-deploy perms) and `enhanced-review-github-tf` (platform module, broader infra perms scoped by name prefix).
 
-Rollback paths: see [07](./07-cd-image.md) "Rollback" — the recommended flow is `workflow_dispatch` of `deploy-image.yml` with a previous commit SHA.
+GitHub secrets the workflows expect (set once via `gh secret set <NAME> --body "..."`):
+
+- `AWS_ACCOUNT_ID` — used in OIDC role ARNs and the S3 state bucket name.
+- `SEED_GITHUB_LOGIN` — sourced into `TF_VAR_seed_github_login` for the app module's task-def. Empty fallback keeps the platform plan happy.
+- `BUDGET_ALERT_EMAIL` — required for the platform module's $50/mo budget alarm. No fallback; missing this fails the platform plan.
+
+### Rollback (image)
+
+The fastest rollback path is `workflow_dispatch` of `deploy-image.yml` with a previous commit SHA:
+
+```sh
+# Find the last few successful image deploys
+gh run list --workflow=deploy-image.yml --status=success --limit=5
+# Look at the "headSha" column for each run; pick the SHA you want to roll to.
+
+# Trigger a re-deploy from that SHA
+gh workflow run deploy-image.yml -f sha=<previous-good-sha>
+
+# Watch it
+gh run watch
+```
+
+The workflow rebuilds the image from that SHA (it doesn't reuse the old ECR image, so the build step still runs). For a faster path that skips the build, you can manually re-tag an existing ECR image and `aws ecs update-service --task-definition <previous-revision>` directly. ECS deployment circuit breaker auto-rolls back failed deployments inside the pipeline; this manual flow is for "the deploy succeeded but the new image is broken at runtime".
+
+### Rollback (infra)
+
+Terraform changes roll back via a revert PR through the same `deploy-infra.yml` flow: open a PR that reverts the offending commit, plan posts as PR comment, merge gates the apply on `production` environment approval. There is no faster path — Terraform state and live resources both need to converge.
 
 ---
 
@@ -118,7 +168,17 @@ Rollback paths: see [07](./07-cd-image.md) "Rollback" — the recommended flow i
 
 ### Adding/removing a user from the allowlist
 
-Connect to the running Postgres via ECS Exec:
+**For first-time setup of a fresh environment** (or to re-seed after a DB wipe), the entrypoint reads `SEED_GITHUB_LOGIN` and inserts it idempotently. Set the GitHub secret once and the next deploy seeds:
+
+```sh
+gh secret set SEED_GITHUB_LOGIN --body "your-github-username"
+# Force a task restart to pick up the new env var (or wait for the next image deploy)
+aws ecs update-service --cluster platform-cluster --service enhanced-review --force-new-deployment
+```
+
+Container logs (`/ecs/enhanced-review` web stream) will show `[seed] inserted '<user>' into allowed_users.` on the first restart, and `[seed] allowlist already contains '<user>' — no-op.` on subsequent ones. The seed step is idempotent — never produces duplicates.
+
+**For adding subsequent users** (or removing one), connect to the running Postgres via ECS Exec:
 
 ```sh
 TASK_ARN=$(aws ecs list-tasks --cluster platform-cluster --service-name enhanced-review --query 'taskArns[0]' --output text)

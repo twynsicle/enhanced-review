@@ -72,10 +72,10 @@ Dockerfile                     Multi-stage build (deps → build → runtime) fo
 drizzle.config.ts              drizzle-kit config (schema → drizzle/)
 instrumentation.ts             Next 16 boot hook: SIGTERM handler. (Recovery moved to scripts/recover-jobs.cjs.)
 next-auth.d.ts                 Type augmentation: Session.user gains githubLogin + id
-scripts/                       db-seed.ts (allowlist seeder), recover-jobs.cjs (orphan-job flip), entrypoint.sh (Docker)
+scripts/                       db-seed.ts (allowlist seeder, local), db-seed.cjs (allowlist seeder, container — raw pg, no schema import), recover-jobs.cjs (orphan-job flip), entrypoint.sh (Docker)
 terraform/                     AWS infra. Two root modules:
   bootstrap.sh                 Creates S3 state bucket + DynamoDB lock table (idempotent, run once per AWS account)
-  platform/                    Shared infra: VPC, ECS cluster, ALB+listener, Cognito user pool, Route 53 zone, wildcard ACM cert, GitHub OIDC provider, ECR repos. One apply per AWS account.
+  platform/                    Shared infra: VPC, ECS cluster, ALB+listener, Cognito user pool, Route 53 zone, wildcard ACM cert, GitHub OIDC provider, ECR repos, $50/mo budget alarm. One apply per AWS account.
   apps/enhanced-review/        Per-app: ECS task+service, EFS, listener rule, Cognito client, Route 53 record, secrets, scoped IAM, log group, SGs. Reads platform via terraform_remote_state.
 docs/                          README, RUNNING, OPERATIONS, ecs-migration/, archive/
 test/                          server-only.shim.ts (Vitest alias for next/server-only)
@@ -114,24 +114,26 @@ All runner writes use the same connection pool (no separate admin/user split). N
 
 ## Common scripts
 
-| Script                            | What                                                         |
-| --------------------------------- | ------------------------------------------------------------ |
-| `npm run dev`                     | Next.js dev server (Turbopack) on `localhost:3000`           |
-| `npm run build`                   | Production build                                             |
-| `npm run lint`                    | ESLint                                                       |
-| `npm run typecheck`               | `tsc --noEmit`                                               |
-| `npm run format` / `format:check` | Prettier write / check                                       |
-| `npm test` / `test:watch`         | Vitest                                                       |
-| `npm run db:generate`             | `drizzle-kit generate` (regenerate SQL after schema edits)   |
-| `npm run db:migrate`              | Apply pending migrations against `DATABASE_URL`              |
-| `npm run db:seed`                 | Insert `SEED_GITHUB_LOGIN` into `allowed_users` (idempotent) |
-| `npm run db:recover`              | Flip orphan `running` jobs to `error` after a host crash     |
-| `docker compose up postgres -d`   | Local Postgres on 127.0.0.1:5432                             |
-| `docker compose up --build`       | Full stack (postgres + web) — Flow 1 / closest-to-prod       |
+| Script                            | What                                                                                                                                                                                     |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                     | Next.js dev server (Turbopack) on `localhost:3000`                                                                                                                                       |
+| `npm run build`                   | Production build                                                                                                                                                                         |
+| `npm run lint`                    | ESLint                                                                                                                                                                                   |
+| `npm run typecheck`               | `tsc --noEmit`                                                                                                                                                                           |
+| `npm run format` / `format:check` | Prettier write / check                                                                                                                                                                   |
+| `npm test` / `test:watch`         | Vitest                                                                                                                                                                                   |
+| `npm run db:generate`             | `drizzle-kit generate` (regenerate SQL after schema edits)                                                                                                                               |
+| `npm run db:migrate`              | Apply pending migrations against `DATABASE_URL`                                                                                                                                          |
+| `npm run db:seed`                 | Insert `SEED_GITHUB_LOGIN` into `allowed_users` (idempotent). Local-only via `tsx scripts/db-seed.ts`; container uses sibling `scripts/db-seed.cjs` (raw pg) wired into `entrypoint.sh`. |
+| `npm run db:recover`              | Flip orphan `running` jobs to `error` after a host crash                                                                                                                                 |
+| `docker compose up postgres -d`   | Local Postgres on 127.0.0.1:5432                                                                                                                                                         |
+| `docker compose up --build`       | Full stack (postgres + web) — Flow 1 / closest-to-prod                                                                                                                                   |
 
 ## Environment
 
 `.env.example` is the canonical list. Keys you'll see: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `SEED_GITHUB_LOGIN`, `REVIEW_EXECUTOR` (`stub`|`claude`), `REVIEW_MODEL`, `ANTHROPIC_API_KEY`, `REVIEW_TIMEOUT_MIN`, `MAX_JOBS_PER_USER`, `LOG_LEVEL`, `LOG_PRETTY`. Defaults and meaning are documented in `docs/OPERATIONS.md` (Tunable knobs).
+
+In production, `SEED_GITHUB_LOGIN` is supplied to the task-def via `var.seed_github_login` (sourced from GitHub secret `SEED_GITHUB_LOGIN` → `TF_VAR_seed_github_login` in `deploy-infra.yml`). Empty = entrypoint logs a skip line (no-op).
 
 ## Conventions worth knowing before editing
 
@@ -153,6 +155,8 @@ Production runs the same Docker image as local, plus a `postgres:17-alpine` side
 Bring-up walkthrough in `terraform/README.md`; design in `docs/ecs-migration/06a-platform.md` + `06b-application.md`; commit-by-commit playbooks in `docs/ecs-migration/phase-c-plan.md` (infra) and `docs/ecs-migration/phase-d-plan.md` (CD + cutover). Day-2 ops (kill switch, secret rotation, allowlist via ECS Exec, manual backups) in `docs/ecs-migration/09-cost-and-operations.md`.
 
 CD via GitHub Actions, OIDC, no long-lived keys. `.github/workflows/deploy-image.yml` ships the image on push to `main`; `.github/workflows/deploy-infra.yml` plans Terraform on PR (one comment per module) and applies on merge gated by the `production` environment. Two IAM roles: `enhanced-review-github-image-deploy` (scoped image-deploy perms, in app module) and `enhanced-review-github-tf` (broader infra perms scoped by `enhanced-review-*` / `platform-*` name prefix, in platform module). The image deploy live-fetches the current task definition from ECS — there is no checked-in `task-definition.json`. See [07](docs/ecs-migration/07-cd-image.md) and [08](docs/ecs-migration/08-cd-infra.md).
+
+Three GitHub secrets feed the workflows: `AWS_ACCOUNT_ID` (OIDC role ARN + state bucket name), `SEED_GITHUB_LOGIN` (allowlist seed; empty fallback), `BUDGET_ALERT_EMAIL` (required by the platform module's `$50/mo` budget alarm in `terraform/platform/budget.tf`).
 
 ## Working on Windows
 

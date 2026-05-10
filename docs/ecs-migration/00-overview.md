@@ -56,20 +56,20 @@ This is a personal POC; **no data migration is required** (the existing PB data 
 
 These were made by the user during planning. Marked as **DECIDED** so future-you doesn't re-litigate them.
 
-| #   | Question                 | Decision                                                    | Why / where to find more                                                |
-| --- | ------------------------ | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
-| D1  | Backend shape            | Keep Next.js monolith                                       | Smallest diff. Single web container.                                    |
-| D2  | Auth library             | Auth.js v5 (NextAuth) + Drizzle adapter, keep GitHub OAuth  | Standard for Next.js 16 App Router. See [02](./02-auth-replacement.md). |
-| D3  | DB toolkit               | Drizzle ORM + drizzle-kit migrations                        | Lightweight, SQL-first, typed. See [01](./01-postgres-data-layer.md).   |
-| D4  | Realtime                 | SSE route handler backed by Postgres LISTEN/NOTIFY          | Lowest-latency replacement for PB realtime. See [03](./03-realtime.md). |
-| D5  | Hosting                  | ECS Fargate, single task, two containers (web + postgres)   | Mid-cost, mid-complexity. Platform: [06a](./06a-platform.md) (cluster). App: [06b](./06b-application.md) (task def). |
-| D6  | DB storage               | Postgres in container, EFS-backed volume                    | Acceptable I/O for POC traffic. See [06b](./06b-application.md).        |
+| #   | Question                 | Decision                                                    | Why / where to find more                                                                                                    |
+| --- | ------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Backend shape            | Keep Next.js monolith                                       | Smallest diff. Single web container.                                                                                        |
+| D2  | Auth library             | Auth.js v5 (NextAuth) + Drizzle adapter, keep GitHub OAuth  | Standard for Next.js 16 App Router. See [02](./02-auth-replacement.md).                                                     |
+| D3  | DB toolkit               | Drizzle ORM + drizzle-kit migrations                        | Lightweight, SQL-first, typed. See [01](./01-postgres-data-layer.md).                                                       |
+| D4  | Realtime                 | SSE route handler backed by Postgres LISTEN/NOTIFY          | Lowest-latency replacement for PB realtime. See [03](./03-realtime.md).                                                     |
+| D5  | Hosting                  | ECS Fargate, single task, two containers (web + postgres)   | Mid-cost, mid-complexity. Platform: [06a](./06a-platform.md) (cluster). App: [06b](./06b-application.md) (task def).        |
+| D6  | DB storage               | Postgres in container, EFS-backed volume                    | Acceptable I/O for POC traffic. See [06b](./06b-application.md).                                                            |
 | D7  | Access control           | Public ALB + Cognito user pool                              | Managed, AWS-native. Platform: [06a](./06a-platform.md). App: [06b](./06b-application.md) (per-app client + listener rule). |
-| D8  | Domain / TLS             | Register a domain in Route53 (~$12/yr) + ACM cert           | Cleanest TLS path. Required by Cognito ALB integration.                 |
-| D9  | Secrets                  | AWS Secrets Manager                                         | See [06b](./06b-application.md).                                        |
-| D10 | GH Actions ↔ AWS         | OIDC federation                                             | No long-lived keys. See [07](./07-cd-image.md), [08](./08-cd-infra.md). |
-| D11 | Subnet topology          | Public subnet for the Fargate task (no NAT Gateway)         | NAT is ~$32/mo and would dominate cost. ALB + SG handle exposure.       |
-| D12 | Org-facing proposal docs | Write 11 (SRE) and 12 (engineer) after implementation lands | Claims need to be grounded in the working system. See plan Phase F.     |
+| D8  | Domain / TLS             | Register a domain in Route53 (~$12/yr) + ACM cert           | Cleanest TLS path. Required by Cognito ALB integration.                                                                     |
+| D9  | Secrets                  | AWS Secrets Manager                                         | See [06b](./06b-application.md).                                                                                            |
+| D10 | GH Actions ↔ AWS         | OIDC federation                                             | No long-lived keys. See [07](./07-cd-image.md), [08](./08-cd-infra.md).                                                     |
+| D11 | Subnet topology          | Public subnet for the Fargate task (no NAT Gateway)         | NAT is ~$32/mo and would dominate cost. ALB + SG handle exposure.                                                           |
+| D12 | Org-facing proposal docs | Write 11 (SRE) and 12 (engineer) after implementation lands | Claims need to be grounded in the working system. See plan Phase F.                                                         |
 
 Trade-offs flagged in the master plan but worth re-reading at execution time:
 
@@ -87,23 +87,24 @@ Trade-offs flagged in the master plan but worth re-reading at execution time:
 
 What to build for _this_ migration, scoped to this repo.
 
-| Doc                                                              | What it covers                                                            |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| **[00-overview.md](./00-overview.md)**                           | This file. Index, decisions, phase order.                                 |
-| **[01-postgres-data-layer.md](./01-postgres-data-layer.md)**     | Drizzle schema, migrations, write-path migration checklist.               |
-| **[02-auth-replacement.md](./02-auth-replacement.md)**           | Auth.js v5 setup, allowlist gate rewrite, Cognito layering.               |
-| **[03-realtime.md](./03-realtime.md)**                           | SSE + LISTEN/NOTIFY pattern.                                              |
-| **[04-job-runner-rewrite.md](./04-job-runner-rewrite.md)**       | Runner write paths, graceful shutdown, abort registry.                    |
-| **[05-local-docker.md](./05-local-docker.md)**                   | Dockerfile, docker-compose, local dev flow.                               |
-| **[06a-platform.md](./06a-platform.md)**                         | Shared Terraform module: VPC, cluster, ALB, Cognito pool, Route 53, ACM, ECR, OIDC. |
-| **[06b-application.md](./06b-application.md)**                   | Per-app Terraform module: task, service, EFS, listener rule, scoped IAM, secrets. |
-| **[07-cd-image.md](./07-cd-image.md)**                           | GitHub Actions image deploy pipeline.                                     |
-| **[08-cd-infra.md](./08-cd-infra.md)**                           | GitHub Actions Terraform apply pipeline.                                  |
-| **[09-cost-and-operations.md](./09-cost-and-operations.md)**     | Monthly cost, kill-switch, day-2 ops runbook.                             |
-| **[10-existing-docs-updates.md](./10-existing-docs-updates.md)** | Edits to README, RUNNING, OPERATIONS, AGENTS.                             |
-| **[phase-b-plan.md](./phase-b-plan.md)**                         | Phase B execution playbook: ordered commits, decisions log, verification. |
-| **[phase-c-plan.md](./phase-c-plan.md)**                         | Phase C execution playbook: ordered commits, decisions log, verification. |
-| **[phase-d-plan.md](./phase-d-plan.md)**                         | Phase D execution playbook: CD pipelines + first real image cutover.      |
+| Doc                                                              | What it covers                                                                           |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **[00-overview.md](./00-overview.md)**                           | This file. Index, decisions, phase order.                                                |
+| **[01-postgres-data-layer.md](./01-postgres-data-layer.md)**     | Drizzle schema, migrations, write-path migration checklist.                              |
+| **[02-auth-replacement.md](./02-auth-replacement.md)**           | Auth.js v5 setup, allowlist gate rewrite, Cognito layering.                              |
+| **[03-realtime.md](./03-realtime.md)**                           | SSE + LISTEN/NOTIFY pattern.                                                             |
+| **[04-job-runner-rewrite.md](./04-job-runner-rewrite.md)**       | Runner write paths, graceful shutdown, abort registry.                                   |
+| **[05-local-docker.md](./05-local-docker.md)**                   | Dockerfile, docker-compose, local dev flow.                                              |
+| **[06a-platform.md](./06a-platform.md)**                         | Shared Terraform module: VPC, cluster, ALB, Cognito pool, Route 53, ACM, ECR, OIDC.      |
+| **[06b-application.md](./06b-application.md)**                   | Per-app Terraform module: task, service, EFS, listener rule, scoped IAM, secrets.        |
+| **[07-cd-image.md](./07-cd-image.md)**                           | GitHub Actions image deploy pipeline.                                                    |
+| **[08-cd-infra.md](./08-cd-infra.md)**                           | GitHub Actions Terraform apply pipeline.                                                 |
+| **[09-cost-and-operations.md](./09-cost-and-operations.md)**     | Monthly cost, kill-switch, day-2 ops runbook.                                            |
+| **[10-existing-docs-updates.md](./10-existing-docs-updates.md)** | Edits to README, RUNNING, OPERATIONS, AGENTS.                                            |
+| **[phase-b-plan.md](./phase-b-plan.md)**                         | Phase B execution playbook: ordered commits, decisions log, verification.                |
+| **[phase-c-plan.md](./phase-c-plan.md)**                         | Phase C execution playbook: ordered commits, decisions log, verification.                |
+| **[phase-d-plan.md](./phase-d-plan.md)**                         | Phase D execution playbook: CD pipelines + first real image cutover.                     |
+| **[phase-e-plan.md](./phase-e-plan.md)**                         | Phase E execution playbook: doc verification + ops backlog (seed env var, budget alarm). |
 
 ### Org-facing proposals (11–12)
 
@@ -120,14 +121,14 @@ For pitching the pattern as a reusable template.
 
 The 13 docs map onto six execution phases. Each phase ends in a working, demo-able state. The user can pause indefinitely between any two; phase F is "any time after E".
 
-| Phase | Outcome                                                                                                                              | Docs covered   | Verify                                                         |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------- | -------------------------------------------------------------- |
-| **A** | Local migration off PocketBase (Postgres + Drizzle + Auth.js + SSE) — `npm run dev` against docker-compose Postgres works end to end | 01, 02, 03, 04 | Sign in via GitHub, run a stub review, watch live view stream. |
-| **B** | Containerize the app — `docker compose up` from a clean clone works                                                                  | 05             | Same end-to-end smoke test, but from the container.            |
-| **C** | AWS infra via Terraform — manual `terraform apply` produces a working deploy                                                         | 06             | Visit the domain, log into Cognito, run a real review.         |
-| **D** | CD pipelines — push-to-deploy works for image and infra                                                                              | 07, 08         | Push a benign change; new task running with new image SHA.     |
-| **E** | Operations + docs — existing docs updated, cost runbook documented                                                                   | 09, 10         | Fresh-clone walkthrough of `RUNNING.md` succeeds.              |
-| **F** | Proposal docs — SRE and engineer targets                                                                                             | 11, 12         | Self-review with a fresh eye; fact-check against system.       |
+| Phase | Outcome                                                                                                                              | Docs covered   | Verify                                                                                                                                        |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A** | Local migration off PocketBase (Postgres + Drizzle + Auth.js + SSE) — `npm run dev` against docker-compose Postgres works end to end | 01, 02, 03, 04 | Sign in via GitHub, run a stub review, watch live view stream.                                                                                |
+| **B** | Containerize the app — `docker compose up` from a clean clone works                                                                  | 05             | Same end-to-end smoke test, but from the container.                                                                                           |
+| **C** | AWS infra via Terraform — manual `terraform apply` produces a working deploy                                                         | 06             | Visit the domain, log into Cognito, run a real review.                                                                                        |
+| **D** | CD pipelines — push-to-deploy works for image and infra                                                                              | 07, 08         | Push a benign change; new task running with new image SHA.                                                                                    |
+| **E** | Operations + docs — existing docs verified, ops backlog (seed env var + $50/mo budget alarm) implemented                             | 09, 10         | Fresh-clone walkthrough of `RUNNING.md` succeeds; `SEED_GITHUB_LOGIN` reseed proves no-op; `aws budgets describe-budgets` returns the budget. |
+| **F** | Proposal docs — SRE and engineer targets                                                                                             | 11, 12         | Self-review with a fresh eye; fact-check against system.                                                                                      |
 
 ---
 
