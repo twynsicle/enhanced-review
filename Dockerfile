@@ -57,8 +57,13 @@ COPY --from=build --chown=nextjs:nodejs /app/drizzle ./drizzle
 # package next to the standalone tree so node can resolve it.
 COPY --from=build --chown=nextjs:nodejs /app/node_modules/drizzle-orm ./node_modules/drizzle-orm
 
-# Recovery runner + entrypoint. Both are plain CJS / sh, no compile step.
+# Recovery runner, allowlist seeder, and entrypoint. All are plain
+# CJS / sh, no compile step. db-seed.cjs is the container-side sibling
+# of scripts/db-seed.ts (which is `tsx`-driven for local dev) — the
+# runtime image doesn't ship src/lib/db/schema, so the container variant
+# uses raw pg with explicit gen_random_uuid()::text for the id column.
 COPY --chown=nextjs:nodejs scripts/recover-jobs.cjs ./scripts/recover-jobs.cjs
+COPY --chown=nextjs:nodejs scripts/db-seed.cjs ./scripts/db-seed.cjs
 COPY --chown=nextjs:nodejs scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

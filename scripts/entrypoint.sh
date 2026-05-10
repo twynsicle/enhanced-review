@@ -7,6 +7,9 @@ set -eu
 echo "[entrypoint] running migrations…"
 node /app/drizzle/migrate.mjs
 
+echo "[entrypoint] seeding allowlist…"
+node /app/scripts/db-seed.cjs || echo "[entrypoint] seed failed (continuing)"
+
 echo "[entrypoint] recovering interrupted jobs…"
 node /app/scripts/recover-jobs.cjs || echo "[entrypoint] recover failed (continuing)"
 
