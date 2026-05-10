@@ -92,6 +92,12 @@ jobs:
           # the platform plan happy (the var only exists in the app module);
           # `terraform plan` warns on unused TF_VARs but doesn't fail.
           TF_VAR_seed_github_login: ${{ secrets.SEED_GITHUB_LOGIN || '' }}
+          # Sourced from GitHub secret BUDGET_ALERT_EMAIL. Required by the
+          # platform module's budget.tf; setting it on the app module is a
+          # harmless unused-var warning. No `|| ''` fallback because the
+          # platform var is required (no default) — empty would fail
+          # validation.
+          TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
         run: |
           terraform plan -no-color -out=tfplan -input=false 2>&1 | tee plan.txt
           terraform show -no-color tfplan > plan-show.txt

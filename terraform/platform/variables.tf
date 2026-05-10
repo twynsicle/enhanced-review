@@ -26,3 +26,11 @@ variable "github_repo" {
   type        = string
   default     = "enhanced-review"
 }
+
+# Email address for the $50/mo budget alarm in budget.tf. Required.
+# Sourced in CI from GitHub secret BUDGET_ALERT_EMAIL via TF_VAR_budget_alert_email
+# in deploy-infra.yml. For local applies, set in terraform.tfvars (gitignored).
+variable "budget_alert_email" {
+  description = "Email address to notify when AWS account spend approaches $50/mo. Required."
+  type        = string
+}

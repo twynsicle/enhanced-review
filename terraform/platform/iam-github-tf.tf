@@ -241,6 +241,20 @@ data "aws_iam_policy_document" "github_tf" {
     actions   = ["sts:GetCallerIdentity"]
     resources = ["*"]
   }
+
+  # --- Budgets (scoped to platform-* budget names) ---
+  # Account-scoped budget alarm in budget.tf. Resource ARN format is
+  # `arn:aws:budgets::ACCOUNT_ID:budget/NAME`; Budgets is a global service.
+  statement {
+    sid       = "Budgets"
+    actions   = ["budgets:*"]
+    resources = ["arn:aws:budgets::*:budget/platform-*"]
+  }
+  statement {
+    sid       = "BudgetsList"
+    actions   = ["budgets:ViewBudget", "budgets:DescribeBudget"]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "github_tf" {
