@@ -8,7 +8,7 @@ This is the day-2 doc. Read it once during Phase E, then come back when you need
 
 ## Monthly cost
 
-Estimates for `us-east-1`, post-launch, no traffic. Real numbers will vary by ±20% based on egress and image build cache.
+Estimates for `us-west-2`, post-launch, no traffic. Real numbers will vary by ±20% based on egress and image build cache.
 
 ### Default (public subnet, no NAT)
 
@@ -48,7 +48,7 @@ When you go on vacation or aren't actively using the POC, you can drop cost to <
 
 ```sh
 # Scale ECS service to 0
-aws ecs update-service --cluster enhanced-review --service enhanced-review --desired-count 0
+aws ecs update-service --cluster platform-cluster --service enhanced-review --desired-count 0
 ```
 
 Cost drops to:
@@ -101,6 +101,19 @@ EFS data, Cognito users, Secrets Manager values — gone. Empty the S3 state buc
 
 ---
 
+## Continuous deployment
+
+Two GitHub Actions workflows handle deploys; both use OIDC federation, no long-lived AWS keys:
+
+- **`.github/workflows/deploy-image.yml`** — fires on push to `main` (paths-ignored: `terraform/**`, `docs/**`, `*.md`, the other workflow). Runs CI as a `workflow_call` job, builds the Docker image, pushes to ECR with `:sha-<commit>` and `:latest` tags, live-fetches the current ECS task definition, patches the `image` field for container `web`, registers a new revision, and `UpdateService`. ECS deployment circuit breaker auto-rolls back failed deployments. See [07](./07-cd-image.md).
+- **`.github/workflows/deploy-infra.yml`** — fires on PRs and pushes to `main` that touch `terraform/**`. Plan-on-PR (one comment per module: `platform`, `apps/enhanced-review`); apply-on-merge gated by the `production` GitHub Environment (one approval click per module). Sequential apply: platform first, app second. See [08](./08-cd-infra.md).
+
+Both workflows assume IAM roles defined in Terraform: `enhanced-review-github-image-deploy` (app module, scoped image-deploy perms) and `enhanced-review-github-tf` (platform module, broader infra perms scoped by name prefix).
+
+Rollback paths: see [07](./07-cd-image.md) "Rollback" — the recommended flow is `workflow_dispatch` of `deploy-image.yml` with a previous commit SHA.
+
+---
+
 ## Day-2 runbook
 
 ### Adding/removing a user from the allowlist
@@ -108,8 +121,8 @@ EFS data, Cognito users, Secrets Manager values — gone. Empty the S3 state buc
 Connect to the running Postgres via ECS Exec:
 
 ```sh
-TASK_ARN=$(aws ecs list-tasks --cluster enhanced-review --service-name enhanced-review --query 'taskArns[0]' --output text)
-aws ecs execute-command --cluster enhanced-review --task "$TASK_ARN" --container postgres --interactive --command "psql -U app -d enhanced_review"
+TASK_ARN=$(aws ecs list-tasks --cluster platform-cluster --service-name enhanced-review --query 'taskArns[0]' --output text)
+aws ecs execute-command --cluster platform-cluster --task "$TASK_ARN" --container postgres --interactive --command "psql -U app -d enhanced_review"
 ```
 
 Then in psql:
@@ -131,7 +144,7 @@ For Anthropic API keys, GitHub OAuth secrets, AUTH_SECRET — same pattern:
 
 ```sh
 aws secretsmanager put-secret-value --secret-id enhanced-review/anthropic-key --secret-string "$NEW_VALUE"
-aws ecs update-service --cluster enhanced-review --service enhanced-review --force-new-deployment
+aws ecs update-service --cluster platform-cluster --service enhanced-review --force-new-deployment
 ```
 
 `force-new-deployment` makes ECS spin up a new task that fetches the rotated value.
@@ -149,10 +162,10 @@ When the app needs a new env var that's a secret:
 # 1. Create the secret value
 aws secretsmanager put-secret-value --secret-id enhanced-review/new-thing --secret-string "..."
 
-# 2. Add the secretsmanager_secret resource to terraform/secrets.tf (data source if it's not Terraform-managed; resource if it is)
-# 3. Reference it in the task definition's `secrets[]` array in terraform/ecs.tf
-# 4. Add it to terraform/iam.tf — read access for the task execution role
-# 5. PR + merge → infra deploy → image deploy with code that reads the env var
+# 2. Add the secretsmanager_secret resource to terraform/apps/enhanced-review/secrets.tf
+# 3. Reference it in the task definition's `secrets[]` array in terraform/apps/enhanced-review/task-definition.tf
+# 4. Add it to terraform/apps/enhanced-review/iam.tf — read access for the task execution role
+# 5. PR + merge → deploy-infra.yml runs (plan-as-PR-comment, approval-gated apply) → next code push → deploy-image.yml picks up the new task-def via live-fetch
 ```
 
 ### Viewing logs
@@ -186,7 +199,7 @@ aws logs tail /ecs/enhanced-review --follow --filter-pattern '"ERROR"'
 Useful when you want to pick up a rotated secret or restart the postgres connection pool:
 
 ```sh
-aws ecs update-service --cluster enhanced-review --service enhanced-review --force-new-deployment
+aws ecs update-service --cluster platform-cluster --service enhanced-review --force-new-deployment
 ```
 
 ECS will draw down the old task and start a new one. ~3 min total. **In-flight reviews are lost** (see [04](./04-job-runner-rewrite.md)) — only do this when no jobs are running.
@@ -196,8 +209,8 @@ ECS will draw down the old task and start a new one. ~3 min total. **In-flight r
 The POC has no automated backups. To take a manual snapshot:
 
 ```sh
-TASK_ARN=$(aws ecs list-tasks --cluster enhanced-review --service-name enhanced-review --query 'taskArns[0]' --output text)
-aws ecs execute-command --cluster enhanced-review --task "$TASK_ARN" --container postgres --interactive --command "pg_dump -U app -d enhanced_review -F c -f /tmp/backup.dump"
+TASK_ARN=$(aws ecs list-tasks --cluster platform-cluster --service-name enhanced-review --query 'taskArns[0]' --output text)
+aws ecs execute-command --cluster platform-cluster --task "$TASK_ARN" --container postgres --interactive --command "pg_dump -U app -d enhanced_review -F c -f /tmp/backup.dump"
 
 # Then copy out via S3:
 # (inside the postgres exec session)
@@ -211,14 +224,14 @@ For a POC this is fine. For org-wide adoption ([11](./11-proposal-lightweight-in
 
 ECS deploy is stuck for >15 minutes:
 
-1. `aws ecs describe-services --cluster enhanced-review --services enhanced-review` — look for `events` array; recent failures bubble up here.
-2. `aws ecs describe-tasks --cluster enhanced-review --tasks <task-arn>` — look for `stoppedReason`. Common ones: `EssentialContainerExited` (one of the two containers crashed), `Task failed ELB health checks`, `OutOfMemoryError`.
+1. `aws ecs describe-services --cluster platform-cluster --services enhanced-review` — look for `events` array; recent failures bubble up here.
+2. `aws ecs describe-tasks --cluster platform-cluster --tasks <task-arn>` — look for `stoppedReason`. Common ones: `EssentialContainerExited` (one of the two containers crashed), `Task failed ELB health checks`, `OutOfMemoryError`.
 3. Check CloudWatch logs for both containers near the timestamp.
 
 If the circuit breaker doesn't roll back automatically (timeout: 15min), force it:
 
 ```sh
-aws ecs update-service --cluster enhanced-review --service enhanced-review --task-definition enhanced-review:<previous-good-revision>
+aws ecs update-service --cluster platform-cluster --service enhanced-review --task-definition enhanced-review:<previous-good-revision>
 ```
 
 ### Postgres won't start (EFS mount issues)
@@ -303,25 +316,25 @@ To rotate your own password later: from the hosted UI, "Forgot password" flow wo
 
 ```sh
 # Get current task ARN
-aws ecs list-tasks --cluster enhanced-review --service-name enhanced-review --query 'taskArns[0]' --output text
+aws ecs list-tasks --cluster platform-cluster --service-name enhanced-review --query 'taskArns[0]' --output text
 
 # Exec into web container
-aws ecs execute-command --cluster enhanced-review --task <arn> --container web --interactive --command "/bin/sh"
+aws ecs execute-command --cluster platform-cluster --task <arn> --container web --interactive --command "/bin/sh"
 
 # Exec into postgres container
-aws ecs execute-command --cluster enhanced-review --task <arn> --container postgres --interactive --command "psql -U app -d enhanced_review"
+aws ecs execute-command --cluster platform-cluster --task <arn> --container postgres --interactive --command "psql -U app -d enhanced_review"
 
 # Tail logs
 aws logs tail /ecs/enhanced-review --follow
 
 # Force redeploy
-aws ecs update-service --cluster enhanced-review --service enhanced-review --force-new-deployment
+aws ecs update-service --cluster platform-cluster --service enhanced-review --force-new-deployment
 
 # Pause (scale to 0)
-aws ecs update-service --cluster enhanced-review --service enhanced-review --desired-count 0
+aws ecs update-service --cluster platform-cluster --service enhanced-review --desired-count 0
 
 # Resume
-aws ecs update-service --cluster enhanced-review --service enhanced-review --desired-count 1
+aws ecs update-service --cluster platform-cluster --service enhanced-review --desired-count 1
 
 # Inspect Cognito users
 aws cognito-idp list-users --user-pool-id <pool-id>

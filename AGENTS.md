@@ -79,7 +79,10 @@ terraform/                     AWS infra. Two root modules:
   apps/enhanced-review/        Per-app: ECS task+service, EFS, listener rule, Cognito client, Route 53 record, secrets, scoped IAM, log group, SGs. Reads platform via terraform_remote_state.
 docs/                          README, RUNNING, OPERATIONS, ecs-migration/, archive/
 test/                          server-only.shim.ts (Vitest alias for next/server-only)
-.github/workflows/ci.yml       Format / lint / typecheck / test + docker-build verification on PR + push to main
+.github/workflows/
+  ci.yml                       Format / lint / typecheck / test + docker-build verification on PR + push to main; exposes workflow_call so deploy-image.yml can reuse it
+  deploy-image.yml             Push-to-main image CD: build + push to ECR, live-fetch task-def, register revision, UpdateService. OIDC role: enhanced-review-github-image-deploy
+  deploy-infra.yml             Plan-on-PR / apply-on-merge for both terraform/ modules. Production-environment-gated apply. OIDC role: enhanced-review-github-tf
 ```
 
 ## How the system fits together
@@ -147,9 +150,9 @@ Production runs the same Docker image as local, plus a `postgres:17-alpine` side
 - **`terraform/platform/`** — shared infra, applied once per AWS account: VPC, ECS cluster, ALB + listener (default 404 fixed-response), Cognito user pool, Route 53 zone, wildcard ACM cert, GitHub OIDC provider, ECR repos.
 - **`terraform/apps/enhanced-review/`** — per-app, applied per app: ECS task + service, EFS, ALB target group + listener rule (host header `enhanced-review.<domain>`, action: `authenticate-cognito + forward`), Cognito user pool client, Route 53 ALIAS record, Secrets Manager entries, scoped IAM, log group, security groups. Reads platform outputs via `terraform_remote_state`.
 
-Bring-up walkthrough in `terraform/README.md`; design in `docs/ecs-migration/06a-platform.md` + `06b-application.md`; commit-by-commit playbook in `docs/ecs-migration/phase-c-plan.md`. Day-2 ops (kill switch, secret rotation, allowlist via ECS Exec, manual backups) in `docs/ecs-migration/09-cost-and-operations.md`.
+Bring-up walkthrough in `terraform/README.md`; design in `docs/ecs-migration/06a-platform.md` + `06b-application.md`; commit-by-commit playbooks in `docs/ecs-migration/phase-c-plan.md` (infra) and `docs/ecs-migration/phase-d-plan.md` (CD + cutover). Day-2 ops (kill switch, secret rotation, allowlist via ECS Exec, manual backups) in `docs/ecs-migration/09-cost-and-operations.md`.
 
-Phase C ends at infra-only verification (ALB + Cognito gating, `hashicorp/http-echo` placeholder responding 200). Real GitHub OAuth + reviews land with Phase D's image-deploy pipeline; CD workflows (image deploy + infra deploy) don't exist yet.
+CD via GitHub Actions, OIDC, no long-lived keys. `.github/workflows/deploy-image.yml` ships the image on push to `main`; `.github/workflows/deploy-infra.yml` plans Terraform on PR (one comment per module) and applies on merge gated by the `production` environment. Two IAM roles: `enhanced-review-github-image-deploy` (scoped image-deploy perms, in app module) and `enhanced-review-github-tf` (broader infra perms scoped by `enhanced-review-*` / `platform-*` name prefix, in platform module). The image deploy live-fetches the current task definition from ECS — there is no checked-in `task-definition.json`. See [07](docs/ecs-migration/07-cd-image.md) and [08](docs/ecs-migration/08-cd-infra.md).
 
 ## Working on Windows
 

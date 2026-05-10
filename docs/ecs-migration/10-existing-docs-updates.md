@@ -135,9 +135,7 @@ The agent-orientation map. This is the most-read file by future Claude instances
 
 ### New section to add
 
-- **Deployment.** Two short paragraphs:
-  - "Built as a single Docker image (Dockerfile at root). Multi-container Fargate task in `terraform/` runs the image alongside a Postgres sidecar with EFS-backed storage. Behind ALB + Cognito + ACM cert."
-  - "CD via GitHub Actions, OIDC. Push to main → image deploy. Touching `terraform/**` → infra deploy with manual approval. See `docs/ecs-migration/`."
+- **Deployment.** Already added in Phase C (Terraform shape) and refreshed in Phase D commit 9 (CD workflows + IAM roles). Phase E pass should re-read for accuracy after a real deploy cycle has run.
 
 ### Triggers section
 

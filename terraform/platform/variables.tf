@@ -14,3 +14,15 @@ variable "domain_name" {
   description = "Parent domain (e.g. example.com). Apps live at <subdomain>.<domain_name>. Wildcard ACM cert covers *.<domain_name> + apex SAN. Domain must either be registered in Route 53 or have its NS records updated to point at this zone after commit 4 applies."
   type        = string
 }
+
+variable "github_owner" {
+  description = "GitHub owner/org used in the OIDC trust policies for the shared `enhanced-review-github-tf` deploy role. Restricts which repo can assume the role."
+  type        = string
+  default     = "twynsicle"
+}
+
+variable "github_repo" {
+  description = "GitHub repo name used in the OIDC trust policies for the shared `enhanced-review-github-tf` deploy role. Combined with github_owner to form the `repo:<owner>/<repo>` sub claim."
+  type        = string
+  default     = "enhanced-review"
+}

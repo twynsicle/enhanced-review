@@ -103,6 +103,7 @@ What to build for _this_ migration, scoped to this repo.
 | **[10-existing-docs-updates.md](./10-existing-docs-updates.md)** | Edits to README, RUNNING, OPERATIONS, AGENTS.                             |
 | **[phase-b-plan.md](./phase-b-plan.md)**                         | Phase B execution playbook: ordered commits, decisions log, verification. |
 | **[phase-c-plan.md](./phase-c-plan.md)**                         | Phase C execution playbook: ordered commits, decisions log, verification. |
+| **[phase-d-plan.md](./phase-d-plan.md)**                         | Phase D execution playbook: CD pipelines + first real image cutover.      |
 
 ### Org-facing proposals (11–12)
 

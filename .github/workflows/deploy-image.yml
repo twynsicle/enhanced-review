@@ -1,0 +1,109 @@
+name: Deploy image
+
+# Push-to-main image deploy. CI is gated as a workflow_call dependency, so a
+# failing format/lint/typecheck/test/docker-build never reaches deploy. The
+# task definition is fetched live from ECS at deploy time
+# (`describe-task-definition`) — there is no checked-in JSON file.
+#
+# `paths-ignore` keeps infra-only and docs-only PRs from triggering an image
+# rebuild. Any source change (anything under src/, packages/, scripts/,
+# Dockerfile, package.json, etc.) is in scope.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'terraform/**'
+      - 'docs/**'
+      - '*.md'
+      - '.github/workflows/deploy-infra.yml'
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Commit SHA to deploy (defaults to HEAD of main)'
+        required: false
+
+# Never cancel a deploy mid-flight. Two pushes in quick succession run
+# sequentially; ECS UpdateService applies the second revision after the
+# first deploy stabilizes.
+concurrency:
+  group: deploy-image-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # OIDC
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REPOSITORY: enhanced-review
+  ECS_CLUSTER: platform-cluster
+  ECS_SERVICE: enhanced-review
+  ECS_TASK_FAMILY: enhanced-review
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/enhanced-review-github-image-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:sha-${{ github.sha }}
+            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+      # Live-fetch the latest ACTIVE task definition revision for the family.
+      # `--query taskDefinition` strips the API response wrapper to match the
+      # shape `amazon-ecs-render-task-definition` expects.
+      - name: Fetch current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.ECS_TASK_FAMILY }} \
+            --query taskDefinition > task-def.json
+
+      - name: Render new task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def.json
+          container-name: web
+          image: ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:sha-${{ github.sha }}
+
+      # `wait-for-service-stability: true` blocks until ECS deployment
+      # circuit breaker says steady. A failing target-group health check
+      # fails this step (and the workflow), and ECS auto-rolls back to the
+      # previous task definition revision.
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          service: ${{ env.ECS_SERVICE }}
+          wait-for-service-stability: true
+          wait-for-minutes: 15

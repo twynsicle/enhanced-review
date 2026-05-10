@@ -33,7 +33,7 @@ resource "aws_ecs_task_definition" "app" {
         # so Phase D's first real image picks up the right value without
         # a task-def edit. Postgres listens on the task's localhost.
         { name = "DATABASE_URL", value = "postgres://app:placeholder@127.0.0.1:5432/enhanced_review" },
-        { name = "REVIEW_EXECUTOR", value = "stub" },
+        { name = "REVIEW_EXECUTOR", value = "claude" },
         { name = "REVIEW_MODEL", value = "claude-haiku-4-5" },
         { name = "REVIEW_TIMEOUT_MIN", value = "15" },
         { name = "MAX_JOBS_PER_USER", value = "1" },

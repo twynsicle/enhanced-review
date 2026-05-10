@@ -50,6 +50,11 @@ output "github_oidc_provider_arn" {
   value       = aws_iam_openid_connect_provider.github.arn
 }
 
+output "github_tf_role_arn" {
+  description = "ARN of the shared `enhanced-review-github-tf` role assumed by the Terraform deploy workflow. Surfaced for ops + cross-checking with the workflow's `role-to-assume`."
+  value       = aws_iam_role.github_tf.arn
+}
+
 # --- Route 53 (commit 4) ---
 
 output "route53_zone_id" {
