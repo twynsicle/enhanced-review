@@ -71,3 +71,14 @@ variable "memory" {
   type        = string
   default     = "1024"
 }
+
+# Allowlist seed. Empty = no-op (entrypoint logs a skip line; matches the
+# pre-Phase-E behavior where allowed_users was seeded out-of-band via
+# `aws ecs execute-command`). Sourced from GitHub secret SEED_GITHUB_LOGIN
+# via TF_VAR_seed_github_login in deploy-infra.yml; can also be set via
+# terraform.tfvars for local applies.
+variable "seed_github_login" {
+  description = "GitHub username to seed into allowed_users on container start. Empty = no-op."
+  type        = string
+  default     = ""
+}

@@ -38,6 +38,9 @@ resource "aws_ecs_task_definition" "app" {
         { name = "REVIEW_TIMEOUT_MIN", value = "15" },
         { name = "MAX_JOBS_PER_USER", value = "1" },
         { name = "LOG_LEVEL", value = "info" },
+        # Read by scripts/db-seed.cjs in the entrypoint. Empty = no-op
+        # (matches Phase D's manual-seed posture). See variables.tf.
+        { name = "SEED_GITHUB_LOGIN", value = var.seed_github_login },
       ]
       # Secrets are injected as env vars on container start. Empty during
       # Phase C (task execution role can read them; values populated in

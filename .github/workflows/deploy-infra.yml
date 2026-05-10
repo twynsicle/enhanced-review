@@ -88,6 +88,10 @@ jobs:
         env:
           # App module needs this; platform ignores it. Setting it on both is harmless.
           TF_VAR_platform_state_bucket: enhanced-review-tfstate-${{ secrets.AWS_ACCOUNT_ID }}
+          # Sourced from GitHub secret SEED_GITHUB_LOGIN. Empty fallback keeps
+          # the platform plan happy (the var only exists in the app module);
+          # `terraform plan` warns on unused TF_VARs but doesn't fail.
+          TF_VAR_seed_github_login: ${{ secrets.SEED_GITHUB_LOGIN || '' }}
         run: |
           terraform plan -no-color -out=tfplan -input=false 2>&1 | tee plan.txt
           terraform show -no-color tfplan > plan-show.txt
