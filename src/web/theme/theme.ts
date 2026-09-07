@@ -1,4 +1,10 @@
-import { createTheme, type MantineColorsTuple } from '@mantine/core';
+import {
+  createTheme,
+  defaultVariantColorsResolver,
+  type MantineColorsTuple,
+  parseThemeColor,
+  type VariantColorsResolver,
+} from '@mantine/core';
 import { RADII } from './tokens';
 
 /**
@@ -101,7 +107,29 @@ export const FONT_SANS = `'Inter Tight Variable', ${SANS_FALLBACK}`;
 export const FONT_SERIF = `'Source Serif 4', ${SERIF_FALLBACK}`;
 export const FONT_MONO = `'JetBrains Mono Variable', ${MONO_FALLBACK}`;
 
+/**
+ * The primary shade differs per scheme (iris[6] light, iris[4] dark) and the
+ * dark one is bright enough to want dark text, as the baseline renders.
+ * Mantine's `autoContrast` computes a filled button's text colour at render
+ * time without knowing the scheme, so for the primary colour we defer to
+ * `--mantine-primary-color-contrast`, which Mantine emits per scheme.
+ */
+const variantColorResolver: VariantColorsResolver = (input) => {
+  const defaults = defaultVariantColorsResolver(input);
+  const parsed = parseThemeColor({
+    color: input.color || input.theme.primaryColor,
+    theme: input.theme,
+  });
+  const isPrimary =
+    parsed.isThemeColor && parsed.color === input.theme.primaryColor && parsed.shade === undefined;
+  if (input.variant === 'filled' && isPrimary) {
+    return { ...defaults, color: 'var(--mantine-primary-color-contrast)' };
+  }
+  return defaults;
+};
+
 export const theme = createTheme({
+  variantColorResolver,
   fontFamily: FONT_SANS,
   fontFamilyMonospace: FONT_MONO,
   headings: {
