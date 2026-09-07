@@ -1,144 +1,134 @@
-<!-- BEGIN:nextjs-agent-rules -->
-
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-
-<!-- END:nextjs-agent-rules -->
-
 # Repo orientation for agents
 
-Web-based AI code-review tool (closed beta). Sign in with GitHub, pick a repo + PR/branch, the server clones it, runs the Claude Agent SDK against it, and streams a chaptered narrative review back. Successor to the diffy POC.
+> **Migration in progress (React Router re-platform).** The app is being
+> rebuilt phase by phase on `migrate-react-router`; it is **not runnable
+> end-to-end until Phase 4 lands**. The plan of record is
+> `docs/rr-migration/00-overview.md` — read it before anything else. Phase
+> plans (`phase-N-plan.md`) say what the current phase is doing.
+> `README.md`, `docs/RUNNING.md` and `docs/OPERATIONS.md` still describe the
+> old Next.js + PocketBase app and are rewritten in Phase 6.
+
+Web-based AI code-review tool (closed beta). Sign in with GitHub, pick a repo +
+PR/branch, the server clones it, runs the Claude Agent SDK against it, and
+streams a chaptered narrative review back. Successor to the diffy POC.
+
+Library APIs here (React Router 8, Mantine 9, Prisma 7, Vite 8, Vitest 4,
+Zod 4, TypeScript 7, oxlint) may be newer than your training data. Check the
+package's docs in `node_modules/<pkg>` or the current online docs before
+writing code against them; heed deprecation notices.
 
 ## Authoritative docs — read these first
 
-| File                 | When to read                                                                            |
-| -------------------- | --------------------------------------------------------------------------------------- |
-| `README.md`          | Top-level summary, scripts table, prerequisites.                                        |
-| `docs/README.md`     | Architecture, decisions, repo layout table.                                             |
-| `docs/RUNNING.md`    | First-time local setup (PB binary, OAuth app, allowlist).                               |
-| `docs/OPERATIONS.md` | Day-2 runbook: allowlist, key rotation, logs, stuck jobs, health, log-shape, env knobs. |
-| `docs/rr-migration/` | Active re-platform plan (React Router + Prisma). Read 00-overview.md first.             |
+| File                                | When to read                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| `docs/rr-migration/00-overview.md`  | Locked decisions (D1–D13), assumptions, target layout, phases, risks.     |
+| `docs/rr-migration/phase-N-plan.md` | What the current phase builds, its commit series and exit criteria.       |
+| `legacy/README.md`                  | Map from the quarantined old code to where each piece is ported.          |
+| `README.md`, `docs/*.md`            | **Stale** (PocketBase era) until Phase 6. Use only for product behaviour. |
 
-If a question is covered there, read the doc rather than re-deriving from code.
+## Tech stack
 
-## Tech stack (anchors for navigation)
+- Node 24 (Volta-pinned, `engines >=24`). The Express server runs TypeScript
+  directly via Node's type stripping — no build step for `server/`.
+- React Router 8 framework mode (SSR) on Vite 8; Express 5 via
+  `@react-router/express` in `server/index.ts`. Single process: the review
+  runner (Phase 3) lives in-process, so never run under a forking manager.
+- React 19, Mantine 9 (core/hooks/notifications/form/dates), Tabler icons,
+  Zustand for persisted client prefs, Zod 4 at every boundary.
+- Prisma 7 + `@prisma/adapter-pg` on Postgres 18 (Phase 2). Polling instead of
+  realtime.
+- Pino logging (`src/common/logger.ts`); `console.*` is banned by guardrail.
+- TypeScript 7 (native compiler) strict, `verbatimModuleSyntax`,
+  `erasableSyntaxOnly`. Linting is **oxlint** (`.oxlintrc.json`) — TS 7 has
+  no JS API, so typescript-eslint cannot run against it. Prettier formats.
+- Vitest 4 projects: `unit` (node), `web` (happy-dom), `guardrails`
+  (repo-reading convention tests), `integration` (real Postgres, self-skips).
 
-- Next.js 16 App Router + React 19 + TypeScript strict, Turbopack default.
-- Tailwind v4 + shadcn/ui (Radix base) — `components.json` configures the generator.
-- PocketBase (single binary, SQLite) for auth, CRUD, and realtime SSE. Schema lives in `pb_migrations/` (JSVM).
-- Review runner runs **in-process inside Next.js** — no separate worker. Fire-and-forget from the API route, AbortController registry for cancel.
-- Vitest + Testing Library, ESLint + Prettier, GitHub Actions CI on PR (`format:check`, `lint`, `typecheck`, `test`).
-
-## Repo layout
+## Repo layout (Phase 1 state)
 
 ```
+server/index.ts        Express bootstrap: dev = Vite middleware, prod = build/
 src/
-  app/                         App Router pages + route handlers
-    api/
-      auth/post-signin         Mirrors PB OAuth result into gh_access_token cookie + backfills github_login
-      auth/sign-out
-      github/repos, github/file
-      health                   Public ops endpoint
-      jobs/route.ts            POST creates row, fires runner in-process
-      jobs/[id]/cancel
-      jobs/[id]/rerun
-    jobs/[id]                  Live streaming view
-    reviews/[id]               Final narrative reader
-    history, login, denied, relink
-  proxy.ts                     Next 16 middleware (renamed). Auth + allowlist gate, session rolling.
-  components/                  home, narrative, notifications, theme, topbar, ui
-  hooks/                       use-toast.ts
-  lib/
-    pb/                        pbBrowser / pbServer / pbAdmin clients + UserRecord type + cookie keys
-    auth/                      allowlist gate (allowed_users collection)
-    github/                    Octokit factory, token cookie reader, fetcher, view-time helpers
-    jobs/                      concurrency, target schema, start-review, partial-narrative-parse
-    jobs/runner/               In-process review runner: clone/, executor/ (claude + stub), prompt/, registry, run.ts, writes.ts, github.ts
-    narrative/                 inline-diff-snippets, language-map
-    log.ts                     pino logger (job_id / executor child loggers)
-
-packages/
-  github-client/               Octokit wrapper used by API routes (workspace package)
-  review-types/                Shared NarrativeReview shape (chapters + insights + diffChunks)
-
-pb_migrations/                 PocketBase JSVM migrations. Auto-applied on PB startup.
-scripts/                       pb.mjs (launcher), pb-install.mjs (downloader, pinned version)
-tools/pocketbase/              PB binary (gitignored — npm run pb:install populates)
-pb_data/                       PB SQLite + settings (gitignored, persists OAuth config + allowlist + data)
-docs/                          README, RUNNING, OPERATIONS, rr-migration/
-test/                          server-only.shim.ts (Vitest alias for next/server-only)
-.github/workflows/ci.yml       Format / lint / typecheck / test on PR + push to main
+  common/              logger.ts (pino), time-ago.ts — imports only config from src/
+  config/              env.ts — Zod-parsed process.env; the only process.env reader
+  db/                  (Phase 2) Prisma client + repositories
+  domain/              (Phase 3) auth/ github/ review/ jobs/
+  jobs/                (Phase 5) one-shot tasks: recover-jobs, seed-allowlist
+  guardrails/          (Phase 1 commit 3) *.guard.test.ts
+  web/
+    root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary
+    routes.ts          route table — every file in routes/ must be listed here
+    routes/            skeleton.tsx (placeholder index), health.ts (/api/health)
+    theme/             (commit 2) Editorial Iris tokens → Mantine theme
+    test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
+  test/                integration-setup.ts
+legacy/                READ-ONLY old code awaiting port; excluded from every tool. Deleted end of Phase 4.
+public/                brand-mark.png, favicon.ico
+prisma/                (Phase 2)
+docs/rr-migration/     plan of record
 ```
 
-## How the system fits together
+Layering (enforced by guardrails from commit 3): `web → domain, db, common,
+config`; `domain → db, common, config`; `db → common, config`;
+`jobs → domain, db, common, config`; `common → config`; `config` imports
+nothing from `src/`. Only `src/web/` and `server/` may import React or
+`react-router`.
 
-- **Auth**: GitHub OAuth via PB (popup). Provider config lives in `pb_data/settings.json` (set in admin UI, not committed). Per-request session cookie `pb_auth`; HttpOnly `gh_access_token` mirrored from PB's `meta.accessToken` by `/api/auth/post-signin`. Token never persisted in DB.
-- **Allowlist gate**: `proxy.ts` runs on every matched request. Hydrates PB from cookie, refreshes token past half-life, blocks anything not in `allowed_users` collection (rules all `null` — admin-only). Public exits: `/api/auth/*`, `/api/health`, `/login`, `/denied`.
-- **Job lifecycle**: `POST /api/jobs` → resolve head SHA via Octokit → insert `review_jobs` row (`status=pending`) → register `AbortController` in `src/lib/jobs/runner/registry.ts` → fire `runJob(...)` (no await) → return `{ id }`. The route arms a `setTimeout(REVIEW_TIMEOUT_MIN)` that writes `status=error` and aborts.
-- **Runner** (`src/lib/jobs/runner/run.ts`): parse target → fetch PR metadata if PR → shallow clone (`git clone --depth=1`) → list changed files → build `PrData` → executor (`claude` via the Claude Agent SDK, or `stub`) streams chunks → each chunk inserted fire-and-forget into `review_chunks` → drain in-flight before flipping `status=done` → `finally` cleans clone dir + re-applies `cancelled` if signal aborted.
-- **Streaming**: client subscribes to PB realtime SSE on `review_chunks` (deduped by `seq`). Drain-before-done means a subscriber that observes `done` already has every chunk.
-- **Cancel**: `POST /api/jobs/[id]/cancel` updates row to `cancelled` under user's PB session, then signals the registry. Runner propagates the abort signal into the clone process and the SDK iterator.
-- **Output shape**: `packages/review-types/src/narrative.ts` — `NarrativeReview` = `prTitle` + `overviewSummary` + `chapters[]` (each with `insights[]` and `diffChunks[]`).
+## Conventions
 
-## PocketBase collections (see `pb_migrations/1745539200_initial_schema.js`)
+- Path alias `@/*` → `src/*`, resolved by Vite/Vitest/tsc. **Exception:**
+  `server/index.ts`, `src/config/env.ts` and `src/common/logger.ts` are loaded
+  natively by Node and use relative imports with explicit `.ts` extensions.
+- Server-only modules use the React Router `*.server.ts` filename convention
+  (A12). Domain/db code is server-only by construction.
+- Every loader/action parses `params`, search params and form data with Zod
+  (helpers land in `src/web/lib/parse.server.ts`, commit 3).
+- Env vars: add to the schema in `src/config/env.ts` **and** to `.env.example`
+  in the same commit. Local values live in `.env` (gitignored).
+- `legacy/` is reference only. Port from it; never import it.
 
-| Collection                  | Rules                                                                         | Notes                                                  |
-| --------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `users` (auth, PB built-in) | default                                                                       | Extended by migrations to add `github_login`.          |
-| `allowed_users`             | all `null`                                                                    | Admin-only. Unique index on `github_login`.            |
-| `review_jobs`               | list/view: any auth; update: owner while pending/running; create/delete: null | Status enum: pending, running, done, error, cancelled. |
-| `reviews`                   | list/view: any auth; mutations null                                           | One per completed job (unique index on `job`).         |
-| `review_chunks`             | list/view: any auth; mutations null                                           | Streamed partials. Unique on `(job, seq)`.             |
+## Scripts
 
-All status writes from the runner use `pbAdmin()` to bypass rules.
-
-## Common scripts
-
-| Script                            | What                                                       |
-| --------------------------------- | ---------------------------------------------------------- |
-| `npm run dev`                     | Next.js dev server (Turbopack) on `localhost:3000`         |
-| `npm run build`                   | Production build                                           |
-| `npm run lint`                    | ESLint                                                     |
-| `npm run typecheck`               | `tsc --noEmit`                                             |
-| `npm run format` / `format:check` | Prettier write / check                                     |
-| `npm test` / `test:watch`         | Vitest                                                     |
-| `npm run pb`                      | Local PocketBase server (`127.0.0.1:8090`, admin at `/_/`) |
-| `npm run pb:install`              | Download pinned PB binary into `tools/pocketbase/`         |
+| Script                                     | What                                                          |
+| ------------------------------------------ | ------------------------------------------------------------- |
+| `npm run dev`                              | Express + Vite dev server on `localhost:3000`                 |
+| `npm run build` / `npm start`              | `react-router build` / serve `build/` in production mode      |
+| `npm run typecheck`                        | `react-router typegen && tsc --noEmit`                        |
+| `npm test` / `test:watch`                  | Vitest `unit` + `web` + `guardrails`                          |
+| `npm run test:integration`                 | Vitest `integration` (needs Postgres; skips when unreachable) |
+| `npm run lint` / `format` / `format:check` | oxlint / Prettier                                             |
+| `npm run check`                            | **The gate**: typecheck + build + test + lint + format:check  |
+| `npm run check:all`                        | `check` + integration                                         |
 
 ## Environment
 
-`.env.example` is the canonical list. Keys you'll see: `NEXT_PUBLIC_POCKETBASE_URL`, `POCKETBASE_URL`, `POCKETBASE_ADMIN_EMAIL`, `POCKETBASE_ADMIN_PASSWORD`, `REVIEW_EXECUTOR` (`stub`|`claude`), `REVIEW_MODEL`, `ANTHROPIC_API_KEY`, `REVIEW_TIMEOUT_MIN`, `MAX_JOBS_PER_USER`, `LOG_LEVEL`, `LOG_PRETTY`. Defaults and meaning are documented in `docs/OPERATIONS.md` (Tunable knobs).
-
-## Conventions worth knowing before editing
-
-- Path alias `@/*` → `src/*` (see `tsconfig.json`). Workspace deps `@enhanced-review/github-client` and `@enhanced-review/review-types` are transpiled by Next (`transpilePackages` in `next.config.ts`) — no build step.
-- Server-only modules import `'server-only'` at the top. Vitest aliases this to `test/server-only.shim.ts` so they can be unit-tested. Do not import them from a client component.
-- `proxy.ts` is the Next 16 rename of `middleware.ts` — runs on the Node runtime, so PB admin client is fine there.
-- Use `pbServer()` for per-request session-bound work; `pbAdmin()` for rule-bypassing server-only writes; `pbBrowser()` for client components only.
-- The runner is single-process: ~5 concurrent jobs is the design budget. Don't add cross-process queues without revisiting `docs/README.md`.
-- No webhooks, no write-back to GitHub PRs, narrative-only (no Workspace mode). These are intentional cuts vs the diffy POC.
+`.env.example` is the canonical list with comments. Phase 1 keys: `NODE_ENV`,
+`PORT`, `APP_VERSION`, `LOG_LEVEL`, `LOG_PRETTY`. Later phases append theirs.
 
 ## Working on Windows
 
-The user runs Windows. `bash` (Git Bash) and `powershell` are both available; the docs and scripts are written to work in either. When you suggest commands to the user, use forward-slash paths and POSIX-friendly syntax (Git Bash) — the one quirk noted in `docs/RUNNING.md` is the PB superuser-create command, which differs between shells.
+The user runs Windows. `bash` (Git Bash) and `powershell` are both available.
+When you suggest commands, use forward-slash paths and POSIX-friendly syntax.
+Line endings are normalised to LF by `.gitattributes`.
 
 ## Keeping this file up to date
 
-Treat AGENTS.md as a living map. **Update it in the same change that introduces structural drift, then commit the AGENTS.md edit with that change.** Triggers:
+Treat AGENTS.md as a living map. **Update it in the same change that
+introduces structural drift, then commit the AGENTS.md edit with that
+change.** Triggers:
 
-- New top-level directory, or a `src/lib/<area>` / `src/app/api/<route>` that didn't exist before.
-- A new package under `packages/`.
-- A new PocketBase collection, or a rule change on an existing one.
-- A new env var, npm script, or executor backend.
+- New top-level directory, or a new `src/<area>` / `src/web/routes/<route>`.
+- A new Prisma model or a rule change on how one is accessed.
+- A new env var, npm script, executor backend, or guardrail.
 - Renames or removals of any of the above.
-- A change to the high-level data flow (auth, job lifecycle, streaming, cancel).
+- A change to the high-level data flow (auth, job lifecycle, polling).
 
-Pure refactors inside an already-named area (e.g. splitting `run.ts` into helpers under the same dir) do **not** require an AGENTS.md update — the directory entry still describes the area accurately.
+Pure refactors inside an already-named area do **not** require an update.
 
-When you do update it, also commit it. After making changes in this repo:
-
-1. If `AGENTS.md` itself is part of the diff, include it in the same commit as the code change that triggered it (one commit, one logical change). Do not split it into a separate "docs" commit.
-2. If you're touching the repo and notice AGENTS.md is stale relative to current state (a directory referenced no longer exists, an env var was renamed, etc.), fix it in your next commit on the branch — don't leave a known-stale map for the next agent.
-3. Commit message convention: follow whatever style `git log -n 5` shows. Keep AGENTS.md updates terse — one line in the body is plenty (e.g. `Refresh AGENTS.md repo layout for new src/lib/foo`).
-4. Don't push without explicit user approval. Local commits are fine; remote-visible actions are not.
+1. If `AGENTS.md` is part of the diff, include it in the same commit as the
+   code change that triggered it. Do not split it into a separate docs commit.
+2. If you notice AGENTS.md is stale relative to the tree, fix it in your next
+   commit on the branch.
+3. Commit message convention: follow whatever style `git log -n 5` shows.
+4. Don't push without explicit user approval. Local commits are fine;
+   remote-visible actions are not.

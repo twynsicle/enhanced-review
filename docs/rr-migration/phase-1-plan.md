@@ -19,7 +19,7 @@ Each is small; they are listed so they are not re-decided mid-implementation.
 | #     | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P1-D1 | **Legacy quarantine.** Code that Phases 3–4 will port (`src/lib/jobs`, `src/lib/github`, `src/lib/auth`, `src/lib/narrative`, `src/components/{home,narrative,notifications,theme,topbar}`, `packages/*`, their tests) moves to a top-level `legacy/` directory, excluded from tsconfig, ESLint, Prettier and Vitest. It is committed so the branch is coherent across sessions, and deleted at the end of Phase 4. Everything Next/PB-specific (`src/app`, `src/proxy.ts`, `src/lib/pb`, `src/components/ui`, `src/hooks`, `pb_migrations`, PB scripts, `test/`) is deleted outright. |
-| P1-D2 | **`.env` replaces `.env.local`.** Node's `--env-file-if-exists=.env` loads it; Vite and Prisma also read `.env` by default. `.env.example` is the template. The maintainer renames their file and prunes the Supabase/PocketBase keys.                                                                                                                                                                                                                                                                                                                                                 |
+| P1-D2 | **`.env` replaces `.env.local`.** `server/load-env.ts` loads it via `process.loadEnvFile` when present; Vite and Prisma also read `.env` by default. `.env.example` is the template. The maintainer renames their file and prunes the Supabase/PocketBase keys.                                                                                                                                                                                                                                                                                                                        |
 | P1-D3 | **Line endings normalised to LF.** `.gitattributes` gains `* text=auto eol=lf` so Windows clones with `core.autocrlf=true` stop tripping `prettier --check` (51 false positives today). Existing rules for scripts/binaries stay.                                                                                                                                                                                                                                                                                                                                                      |
 | P1-D4 | **`cross-env`** is the one new dev tool for setting `NODE_ENV=production` in the `start` script on Windows. The server decides dev vs prod from `NODE_ENV` only.                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | P1-D5 | **Server runs TypeScript directly.** Node 24 strips types natively, so `server/index.ts` is executed as-is (no build step, no `tsx`). `tsconfig` sets `erasableSyntaxOnly` so nothing non-strippable creeps in. The web app is still built by Vite; the jobs bundle (Phase 5) by a second Vite config.                                                                                                                                                                                                                                                                                 |
@@ -61,8 +61,7 @@ Each is small; they are listed so they are not re-decided mid-implementation.
 
 ### Dependencies
 
-Runtime: `react-router`, `@react-router/express`, `@react-router/node`,
-`express`, `react`, `react-dom`, `@mantine/core`, `@mantine/hooks`,
+Runtime: `react-router`, `@react-router/express`, `express`, `react`, `react-dom`, `@mantine/core`, `@mantine/hooks`,
 `@mantine/notifications`, `@mantine/form`, `@mantine/dates`, `dayjs` (Mantine
 dates peer), `@tabler/icons-react`, `zustand`, `zod`, `pino`, `pino-pretty`,
 `@fontsource-variable/inter-tight`, `@fontsource/source-serif-4`,
@@ -74,8 +73,7 @@ transitive; becomes explicit because `theme.css` imports its stylesheet).
 Dev: `@react-router/dev`, `vite`, `vitest`, `happy-dom`,
 `@testing-library/react`, `@testing-library/dom`, `@testing-library/jest-dom`,
 `typescript`, `@types/node`, `@types/express`, `@types/react`,
-`@types/react-dom`, `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks`,
-`eslint-config-prettier`, `prettier`, `postcss-preset-mantine`,
+`@types/react-dom`, `oxlint`, `prettier`, `postcss-preset-mantine`,
 `postcss-simple-vars`, `cross-env`.
 
 Removed: `next`, `eslint-config-next`, `pocketbase`, `tailwindcss`,
@@ -92,9 +90,9 @@ Express 5.2.x, Node 24 LTS). `package-lock.json` pins exact versions.
 
 | Script             | Command                                                                                      |
 | ------------------ | -------------------------------------------------------------------------------------------- |
-| `dev`              | `node --watch-path=server --env-file-if-exists=.env server/index.ts`                         |
+| `dev`              | `node --watch-path=server server/index.ts`                                                   |
 | `build`            | `react-router build`                                                                         |
-| `start`            | `cross-env NODE_ENV=production node --env-file-if-exists=.env server/index.ts`               |
+| `start`            | `cross-env NODE_ENV=production node server/index.ts`                                         |
 | `typecheck`        | `react-router typegen && tsc --noEmit`                                                       |
 | `lint`             | `eslint .`                                                                                   |
 | `format`           | `prettier --write .`                                                                         |
@@ -120,9 +118,10 @@ to the current Node 24 LTS patch.
 `paths {"@/*": ["./src/*"]}`. `include`: `src`, `server`, `*.config.ts`,
 `.react-router/types/**/*`. `exclude`: `legacy`, `build`, `node_modules`.
 
-TypeScript 7 is the first choice. If any dependency's `.d.ts` fails under 7,
-fall back to TypeScript 6 and record the deviation in this file (overview
-risk "TypeScript 7").
+TypeScript 7 is the native (Go) compiler: the `typescript` package ships
+platform binaries and **no JavaScript API**, which is why the linter is oxlint
+rather than typescript-eslint (see Deviations). Nothing else in the toolchain
+needs the TS API — React Router typegen is Babel-based and Vite uses esbuild.
 
 ### React Router + Vite
 
@@ -273,30 +272,34 @@ One file per rule, each walking the tree with `fs.globSync` and asserting on
 import specifiers. All six pass trivially against the skeleton and start
 biting in Phases 2–4.
 
-| File                              | Rule (A4)                                                                                                                                                                                                                                                                                      |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `layering.guard.test.ts`          | `web` → `domain`, `db`, `common`, `config`; `domain` → `db`, `common`, `config`; `db` → `common`, `config`; `jobs` → `domain`, `db`, `common`, `config`; `common`/`config` import nothing from `src/`. Nothing outside `src/web` and `server/` imports `react`, `react-dom` or `react-router`. |
-| `env-access.guard.test.ts`        | `process.env` appears only in `src/config/`.                                                                                                                                                                                                                                                   |
-| `no-console.guard.test.ts`        | `console.` appears only in `src/common/logger.ts` (and never in `server/`).                                                                                                                                                                                                                    |
-| `routes-registered.guard.test.ts` | Every file under `src/web/routes/` is referenced from `src/web/routes.ts`, and vice versa.                                                                                                                                                                                                     |
-| `zod-boundaries.guard.test.ts`    | A route module whose `loader`/`action` reads `params`, `request.url` or `request.formData()` must import `zod` or `@/web/lib/parse.server`.                                                                                                                                                    |
-| `server-only.guard.test.ts`       | No `*.server.ts` module is imported from a file that is not itself `.server.ts`, `root.tsx`, a route module, `server/`, `src/jobs/`, or a test.                                                                                                                                                |
+| File                              | Rule (A4)                                                                                                                                                                                                                                                                                                   |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `layering.guard.test.ts`          | `web` → `domain`, `db`, `common`, `config`; `domain` → `db`, `common`, `config`; `db` → `common`, `config`; `jobs` → `domain`, `db`, `common`, `config`; `common` → `config`; `config` imports nothing from `src/`. Nothing outside `src/web` and `server/` imports `react`, `react-dom` or `react-router`. |
+| `env-access.guard.test.ts`        | `process.env` appears only in `src/config/`.                                                                                                                                                                                                                                                                |
+| `no-console.guard.test.ts`        | `console.` appears only in `src/common/logger.ts` (and never in `server/`).                                                                                                                                                                                                                                 |
+| `routes-registered.guard.test.ts` | Every file under `src/web/routes/` is referenced from `src/web/routes.ts`, and vice versa.                                                                                                                                                                                                                  |
+| `zod-boundaries.guard.test.ts`    | A route module whose `loader`/`action` reads `params`, `request.url` or `request.formData()` must import `zod` or `@/web/lib/parse.server`.                                                                                                                                                                 |
+| `server-only.guard.test.ts`       | No `*.server.ts` module is imported from a file that is not itself `.server.ts`, `root.tsx`, a route module, `server/`, `src/jobs/`, or a test.                                                                                                                                                             |
 
 ### Lint / format
 
-`eslint.config.mjs`: `typescript-eslint` recommended (non-type-aware),
-`eslint-plugin-react-hooks` recommended, `eslint-config-prettier` last;
-ignores `build/`, `.react-router/`, `legacy/`, `node_modules/`, `coverage/`,
-`screenshots/`. `.prettierignore`: `build`, `.react-router`, `legacy`,
-`coverage`, `screenshots`, `package-lock.json`, `public`. `.prettierrc.json`
-unchanged.
+Linting is **oxlint** (`.oxlintrc.json`): plugins `eslint`, `typescript`,
+`react`, `import`, `unicorn`, `vitest`; category `correctness` as errors,
+`suspicious` as warnings; explicit `react/rules-of-hooks`,
+`react/exhaustive-deps`, `typescript/consistent-type-imports`,
+`typescript/no-unused-vars` (underscore-prefixed ignored), `eslint/no-console`,
+`eslint/eqeqeq`, `import/no-cycle`. Ignores `build/`, `.react-router/`,
+`legacy/`, `node_modules/`, `coverage/`, `screenshots/`, `public/`.
+Type-aware rules (`oxlint-tsgolint`) are not enabled in Phase 1.
+`.prettierignore`: `build`, `.react-router`, `legacy`, `coverage`,
+`screenshots`, `package-lock.json`, `public`. `.prettierrc.json` unchanged.
 
 ### Docker
 
 - `Dockerfile` (multi-stage, `node:24-alpine`): `deps` (`npm ci`), `build`
   (`npm run build`), `runtime` (`npm ci --omit=dev`, copy `build/`, `server/`,
   `package.json`; `apk add --no-cache git` for the Phase 3 clone step;
-  `ENV NODE_ENV=production`; `USER node`; `CMD ["node", "--env-file-if-exists=.env", "server/index.ts"]`).
+  `ENV NODE_ENV=production`; `USER node`; `CMD ["node", "server/index.ts"]`).
   Phase 5 replaces `CMD` with `entrypoint.sh`.
 - `.dockerignore`: `node_modules`, `build`, `.react-router`, `legacy`,
   `screenshots`, `pb_data`, `tools`, `.env*`, `.git`.
@@ -386,4 +389,19 @@ Each commit compiles; `npm run check` is green from commit 1 onward.
 
 ## Deviations recorded during execution
 
-_(filled in as the phase runs)_
+- **oxlint replaces ESLint (supersedes overview A9).** `typescript@7.0.2` is
+  the native compiler with no JS API; `typescript-eslint` declares
+  `typescript <6.1` and cannot load it. Maintainer chose to keep TypeScript 7
+  and lint with oxlint instead of falling back to TypeScript 6.
+- `@react-router/node` is not needed on Node ≥ 20 (no `installGlobals`);
+  dropped from the dependency list.
+- `@anthropic-ai/claude-agent-sdk` stays at the `main` version (`^0.2.119`);
+  bumping is a Phase 3 concern (0.3.x pulls a conflicting `@anthropic-ai/sdk`
+  peer).
+- `legacy/` also keeps `lib/pb/` and `proxy.ts` (P1-D1 said delete): they
+  encode the session-rolling and allowlist-gate semantics Phase 2 re-implements.
+- `.env` is loaded by `server/load-env.ts` (`process.loadEnvFile`), not by
+  `--env-file-if-exists`: on Node 24.11 / Windows that flag plus
+  `--watch-path` restarts the process in a loop, with or without a `.env`.
+- Layering: `common` may import `config` (the logger reads its level from the
+  parsed env). The guardrail table above is corrected accordingly.

@@ -1,5 +1,9 @@
 # Operations
 
+> **Migration in progress.** This document describes the Next.js + PocketBase
+> app and is superseded until Phase 6 of the React Router re-platform lands.
+> Current state and plan: [rr-migration/](rr-migration/00-overview.md).
+
 Day-to-day runbook for the closed-beta deployment. The architecture
 overview lives in [docs/README.md](README.md); first-time setup is in
 [docs/RUNNING.md](RUNNING.md). This file is for "the thing's running,

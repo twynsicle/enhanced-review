@@ -1,5 +1,9 @@
 # Running enhanced-review locally
 
+> **Migration in progress.** This document describes the Next.js + PocketBase
+> app and is superseded until Phase 6 of the React Router re-platform lands.
+> Current state and plan: [rr-migration/](rr-migration/00-overview.md).
+
 Every manual step required to take a fresh clone of this repo to a working
 local deployment. No Docker required for the app — you need Node, the
 PocketBase binary (downloaded by an npm script), and a GitHub OAuth app.

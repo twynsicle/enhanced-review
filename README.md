@@ -1,5 +1,9 @@
 # enhanced-review
 
+> **Migration in progress.** This document describes the Next.js + PocketBase
+> app and is superseded until Phase 6 of the React Router re-platform lands.
+> Current state and plan: [docs/rr-migration/](docs/rr-migration/00-overview.md).
+
 Web-based AI code-review tool for closed beta. Successor to the diffy POC.
 
 You sign in with GitHub (invite-only allowlist), pick one of your repos,

@@ -1,9 +1,10 @@
-.next
-.next/dev
 node_modules
-out
 build
+.react-router
+legacy
 coverage
+screenshots
 public
+pb_data
+tools
 package-lock.json
-src/components/ui

@@ -7,7 +7,7 @@
 # "exec /path/script: no such file or directory" because the shebang
 # becomes `#!/bin/sh\r`.
 
-* text=auto
+* text=auto eol=lf
 
 *.sh        text eol=lf
 *.bash      text eol=lf

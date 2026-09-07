@@ -2,16 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "next-dev",
+      "name": "web",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
-    },
-    {
-      "name": "pocketbase",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "pb"],
-      "port": 8090
     }
   ]
 }
