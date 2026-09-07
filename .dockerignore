@@ -1,0 +1,17 @@
+node_modules
+build
+.react-router
+legacy
+screenshots
+pb_data
+tools
+docs
+.env
+.env.*
+!.env.example
+.git
+.github
+.claude
+.playwright-mcp
+coverage
+*.md

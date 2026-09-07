@@ -7,26 +7,18 @@ on:
     branches: [main]
 
 jobs:
-  ci:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Reads the volta.node pin so CI and local match.
+          node-version-file: package.json
           cache: npm
 
       - run: npm ci
 
-      - name: Format check
-        run: npm run format:check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Unit tests
-        run: npm test
+      # typecheck + build + unit/web/guardrails tests + lint + format
+      - run: npm run check

@@ -1,0 +1,39 @@
+# Local infrastructure. Day-to-day dev only needs `docker compose up -d postgres`
+# (Phase 2 onward); the `web` service exists to prove the image end to end.
+#
+#   docker compose up -d postgres
+#   docker compose up --build web
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-enhanced_review}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-enhanced_review}
+      POSTGRES_DB: ${POSTGRES_DB:-enhanced_review}
+    # Loopback only — never exposed on the LAN.
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-enhanced_review}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: .
+    ports:
+      - '3000:3000'
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

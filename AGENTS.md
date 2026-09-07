@@ -54,25 +54,31 @@ src/
   db/                  (Phase 2) Prisma client + repositories
   domain/              (Phase 3) auth/ github/ review/ jobs/
   jobs/                (Phase 5) one-shot tasks: recover-jobs, seed-allowlist
-  guardrails/          (Phase 1 commit 3) *.guard.test.ts
+  guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only
   web/
     root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary
     routes.ts          route table — every file in routes/ must be listed here
     routes/            skeleton.tsx (placeholder index), health.ts (/api/health)
-    theme/             (commit 2) Editorial Iris tokens → Mantine theme
+    theme/             Editorial Iris tokens.ts → theme.ts, css-variables.ts (--er-* vars), color-scheme.ts, theme.css
+    lib/               parse.server.ts — Zod parseParams / parseSearchParams / parseFormData
     test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
   test/                integration-setup.ts
 legacy/                READ-ONLY old code awaiting port; excluded from every tool. Deleted end of Phase 4.
 public/                brand-mark.png, favicon.ico
 prisma/                (Phase 2)
 docs/rr-migration/     plan of record
+Dockerfile             node:24-alpine multi-stage; runs `node server/index.ts` in production mode
+docker-compose.yml     postgres:18-alpine on 127.0.0.1:5432 + `web` (proves the image)
+.github/workflows/ci.yml  npm ci → npm run check
 ```
 
-Layering (enforced by guardrails from commit 3): `web → domain, db, common,
+Layering (enforced by `src/guardrails`): `web → domain, db, common,
 config`; `domain → db, common, config`; `db → common, config`;
 `jobs → domain, db, common, config`; `common → config`; `config` imports
 nothing from `src/`. Only `src/web/` and `server/` may import React or
-`react-router`.
+`react-router`. Inside `web`, only route modules, `root.tsx`, `entry.server.tsx`
+and `*.server.ts` files may import `domain`, `db`, `config` or the logger —
+everything else in `web` ships to the browser.
 
 ## Conventions
 
@@ -82,7 +88,7 @@ nothing from `src/`. Only `src/web/` and `server/` may import React or
 - Server-only modules use the React Router `*.server.ts` filename convention
   (A12). Domain/db code is server-only by construction.
 - Every loader/action parses `params`, search params and form data with Zod
-  (helpers land in `src/web/lib/parse.server.ts`, commit 3).
+  via `src/web/lib/parse.server.ts` (guardrail `zod-boundaries`).
 - Env vars: add to the schema in `src/config/env.ts` **and** to `.env.example`
   in the same commit. Local values live in `.env` (gitignored).
 - `legacy/` is reference only. Port from it; never import it.
