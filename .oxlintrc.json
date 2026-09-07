@@ -39,6 +39,7 @@
     "screenshots/**",
     "public/**",
     "pb_data/**",
-    "tools/**"
+    "tools/**",
+    "src/db/generated/**"
   ]
 }

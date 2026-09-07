@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
@@ -15,6 +16,23 @@ import { defineConfig } from 'vitest/config';
 const srcDir = fileURLToPath(new URL('./src', import.meta.url))
   .split(sep)
   .join('/');
+
+// `src/config/env.ts` requires the database and auth keys. Tests use the
+// developer's `.env` when there is one and fall back to placeholders for
+// whatever is missing, so `npm run check` needs no `.env` at all
+// (phase-2-plan P2-D9). Workers inherit process.env from this process.
+if (existsSync('.env')) process.loadEnvFile('.env');
+const TEST_ENV_DEFAULTS: Record<string, string> = {
+  DATABASE_URL: 'postgresql://enhanced_review:enhanced_review@127.0.0.1:5432/enhanced_review',
+  SESSION_SECRET: 'vitest-session-secret-not-for-real-use-0123456789',
+  GITHUB_CLIENT_ID: 'vitest-client-id',
+  GITHUB_CLIENT_SECRET: 'vitest-client-secret',
+  APP_ORIGIN: 'http://localhost:3000',
+  LOG_LEVEL: 'silent',
+};
+for (const [key, value] of Object.entries(TEST_ENV_DEFAULTS)) {
+  process.env[key] ??= value;
+}
 
 export default defineConfig({
   resolve: {
@@ -55,7 +73,9 @@ export default defineConfig({
           name: 'integration',
           environment: 'node',
           include: ['src/**/*.integration.test.ts'],
-          setupFiles: ['src/test/integration-setup.ts'],
+          globalSetup: ['src/test/integration-global-setup.ts'],
+          // Files share one database and truncate it between tests.
+          fileParallelism: false,
         },
       },
     ],

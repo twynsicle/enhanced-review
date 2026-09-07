@@ -12,7 +12,7 @@ import { z } from 'zod';
  * Later phases append keys here and to `.env.example` in the same commit.
  */
 
-const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'] as const;
+const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent'] as const;
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -23,6 +23,7 @@ const schema = z.object({
     .enum(['0', '1'])
     .default('0')
     .transform((v) => v === '1'),
+  DATABASE_URL: z.url(),
 });
 
 export type Env = z.infer<typeof schema>;

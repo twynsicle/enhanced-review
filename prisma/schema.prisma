@@ -1,0 +1,128 @@
+// enhanced-review data model. Fresh history (00-overview D11): 0001_init is
+// the first migration; nothing is carried over from PocketBase.
+//
+// Conventions (phase-2-plan P2-D2): UUID v7 ids, camelCase fields mapped to
+// snake_case columns, snake_case plural table names. CHECK constraints that
+// Prisma cannot express (seq >= 0, risk_score 1..5) are hand-added in
+// migrations/0001_init/migration.sql.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/db/generated"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Someone who has signed in at least once. Identity is the GitHub numeric id
+/// (P2-D1); login / name / avatar are refreshed on every sign-in.
+model User {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  githubId    BigInt   @unique @map("github_id")
+  githubLogin String   @unique @map("github_login") @db.VarChar(100)
+  name        String?
+  avatarUrl   String?  @map("avatar_url")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sessions Session[]
+  jobs     ReviewJob[]
+
+  @@map("users")
+}
+
+/// React Router session row (createSessionStorage). The cookie holds only
+/// `id`; `data` is the session payload ({ userId }). Never holds the GitHub
+/// token (00-overview D3).
+model Session {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  data      Json
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// Invite-only allowlist of GitHub logins. Managed by the seed-allowlist job.
+model AllowedUser {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  githubLogin String   @unique @map("github_login") @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("allowed_users")
+}
+
+enum JobStatus {
+  pending
+  running
+  done
+  error
+  cancelled
+
+  @@map("job_status")
+}
+
+/// One row per review submission. Owner-only cancel while pending/running and
+/// any-authenticated-user reads are enforced in loaders/actions (A5).
+model ReviewJob {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  /// ReviewTarget JSON (pr | branch), see src/domain/review.
+  target       Json
+  status       JobStatus
+  headSha      String?   @map("head_sha") @db.VarChar(64)
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(3)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(3)
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  errorMessage String?   @map("error_message")
+  /// Denormalised from the finished review so lists can show it (1..5).
+  riskScore    Int?      @map("risk_score") @db.SmallInt
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  review Review?
+  chunks ReviewChunk[]
+
+  @@index([status])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("review_jobs")
+}
+
+/// Final NarrativeReview, one per completed job.
+model Review {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  jobId         String   @unique @map("job_id") @db.Uuid
+  content       Json
+  diffTruncated Boolean  @default(false) @map("diff_truncated")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  job ReviewJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+/// Streamed partial output for the live view; seq starts at 0.
+model ReviewChunk {
+  jobId     String   @map("job_id") @db.Uuid
+  seq       Int
+  content   String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  job ReviewJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@id([jobId, seq])
+  @@map("review_chunks")
+}

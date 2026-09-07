@@ -18,6 +18,7 @@ const ALWAYS_EXCLUDE = [
   'legacy/**',
   '.react-router/**',
   'src/guardrails/**',
+  'src/db/generated/**',
 ];
 
 export function toPosix(p: string): string {
@@ -95,11 +96,13 @@ export function areaOf(relPath: string): Area | null {
 
 /** Minimal glob matcher: `**`, `*`, and literal segments. */
 export function matchesGlob(relPath: string, pattern: string): boolean {
-  const escaped = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*\//g, '(?:.*/)?')
-    .replace(/\*\*/g, '.*')
-    .replace(/\*/g, '[^/]*');
+  // Single pass so a substituted `.*` is not re-processed by the `*` rule.
+  const escaped = pattern.replace(/\*\*\/|\*\*|\*|[.+^${}()|[\]\\]/g, (token) => {
+    if (token === '**/') return '(?:.*/)?';
+    if (token === '**') return '.*';
+    if (token === '*') return '[^/]*';
+    return `\\${token}`;
+  });
   return new RegExp(`^${escaped}$`).test(relPath);
 }
 

@@ -33,3 +33,6 @@ npm-debug.log*
 
 # local UI baseline + phase screenshots for the RR migration
 /screenshots/
+
+# Prisma client output (npm run db:generate / postinstall)
+/src/db/generated/
