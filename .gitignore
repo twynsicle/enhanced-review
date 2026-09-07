@@ -50,3 +50,6 @@ next-env.d.ts
 
 # playwright mcp runtime artifacts (console logs + page snapshots)
 .playwright-mcp/
+
+# local UI baseline screenshots (Phase 0 of the RR migration)
+/screenshots/
