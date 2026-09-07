@@ -93,4 +93,3 @@ jobs) see [OPERATIONS.md](OPERATIONS.md).
 | `pb_migrations/`          | PocketBase JSVM migrations (auto-applied on PB startup)                  |
 | `tools/pocketbase/`       | The PB binary (gitignored; downloaded by `npm run pb:install`)           |
 | `pb_data/`                | PB's SQLite DB and settings (gitignored)                                 |
-| `docs/archive/`           | Historical migration plans kept for context                              |

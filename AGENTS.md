@@ -18,7 +18,7 @@ Web-based AI code-review tool (closed beta). Sign in with GitHub, pick a repo + 
 | `docs/README.md`     | Architecture, decisions, repo layout table.                                             |
 | `docs/RUNNING.md`    | First-time local setup (PB binary, OAuth app, allowlist).                               |
 | `docs/OPERATIONS.md` | Day-2 runbook: allowlist, key rotation, logs, stuck jobs, health, log-shape, env knobs. |
-| `docs/archive/`      | Historical migration plans — context only, not current state.                           |
+| `docs/rr-migration/` | Active re-platform plan (React Router + Prisma). Read 00-overview.md first.             |
 
 If a question is covered there, read the doc rather than re-deriving from code.
 
@@ -66,7 +66,7 @@ pb_migrations/                 PocketBase JSVM migrations. Auto-applied on PB st
 scripts/                       pb.mjs (launcher), pb-install.mjs (downloader, pinned version)
 tools/pocketbase/              PB binary (gitignored — npm run pb:install populates)
 pb_data/                       PB SQLite + settings (gitignored, persists OAuth config + allowlist + data)
-docs/                          README, RUNNING, OPERATIONS, archive/
+docs/                          README, RUNNING, OPERATIONS, rr-migration/
 test/                          server-only.shim.ts (Vitest alias for next/server-only)
 .github/workflows/ci.yml       Format / lint / typecheck / test on PR + push to main
 ```
