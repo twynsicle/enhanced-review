@@ -1,6 +1,6 @@
 /**
  * Editorial Iris — the app's semantic colour tokens, ported one-for-one from
- * the PocketBase-era `globals.css` (kept at `legacy/globals.css`).
+ * the previous app's `globals.css` (kept at `legacy/globals.css`).
  *
  * Cobalt (hue 240) is the "before / current state" accent and the primary
  * chrome colour; mint (hue 160) is the "after / new state / approved"

@@ -3,7 +3,7 @@ import { env } from '@/config/env';
 /**
  * GET /api/health — public, no secrets in the payload.
  *
- * Same key set as the PocketBase-era endpoint so existing pingers keep
+ * Same key set as the previous endpoint so existing pingers keep
  * parsing it. The queue metrics come back in Phase 3 once `src/db` exists;
  * until then they are `null` and `ok` reflects only that the process is up.
  * Always 200: this is a data dump for ad-hoc ops checks, not a status
