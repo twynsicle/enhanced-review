@@ -86,6 +86,9 @@ nothing from `src/`. Only `src/web/` and `server/` may import React or
 - Env vars: add to the schema in `src/config/env.ts` **and** to `.env.example`
   in the same commit. Local values live in `.env` (gitignored).
 - `legacy/` is reference only. Port from it; never import it.
+- No barrel `index.ts` files. Import the module you need
+  (`@/web/theme/theme`, not `@/web/theme`): Vitest's alias does not resolve
+  directory indexes, and explicit paths keep dependency graphs readable.
 
 ## Scripts
 

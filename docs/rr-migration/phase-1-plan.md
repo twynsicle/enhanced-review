@@ -403,5 +403,10 @@ Each commit compiles; `npm run check` is green from commit 1 onward.
 - `.env` is loaded by `server/load-env.ts` (`process.loadEnvFile`), not by
   `--env-file-if-exists`: on Node 24.11 / Windows that flag plus
   `--watch-path` restarts the process in a loop, with or without a `.env`.
+- No barrel files: `src/web/theme/index.ts` was dropped after Vitest's `@`
+  alias (spelled out in `vitest.config.ts`, since Vitest ignores Vite's
+  `resolve.tsconfigPaths`) failed to resolve directory indexes. Modules are
+  imported by file (`@/web/theme/theme`). Vitest projects need
+  `extends: true` to inherit the root `resolve` block.
 - Layering: `common` may import `config` (the logger reads its level from the
   parsed env). The guardrail table above is corrected accordingly.

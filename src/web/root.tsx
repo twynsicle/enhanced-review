@@ -1,5 +1,6 @@
-import '@mantine/core/styles.css';
+import './theme/theme.css';
 import { ColorSchemeScript, MantineProvider, mantineHtmlProps, Text, Title } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
 import {
   isRouteErrorResponse,
   Links,
@@ -8,6 +9,9 @@ import {
   Scripts,
   ScrollRestoration,
 } from 'react-router';
+import { COLOR_SCHEME_KEY, colorSchemeManager } from '@/web/theme/color-scheme';
+import { cssVariablesResolver } from '@/web/theme/css-variables';
+import { theme } from '@/web/theme/theme';
 import type { Route } from './+types/root';
 
 export const links: Route.LinksFunction = () => [{ rel: 'icon', href: '/favicon.ico' }];
@@ -19,16 +23,26 @@ export const meta: Route.MetaFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" {...mantineHtmlProps}>
+    // Dark is the default scheme (A3). ColorSchemeScript swaps in the stored
+    // `er-theme` value before first paint, exactly as the old init script did.
+    <html lang="en" {...mantineHtmlProps} data-mantine-color-scheme="dark">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <ColorSchemeScript defaultColorScheme="dark" localStorageKey="er-theme" />
+        <ColorSchemeScript defaultColorScheme="dark" localStorageKey={COLOR_SCHEME_KEY} />
         <Meta />
         <Links />
       </head>
       <body>
-        <MantineProvider defaultColorScheme="dark">{children}</MantineProvider>
+        <MantineProvider
+          theme={theme}
+          cssVariablesResolver={cssVariablesResolver}
+          colorSchemeManager={colorSchemeManager}
+          defaultColorScheme="dark"
+        >
+          <Notifications position="top-right" />
+          {children}
+        </MantineProvider>
         <ScrollRestoration />
         <Scripts />
       </body>
