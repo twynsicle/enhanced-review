@@ -312,3 +312,40 @@ The agent runs migrate and seed as part of verification once these exist.
   generated `SESSION_SECRET` were appended to the maintainer's `.env` during
   commit 1 (non-secret defaults plus a fresh random secret). Only the GitHub
   client id/secret remain a maintainer action.
+- **`src/jobs/` runs natively** (follows from the erasability finding):
+  `npm run job -- seed-allowlist <login...>` is `node src/jobs/cli.ts`.
+  `server/load-env.ts` moved to `src/config/load-env.ts` so both native entry
+  points share it. No `server/job.ts`. Phase 5 must copy `src/` and the
+  generated client into the runtime image (or run `prisma generate` there)
+  for the container entrypoint to run jobs.
+- **Session storage is split between `createSessionStorage` and the
+  repository.** RR's `Session` object does not expose `expiresAt`, so the root
+  middleware reads the row through `db/sessions` to decide on rolling and
+  re-commits via the repository; `createSessionStorage` is used for minting
+  the session on sign-in. Sign-out is `destroySession(id)` + a clearing
+  cookie, shared by the gate and `/auth/logout` (`signOutHeaders`).
+- **Gate middleware returns the redirect instead of throwing it**, which is
+  the documented short-circuit form; the root middleware still runs its
+  post-`next()` code and skips rolling because the gate nulls
+  `sessionContext`.
+- **Middleware unit tests run under Node**, via a `// @vitest-environment node`
+  docblock, even though they live in `src/web/` (the web project's happy-dom
+  is wrong for Request/Response + Web Crypto cookie signing).
+- **Two Mantine fixes surfaced by the login page:** the colour-scheme toggle
+  hydrated with the wrong icon when the stored scheme was light (Mantine's
+  `useComputedColorScheme` only defers the _OS_ scheme), fixed with a
+  hydration flag; and `autoContrast` is scheme-blind for filled buttons
+  because the primary shade differs per scheme, fixed with a
+  `variantColorResolver` that points filled primary buttons at
+  `--mantine-primary-color-contrast` (commit 3.1).
+- **Vite dep-optimizer noise:** in dev, Vite lists `@prisma/adapter-pg`,
+  `pino` and `zod` as optimised _client_ deps because its scanner runs before
+  React Router strips server exports. The production client bundle contains
+  none of them (checked with grep on `build/client/assets`).
+- **Verification 5–8 were run with a minted session** (rows inserted directly
+  in Postgres and a cookie signed with `SESSION_SECRET`), because the real
+  GitHub exchange needs the maintainer's OAuth client id/secret. Placeholder
+  `GITHUB_CLIENT_ID/SECRET=replace-me` were appended to `.env` so the server
+  boots; the maintainer replaces them and runs the sign-in once.
+- **`prisma generate` needs a URL even though it never connects.** Prisma 7 `env()` throws at config load when the variable is unset, which broke the Docker build stage and would break `npm install` on a fresh clone (postinstall). `prisma.config.ts` substitutes a placeholder URL only when the CLI command is `generate` and `DATABASE_URL` is absent; every other command still fails loudly.
+- **Runtime image is ~650 MB** (was 484 MB in Phase 1): `pg`, the Prisma runtime and their dependencies. Trimming is a Phase 6 concern.

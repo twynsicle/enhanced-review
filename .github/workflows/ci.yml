@@ -9,6 +9,28 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+
+    # Postgres for the integration project (phase-2-plan P2-D12). Locally
+    # `npm run check` needs no database; CI runs `check:all` so the
+    # integration tests are guaranteed to execute rather than self-skip.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: enhanced_review
+          POSTGRES_PASSWORD: enhanced_review
+          POSTGRES_DB: enhanced_review
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U enhanced_review"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://enhanced_review:enhanced_review@127.0.0.1:5432/enhanced_review
+
     steps:
       - uses: actions/checkout@v4
 
@@ -18,7 +40,10 @@ jobs:
           node-version-file: package.json
           cache: npm
 
+      # postinstall runs `prisma generate`.
       - run: npm ci
 
-      # typecheck + build + unit/web/guardrails tests + lint + format
-      - run: npm run check
+      - run: npm run db:deploy
+
+      # typecheck + build + unit/web/guardrails tests + lint + format, then integration
+      - run: npm run check:all

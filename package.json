@@ -19,6 +19,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force && prisma generate",
     "db:studio": "prisma studio",
+    "job": "node src/jobs/cli.ts",
     "typecheck": "react-router typegen && tsc --noEmit",
     "lint": "oxlint",
     "format": "prettier --write .",

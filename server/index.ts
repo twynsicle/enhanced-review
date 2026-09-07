@@ -13,7 +13,7 @@
  *   development  Vite in middleware mode: HMR, on-the-fly SSR module loading.
  *   production   Serves the `build/` output produced by `react-router build`.
  */
-import './load-env.ts';
+import '../src/config/load-env.ts';
 import { createRequestHandler } from '@react-router/express';
 import express from 'express';
 import type { ServerBuild } from 'react-router';

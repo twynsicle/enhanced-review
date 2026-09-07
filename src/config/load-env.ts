@@ -1,7 +1,8 @@
 /**
  * Loads `.env` from the working directory into the process environment before
- * anything reads it. Imported first by `server/index.ts` so `src/config/env.ts` sees
- * the file's values.
+ * anything reads it. Imported first by the native entry points
+ * (`server/index.ts`, `src/jobs/cli.ts`) so `src/config/env.ts` sees the
+ * file's values.
  *
  * Done in code rather than with Node's `--env-file-if-exists` flag because,
  * on Node 24 / Windows, that flag combined with `--watch-path` makes the
