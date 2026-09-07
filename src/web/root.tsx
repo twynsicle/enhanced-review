@@ -12,7 +12,11 @@ import {
 import { COLOR_SCHEME_KEY, colorSchemeManager } from '@/web/theme/color-scheme';
 import { cssVariablesResolver } from '@/web/theme/css-variables';
 import { theme } from '@/web/theme/theme';
+import { sessionMiddleware } from '@/web/auth/session-middleware.server';
 import type { Route } from './+types/root';
+
+// Every request: resolve session + user into route context (phase-2-plan P2-D5).
+export const middleware: Route.MiddlewareFunction[] = [sessionMiddleware];
 
 export const links: Route.LinksFunction = () => [{ rel: 'icon', href: '/favicon.ico' }];
 

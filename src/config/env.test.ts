@@ -3,6 +3,10 @@ import { parseEnv } from './env.ts';
 
 const REQUIRED = {
   DATABASE_URL: 'postgresql://user:pass@localhost:5432/db',
+  SESSION_SECRET: 'a-session-secret-that-is-at-least-32-chars',
+  GITHUB_CLIENT_ID: 'Iv1.client',
+  GITHUB_CLIENT_SECRET: 'shh',
+  APP_ORIGIN: 'http://localhost:3000',
 };
 
 describe('parseEnv', () => {
@@ -45,9 +49,17 @@ describe('parseEnv', () => {
     expect('UNRELATED' in env).toBe(false);
   });
 
-  it('requires DATABASE_URL to be a URL', () => {
-    expect(() => parseEnv({})).toThrowError(/DATABASE_URL/);
-    expect(() => parseEnv({ DATABASE_URL: 'not a url' })).toThrowError(/DATABASE_URL/);
+  it('requires every database and auth key', () => {
+    for (const key of Object.keys(REQUIRED)) {
+      const { [key]: _omitted, ...rest } = REQUIRED as Record<string, string>;
+      expect(() => parseEnv(rest)).toThrowError(new RegExp(key));
+    }
+  });
+
+  it('validates URL shape and secret length', () => {
+    expect(() => parseEnv({ ...REQUIRED, DATABASE_URL: 'not a url' })).toThrowError(/DATABASE_URL/);
+    expect(() => parseEnv({ ...REQUIRED, APP_ORIGIN: 'localhost' })).toThrowError(/APP_ORIGIN/);
+    expect(() => parseEnv({ ...REQUIRED, SESSION_SECRET: 'short' })).toThrowError(/SESSION_SECRET/);
   });
 
   it('names every offending key in the error', () => {

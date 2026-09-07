@@ -24,6 +24,10 @@ const schema = z.object({
     .default('0')
     .transform((v) => v === '1'),
   DATABASE_URL: z.url(),
+  SESSION_SECRET: z.string().min(32),
+  GITHUB_CLIENT_ID: z.string().min(1),
+  GITHUB_CLIENT_SECRET: z.string().min(1),
+  APP_ORIGIN: z.url(),
 });
 
 export type Env = z.infer<typeof schema>;

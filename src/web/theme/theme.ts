@@ -116,5 +116,6 @@ export const theme = createTheme({
   radius: RADII,
   defaultRadius: 'lg',
   cursorType: 'pointer',
+  autoContrast: true,
   fontSmoothing: true,
 });
