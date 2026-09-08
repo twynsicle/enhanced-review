@@ -57,6 +57,11 @@ export async function listJobs(options: reviewJobs.ListJobsOptions): Promise<Rev
   return (await reviewJobs.listJobs(options)).map(parseJob);
 }
 
+/** The user's jobs that turned terminal at or after `since` (the notifier's poll). */
+export async function listTerminalJobsSince(userId: string, since: Date): Promise<ReviewJob[]> {
+  return (await reviewJobs.listTerminalJobsSince(userId, since)).map(parseJob);
+}
+
 export async function getReview(jobId: string): Promise<Review | null> {
   const record = await reviews.findReviewByJobId(jobId);
   return record ? parseReview(record) : null;

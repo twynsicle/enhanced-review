@@ -21,6 +21,7 @@ export default [
     route('api/github/repos/:owner/:repo/pulls', 'routes/api.github.pulls.ts'),
     route('api/github/repos/:owner/:repo/branches', 'routes/api.github.branches.ts'),
     route('api/github/file', 'routes/api.github.file.ts'),
+    route('api/me/jobs/terminal', 'routes/api.me.jobs.terminal.ts'),
     route('api/jobs/:id', 'routes/api.jobs.$id.ts'),
   ]),
   route('login', 'routes/login.tsx'),

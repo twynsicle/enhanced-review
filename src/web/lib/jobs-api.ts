@@ -16,6 +16,22 @@ export function isJobPollResponse(value: unknown): value is JobPollResponse {
   return typeof body.job === 'object' && body.job !== null && Array.isArray(body.chunks);
 }
 
+/**
+ * Body of `GET /api/me/jobs/terminal?since=<iso>` (00-overview D6): the
+ * viewer's jobs that reached a terminal status at or after `since`, plus
+ * the server clock to use as the next `since`.
+ */
+export interface TerminalJobsResponse {
+  now: string;
+  jobs: JobView[];
+}
+
+export function isTerminalJobsResponse(value: unknown): value is TerminalJobsResponse {
+  if (typeof value !== 'object' || value === null) return false;
+  const body = value as { now?: unknown; jobs?: unknown };
+  return typeof body.now === 'string' && Array.isArray(body.jobs);
+}
+
 /** Append `incoming` to `chunks`, de-duplicated and ordered by `seq`. */
 export function mergeChunks(chunks: ChunkView[], incoming: ChunkView[]): ChunkView[] {
   if (incoming.length === 0) return chunks;

@@ -412,3 +412,29 @@ Each commit is green on `npm run check`; integration stays green.
   and the "Show full file" toggle. The baseline chapter-1 capture came from a
   review without hunks, so it shows no editor to compare against; the editor
   chrome matches `main`'s Tailwind version by construction (same options).
+
+**Commit 6 (notifier)**
+
+- `JobNotifications` polls with plain `fetch` + `usePolling`, like the live
+  view, rather than `useFetcher().load()`: a fetcher load of a resource route
+  would revalidate through the router, and a redirect (expired session) must
+  not be followed by a background poller. The endpoint is a JSON resource
+  route (`/api/me/jobs/terminal`), and a non-JSON body is ignored.
+- Later polls look back 30 s behind the previous response's `now`
+  (`TERMINAL_OVERLAP_MS`): a terminal row's `updated_at` is assigned before
+  its transaction commits, so a poll in that gap would otherwise skip it for
+  good. The first poll starts exactly at the shell loader's `serverNow`, and
+  the per-id set de-duplicates the overlap. The set also records suppressed
+  jobs, so leaving `/jobs/:id` afterwards does not toast late.
+- The toast is a Mantine notification (P4-D11) with `autoClose: false`: the
+  shadcn toast on `main` effectively stayed until dismissed, and the "View"
+  link (an `Anchor` button in the message that `navigate`s and hides the
+  toast) needs the time. The route belt-checks the session user and answers
+  401 without one; the gate redirects first in practice.
+- `listTerminalJobsSince` gained a `jobs.server.ts` wrapper so the route
+  never touches `db` directly (layering as in P3).
+- Verification: the toast was raised on `/history` by seeding a done job
+  while the page polled (`dev-session.ts --seed-done`), in both schemes;
+  "View" navigates to the reader and hides it. The browser `Notification`
+  path is not reproducible headlessly (permission is `default` there) and is
+  covered by the same code as `main`.

@@ -94,7 +94,7 @@ src/
     root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary, middleware: [sessionMiddleware]
     entry.server.tsx   RR server entry (`reveal` default, logger instead of console); awaits bootJobs() before the first request
     routes.ts          route table — every file in routes/ must be listed here
-    routes/            _gated.tsx (layout: allowlistGate) → _shell.tsx (layout: Topbar; loader {user, serverNow, polling})
+    routes/            _gated.tsx (layout: allowlistGate) → _shell.tsx (layout: Topbar + JobNotifications; loader {user, serverNow, polling})
                          → home.tsx (index: hero + ReviewComposer + Recent; action POST /?index → startReview), history.tsx (?status=),
                            jobs.$id.tsx (live view; loader job + chunks, 404 → own ErrorBoundary; action intent=cancel|rerun),
                            reviews.$id.tsx (reader; loader: done job + review + GitHub fan-out via lib/review-metadata.server,
@@ -103,8 +103,9 @@ src/
                          api.github.file.ts (both blobs of one file, base + head in parallel, for the inline diff)
                          (resource routes the composer loads via useFetcher; bodies typed in lib/github-api.ts, failures
                          returned with a status, rejected token → /relink), api.jobs.$id.ts (?after=<seq> → {job, chunks},
-                         polled by the live view);  public: login.tsx, denied.tsx, auth.github.ts, auth.github.callback.ts,
-                       auth.logout.ts, health.ts.  Phase 4 still adds api/me/jobs/terminal.
+                         polled by the live view), api.me.jobs.terminal.ts (?since=<iso> → {now, jobs}: the viewer's jobs
+                         that turned terminal since then, polled by the notifier);  public: login.tsx, denied.tsx,
+                       auth.github.ts, auth.github.callback.ts, auth.logout.ts, health.ts.
     auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                        context (userContext/sessionContext), session-middleware, gate-middleware (allowlistGate, signOutHeaders)
     components/        brand-mark, color-scheme-toggle, app-error (generic error page, used by root + route boundaries);
@@ -118,13 +119,16 @@ src/
                        lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                        inline-diff-chunk (+ .module.css; useFetcher → /api/github/file, snippets per hunk group,
                        lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme), review-banners, risk-score,
-                       use-narrative-keyboard) — all browser-safe, styled via token() or a sibling CSS Module
+                       use-narrative-keyboard), notifications/ (job-notifications: fetch-polls api/me/jobs/terminal with
+                       a 30 s overlap, toasts once per job id, suppressed on that job's pages, browser Notification when
+                       hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
     stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
     theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours) → theme.ts,
                        css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules)
     lib/               parse.server.ts (Zod parseParams / parseSearchParams / parseFormData), github.server.ts (requireGithubToken,
                        withGithub → /relink, githubFailure), github-api.ts (resource-route body types, GITHUB_ERROR_STATUS),
-                       jobs-api.ts (JobPollResponse, mergeChunks), rerun-action.server.ts (shared intent=rerun handler),
+                       jobs-api.ts (JobPollResponse, TerminalJobsResponse, mergeChunks), rerun-action.server.ts (shared
+                       intent=rerun handler),
                        review-metadata.server.ts (reader's view-time GitHub fan-out: PR header/reviewers or branch head,
                        staleness compare; every section degrades on its own, no token → nothing fetched),
                        action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts
