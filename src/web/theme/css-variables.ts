@@ -1,10 +1,15 @@
 import type { CSSVariablesResolver } from '@mantine/core';
 import {
+  HLJS_TOKEN_NAMES,
   LAYOUT_WIDTHS,
   TOKEN_NAMES,
   darkTokens,
+  hljsDarkTokens,
+  hljsLightTokens,
+  hljsVar,
   lightTokens,
   tokenVar,
+  type HljsTokenMap,
   type TokenMap,
 } from './tokens';
 
@@ -14,9 +19,10 @@ import {
  * the same tokens so `Paper`, `Text c="dimmed"`, inputs, borders and anchors
  * pick up the baseline colours without per-component overrides (D2).
  */
-function schemeVariables(tokens: TokenMap): Record<string, string> {
+function schemeVariables(tokens: TokenMap, hljs: HljsTokenMap): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const name of TOKEN_NAMES) vars[tokenVar(name)] = tokens[name];
+  for (const name of HLJS_TOKEN_NAMES) vars[hljsVar(name)] = hljs[name];
 
   vars['--mantine-color-body'] = tokens.background;
   vars['--mantine-color-text'] = tokens.foreground;
@@ -35,6 +41,6 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
   variables: {
     '--review-max-width': LAYOUT_WIDTHS.narrow,
   },
-  light: schemeVariables(lightTokens),
-  dark: schemeVariables(darkTokens),
+  light: schemeVariables(lightTokens, hljsLightTokens),
+  dark: schemeVariables(darkTokens, hljsDarkTokens),
 });

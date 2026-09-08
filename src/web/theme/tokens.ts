@@ -130,6 +130,75 @@ export const darkTokens: TokenMap = {
   del: 'oklch(0.62 0.21 30)',
 };
 
+/**
+ * Syntax colours for `highlight.js` output in markdown code fences
+ * (phase-4-plan P4-D12): the GitHub light/dark themes' fifteen colours,
+ * emitted as `--er-hljs-<name>` per scheme so fenced code follows the
+ * colour scheme instead of shipping a vendor stylesheet. The block
+ * background comes from the palette, not GitHub's `#0d1117` (P4-D2a).
+ */
+export const HLJS_TOKEN_NAMES = [
+  'fg',
+  'bg',
+  'keyword',
+  'entity',
+  'constant',
+  'string',
+  'variable',
+  'comment',
+  'tag',
+  'heading',
+  'list',
+  'addition',
+  'addition-bg',
+  'deletion',
+  'deletion-bg',
+] as const;
+
+export type HljsTokenName = (typeof HLJS_TOKEN_NAMES)[number];
+export type HljsTokenMap = Record<HljsTokenName, string>;
+
+export const hljsLightTokens: HljsTokenMap = {
+  fg: '#24292e',
+  bg: 'oklch(0.965 0.006 245)',
+  keyword: '#d73a49',
+  entity: '#6f42c1',
+  constant: '#005cc5',
+  string: '#032f62',
+  variable: '#e36209',
+  comment: '#6a737d',
+  tag: '#22863a',
+  heading: '#005cc5',
+  list: '#735c0f',
+  addition: '#22863a',
+  'addition-bg': '#f0fff4',
+  deletion: '#b31d28',
+  'deletion-bg': '#ffeef0',
+};
+
+export const hljsDarkTokens: HljsTokenMap = {
+  fg: '#c9d1d9',
+  bg: 'oklch(0.13 0.012 245)',
+  keyword: '#ff7b72',
+  entity: '#d2a8ff',
+  constant: '#79c0ff',
+  string: '#a5d6ff',
+  variable: '#ffa657',
+  comment: '#8b949e',
+  tag: '#7ee787',
+  heading: '#1f6feb',
+  list: '#f2cc60',
+  addition: '#aff5b4',
+  'addition-bg': '#033a16',
+  deletion: '#ffdcd7',
+  'deletion-bg': '#67060c',
+};
+
+/** CSS custom property name for a syntax token, e.g. `--er-hljs-keyword`. */
+export function hljsVar(name: HljsTokenName): `--er-hljs-${HljsTokenName}` {
+  return `--er-hljs-${name}`;
+}
+
 /** CSS custom property name for a token, e.g. `--er-before-soft`. */
 export function tokenVar(name: TokenName): `--er-${TokenName}` {
   return `--er-${name}`;

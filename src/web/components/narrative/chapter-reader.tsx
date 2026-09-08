@@ -45,6 +45,9 @@ export interface ChapterReaderProps {
   pullMetadata: PullMetadata | null;
   reviewers: PullReviewer[];
   aiReviewer: AiReviewerData;
+  /** Refs the inline diffs compare: the target's base SHA and the reviewed head SHA. */
+  baseRef: string;
+  headRef: string;
   /** Active section when the URL names none (or an unknown one). */
   initialActiveId: string;
   jobId: string;
@@ -65,11 +68,14 @@ export function ChapterReader({
   pullMetadata,
   reviewers,
   aiReviewer,
+  baseRef,
+  headRef,
   initialActiveId,
   jobId,
   jobAuthor,
   jobHeadSha,
 }: ChapterReaderProps) {
+  const refs = { owner: target.owner, repo: target.repo, baseRef, headRef };
   const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const urlActive = searchParams.get('ch');
@@ -167,7 +173,12 @@ export function ChapterReader({
 
       <section aria-live="polite" className={classes.main}>
         {activeFile ? (
-          <FileView filename={activeFile} chapters={review.chapters} files={review.files} />
+          <FileView
+            filename={activeFile}
+            chapters={review.chapters}
+            files={review.files}
+            {...refs}
+          />
         ) : isSummary || !activeChapter ? (
           <SummaryCard
             review={review}
@@ -179,7 +190,7 @@ export function ChapterReader({
             actions={<RerunButton jobId={jobId} />}
           />
         ) : (
-          <ChapterCard chapter={activeChapter} chapterIndex={activeIndex} />
+          <ChapterCard chapter={activeChapter} chapterIndex={activeIndex} {...refs} />
         )}
       </section>
     </div>

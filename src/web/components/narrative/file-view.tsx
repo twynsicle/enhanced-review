@@ -13,10 +13,18 @@ export function FileView({
   filename,
   chapters,
   files,
+  owner,
+  repo,
+  baseRef,
+  headRef,
 }: {
   filename: string;
   chapters: readonly NarrativeChapter[];
   files?: readonly ReviewFile[];
+  owner: string;
+  repo: string;
+  baseRef: string;
+  headRef: string;
 }) {
   const chunks: { chunk: DiffChunk; chapter: NarrativeChapter }[] = [];
   for (const chapter of chapters) {
@@ -105,7 +113,14 @@ export function FileView({
       {chunks.length > 0 ? (
         <Stack component="section" gap={20}>
           {chunks.map(({ chunk }, i) => (
-            <InlineDiffChunk key={`${chunk.filename}-${i}`} chunk={chunk} />
+            <InlineDiffChunk
+              key={`${chunk.filename}-${i}`}
+              chunk={chunk}
+              owner={owner}
+              repo={repo}
+              baseRef={baseRef}
+              headRef={headRef}
+            />
           ))}
         </Stack>
       ) : (

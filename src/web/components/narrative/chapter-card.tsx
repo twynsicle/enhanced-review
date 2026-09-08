@@ -56,10 +56,18 @@ export function SectionRule({ label, count }: { label: string; count: number }) 
 export function ChapterCard({
   chapter,
   chapterIndex,
+  owner,
+  repo,
+  baseRef,
+  headRef,
 }: {
   chapter: NarrativeChapter;
   /** 1-based index for the eyebrow ("Chapter Two"). */
   chapterIndex: number;
+  owner: string;
+  repo: string;
+  baseRef: string;
+  headRef: string;
 }) {
   const fileCount = chapter.diffChunks.length;
   const insightCount = chapter.insights.length;
@@ -116,7 +124,14 @@ export function ChapterCard({
         <Stack component="section" gap={20}>
           <SectionRule label="Files in this chapter" count={fileCount} />
           {chapter.diffChunks.map((chunk, i) => (
-            <InlineDiffChunk key={`${chunk.filename}-${i}`} chunk={chunk} />
+            <InlineDiffChunk
+              key={`${chunk.filename}-${i}`}
+              chunk={chunk}
+              owner={owner}
+              repo={repo}
+              baseRef={baseRef}
+              headRef={headRef}
+            />
           ))}
         </Stack>
       )}

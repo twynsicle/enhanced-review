@@ -1,0 +1,14 @@
+/*
+ * The Monaco container: clipped to the measured content height with the
+ * scheme's code background behind the editor while it loads, and the
+ * "N hidden lines" centre text made a click target (the rule reaches into
+ * Monaco's own DOM, which no prop can express).
+ */
+.editor {
+  overflow: hidden;
+  background: var(--er-hljs-bg);
+}
+
+.editor :global(.diff-hidden-lines .center) {
+  cursor: pointer;
+}

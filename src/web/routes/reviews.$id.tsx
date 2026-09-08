@@ -118,6 +118,8 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {
         pullMetadata={loaderData.pullMetadata}
         reviewers={loaderData.reviewers}
         aiReviewer={loaderData.aiReviewer}
+        baseRef={job.target.baseSha}
+        headRef={job.headSha ?? ''}
         initialActiveId={loaderData.initialActiveId}
         jobId={job.id}
         jobAuthor={job.githubLogin}

@@ -356,10 +356,8 @@ Each commit is green on `npm run check`; integration stays green.
 - `LeadMarkdown` drops the legacy `size` prop: the inner markdown `text-sm`
   always won, so `main` rendered leads at 14px serif and that is what the
   port matches (the 18px design intent never reached the screen).
-- `InlineDiffChunk` is a placeholder that lists the selected hunk ranges
-  (`formatSelectedHunkLabel`); commit 5 replaces its body with the Monaco
-  diff. `FileView` and `ChapterCard` therefore drop the `owner/repo/baseRef/
-headRef` props until then.
+- `InlineDiffChunk` was a placeholder listing the selected hunk ranges until
+  commit 5 replaced it with the Monaco diff (below).
 - `JobNotFound` moved to `components/jobs/job-not-found.tsx` so both route
   boundaries import a component rather than one route importing another
   route module. The 404 page renders inside the shell (topbar visible) on
@@ -368,10 +366,49 @@ headRef` props until then.
   and its four ported tests; the unused `sublabel` plumbing was not ported.
   The sidebar and reader grid use CSS Modules for the active-row wash, the
   hover states and the 64em breakpoint (Tailwind's `lg`), which Mantine's
-  breakpoints do not match.
+  breakpoints do not match — `chapter-reader.module.css` is a fifth module
+  on top of P4-D13's four, for the same breakpoint reason.
 - Verification could not exercise the GitHub-backed sections (branch refs
   line, reviewers, author description, staleness banner): the local browser
   carries a placeholder token, so the fan-out degrades to the job byline.
   Those paths are covered by `review-metadata.server.test.ts` and the
   markdown/people components' unit tests. The truncation banner was verified
   with a seeded `diff_truncated` review.
+
+**Commit 5 (inline diff)**
+
+- `GET /api/github/file` (P4-D8) returns `{ ok: true, base, head }` with each
+  side its own `GithubResult`, so a one-sided 404 (file added or deleted)
+  never fails the pair; only an `unauthorized` on either side throws
+  `GithubAuthError` for the `/relink` redirect. The route never returns a
+  `GithubFailure` body because `getFileAtRef` already folds errors into the
+  result. `FileResponse` lives beside the other bodies in `lib/github-api.ts`.
+- `InlineDiffChunk` loads through `useFetcher().load()` in an effect keyed on
+  the query string (one round trip per chunk, as on `main`), keeps the legacy
+  state machine (`resolveFileState`) and `describeError` copy, and renders
+  one lazy `DiffEditor` per hunk group. Monaco is `React.lazy` behind
+  `useHydrated()` with a `Skeleton` fallback (A2); the theme follows
+  `useComputedColorScheme`. The editor's `options` object is memoised on
+  `expanded`: the library re-applies `options` whenever the object identity
+  changes, which reset the per-side offset line numbers on every height
+  measurement re-render until it was memoised.
+- Height measurement and the Monaco listeners are set up in `onMount` (no
+  set-state-in-effect); the "N hidden lines" click-to-unfold is a React
+  `onClick` on the wrapper instead of a manual `addEventListener`.
+- `--er-hljs-*` (P4-D12): fifteen highlight.js colours per scheme in
+  `tokens.ts`, emitted by `css-variables.ts`; `theme.css` drops the
+  `github-dark.css` import and carries the `.hljs-*` class rules. The fence
+  background is the palette's code ground (`oklch`), not GitHub's `#0d1117`
+  (P4-D2a); `markdown-text.module.css` reads the same variables.
+- The ported `inline-diff-chunk.test.tsx` renders inside `createRoutesStub`
+  with a stub `/api/github/file` loader and a mocked `@monaco-editor/react`,
+  covering the six legacy cases (header before resolve, editor on ok,
+  no-access, too-large, one-sided 404, both-sided 404).
+- Verification: `dev-session.ts --seed-done --with-hunks` seeds two chapters
+  with hunk groups and `github-fixtures.ts` writes a turbo-stream body for
+  `/api/github/file` that the screenshot browser serves in place of GitHub
+  (the local token is a placeholder). Chapter 1 and the file view were
+  checked in both schemes with editors, hidden regions, offset line numbers
+  and the "Show full file" toggle. The baseline chapter-1 capture came from a
+  review without hunks, so it shows no editor to compare against; the editor
+  chrome matches `main`'s Tailwind version by construction (same options).

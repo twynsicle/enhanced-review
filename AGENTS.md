@@ -99,11 +99,12 @@ src/
                            jobs.$id.tsx (live view; loader job + chunks, 404 → own ErrorBoundary; action intent=cancel|rerun),
                            reviews.$id.tsx (reader; loader: done job + review + GitHub fan-out via lib/review-metadata.server,
                            not done → /jobs/:id, ?ch=/?file= client-side via shouldRevalidate; action intent=rerun)
-                       _gated (chrome-less) → relink.tsx, api.github.repos.ts, api.github.pulls.ts, api.github.branches.ts
+                       _gated (chrome-less) → relink.tsx, api.github.repos.ts, api.github.pulls.ts, api.github.branches.ts,
+                         api.github.file.ts (both blobs of one file, base + head in parallel, for the inline diff)
                          (resource routes the composer loads via useFetcher; bodies typed in lib/github-api.ts, failures
                          returned with a status, rejected token → /relink), api.jobs.$id.ts (?after=<seq> → {job, chunks},
                          polled by the live view);  public: login.tsx, denied.tsx, auth.github.ts, auth.github.callback.ts,
-                       auth.logout.ts, health.ts.  Phase 4 still adds api/github/file and api/me/jobs/terminal.
+                       auth.logout.ts, health.ts.  Phase 4 still adds api/me/jobs/terminal.
     auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                        context (userContext/sessionContext), session-middleware, gate-middleware (allowlistGate, signOutHeaders)
     components/        brand-mark, color-scheme-toggle, app-error (generic error page, used by root + route boundaries);
@@ -115,10 +116,12 @@ src/
                        narrative/ (the reader: chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state),
                        chapter-sidebar (+ .module.css), chapter-card, summary-card, people-card, file-view, insight-callout,
                        lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
-                       inline-diff-chunk (hunk-range placeholder until commit 5), review-banners, risk-score,
+                       inline-diff-chunk (+ .module.css; useFetcher → /api/github/file, snippets per hunk group,
+                       lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme), review-banners, risk-score,
                        use-narrative-keyboard) — all browser-safe, styled via token() or a sibling CSS Module
     stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
-    theme/             Editorial Iris tokens.ts → theme.ts, css-variables.ts (--er-* vars), color-scheme.ts, theme.css
+    theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours) → theme.ts,
+                       css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules)
     lib/               parse.server.ts (Zod parseParams / parseSearchParams / parseFormData), github.server.ts (requireGithubToken,
                        withGithub → /relink, githubFailure), github-api.ts (resource-route body types, GITHUB_ERROR_STATUS),
                        jobs-api.ts (JobPollResponse, mergeChunks), rerun-action.server.ts (shared intent=rerun handler),

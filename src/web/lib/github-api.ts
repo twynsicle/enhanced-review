@@ -1,6 +1,8 @@
 import type {
+  FileAtRef,
   GithubError,
   GithubErrorKind,
+  GithubResult,
   PullSummary,
   RecentBranchesResult,
   RepoSummary,
@@ -26,6 +28,17 @@ export type PullsResponse = { ok: true; fullName: string; pulls: PullSummary[] }
 
 export type BranchesResponse =
   ({ ok: true; fullName: string } & RecentBranchesResult) | GithubFailure;
+
+/**
+ * Both sides of one file for the inline diff (phase-4-plan P4-D8). Each side
+ * is its own `GithubResult`: a `not-found` on one side is a legitimately
+ * added or deleted file, so the route never fails the pair as a whole.
+ */
+export interface FileResponse {
+  ok: true;
+  base: GithubResult<FileAtRef>;
+  head: GithubResult<FileAtRef>;
+}
 
 export const GITHUB_ERROR_STATUS: Record<GithubErrorKind, number> = {
   unauthorized: 401,

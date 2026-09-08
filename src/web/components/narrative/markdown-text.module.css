@@ -1,8 +1,7 @@
 /*
  * Markdown rendered by react-markdown carries no classes of its own, so the
- * element styles live here on the wrapper. Fenced code keeps the dark
- * github theme from `highlight.js` in both schemes until commit 5 makes the
- * highlighter follow the colour scheme.
+ * element styles live here on the wrapper. Fenced code takes its colours
+ * from the per-scheme `--er-hljs-*` variables (theme.css, P4-D12).
  */
 .root {
   font-size: 14px;
@@ -110,7 +109,8 @@
   padding: 12px;
   overflow-x: auto;
   border-radius: 6px;
-  background: #0d1117;
+  background: var(--er-hljs-bg);
+  color: var(--er-hljs-fg);
   font-size: 12px;
 }
 
