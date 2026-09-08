@@ -14,9 +14,10 @@ import {
 
 const USER = 'user-1';
 
-beforeEach(() => {
+beforeEach(async () => {
   window.localStorage.clear();
   useLastTarget.setState({ byUser: {} });
+  await useLastTarget.persist.rehydrate();
 });
 
 describe('last-target store', () => {

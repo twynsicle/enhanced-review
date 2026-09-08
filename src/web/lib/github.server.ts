@@ -1,6 +1,12 @@
-import { redirect } from 'react-router';
-import { createOctokit, GithubAuthError, type GithubClient } from '@/domain/github/client.server';
+import { data, redirect } from 'react-router';
+import {
+  classifyGithubError,
+  createOctokit,
+  GithubAuthError,
+  type GithubClient,
+} from '@/domain/github/client.server';
 import { clearGithubTokenHeader, readGithubToken } from '@/web/auth/cookies.server';
+import { describeGithubError, GITHUB_ERROR_STATUS, type GithubFailure } from './github-api';
 
 /**
  * GitHub token handling for loaders and actions (phase-4-plan P4-D7). The
@@ -22,7 +28,7 @@ export async function relinkRedirect(): Promise<Response> {
 /**
  * Run `fn` with a per-request Octokit for the caller's token. `GithubAuthError`
  * becomes the relink redirect; every other error propagates so the caller
- * can classify it (`toResult`) or let the error boundary have it.
+ * can fold it with `githubFailure` or let the error boundary have it.
  */
 export async function withGithub<T>(
   request: Request,
@@ -35,4 +41,16 @@ export async function withGithub<T>(
     if (err instanceof GithubAuthError) throw await relinkRedirect();
     throw err;
   }
+}
+
+/**
+ * The `GithubFailure` body (with status) a resource route *returns* for a
+ * thrown GitHub error. Auth errors are re-thrown for `withGithub` to turn
+ * into the relink redirect.
+ */
+export function githubFailure(err: unknown) {
+  if (err instanceof GithubAuthError) throw err;
+  const error = classifyGithubError(err);
+  const body: GithubFailure = { ok: false, error, message: describeGithubError(error) };
+  return data(body, { status: GITHUB_ERROR_STATUS[error.kind] });
 }

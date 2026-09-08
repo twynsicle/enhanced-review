@@ -284,3 +284,30 @@ Each commit is green on `npm run check`; integration stays green.
   because the GitHub OAuth consent click cannot be automated; the DB was
   empty after the integration suite's `resetDb`, so five jobs were seeded the
   same way for the list cells.
+
+**Commit 2 (home composer)**
+
+- The persisted last-target store _is_ the composer's selection state: every
+  pick writes to it and the current repo/PR/branch is derived from it against
+  the fetched lists, so no effect sets React state (oxlint
+  `react/set-state-in-effect`) and a reload restores the target for free. The
+  store uses `skipHydration` and the composer rehydrates after mount, so SSR
+  and hydration agree on the empty composer.
+- The three `/api/github/*` resource routes _return_ failures
+  (`{ ok: false, error, message }` with a status from `GITHUB_ERROR_STATUS`)
+  instead of throwing, so a rate limit degrades one picker rather than tripping
+  the page's error boundary; only a rejected token throws (the `/relink`
+  redirect). The pulls/branches bodies echo `fullName` so a stale fetcher body
+  for a previous repo reads as "not loaded".
+- The create action is posted to `/?index` (a bare `/` would target the
+  layout route, which has no action).
+- Option rows are 13 px with a secondary line (author · head → base, or the
+  tip commit message) where `main` showed a single line; the PR trigger
+  truncates the title with an ellipsis where `main` clipped it.
+- Screenshots: the browser never holds a real GitHub token. The
+  `/api/github/*.data` requests were fulfilled by Playwright with
+  turbo-stream-encoded fixture bodies (`screenshots/tools/github-fixtures.ts`,
+  gitignored) and a signed _placeholder_ `gh_access_token` cookie let the
+  create action run; with a running job seeded it answered 409 for real, and
+  without one GitHub rejected the placeholder and the page landed on `/relink`
+  with the cookie cleared — the P4-D7 path, verified end to end.

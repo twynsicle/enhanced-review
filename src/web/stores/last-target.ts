@@ -50,6 +50,9 @@ export const useLastTarget = create<LastTargetState>()(
         typeof window === 'undefined' ? noopStorage : window.localStorage,
       ),
       partialize: (state) => ({ byUser: state.byUser }),
+      // The composer rehydrates after mount so SSR and hydration render the
+      // empty composer identically (same reason as layout-width).
+      skipHydration: true,
     },
   ),
 );

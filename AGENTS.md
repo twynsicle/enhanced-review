@@ -94,18 +94,23 @@ src/
     entry.server.tsx   RR server entry (`reveal` default, logger instead of console); awaits bootJobs() before the first request
     routes.ts          route table — every file in routes/ must be listed here
     routes/            _gated.tsx (layout: allowlistGate) → _shell.tsx (layout: Topbar; loader {user, serverNow, polling})
-                         → home.tsx (index: hero + Recent), history.tsx (?status=)
-                       _gated → relink.tsx;  public: login.tsx, denied.tsx, auth.github.ts, auth.github.callback.ts,
-                       auth.logout.ts, health.ts.  Phase 4 adds jobs.$id, reviews.$id and the api.* resource routes.
+                         → home.tsx (index: hero + ReviewComposer + Recent; action POST /?index → startReview), history.tsx (?status=)
+                       _gated (chrome-less) → relink.tsx, api.github.repos.ts, api.github.pulls.ts, api.github.branches.ts
+                         (resource routes the composer loads via useFetcher; bodies typed in lib/github-api.ts, failures
+                         returned with a status, rejected token → /relink);  public: login.tsx, denied.tsx, auth.github.ts,
+                       auth.github.callback.ts, auth.logout.ts, health.ts.  Phase 4 adds jobs.$id, reviews.$id, api/jobs/:id,
+                       api/github/file and api/me/jobs/terminal.
     auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                        context (userContext/sessionContext), session-middleware, gate-middleware (allowlistGate, signOutHeaders)
     components/        brand-mark, color-scheme-toggle; topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
                        jobs/ (job-list-row, status-badge), history/ (filter-chips, empty-library),
-                       home/ (recent-reviews, sparkline), narrative/ (risk-score) — all browser-safe, styled via token()
+                       home/ (review-composer, target-combobox, recent-reviews, sparkline), narrative/ (risk-score) —
+                       all browser-safe, styled via token()
     stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
     theme/             Editorial Iris tokens.ts → theme.ts, css-variables.ts (--er-* vars), color-scheme.ts, theme.css
     lib/               parse.server.ts (Zod parseParams / parseSearchParams / parseFormData), github.server.ts (requireGithubToken,
-                       withGithub → /relink), action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts
+                       withGithub → /relink, githubFailure), github-api.ts (resource-route body types, GITHUB_ERROR_STATUS),
+                       action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts
     test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
 legacy/                READ-ONLY old code awaiting port; excluded from every tool. Deleted end of Phase 4.
 public/                brand-mark.png, favicon.ico

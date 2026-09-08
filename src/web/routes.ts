@@ -12,6 +12,9 @@ export default [
   layout('routes/_gated.tsx', [
     layout('routes/_shell.tsx', [index('routes/home.tsx'), route('history', 'routes/history.tsx')]),
     route('relink', 'routes/relink.tsx'),
+    route('api/github/repos', 'routes/api.github.repos.ts'),
+    route('api/github/repos/:owner/:repo/pulls', 'routes/api.github.pulls.ts'),
+    route('api/github/repos/:owner/:repo/branches', 'routes/api.github.branches.ts'),
   ]),
   route('login', 'routes/login.tsx'),
   route('denied', 'routes/denied.tsx'),
