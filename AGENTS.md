@@ -1,32 +1,17 @@
 # Repo orientation for agents
 
-> **Migration in progress (React Router re-platform).** The app is being
-> rebuilt phase by phase on `migrate-react-router`. The plan of record is
-> `docs/rr-migration/00-overview.md` — read it before anything else. Phase
-> plans (`phase-N-plan.md`) say what each phase built and what it deviated on.
-> Phases 0–5 are done: the app runs end to end on the new stack (sign-in,
-> composer, live view, reader, notifier) and ships as one container that
-> migrates itself at start-up; Phase 6 (clean-out + docs) is next.
-> `README.md`, `docs/RUNNING.md` and `docs/OPERATIONS.md`
-> still describe the old Next.js + PocketBase app and are rewritten in Phase 6
-> (RUNNING.md has an interim block for running the current state).
+Web-based AI code-review tool. Sign in with GitHub, pick a repo + PR/branch,
+the server clones it, runs the Claude Agent SDK against it, and streams a
+chaptered narrative review back. Successor to the diffy POC.
 
-Web-based AI code-review tool (closed beta). Sign in with GitHub, pick a repo +
-PR/branch, the server clones it, runs the Claude Agent SDK against it, and
-streams a chaptered narrative review back. Successor to the diffy POC.
+This file is the map of the tree for anyone changing it. `README.md` is the
+product-and-setup document; `docs/OPERATIONS.md` is the runbook for a running
+deployment.
 
 Library APIs here (React Router 8, Mantine 9, Prisma 7, remix-auth 4, Vite 8,
 Vitest 4, Zod 4, TypeScript 7, oxlint) may be newer than your training data.
 Check the package's docs in `node_modules/<pkg>` or the current online docs
 before writing code against them; heed deprecation notices.
-
-## Authoritative docs — read these first
-
-| File                                | When to read                                                              |
-| ----------------------------------- | ------------------------------------------------------------------------- |
-| `docs/rr-migration/00-overview.md`  | Locked decisions (D1–D13), assumptions, target layout, phases, risks.     |
-| `docs/rr-migration/phase-N-plan.md` | What each phase built, its decisions (PN-Dx), deviations, exit criteria.  |
-| `README.md`, `docs/*.md`            | **Stale** (PocketBase era) until Phase 6. Use only for product behaviour. |
 
 ## Tech stack
 
@@ -35,7 +20,7 @@ before writing code against them; heed deprecation notices.
   `server/` or `src/jobs/`.
 - React Router 8 framework mode (SSR) on Vite 8; Express 5 via
   `@react-router/express` in `server/index.ts`. Single process: the review
-  runner (Phase 3) lives in-process, so never run under a forking manager.
+  runner lives in-process, so never run under a forking manager.
 - React 19, Mantine 9 (core/hooks/notifications/form/dates), Tabler icons,
   Zustand for persisted client prefs, Zod 4 at every boundary.
 - Prisma 7 + `@prisma/adapter-pg` (engine-free) on Postgres 18. Client is
@@ -51,13 +36,13 @@ before writing code against them; heed deprecation notices.
 - Vitest 4 projects: `unit` (node), `web` (happy-dom), `guardrails`
   (repo-reading convention tests), `integration` (real Postgres, self-skips).
 
-## Repo layout (Phase 5 state)
+## Repo layout
 
 ```
 server/index.ts        Express bootstrap: dev = Vite middleware, prod = build/; SIGTERM/SIGINT → abortAll('shutdown') + drain, then close
 prisma/
   schema.prisma        5 models (users, sessions, review_jobs, reviews, review_chunks) + JobStatus
-  migrations/          0001_init (hand-added CHECK constraints), 0002_drop_allowed_users (P5-D3)
+  migrations/          0001_init (hand-added CHECK constraints), 0002_drop_allowed_users
 prisma.config.ts       Prisma CLI config; loads .env, datasource url from DATABASE_URL
 src/
   common/              logger.ts (pino), time-ago.ts — imports only config from src/
@@ -132,7 +117,7 @@ src/
                        action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts
     test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
 public/                brand-mark.png, favicon.ico
-docs/rr-migration/     plan of record
+docs/OPERATIONS.md     runbook for a running deployment
 Dockerfile             node:24-alpine multi-stage; build stage runs prisma generate; runtime ships source + prod deps
 entrypoint.sh          the image's CMD: prisma migrate deploy → recover-jobs → exec node server/index.ts
 docker-compose.yml     postgres:18-alpine on 127.0.0.1:5432 + `web` (the app as it ships, on :3000)
@@ -154,7 +139,7 @@ Inside `web`, only route modules, `root.tsx`, `entry.server.tsx` and
 and `common`. Only `src/db/` may import `@prisma/*` or the generated client
 (guardrail `prisma-access`).
 
-## How auth works (Phase 2)
+## How auth works
 
 - `POST /auth/github` → remix-auth redirects to GitHub (`repo` scope, state in
   the `er_oauth` cookie). `GET /auth/github/callback` exchanges the code, the
@@ -170,14 +155,14 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
   and both cookies cleared, and is redirected to `/login`. Public routes live
   outside the layout. Gated pages must export a loader so the chain runs.
   **Signing in with GitHub is the only condition for access** — the
-  `allowed_users` allowlist and the `/denied` page were removed in Phase 5
-  (P5-D3), so whatever fronts the deployment is the access control.
+  `allowed_users` allowlist and the `/denied` page are gone, so whatever
+  fronts the deployment is the access control.
 - `POST /auth/logout` uses the same `signOutHeaders`. `/relink` (gated)
   re-runs the OAuth flow when the token cookie is missing/rejected.
-- Repositories PB rules used to enforce (owner-only cancel, authed reads) are
-  explicit checks in loaders/actions from Phase 3 on.
+- Authorisation is explicit in loaders and actions: any signed-in user may
+  read any job or review, only the owner may cancel one.
 
-## How a review runs (Phase 3)
+## How a review runs
 
 - **Create / rerun** (`domain/jobs/start-review.server.ts`): refuse when the
   user already has `MAX_JOBS_PER_USER` jobs in flight (`JobInFlightError`),
@@ -225,8 +210,7 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
   `src/db`, `src/domain`, `src/jobs` — uses relative imports with explicit
   `.ts` extensions.
 - Server-only modules use the React Router `*.server.ts` filename convention
-  (A12, refined by phase-3-plan P3-D4): `db`/`config` by location, `domain`
-  and `web` by filename.
+  — `db`/`config` by location, `domain` and `web` by filename.
 - `process.env` is read only in `src/config`. Code that spawns a subprocess
   gets the environment from `src/config/host-env.ts`.
 - `src/db/client.ts` owns the Prisma lifecycle (globalThis singleton for Vite
@@ -241,8 +225,6 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
   migrate by itself.
 - Integration tests: `*.integration.test.ts`, wrap in `describeDb` from
   `src/test/db.ts`, call `resetDb()` in `beforeEach`. Files run serially.
-- The old Next.js + PocketBase code is gone from the tree (Phase 4 close-out);
-  consult `main` at `d63b87c` for product behaviour that the docs miss.
 - No barrel `index.ts` files. Import the module you need
   (`@/web/theme/theme`, not `@/web/theme`).
 
@@ -265,26 +247,24 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
 
 ## Container
 
-One image, one process (00-overview D4). `docker compose up -d postgres` is
+One image, one process. `docker compose up -d postgres` is
 all day-to-day dev needs; `docker compose up --build` runs the app as it
 ships on `:3000`. `entrypoint.sh` is the image's **CMD**, not its entrypoint,
 so `docker run <image> node src/jobs/cli.ts <job>` replaces the start-up
 chain instead of appending to it.
 
-The runtime stage ships **source, not a bundle** (phase-5-plan P5-D1): the
-server and the jobs CLI are TypeScript that Node runs directly, so everything
-they import has to be copied into the image — `server/`,
-`src/{config,common,db,domain,jobs}/`, `prisma/`. Adding an import that
-reaches a directory not on that list breaks the container without breaking
-`npm run dev`, which is exactly how the Phase 1 image came to build and not
-boot.
+The runtime stage ships **source, not a bundle**: the server and the jobs CLI
+are TypeScript that Node runs directly, so everything they import has to be
+copied into the image — `server/`, `src/{config,common,db,domain,jobs}/`,
+`prisma/`. Adding an import that reaches a directory not on that list breaks
+the container without breaking `npm run dev`, which is exactly how an earlier
+image came to build and not boot.
 
 The opposite trap applies to packages. `@tabler/icons-react`,
 `@monaco-editor/react`, `monaco-editor` and `@fontsource/*` are
-**devDependencies** bundled into `build/server` by `ssr.noExternal`
-(phase-5-plan P5-D7), so the image never installs them. Importing one from a
-module that runs on the server at runtime, rather than through the bundle,
-fails only in the container.
+**devDependencies** bundled into `build/server` by `ssr.noExternal`, so the
+image never installs them. Importing one from a module that runs on the server
+at runtime, rather than through the bundle, fails only in the container.
 
 ## Environment
 
