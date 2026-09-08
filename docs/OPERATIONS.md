@@ -1,186 +1,274 @@
 # Operations
 
-> **Migration in progress.** This document describes the Next.js + PocketBase
-> app and is superseded until Phase 6 of the React Router re-platform lands.
-> Current state and plan: [rr-migration/](rr-migration/00-overview.md).
+Runbook for a running deployment. Setup and architecture are in the
+[README](../README.md); this file is for "it's running, now what".
 
-Day-to-day runbook for the closed-beta deployment. The architecture
-overview lives in [docs/README.md](README.md); first-time setup is in
-[docs/RUNNING.md](RUNNING.md). This file is for "the thing's running,
-now what."
+The app ships as **one image running one process**, with Postgres beside it.
+Everything below is written against `docker compose`, which is what this
+repository actually contains and what the commands were verified on. On any
+other container host the same commands apply — substitute your own way of
+setting environment variables, reading logs and running a one-off container.
 
 ## Quick reference
 
-| Want to…                             | See                                                               |
-| ------------------------------------ | ----------------------------------------------------------------- |
-| Add or remove a beta user            | [Allowlist management](#allowlist-management)                     |
-| Rotate the Anthropic API key         | [Rotating the Anthropic API key](#rotating-the-anthropic-api-key) |
-| Tail server logs                     | [Viewing logs](#viewing-logs)                                     |
-| Re-run a stuck job                   | [Re-running a stuck job](#re-running-a-stuck-job)                 |
-| Check queue health                   | [Health endpoint](#health-endpoint)                               |
-| Adjust per-job timeout / concurrency | [Tunable knobs](#tunable-knobs)                                   |
-| Clean up old chunks / errored jobs   | [Retention (deferred)](#retention-deferred)                       |
-| Inspect the pino log shape           | [Log shape](#log-shape)                                           |
+| Want to…                   | See                                                 |
+| -------------------------- | --------------------------------------------------- |
+| Understand who can sign in | [Access control](#access-control)                   |
+| Change a setting           | [Configuration](#configuration)                     |
+| Check the app is healthy   | [Health endpoint](#health-endpoint)                 |
+| Read the logs              | [Logs](#logs)                                       |
+| Deal with a stuck job      | [Stuck and orphaned jobs](#stuck-and-orphaned-jobs) |
+| Rotate the Anthropic key   | [Rotating secrets](#rotating-secrets)               |
+| Sign everyone out          | [Rotating secrets](#rotating-secrets)               |
+| Apply a schema change      | [Migrations and deploys](#migrations-and-deploys)   |
+| Back up or restore         | [Backups](#backups)                                 |
+| Delete old jobs and chunks | [Retention](#retention)                             |
 
 ---
 
-## Allowlist management
+## Access control
 
-Beta access is gated by the PocketBase `allowed_users` collection
-(`github_login` field, unique). All collection rules are `null`, so only
-a superuser (the Next.js server's admin client, or a human signed in to
-the PB admin UI) can read or write it.
+**There is none inside the app beyond GitHub sign-in.** Anyone with a GitHub
+account who reaches the deployment can sign in, start reviews against their own
+repositories, and read every review anyone else has run. The only per-user
+check is on cancellation: a job may be cancelled by its owner alone.
 
-Day-to-day, do this through the admin UI at <http://127.0.0.1:8090/_/>:
+An `allowed_users` allowlist used to gate this. It was removed, so the network
+boundary in front of the deployment — VPN, SSO proxy, IP allowlist, or simply
+not exposing it publicly — is now the entire access control story. Treat a
+publicly reachable deployment as public.
 
-- **Add a user**: Collections → allowed_users → **+ New record** →
-  `github_login` = the GitHub handle → Create.
-- **Remove a user**: find the row → row menu → Delete. Any active
-  session of theirs is rejected on their next request (the middleware
-  re-checks the allowlist per request).
-- **List**: the collection table view is the list.
+To cut off one person, delete their `users` row. Their sessions cascade with
+it and their next request lands on `/login`. This also deletes their jobs and
+reviews:
 
-Removing a user does not delete their reviews — the `reviews` and
-`review_jobs` collections allow any signed-in beta member to read any
-row (closed-beta workspace model). To purge their reviews, find their
-`users` record id and delete the matching `review_jobs` rows (chunks
-and reviews cascade via the `job` relation).
-
-## Rotating the Anthropic API key
-
-The key is read from the Next.js server's environment as
-`ANTHROPIC_API_KEY` and never stored in the database. The Claude Agent
-SDK reads it directly from `process.env`.
-
-1. Generate a new key at <https://console.anthropic.com> → API Keys.
-2. Update the value in `.env.local` (local) or your container
-   orchestrator's secret store (deployed).
-3. Restart the Next.js process so it picks up the new env. There is no
-   separate worker — restarting `npm run dev` (or your equivalent
-   `next start` orchestrator) is the entire rotation.
-4. Revoke the old key.
-
-Currently-running jobs can't pick up a new key mid-flight. They either
-finish on the old key (if the rotation happened after the Claude SDK
-session started) or fail with an executor error (if it happened
-mid-stream); either way they end as `done` or `error` and the user can
-re-run.
-
-## Viewing logs
-
-The Next.js process emits single-line JSON via [pino](https://getpino.io).
-Job-scoped lines carry `job_id`; the runner adds `executor` (`claude`
-or `stub`).
-
-```bash
-# Local dev: lines stream to the npm run dev terminal. Set LOG_PRETTY=1
-# in .env.local to swap in pino-pretty (colourised, human-friendly).
-
-# Deployed: capture stdout however your orchestrator captures any other
-# Next.js stdout, then filter with jq:
-your-log-cmd | jq -c 'select(.job_id == "<JOB-ID>")'
+```sql
+DELETE FROM users WHERE github_login = 'octocat';
 ```
 
-PocketBase has its own logs in the admin UI at **Settings → Logs**, with
-filterable level + free-text search. Useful when an `update` or `create`
-call fails — PB obscures rule failures as 404, but the request log
-shows the rule that blocked it.
+To keep the reviews and only revoke access, delete their sessions instead —
+though nothing stops them signing in again:
 
-## Re-running a stuck job
+```sql
+DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE github_login = 'octocat');
+```
 
-The runner has two layers of stuck-job protection:
+Open a psql shell with:
 
-1. **In-process per-job timer** — each `runJob` call arms a `setTimeout`
-   for `REVIEW_TIMEOUT_MIN` (default 15). On fire, the route handler
-   writes `status='error', error_message='timeout: job exceeded N min'`
-   and aborts the registered `AbortController`.
-2. **Cancellation** — the `/api/jobs/[id]/cancel` route updates the row
-   under the user's PB session and signals the registered controller.
-   The runner's finally block re-applies `status='cancelled'` to handle
-   the narrow race where `markRunning` overwrote the cancel.
+```bash
+docker compose exec postgres psql -U enhanced_review -d enhanced_review
+```
 
-There is **no boot-time crash recovery sweep** any more (it lived in
-the old worker). If the Next.js process crashes mid-job, the row is
-left at `status='running'` with no controller registered. To clean
-those up manually, in the PB admin UI:
+## Configuration
 
-- Collections → review_jobs → filter `status = "running"` → for each
-  stuck row, edit and set `status = "error"`,
-  `error_message = "server crashed before the review finished"`,
-  `completed_at = <now>`.
+Every key is declared in `.env.example`, parsed by `src/config/env.ts` at
+start-up, and validated — an invalid or missing required value stops the boot
+with the key named. **Nothing is hot-reloadable**; changing any of these means
+restarting the process.
 
-The user sees the friendly "what now" line on `/jobs/:id` and can
-click Re-run.
+Required:
 
-To **delete** a job entirely (review + chunks cascade via the `job`
-relation): delete the `review_jobs` row in the admin UI.
+| Key                                         | What                                                                                   |
+| ------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                              | Postgres connection string.                                                            |
+| `SESSION_SECRET`                            | Signs both cookies. At least 32 characters.                                            |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | The GitHub OAuth app.                                                                  |
+| `APP_ORIGIN`                                | Public origin. Builds the OAuth redirect URI and turns on `Secure` cookies when https. |
+
+Tunable:
+
+| Key                  | Default            | What                                                                        |
+| -------------------- | ------------------ | --------------------------------------------------------------------------- |
+| `REVIEW_EXECUTOR`    | `claude`           | `stub` streams a canned review and calls no API.                            |
+| `REVIEW_MODEL`       | `claude-haiku-4-5` | Model id passed to the Claude Agent SDK.                                    |
+| `ANTHROPIC_API_KEY`  | unset              | Required when `REVIEW_EXECUTOR=claude`.                                     |
+| `REVIEW_TIMEOUT_MIN` | `15`               | Per-job wall-clock budget. On expiry the job is marked `error` and aborted. |
+| `MAX_JOBS_PER_USER`  | `1`                | Pending-or-running jobs one user may have. Raise to loosen the cap.         |
+| `LOG_LEVEL`          | `info`             | `trace` `debug` `info` `warn` `error` `fatal` `silent`.                     |
+| `LOG_PRETTY`         | unset              | `1` swaps in pino-pretty. Local use only.                                   |
+| `LIVE_POLL_MS`       | `2000`             | How often a live job view asks for new chunks.                              |
+| `TERMINAL_POLL_MS`   | `10000`            | How often the cross-page notifier checks for finished reviews.              |
+| `APP_VERSION`        | unset              | Reported by `/api/health`. The image build sets it.                         |
+| `PORT`               | `3000`             | HTTP port.                                                                  |
+
+Both polling intervals are handed to the browser by the app shell and pause
+while a tab is hidden. Raising them is the cheapest way to cut load if the
+database is under pressure.
 
 ## Health endpoint
 
-`GET /api/health` is public, no auth. Returns:
+`GET /api/health` is public and takes no auth. It always returns 200 — a
+failed query leaves its field `null` and flips `ok` to `false`, so a green
+pinger means "the process is up and answering", not "everything is fine".
 
 ```json
 {
   "ok": true,
+  "version": "aba19ed",
+  "db": "ok",
   "queueDepth": 2,
   "oldestPendingAgeSec": 47,
   "errorsLast24h": 1
 }
 ```
 
-- `queueDepth` — count of `pending` jobs.
-- `oldestPendingAgeSec` — age of the oldest pending row, or `null` if none.
-- `errorsLast24h` — count of `status='error'` rows with `completed_at` in the last 24h.
-- `ok` flips to `false` if any of the underlying queries fails (response is still 200; the value tells you which field is `null`).
+- `db` — `ok` when a trivial query succeeded, otherwise `error`. This is the
+  field worth alerting on.
+- `queueDepth` — jobs sitting in `pending`.
+- `oldestPendingAgeSec` — age of the oldest pending job, `null` if none. A
+  value climbing past a few minutes means jobs are being created but not run.
+- `errorsLast24h` — jobs that completed with `error` in the last 24 hours.
 
-Use it from a deploy platform's health check or a curl one-liner.
+The container's own `HEALTHCHECK` polls this endpoint and only checks that the
+response is 200, so it detects a dead process, not a sick one.
 
-## Tunable knobs
+## Logs
 
-| Env var              | Default            | Read by | What                                                                |
-| -------------------- | ------------------ | ------- | ------------------------------------------------------------------- |
-| `MAX_JOBS_PER_USER`  | `1`                | Next.js | Maximum pending+running jobs per user. >1 effectively disables cap. |
-| `REVIEW_TIMEOUT_MIN` | `15`               | Next.js | Per-job wall-clock budget (minutes). Drives the per-job timer.      |
-| `REVIEW_EXECUTOR`    | `claude`           | Next.js | `stub` runs a deterministic fake executor (useful with no API key). |
-| `REVIEW_MODEL`       | `claude-haiku-4-5` | Next.js | Claude model id passed to the Claude Agent SDK.                     |
-| `ANTHROPIC_API_KEY`  | unset              | Next.js | Required when `REVIEW_EXECUTOR=claude`. Read by the SDK from env.   |
-| `LOG_LEVEL`          | `info`             | Next.js | pino level: `trace` `debug` `info` `warn` `error` `fatal`.          |
-| `LOG_PRETTY`         | unset              | Next.js | `1` swaps in pino-pretty for human-friendly local dev.              |
+Single-line JSON via [pino](https://getpino.io), on stdout.
 
-Changing any of these requires restarting the Next.js process; nothing
-is hot-reloadable.
+```bash
+docker compose logs -f web
+```
 
-## Retention (deferred)
+Job-scoped lines carry `job_id`; runner lines add `executor` (`claude` or
+`stub`). To trace one review end to end:
 
-Plan: delete `review_chunks` older than 7 days, delete `review_jobs`
-with `status='error'` older than 30 days, keep `reviews` forever.
+```bash
+docker compose logs web | jq -c 'select(.job_id == "<JOB-ID>")'
+```
 
-Once this becomes routine, add a PocketBase
-[scheduled job](https://pocketbase.io/docs/js-overview/) under
-`pb_migrations/` (or `pb_hooks/` if we add one) that runs the deletes
-on a cron expression. PB's JSVM exposes `cronAdd(name, expr, handler)`
-for this. Until then, do it manually in the admin UI when storage
-starts mattering — the `review_jobs` collection's filter syntax
-(`status = "error" && completed_at < "2026-01-01"`) makes ad-hoc
-purges easy.
+Fields you will see often:
 
-## Log shape
+| Key         | Meaning                                             |
+| ----------- | --------------------------------------------------- |
+| `level`     | pino level: 30 info, 40 warn, 50 error, 60 fatal.   |
+| `time`      | Unix-ms timestamp.                                  |
+| `msg`       | The human-readable line.                            |
+| `job_id`    | The review job. On every runner and job-route line. |
+| `executor`  | `claude` or `stub`, bound by the runner.            |
+| `user_id`   | On lines that touch a session.                      |
+| `err`       | Serialised error: `type`, `message`, `stack`.       |
+| `metric`    | On health-endpoint failures, which metric failed.   |
+| `clone_dir` | The temporary clone, on clone lines.                |
 
-Every server-side line is a single JSON object. Keys you'll see often:
+Set `LOG_LEVEL=debug` for more; `silent` is accepted and turns logging off
+entirely.
 
-| Key             | Type   | Meaning                                                    |
-| --------------- | ------ | ---------------------------------------------------------- |
-| `level`         | int    | pino level (30=info, 40=warn, 50=error, 60=fatal).         |
-| `time`          | int    | Unix-ms timestamp.                                         |
-| `pid`           | int    | Process id.                                                |
-| `hostname`      | string | Host where the line originated.                            |
-| `msg`           | string | The human-readable line.                                   |
-| `job_id`        | string | PB id of the review job. Present on every job-scoped line. |
-| `executor`      | string | `claude` or `stub`. Set by the runner on its child logger. |
-| `user_id`       | string | PB auth user id, on API lines that touch a session.        |
-| `err`           | object | Pino's serialised error (`type`, `message`, `stack`).      |
-| `source_job_id` | string | On `/api/jobs/:id/rerun` lines — the job being re-run.     |
+## Stuck and orphaned jobs
 
-To trace a single review end-to-end, filter by `job_id` — the same id
-shows up in `/api/jobs` (creation), `/api/jobs/:id/rerun` (re-runs),
-`/api/jobs/:id/cancel`, and every runner line.
+Reviews run in the web process. Three things can leave a job unfinished, and
+each is already handled:
+
+1. **A job runs too long.** The per-job timer fires at `REVIEW_TIMEOUT_MIN`,
+   writes `error` with `timeout: job exceeded N min`, and aborts the run.
+2. **A user cancels.** The cancel action writes `cancelled` and signals the
+   runner, which tears down the clone and the SDK iterator.
+3. **The process dies mid-job.** Nothing can finish that row. The next start-up
+   sweeps every `pending` or `running` job to `error` with
+   `interrupted: server restarted`, so the UI stops polling and the user sees
+   a re-run button.
+
+That sweep runs automatically on boot. To do it by hand — after a crash, or
+before a restart, while the server is down:
+
+```bash
+docker compose run --rm web node src/jobs/cli.ts recover-jobs
+```
+
+It takes no arguments, is safe to re-run, and prints how many rows it changed.
+
+If a job is somehow stuck outside all three paths, mark it errored directly:
+
+```sql
+UPDATE review_jobs
+   SET status = 'error',
+       error_message = 'cleared by an operator',
+       completed_at = now()
+ WHERE id = '<JOB-ID>' AND status IN ('pending', 'running');
+```
+
+Deleting the `review_jobs` row removes its review and chunks with it, through
+`ON DELETE CASCADE`.
+
+## Rotating secrets
+
+**Anthropic API key.** Read from the environment by the Claude Agent SDK and
+never stored in the database. Issue a new key, update the environment, restart
+the process, then revoke the old one. Jobs already in flight cannot pick up a
+new key: they either finish on the old one or fail with an executor error, and
+the user can re-run.
+
+**`SESSION_SECRET`.** Signs both cookies, so rotating it invalidates every
+session and GitHub token cookie at once — everyone signs in again, and there
+is no partial rollout. The `sessions` rows survive but can no longer be
+addressed; clear them with `DELETE FROM sessions;` after the restart.
+
+**GitHub OAuth client secret.** Generate the new secret in the GitHub OAuth
+app first, then update `GITHUB_CLIENT_SECRET` and restart. Existing sessions
+keep working: the client secret is only used during the sign-in exchange.
+
+**A user's GitHub token.** Held only in that user's `gh_access_token` cookie.
+If GitHub rejects it, the app redirects them to `/relink` to re-authorise. No
+operator action exists or is needed.
+
+## Migrations and deploys
+
+The image's start-up chain is `prisma migrate deploy` → `recover-jobs` →
+serve, so a deploy applies pending migrations by itself and a failed migration
+stops the container rather than serving against the wrong schema. A fresh
+database needs no manual step.
+
+This means a rolling deploy runs migrations from whichever container starts
+first, while old containers are still serving. Keep migrations
+backwards-compatible with the previous release, or take a moment of downtime.
+
+To check what a database is at:
+
+```bash
+docker compose run --rm web ./node_modules/.bin/prisma migrate status
+```
+
+## Backups
+
+All durable state is in Postgres — the compose file keeps it in the `pgdata`
+volume. There is nothing else to back up: clones are temporary and deleted
+after each review, and no secrets live in the database.
+
+```bash
+docker compose exec -T postgres pg_dump -U enhanced_review enhanced_review | gzip > er-$(date +%F).sql.gz
+```
+
+Restore into an empty database:
+
+```bash
+gunzip -c er-2026-09-08.sql.gz | docker compose exec -T postgres psql -U enhanced_review -d enhanced_review
+```
+
+## Retention
+
+**Nothing is deleted automatically.** `review_chunks` is the table that grows
+fastest — one row per streamed fragment, kept after the review is assembled,
+and only ever read by a live view that is watching the job run.
+
+Until this is worth automating, prune by hand. Chunks for finished reviews
+older than a week:
+
+```sql
+DELETE FROM review_chunks
+ WHERE job_id IN (
+   SELECT id FROM review_jobs
+    WHERE status <> 'running' AND status <> 'pending'
+      AND completed_at < now() - interval '7 days'
+ );
+```
+
+Failed jobs older than a month, with their chunks and any review:
+
+```sql
+DELETE FROM review_jobs
+ WHERE status = 'error' AND completed_at < now() - interval '30 days';
+```
+
+Completed reviews are worth keeping — they are the product. Check what you are
+about to remove with the matching `SELECT count(*)` first, and take a backup
+before the first run of either statement.
