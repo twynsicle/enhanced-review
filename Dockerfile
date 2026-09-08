@@ -39,7 +39,14 @@ COPY package.json package-lock.json prisma.config.ts ./
 COPY prisma ./prisma
 # Production dependencies only. `prisma` is one of them (phase-5-plan P5-D2)
 # so entrypoint.sh can apply migrations without a second image.
-RUN npm ci --omit=dev --no-audit --no-fund
+#
+# The prune shares this layer because a later `rm` would leave the files in
+# the earlier one: npm filters the Claude SDK's optional binary packages by os
+# and cpu but not by libc, so an alpine image gets the glibc build as well as
+# the musl one it actually uses — 234 MB that cannot execute here. Verified
+# before removing: with the glibc copy gone, the musl `claude` binary still
+# reports its version, and musl is what the SDK resolves on this base image.
+RUN npm ci --omit=dev --no-audit --no-fund   && rm -rf node_modules/@anthropic-ai/claude-agent-sdk-linux-x64
 
 # Copied from the build stage rather than the context, so `src/db/generated`
 # (written by `prisma generate`, gitignored and docker-ignored) comes along.
