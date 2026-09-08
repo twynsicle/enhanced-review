@@ -41,6 +41,7 @@
     "@mantine/hooks": "^9.6.0",
     "@mantine/notifications": "^9.6.0",
     "@monaco-editor/react": "^4.7.0",
+    "@octokit/core": "7.0.8",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "@react-router/express": "^8.3.1",

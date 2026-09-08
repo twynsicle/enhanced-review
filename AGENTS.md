@@ -69,6 +69,9 @@ src/
                        generated/ (gitignored). JSON columns come back `unknown`; domain parses them.
   domain/              shared by server and browser; *.server.ts marks the server-only modules (see Layering)
     auth/              github-profile.server.ts (GET /user, Zod), sign-in.server.ts (upsert user), allowlist.server.ts (isAllowed, fails closed)
+    github/            all *.server.ts on one @octokit/core instance per request: client (createOctokit, GithubAuthError,
+                       classifyGithubError, toResult), repos, pulls, branches (GraphQL), resolve-target (re-pin SHAs),
+                       pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getPullReviewers, getCommitsAhead); types.ts shared
     review/            shared: narrative.ts (NarrativeReview Zod schema + types), target.ts (ReviewTarget schema, describeTarget),
                        language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
   jobs/                cli.ts (`npm run job -- <name>`), seed-allowlist.ts, errors.ts
