@@ -5,8 +5,9 @@
 > end-to-end until Phase 4 lands**. The plan of record is
 > `docs/rr-migration/00-overview.md` — read it before anything else. Phase
 > plans (`phase-N-plan.md`) say what each phase built and what it deviated on.
-> Phases 0–2 are done: the skeleton, Postgres/Prisma, GitHub sign-in, sessions
-> and the allowlist gate work; reviews do not exist yet.
+> Phases 0–3 are done: the skeleton, Postgres/Prisma, GitHub sign-in, sessions
+> and the allowlist gate work, and the review runner + job lifecycle exist as
+> a service (`src/domain/review`, `src/domain/jobs`) with no UI on top yet.
 > `README.md`, `docs/RUNNING.md` and `docs/OPERATIONS.md` still describe the
 > old Next.js + PocketBase app and are rewritten in Phase 6 (RUNNING.md has an
 > interim block for running the current state).
@@ -52,10 +53,10 @@ before writing code against them; heed deprecation notices.
 - Vitest 4 projects: `unit` (node), `web` (happy-dom), `guardrails`
   (repo-reading convention tests), `integration` (real Postgres, self-skips).
 
-## Repo layout (Phase 2 state)
+## Repo layout (Phase 3 state)
 
 ```
-server/index.ts        Express bootstrap: dev = Vite middleware, prod = build/
+server/index.ts        Express bootstrap: dev = Vite middleware, prod = build/; SIGTERM/SIGINT → abortAll('shutdown') + drain, then close
 prisma/
   schema.prisma        6 models (users, sessions, allowed_users, review_jobs, reviews, review_chunks) + JobStatus
   migrations/          0001_init (hand-added CHECK constraints)
@@ -81,11 +82,15 @@ src/
       executor/        types.ts (ReviewExecutor, errors); stub-executor.server.ts (STUB_REVIEW in fragments);
                        claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist)
       run.server.ts    runJob(input, deps) → 'done' | 'skipped' | 'aborted' | 'errored'; defaultRunJobDeps(); formatJobError
-  jobs/                cli.ts (`npm run job -- <name>`), seed-allowlist.ts, errors.ts
+    jobs/              all *.server.ts: registry (AbortControllers on globalThis[JOBS_REGISTRY_KEY]), timeout (armTimeout),
+                       start-review (startReview / rerunJob / launchJob), cancel-job, recover-jobs, boot (bootJobs, once per process),
+                       jobs (read side: parseJob/parseReview, getJob, listJobs, getReview); errors.ts shared (JobInFlightError, …)
+  jobs/                cli.ts (`npm run job -- <name>`), seed-allowlist.ts, recover-jobs.ts, errors.ts
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
   web/
     root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary, middleware: [sessionMiddleware]
+    entry.server.tsx   RR server entry (`reveal` default, logger instead of console); awaits bootJobs() before the first request
     routes.ts          route table — every file in routes/ must be listed here
     routes/            _gated.tsx (layout: allowlistGate) → skeleton.tsx, relink.tsx
                        login.tsx, denied.tsx, auth.github.ts, auth.github.callback.ts, auth.logout.ts, health.ts
@@ -139,6 +144,47 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
 - Repositories PB rules used to enforce (owner-only cancel, authed reads) are
   explicit checks in loaders/actions from Phase 3 on.
 
+## How a review runs (Phase 3)
+
+- **Create / rerun** (`domain/jobs/start-review.server.ts`): refuse when the
+  user already has `MAX_JOBS_PER_USER` jobs in flight (`JobInFlightError`),
+  re-pin the target's SHAs against GitHub with the caller's token
+  (`GithubAuthError` passes through for `/relink`; anything else is
+  `HeadShaResolutionError`), insert a `pending` row, then `launchJob`:
+  register an `AbortController`, arm the `REVIEW_TIMEOUT_MIN` timeout and
+  run `runJob` fire-and-forget. A rerun copies the source target, is owned by
+  the viewer and is pinned to the current head.
+- **Runner** (`domain/review/run.server.ts`): `markRunning` (conditional
+  `pending → running`; false means cancelled before start) → PR metadata →
+  init + shallow fetch of `pull/N/head` or the branch → verify the head SHA
+  still matches → fetch the base SHA → diff + changed files → executor. The
+  executor streams raw text; each fragment becomes a `review_chunks` row
+  (`seq` from 0, inserts fire-and-forget, drained before finalize).
+  `finalizeDone` writes the `reviews` row and `running → done` in one
+  transaction. Failures → `markErrored(formatJobError(err))`, clipped to 500
+  chars. Every side effect is injected (`RunJobDeps`) so the stub review runs
+  end to end from `run.integration.test.ts` against a local git repo.
+- **Abort reasons** say who already wrote the terminal status: `cancel`
+  (`cancel-job.server.ts` wrote `cancelled` before signalling), `timeout`
+  (`timeout.server.ts` wrote `error` first), `shutdown` (nobody — the runner
+  writes `error: interrupted: server shutting down`).
+- **Executors**: `REVIEW_EXECUTOR=stub` replays `STUB_REVIEW` in fragments
+  (local default, all tests); `claude` runs the Agent SDK in the clone with
+  read-only tools, the filesystem sandbox pinned to the clone,
+  `settingSources: []` (the reviewed repo's `.claude/` cannot register hooks),
+  `persistSession: false` and only `CLAUDE_ENV_KEYS` from the host env.
+- **Process lifecycle**: `entry.server.tsx` awaits `bootJobs()` once per
+  process, which flips orphaned `pending|running` rows to `error`
+  ("interrupted: server restarted"); `npm run job -- recover-jobs` does the
+  same by hand. `server/index.ts` handles SIGTERM/SIGINT: `abortAll('shutdown')`
+  on the registry (reached through `globalThis[JOBS_REGISTRY_KEY]`, since the
+  bootstrap sits outside Vite's module graph), `drain` for up to 5 s, then
+  close. `/api/health` reports `queueDepth`, `oldestPendingAgeSec`,
+  `errorsLast24h`.
+- **Reads** go through `domain/jobs/jobs.server.ts`, which parses the JSON
+  columns (`target` → `ReviewTargetSchema`, `content` →
+  `NarrativeReviewSchema`); repositories return them as `unknown`.
+
 ## Conventions
 
 - Path alias `@/*` → `src/*` is used in `src/web/` (bundled by Vite).
@@ -168,20 +214,20 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
 
 ## Scripts
 
-| Script                                     | What                                                           |
-| ------------------------------------------ | -------------------------------------------------------------- |
-| `npm run dev`                              | Express + Vite dev server on `localhost:3000`                  |
-| `npm run build` / `npm start`              | `react-router build` / serve `build/` in production mode       |
-| `npm run typecheck`                        | `react-router typegen && tsc --noEmit`                         |
-| `npm test` / `test:watch`                  | Vitest `unit` + `web` + `guardrails`                           |
-| `npm run test:integration`                 | Vitest `integration` (needs Postgres; skips when unreachable)  |
-| `npm run lint` / `format` / `format:check` | oxlint / Prettier                                              |
-| `npm run check`                            | **The gate**: typecheck + build + test + lint + format:check   |
-| `npm run check:all`                        | `check` + integration                                          |
-| `npm run db:migrate`                       | `prisma migrate dev && prisma generate` (local schema changes) |
-| `npm run db:deploy` / `db:reset`           | apply migrations (CI/containers) / drop + reapply + generate   |
-| `npm run db:generate` / `db:studio`        | regenerate client (also `postinstall`) / Prisma Studio         |
-| `npm run job -- <name> [args]`             | one-shot jobs, natively: `seed-allowlist <github-login...>`    |
+| Script                                     | What                                                                 |
+| ------------------------------------------ | -------------------------------------------------------------------- |
+| `npm run dev`                              | Express + Vite dev server on `localhost:3000`                        |
+| `npm run build` / `npm start`              | `react-router build` / serve `build/` in production mode             |
+| `npm run typecheck`                        | `react-router typegen && tsc --noEmit`                               |
+| `npm test` / `test:watch`                  | Vitest `unit` + `web` + `guardrails`                                 |
+| `npm run test:integration`                 | Vitest `integration` (needs Postgres; skips when unreachable)        |
+| `npm run lint` / `format` / `format:check` | oxlint / Prettier                                                    |
+| `npm run check`                            | **The gate**: typecheck + build + test + lint + format:check         |
+| `npm run check:all`                        | `check` + integration                                                |
+| `npm run db:migrate`                       | `prisma migrate dev && prisma generate` (local schema changes)       |
+| `npm run db:deploy` / `db:reset`           | apply migrations (CI/containers) / drop + reapply + generate         |
+| `npm run db:generate` / `db:studio`        | regenerate client (also `postinstall`) / Prisma Studio               |
+| `npm run job -- <name> [args]`             | one-shot jobs, natively: `seed-allowlist <login...>`, `recover-jobs` |
 
 ## Environment
 

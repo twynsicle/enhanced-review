@@ -4,9 +4,10 @@
 > app and is superseded until Phase 6 of the React Router re-platform lands.
 > Current state and plan: [rr-migration/](rr-migration/00-overview.md).
 
-> **Interim — running the migration branch today (Phase 2 state).** Only
-> sign-in, the allowlist gate and a placeholder page work; reviews return in
-> Phases 3–4. Everything below this note is PocketBase-era.
+> **Interim — running the migration branch today (Phase 3 state).** Only
+> sign-in, the allowlist gate and a placeholder page work; the review runner
+> and job lifecycle exist as a service (`src/domain/review`, `src/domain/jobs`)
+> and get their UI in Phase 4. Everything below this note is PocketBase-era.
 >
 > 1. `docker compose up -d postgres` (Postgres 18 on `127.0.0.1:5432`).
 > 2. Copy `.env.example` to `.env`. `DATABASE_URL` and `APP_ORIGIN` defaults
@@ -24,7 +25,12 @@
 >    `GET /api/health` reports `db: "ok"`.
 >
 > Reset the database with `npm run db:reset`. Integration tests:
-> `npm run test:integration` (skips when Postgres is down).
+> `npm run test:integration` (skips when Postgres is down). The runner
+> defaults to `REVIEW_EXECUTOR=stub` in `.env.example` (canned review, no
+> API key); set `claude` plus `ANTHROPIC_API_KEY` for real reviews. Orphaned
+> jobs are recovered at boot and on demand with
+> `npm run job -- recover-jobs`; `GET /api/health` shows `queueDepth`,
+> `oldestPendingAgeSec` and `errorsLast24h`.
 
 Every manual step required to take a fresh clone of this repo to a working
 local deployment. No Docker required for the app — you need Node, the

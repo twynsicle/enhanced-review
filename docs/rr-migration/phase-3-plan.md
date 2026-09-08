@@ -272,4 +272,49 @@ now so Phase 4's first UI runs are free.
 
 ## Deviations recorded during execution
 
-_(filled in as the phase runs)_
+- **JSON columns are parsed in `domain`, not in the repositories.** The
+  layering rule keeps `db` below `domain`, so `review-jobs.ts` / `reviews.ts`
+  return `target` and `content` as `unknown`; `domain/jobs/jobs.server.ts`
+  (`parseJob`, `parseReview`, `getJob`, `listJobs`, `getReview`) applies
+  `ReviewTargetSchema` / `NarrativeReviewSchema`. The runner does the same
+  for the stored target on rerun.
+- **P3-D7 shutdown, revised.** The registry does not install its own
+  SIGTERM/SIGINT handler. It publishes itself on
+  `globalThis[Symbol.for('enhanced-review.jobs.registry')]`
+  (`JOBS_REGISTRY_KEY`), and `server/index.ts` — outside Vite's module graph,
+  hence unable to import the live instance — reaches it by that key:
+  `abortAll('shutdown')`, `drain(5000)` so the runners can write their
+  "interrupted" status, then `server.close()`. One shutdown path instead of
+  two racing handlers.
+- **`domain/jobs/boot.server.ts`** wraps the boot-time recovery (P3-D6) in a
+  once-per-process guard on `globalThis`, so Vite re-evaluating
+  `entry.server.tsx` in development does not error jobs that are running.
+  `entry.server.tsx` awaits `bootJobs()` at module top level; it was created
+  with `react-router reveal` (the `entry.client.tsx` it also emits was not
+  kept) and its `console.error` became a logger call.
+- **`runJob` surface.** Besides `{ executor, git, cloneUrlFor,
+getPullMetadata }`, deps accept `makeWorkDir?` and `store?` (the four
+  repository writes), so the unit tests fake the database without
+  `vi.mock`; the function returns an outcome
+  (`'done' | 'skipped' | 'aborted' | 'errored'`) that `launchJob` resolves
+  with. `defaultRunJobDeps()` does the production wiring and picks the
+  executor from `REVIEW_EXECUTOR`. A runner that _rejects_ (a bug, not a
+  review failure) is caught by `launchJob`, which marks the job
+  `runner crashed: …` so nothing stays `running` forever.
+- **`parseNarrativeReview` validates its output with
+  `NarrativeReviewSchema`** after the lenient sanitising pass (unknown keys
+  are stripped), so `reviews.content` is guaranteed to parse back at read
+  time. `ReviewExecutorInput` dropped the unused `filteredDiff` and `target`.
+- **`GithubResult` for pull metadata.** The runner's `getPullMetadata` dep
+  returns the same `GithubResult<PullMetadata>` the reader uses; a failure
+  becomes `PullMetadataError` → `github: …` in the job's error message.
+- **Stub review copy** no longer says "Phase 4 produces a real AI-generated
+  narrative"; it points at `REVIEW_EXECUTOR=claude`.
+- **Verified against the SDK (0.2.119):** `Options.env`, `sandbox`,
+  `settingSources`, `persistSession`, `abortController`, `maxTurns` all
+  exist; the executor test pins them.
+- **`git-runner.server.test.ts` shells out to the host `git`** (`--version`,
+  an unknown subcommand) in the unit project; git is on every dev machine,
+  CI runner and in the image.
+- **Verification 8 (real Claude executor smoke) was not run** — it needs
+  `ANTHROPIC_API_KEY` and a GitHub token; the unit tests pin the SDK options.

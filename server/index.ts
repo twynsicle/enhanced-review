@@ -19,6 +19,7 @@ import express from 'express';
 import type { ServerBuild } from 'react-router';
 import { env } from '../src/config/env.ts';
 import { logger } from '../src/common/logger.ts';
+import { JOBS_REGISTRY_KEY, type JobRegistryHandle } from '../src/domain/jobs/registry.server.ts';
 
 const app = express();
 app.disable('x-powered-by');
@@ -49,13 +50,30 @@ const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, mode: env.NODE_ENV }, 'server listening');
 });
 
-function shutdown(signal: NodeJS.Signals) {
-  logger.info({ signal }, 'shutting down');
-  server.close(() => process.exit(0));
-  // Phase 3: the runner registry registers its own SIGTERM handler to abort
-  // in-flight jobs before this close completes.
-  setTimeout(() => process.exit(1), 10_000).unref();
+// The job registry lives on globalThis (phase-3-plan P3-D7) because Vite
+// evaluates its own module instances in development; this file is outside
+// that graph, so it reaches the registry by its well-known key instead of an
+// import. Undefined until the first job has run.
+function jobRegistry(): JobRegistryHandle | undefined {
+  return (globalThis as Record<symbol, unknown>)[JOBS_REGISTRY_KEY] as
+    JobRegistryHandle | undefined;
 }
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+// Drain budget for in-flight jobs: enough for the runner to write its
+// "interrupted" status, well inside the hard exit below.
+const JOB_DRAIN_MS = 5_000;
+
+async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  logger.info({ signal }, 'shutting down');
+  setTimeout(() => process.exit(1), 10_000).unref();
+  const jobs = jobRegistry();
+  if (jobs && jobs.size() > 0) {
+    const aborted = jobs.abortAll('shutdown');
+    logger.info({ aborted }, 'aborting in-flight jobs');
+    await jobs.drain(JOB_DRAIN_MS);
+  }
+  server.close(() => process.exit(0));
+}
+
+process.on('SIGTERM', (signal) => void shutdown(signal));
+process.on('SIGINT', (signal) => void shutdown(signal));
