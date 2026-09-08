@@ -64,7 +64,9 @@ src/
   common/              logger.ts (pino), time-ago.ts — imports only config from src/
   config/              env.ts — Zod-parsed process.env, the only process.env reader; load-env.ts — loads .env for native entry points;
                        host-env.ts — hostEnv()/pickHostEnv() for code that spawns subprocesses
-  db/                  client.ts (PrismaClient singleton, pingDb), users.ts, sessions.ts, allowed-users.ts, generated/ (gitignored)
+  db/                  client.ts (PrismaClient singleton, pingDb), users.ts, sessions.ts, allowed-users.ts,
+                       review-jobs.ts (conditional status transitions, lists, health counts), reviews.ts, review-chunks.ts,
+                       generated/ (gitignored). JSON columns come back `unknown`; domain parses them.
   domain/              shared by server and browser; *.server.ts marks the server-only modules (see Layering)
     auth/              github-profile.server.ts (GET /user, Zod), sign-in.server.ts (upsert user), allowlist.server.ts (isAllowed, fails closed)
     review/            shared: narrative.ts (NarrativeReview Zod schema + types), target.ts (ReviewTarget schema, describeTarget),
