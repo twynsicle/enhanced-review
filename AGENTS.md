@@ -84,7 +84,8 @@ src/
       run.server.ts    runJob(input, deps) → 'done' | 'skipped' | 'aborted' | 'errored'; defaultRunJobDeps(); formatJobError
     jobs/              all *.server.ts: registry (AbortControllers on globalThis[JOBS_REGISTRY_KEY]), timeout (armTimeout),
                        start-review (startReview / rerunJob / launchJob), cancel-job, recover-jobs, boot (bootJobs, once per process),
-                       jobs (read side: parseJob/parseReview, getJob, listJobs, getReview); errors.ts shared (JobInFlightError, …)
+                       jobs (read side: parseJob/parseReview, getJob, listJobs, getReview, listRecentActivity, toJobView);
+                       shared: errors.ts (JobInFlightError, …), status.ts (JOB_STATUSES), job-view.ts (JobView, jobHref), activity.ts
   jobs/                cli.ts (`npm run job -- <name>`), seed-allowlist.ts, recover-jobs.ts, errors.ts
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
@@ -92,13 +93,19 @@ src/
     root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary, middleware: [sessionMiddleware]
     entry.server.tsx   RR server entry (`reveal` default, logger instead of console); awaits bootJobs() before the first request
     routes.ts          route table — every file in routes/ must be listed here
-    routes/            _gated.tsx (layout: allowlistGate) → skeleton.tsx, relink.tsx
-                       login.tsx, denied.tsx, auth.github.ts, auth.github.callback.ts, auth.logout.ts, health.ts
+    routes/            _gated.tsx (layout: allowlistGate) → _shell.tsx (layout: Topbar; loader {user, serverNow, polling})
+                         → home.tsx (index: hero + Recent), history.tsx (?status=)
+                       _gated → relink.tsx;  public: login.tsx, denied.tsx, auth.github.ts, auth.github.callback.ts,
+                       auth.logout.ts, health.ts.  Phase 4 adds jobs.$id, reviews.$id and the api.* resource routes.
     auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                        context (userContext/sessionContext), session-middleware, gate-middleware (allowlistGate, signOutHeaders)
-    components/        brand-mark.tsx, color-scheme-toggle.tsx
+    components/        brand-mark, color-scheme-toggle; topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
+                       jobs/ (job-list-row, status-badge), history/ (filter-chips, empty-library),
+                       home/ (recent-reviews, sparkline), narrative/ (risk-score) — all browser-safe, styled via token()
+    stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
     theme/             Editorial Iris tokens.ts → theme.ts, css-variables.ts (--er-* vars), color-scheme.ts, theme.css
-    lib/               parse.server.ts — Zod parseParams / parseSearchParams / parseFormData
+    lib/               parse.server.ts (Zod parseParams / parseSearchParams / parseFormData), github.server.ts (requireGithubToken,
+                       withGithub → /relink), action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts
     test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
 legacy/                READ-ONLY old code awaiting port; excluded from every tool. Deleted end of Phase 4.
 public/                brand-mark.png, favicon.ico
@@ -236,7 +243,8 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
 `APP_ORIGIN`. Optional: `NODE_ENV`, `PORT`, `APP_VERSION`, `LOG_LEVEL`
 (`silent` allowed), `LOG_PRETTY`, and the review runner's `REVIEW_EXECUTOR`
 (`stub | claude`, default `claude`), `REVIEW_MODEL`, `REVIEW_TIMEOUT_MIN`,
-`MAX_JOBS_PER_USER`, `ANTHROPIC_API_KEY`. `vitest.config.ts` fills
+`MAX_JOBS_PER_USER`, `ANTHROPIC_API_KEY`, and the browser polling cadence
+`LIVE_POLL_MS` / `TERMINAL_POLL_MS`. `vitest.config.ts` fills
 placeholders for the required keys and forces `REVIEW_EXECUTOR=stub` so
 `npm run check` runs without a `.env` and never calls the SDK.
 

@@ -22,6 +22,8 @@ describe('parseEnv', () => {
       REVIEW_MODEL: 'claude-haiku-4-5',
       REVIEW_TIMEOUT_MIN: 15,
       MAX_JOBS_PER_USER: 1,
+      LIVE_POLL_MS: 2000,
+      TERMINAL_POLL_MS: 10_000,
     });
   });
 

@@ -263,4 +263,24 @@ Each commit is green on `npm run check`; integration stays green.
 
 ## Deviations
 
-_(filled in as commits land)_
+**Commit 1 (shell + history)**
+
+- `JobView` and `toJobView` live in `src/domain/jobs/` (`job-view.ts` shared,
+  `toJobView` in `jobs.server.ts`) rather than `src/web/lib/job-view.ts`: the
+  conversion needs `ReviewJob`, a `.server` type, and the domain is where the
+  read side already lives. A browser-safe `status.ts` (`JOB_STATUSES`) was added
+  for the same reason — only `src/db` may import the Prisma enum.
+- `usePolling` uses a plain `setInterval` in an effect (plus Mantine's
+  `useDocumentVisibility`) instead of `useInterval`; the ticks are the same.
+- `JobListRow` is a Mantine `NavLink` so the hover tint comes from the theme
+  (`--mantine-color-default-hover` → `muted`) without a stylesheet; rows are
+  ~1 px taller than `main`.
+- The topbar brand's hover rotate (`-3deg`) and the nav pill's hover text
+  colour are not reproduced (no hover styles without a stylesheet).
+- Home ships in commit 1 as hero + Recent (the composer arrives in commit 2)
+  so the index route is never a placeholder page.
+- Screenshots were taken through the Playwright browser signed in with a
+  locally minted session (`screenshots/tools/dev-session.ts`, gitignored)
+  because the GitHub OAuth consent click cannot be automated; the DB was
+  empty after the integration suite's `resetDb`, so five jobs were seeded the
+  same way for the list cells.

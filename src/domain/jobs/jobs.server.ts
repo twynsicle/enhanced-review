@@ -2,6 +2,7 @@ import * as reviewJobs from '../../db/review-jobs.ts';
 import * as reviews from '../../db/reviews.ts';
 import { NarrativeReviewSchema, type NarrativeReview } from '../review/narrative.ts';
 import { ReviewTargetSchema, type ReviewTarget } from '../review/target.ts';
+import type { JobView } from './job-view.ts';
 
 /**
  * The read side of jobs for loaders: repository rows with their JSON
@@ -54,4 +55,30 @@ export async function listJobs(options: reviewJobs.ListJobsOptions): Promise<Rev
 export async function getReview(jobId: string): Promise<Review | null> {
   const record = await reviews.findReviewByJobId(jobId);
   return record ? parseReview(record) : null;
+}
+
+/** Creation timestamps of the last `days` days, for the activity sparkline. */
+export function listRecentActivity(days = 14, now = new Date()): Promise<Date[]> {
+  return reviewJobs.listJobCreatedAtSince(new Date(now.getTime() - days * 24 * 60 * 60 * 1000));
+}
+
+const iso = (date: Date | null): string | null => (date ? date.toISOString() : null);
+
+/** Browser-facing shape: ISO timestamps instead of `Date`s (phase-4-plan §2). */
+export function toJobView(job: ReviewJob): JobView {
+  return {
+    id: job.id,
+    userId: job.userId,
+    githubLogin: job.githubLogin,
+    target: job.target,
+    status: job.status,
+    headSha: job.headSha,
+    startedAt: iso(job.startedAt),
+    completedAt: iso(job.completedAt),
+    cancelledAt: iso(job.cancelledAt),
+    errorMessage: job.errorMessage,
+    riskScore: job.riskScore,
+    createdAt: job.createdAt.toISOString(),
+    updatedAt: job.updatedAt.toISOString(),
+  };
 }

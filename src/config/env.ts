@@ -36,6 +36,9 @@ const schema = z.object({
   // Forwarded to the Claude Agent SDK subprocess; the SDK also honours
   // CLAUDE_CODE_OAUTH_TOKEN, so it is not required even for the claude executor.
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  // Polling cadence handed to the browser by the app shell (phase-4-plan P4-D9).
+  LIVE_POLL_MS: z.coerce.number().int().min(250).default(2000),
+  TERMINAL_POLL_MS: z.coerce.number().int().min(1000).default(10_000),
 });
 
 export type Env = z.infer<typeof schema>;

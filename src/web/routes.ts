@@ -4,11 +4,15 @@ import { index, layout, route, type RouteConfig } from '@react-router/dev/routes
 // routes-registered). Pages and resource routes share this one table; see
 // docs/rr-migration/00-overview.md §4 "Routes" for the full target list.
 //
-// Protected pages nest under the pathless `_gated` layout, whose middleware
-// enforces sign-in + allowlist. Everything outside it is public
-// (phase-2-plan P2-D5).
+// Protected routes nest under the pathless `_gated` layout, whose middleware
+// enforces sign-in + allowlist (phase-2-plan P2-D5). Pages with chrome nest
+// one level deeper under `_shell` (phase-4-plan P4-D5); `/relink` and the
+// resource routes are gated but chrome-less. Everything outside is public.
 export default [
-  layout('routes/_gated.tsx', [index('routes/skeleton.tsx'), route('relink', 'routes/relink.tsx')]),
+  layout('routes/_gated.tsx', [
+    layout('routes/_shell.tsx', [index('routes/home.tsx'), route('history', 'routes/history.tsx')]),
+    route('relink', 'routes/relink.tsx'),
+  ]),
   route('login', 'routes/login.tsx'),
   route('denied', 'routes/denied.tsx'),
   route('auth/github', 'routes/auth.github.ts'),

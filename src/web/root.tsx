@@ -12,8 +12,15 @@ import {
 import { COLOR_SCHEME_KEY, colorSchemeManager } from '@/web/theme/color-scheme';
 import { cssVariablesResolver } from '@/web/theme/css-variables';
 import { theme } from '@/web/theme/theme';
+import { LAYOUT_WIDTHS } from '@/web/theme/tokens';
 import { sessionMiddleware } from '@/web/auth/session-middleware.server';
+import { LAYOUT_WIDTH_KEY } from '@/web/stores/layout-width';
 import type { Route } from './+types/root';
+
+// Applies the stored wide layout before first paint (phase-4-plan P4-D10),
+// the way ColorSchemeScript does for the colour scheme. The store itself
+// rehydrates after mount so SSR markup never depends on localStorage.
+const LAYOUT_WIDTH_SCRIPT = `(function(){try{if(localStorage.getItem(${JSON.stringify(LAYOUT_WIDTH_KEY)})==='wide'){document.documentElement.style.setProperty('--review-max-width',${JSON.stringify(LAYOUT_WIDTHS.wide)})}}catch(e){}})();`;
 
 // Every request: resolve session + user into route context (phase-2-plan P2-D5).
 export const middleware: Route.MiddlewareFunction[] = [sessionMiddleware];
@@ -34,6 +41,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <ColorSchemeScript defaultColorScheme="dark" localStorageKey={COLOR_SCHEME_KEY} />
+        <script dangerouslySetInnerHTML={{ __html: LAYOUT_WIDTH_SCRIPT }} />
         <Meta />
         <Links />
       </head>
