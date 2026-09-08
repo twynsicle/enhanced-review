@@ -2,7 +2,6 @@ import { Alert, Box, Button, Code, Flex, Group, Paper, Stack, Text, Title } from
 import { IconSparkles } from '@tabler/icons-react';
 import { Form, redirect } from 'react-router';
 import { z } from 'zod';
-import { isAllowed } from '@/domain/auth/allowlist.server';
 import { userContext } from '@/web/auth/context.server';
 import { BrandMark } from '@/web/components/brand-mark';
 import { ColorSchemeToggle } from '@/web/components/color-scheme-toggle';
@@ -18,14 +17,10 @@ const searchSchema = z.object({
   error: z.enum(['oauth']).optional().catch(undefined),
 });
 
-/**
- * Public. A signed-in **and** allowed user has no business here and goes
- * home; a signed-in but denied user may keep looking at the form (same rule
- * as the previous proxy).
- */
-export async function loader({ request, context }: Route.LoaderArgs) {
+/** Public. A signed-in user has no business here and goes home. */
+export function loader({ request, context }: Route.LoaderArgs) {
   const user = context.get(userContext);
-  if (user && (await isAllowed(user.githubLogin))) throw redirect('/');
+  if (user) throw redirect('/');
   const { error } = parseSearchParams(searchSchema, request);
   return { error: error ?? null };
 }
@@ -80,8 +75,8 @@ export default function Login({ loaderData }: Route.ComponentProps) {
                   style={{ marginTop: 2, flexShrink: 0, color: token('muted-foreground') }}
                 />
                 <Text size="sm" c="dimmed">
-                  Invite-only beta. Sign in with the GitHub account that’s been added to the
-                  allowlist — we’ll need <Code>repo</Code> read scope to fetch diffs.
+                  Sign in with GitHub — we’ll need <Code>repo</Code> read scope to fetch the diffs
+                  we review.
                 </Text>
               </Group>
               <Form method="post" action="/auth/github">

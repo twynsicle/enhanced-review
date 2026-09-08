@@ -18,9 +18,7 @@
 >    and put its client id / secret in `.env` as `GITHUB_CLIENT_ID` /
 >    `GITHUB_CLIENT_SECRET`.
 > 4. `npm install` (also generates the Prisma client), then `npm run db:migrate`.
-> 5. `npm run job -- seed-allowlist <your-github-login>` — idempotent; add as
->    many logins as you like.
-> 6. `npm run dev` → <http://localhost:3000> redirects to `/login`; sign in with
+> 5. `npm run dev` → <http://localhost:3000> redirects to `/login`; sign in with
 >    GitHub; pick a repository and a PR or branch on the home page and start a
 >    review. `GET /api/health` reports `db: "ok"`.
 >

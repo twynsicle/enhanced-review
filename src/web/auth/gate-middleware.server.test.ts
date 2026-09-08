@@ -9,12 +9,10 @@ const sessions = {
   deleteSession: vi.fn<(id: string) => Promise<void>>(),
   deleteExpiredSessions: vi.fn(),
 };
-const allowlist = { isAllowed: vi.fn<(login: string) => Promise<boolean>>() };
 vi.mock('@/db/sessions', () => sessions);
-vi.mock('@/domain/auth/allowlist.server', () => allowlist);
 
 const { sessionContext, userContext } = await import('./context.server');
-const { allowlistGate } = await import('./gate-middleware.server');
+const { requireUser } = await import('./gate-middleware.server');
 
 const user = { id: 'u1', githubLogin: 'octocat', name: null, avatarUrl: null };
 const session = { id: 's1', userId: 'u1', expiresAt: new Date(Date.now() + 1000), data: {} };
@@ -24,17 +22,16 @@ async function run(setup: (ctx: RouterContextProvider) => void) {
   setup(context);
   const request = new Request('http://localhost/');
   const next = vi.fn(async () => new Response('page'));
-  const response = (await allowlistGate(
+  const response = (await requireUser(
     { request, url: new URL(request.url), pattern: '/', context, params: {} },
     next,
   )) as Response;
   return { response, context, next };
 }
 
-describe('allowlistGate', () => {
+describe('requireUser', () => {
   beforeEach(() => {
     sessions.deleteSession.mockReset().mockResolvedValue();
-    allowlist.isAllowed.mockReset();
   });
 
   it('redirects anonymous requests to /login and clears both cookies', async () => {
@@ -52,22 +49,19 @@ describe('allowlistGate', () => {
     expect(sessions.deleteSession).not.toHaveBeenCalled();
   });
 
-  it('signs out and redirects a user who is not on the allowlist', async () => {
-    allowlist.isAllowed.mockResolvedValue(false);
-    const { response, context, next } = await run((ctx) => {
-      ctx.set(userContext, user);
+  it('destroys a session whose user is gone before redirecting', async () => {
+    const { response, context } = await run((ctx) => {
+      ctx.set(userContext, null);
       ctx.set(sessionContext, session);
     });
 
-    expect(next).not.toHaveBeenCalled();
-    expect(response.headers.get('location')).toBe('/denied');
+    expect(response.headers.get('location')).toBe('/login');
     expect(sessions.deleteSession).toHaveBeenCalledWith('s1');
     expect(context.get(sessionContext)).toBeNull();
     expect(context.get(userContext)).toBeNull();
   });
 
-  it('lets an allowed user through untouched', async () => {
-    allowlist.isAllowed.mockResolvedValue(true);
+  it('lets any signed-in user through untouched (no allowlist since P5-D3)', async () => {
     const { response, next } = await run((ctx) => {
       ctx.set(userContext, user);
       ctx.set(sessionContext, session);
@@ -75,6 +69,6 @@ describe('allowlistGate', () => {
 
     expect(next).toHaveBeenCalledOnce();
     expect(await response.text()).toBe('page');
-    expect(allowlist.isAllowed).toHaveBeenCalledWith('octocat');
+    expect(sessions.deleteSession).not.toHaveBeenCalled();
   });
 });

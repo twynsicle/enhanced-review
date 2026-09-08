@@ -55,8 +55,8 @@ before writing code against them; heed deprecation notices.
 ```
 server/index.ts        Express bootstrap: dev = Vite middleware, prod = build/; SIGTERM/SIGINT → abortAll('shutdown') + drain, then close
 prisma/
-  schema.prisma        6 models (users, sessions, allowed_users, review_jobs, reviews, review_chunks) + JobStatus
-  migrations/          0001_init (hand-added CHECK constraints)
+  schema.prisma        5 models (users, sessions, review_jobs, reviews, review_chunks) + JobStatus
+  migrations/          0001_init (hand-added CHECK constraints), 0002_drop_allowed_users (P5-D3)
 prisma.config.ts       Prisma CLI config; loads .env, datasource url from DATABASE_URL
 src/
   common/              logger.ts (pino), time-ago.ts — imports only config from src/
@@ -66,7 +66,7 @@ src/
                        review-jobs.ts (conditional status transitions, lists, health counts), reviews.ts, review-chunks.ts,
                        generated/ (gitignored). JSON columns come back `unknown`; domain parses them.
   domain/              shared by server and browser; *.server.ts marks the server-only modules (see Layering)
-    auth/              github-profile.server.ts (GET /user, Zod), sign-in.server.ts (upsert user), allowlist.server.ts (isAllowed, fails closed)
+    auth/              github-profile.server.ts (GET /user, Zod), sign-in.server.ts (upsert user)
     github/            all *.server.ts on one @octokit/core instance per request: client (createOctokit, GithubAuthError,
                        classifyGithubError, toResult), repos, pulls, branches (GraphQL), resolve-target (re-pin SHAs),
                        pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getPullReviewers, getCommitsAhead); types.ts shared
@@ -84,14 +84,14 @@ src/
                        jobs (read side: parseJob/parseReview, getJob (non-UUID → null), listJobs, getReview, listChunksAfter,
                        listRecentActivity, toJobView);
                        shared: errors.ts (JobInFlightError, …), status.ts (JOB_STATUSES), job-view.ts (JobView, jobHref), activity.ts
-  jobs/                cli.ts (`npm run job -- <name>`), seed-allowlist.ts, recover-jobs.ts, errors.ts
+  jobs/                cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.ts
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
   web/
     root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary, middleware: [sessionMiddleware]
     entry.server.tsx   RR server entry (`reveal` default, logger instead of console); awaits bootJobs() before the first request
     routes.ts          route table — every file in routes/ must be listed here
-    routes/            _gated.tsx (layout: allowlistGate) → _shell.tsx (layout: Topbar + JobNotifications; loader {user, serverNow, polling})
+    routes/            _gated.tsx (layout: requireUser) → _shell.tsx (layout: Topbar + JobNotifications; loader {user, serverNow, polling})
                          → home.tsx (index: hero + ReviewComposer + Recent; action POST /?index → startReview), history.tsx (?status=),
                            jobs.$id.tsx (live view; loader job + chunks, 404 → own ErrorBoundary; action intent=cancel|rerun),
                            reviews.$id.tsx (reader; loader: done job + review + GitHub fan-out via lib/review-metadata.server,
@@ -101,10 +101,10 @@ src/
                          (resource routes the composer loads via useFetcher; bodies typed in lib/github-api.ts, failures
                          returned with a status, rejected token → /relink), api.jobs.$id.ts (?after=<seq> → {job, chunks},
                          polled by the live view), api.me.jobs.terminal.ts (?since=<iso> → {now, jobs}: the viewer's jobs
-                         that turned terminal since then, polled by the notifier);  public: login.tsx, denied.tsx,
+                         that turned terminal since then, polled by the notifier);  public: login.tsx,
                        auth.github.ts, auth.github.callback.ts, auth.logout.ts, health.ts.
     auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
-                       context (userContext/sessionContext), session-middleware, gate-middleware (allowlistGate, signOutHeaders)
+                       context (userContext/sessionContext), session-middleware, gate-middleware (requireUser, signOutHeaders)
     components/        brand-mark, color-scheme-toggle, app-error (generic error page, used by root + route boundaries);
                        topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
                        jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
@@ -163,11 +163,13 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
 - Root middleware (`sessionMiddleware`) loads the session + user into route
   context on every request and rolls the session (row + cookie) once less than
   half its lifetime remains. It never redirects.
-- Protected pages nest under `routes/_gated.tsx`, whose `allowlistGate`
-  middleware requires a user whose login is in `allowed_users`; otherwise it
-  deletes the session, clears both cookies and redirects to `/login` (no
-  session) or `/denied` (not allowed). Public routes live outside the layout.
-  Gated pages must export a loader so the chain runs.
+- Protected pages nest under `routes/_gated.tsx`, whose `requireUser`
+  middleware requires a signed-in user; anyone else has their session deleted
+  and both cookies cleared, and is redirected to `/login`. Public routes live
+  outside the layout. Gated pages must export a loader so the chain runs.
+  **Signing in with GitHub is the only condition for access** — the
+  `allowed_users` allowlist and the `/denied` page were removed in Phase 5
+  (P5-D3), so whatever fronts the deployment is the access control.
 - `POST /auth/logout` uses the same `signOutHeaders`. `/relink` (gated)
   re-runs the OAuth flow when the token cookie is missing/rejected.
 - Repositories PB rules used to enforce (owner-only cancel, authed reads) are
@@ -244,20 +246,20 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
 
 ## Scripts
 
-| Script                                     | What                                                                 |
-| ------------------------------------------ | -------------------------------------------------------------------- |
-| `npm run dev`                              | Express + Vite dev server on `localhost:3000`                        |
-| `npm run build` / `npm start`              | `react-router build` / serve `build/` in production mode             |
-| `npm run typecheck`                        | `react-router typegen && tsc --noEmit`                               |
-| `npm test` / `test:watch`                  | Vitest `unit` + `web` + `guardrails`                                 |
-| `npm run test:integration`                 | Vitest `integration` (needs Postgres; skips when unreachable)        |
-| `npm run lint` / `format` / `format:check` | oxlint / Prettier                                                    |
-| `npm run check`                            | **The gate**: typecheck + build + test + lint + format:check         |
-| `npm run check:all`                        | `check` + integration                                                |
-| `npm run db:migrate`                       | `prisma migrate dev && prisma generate` (local schema changes)       |
-| `npm run db:deploy` / `db:reset`           | apply migrations (CI/containers) / drop + reapply + generate         |
-| `npm run db:generate` / `db:studio`        | regenerate client (also `postinstall`) / Prisma Studio               |
-| `npm run job -- <name> [args]`             | one-shot jobs, natively: `seed-allowlist <login...>`, `recover-jobs` |
+| Script                                     | What                                                           |
+| ------------------------------------------ | -------------------------------------------------------------- |
+| `npm run dev`                              | Express + Vite dev server on `localhost:3000`                  |
+| `npm run build` / `npm start`              | `react-router build` / serve `build/` in production mode       |
+| `npm run typecheck`                        | `react-router typegen && tsc --noEmit`                         |
+| `npm test` / `test:watch`                  | Vitest `unit` + `web` + `guardrails`                           |
+| `npm run test:integration`                 | Vitest `integration` (needs Postgres; skips when unreachable)  |
+| `npm run lint` / `format` / `format:check` | oxlint / Prettier                                              |
+| `npm run check`                            | **The gate**: typecheck + build + test + lint + format:check   |
+| `npm run check:all`                        | `check` + integration                                          |
+| `npm run db:migrate`                       | `prisma migrate dev && prisma generate` (local schema changes) |
+| `npm run db:deploy` / `db:reset`           | apply migrations (CI/containers) / drop + reapply + generate   |
+| `npm run db:generate` / `db:studio`        | regenerate client (also `postinstall`) / Prisma Studio         |
+| `npm run job -- <name> [args]`             | one-shot jobs, natively: `recover-jobs`                        |
 
 ## Environment
 

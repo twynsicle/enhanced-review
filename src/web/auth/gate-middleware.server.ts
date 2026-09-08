@@ -1,6 +1,4 @@
 import { redirect, type MiddlewareFunction, type RouterContextProvider } from 'react-router';
-import { logger } from '@/common/logger';
-import { isAllowed } from '@/domain/auth/allowlist.server';
 import { sessionContext, userContext } from './context.server';
 import { clearGithubTokenHeader } from './cookies.server';
 import { destroySession } from './session.server';
@@ -23,21 +21,17 @@ export async function signOutHeaders(context: Readonly<RouterContextProvider>): 
 
 /**
  * Layout middleware for every protected route (phase-2-plan P2-D5): requires
- * a signed-in user whose GitHub login is in `allowed_users`. Anything else is
- * signed out and redirected — `/login` when there was no session, `/denied`
- * when there was one but the login is not allowed (same UX as before).
+ * a signed-in user. Anyone else is signed out — the session row and both
+ * cookies go — and redirected to `/login`.
+ *
+ * Until phase-5-plan P5-D3 this also required the user's GitHub login to be
+ * in `allowed_users` and sent everyone else to `/denied`. That table and the
+ * page are gone: signing in with GitHub is the only condition now.
  */
-export const allowlistGate: MiddlewareFunction<Response> = async ({ context }, next) => {
+export const requireUser: MiddlewareFunction<Response> = async ({ context }, next) => {
   const user = context.get(userContext);
   if (!user) {
     return redirect('/login', { headers: await signOutHeaders(context) });
-  }
-  if (!(await isAllowed(user.githubLogin))) {
-    logger.warn(
-      { user_id: user.id, github_login: user.githubLogin },
-      'denied: github login not in allowed_users',
-    );
-    return redirect('/denied', { headers: await signOutHeaders(context) });
   }
   return next();
 };

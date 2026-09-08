@@ -3,7 +3,6 @@ import { logger } from '../common/logger.ts';
 import { disconnectDb } from '../db/client.ts';
 import { UsageError } from './errors.ts';
 import { recoverJobs } from './recover-jobs.ts';
-import { seedAllowlist } from './seed-allowlist.ts';
 
 /**
  * One-shot job runner: `npm run job -- <name> [args...]`.
@@ -15,7 +14,6 @@ import { seedAllowlist } from './seed-allowlist.ts';
 type JobHandler = (args: string[]) => Promise<unknown>;
 
 const JOBS: Record<string, JobHandler> = {
-  'seed-allowlist': seedAllowlist,
   'recover-jobs': recoverJobs,
 };
 

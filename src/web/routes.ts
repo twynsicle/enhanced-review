@@ -5,7 +5,7 @@ import { index, layout, route, type RouteConfig } from '@react-router/dev/routes
 // docs/rr-migration/00-overview.md §4 "Routes" for the full target list.
 //
 // Protected routes nest under the pathless `_gated` layout, whose middleware
-// enforces sign-in + allowlist (phase-2-plan P2-D5). Pages with chrome nest
+// requires a signed-in user (phase-2-plan P2-D5). Pages with chrome nest
 // one level deeper under `_shell` (phase-4-plan P4-D5); `/relink` and the
 // resource routes are gated but chrome-less. Everything outside is public.
 export default [
@@ -25,7 +25,6 @@ export default [
     route('api/jobs/:id', 'routes/api.jobs.$id.ts'),
   ]),
   route('login', 'routes/login.tsx'),
-  route('denied', 'routes/denied.tsx'),
   route('auth/github', 'routes/auth.github.ts'),
   route('auth/github/callback', 'routes/auth.github.callback.ts'),
   route('auth/logout', 'routes/auth.logout.ts'),

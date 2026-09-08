@@ -55,13 +55,6 @@ model Session {
 }
 
 /// Invite-only allowlist of GitHub logins. Managed by the seed-allowlist job.
-model AllowedUser {
-  id          String   @id @default(uuid(7)) @db.Uuid
-  githubLogin String   @unique @map("github_login") @db.VarChar(100)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-
-  @@map("allowed_users")
-}
 
 enum JobStatus {
   pending

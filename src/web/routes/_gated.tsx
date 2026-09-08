@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router';
-import { allowlistGate } from '@/web/auth/gate-middleware.server';
+import { requireUser } from '@/web/auth/gate-middleware.server';
 import type { Route } from './+types/_gated';
 
 /**
@@ -7,7 +7,7 @@ import type { Route } from './+types/_gated';
  * loader/action; children must export a loader so the middleware chain runs
  * for their document requests (phase-2-plan P2-D5).
  */
-export const middleware: Route.MiddlewareFunction[] = [allowlistGate];
+export const middleware: Route.MiddlewareFunction[] = [requireUser];
 
 export default function Gated() {
   return <Outlet />;
