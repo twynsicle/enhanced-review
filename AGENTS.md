@@ -4,9 +4,10 @@
 > rebuilt phase by phase on `migrate-react-router`. The plan of record is
 > `docs/rr-migration/00-overview.md` — read it before anything else. Phase
 > plans (`phase-N-plan.md`) say what each phase built and what it deviated on.
-> Phases 0–4 are done: the app runs end to end again (sign-in, composer,
-> live view, reader, notifier) on the new stack; Phase 5 (jobs bundle +
-> container) is next. `README.md`, `docs/RUNNING.md` and `docs/OPERATIONS.md`
+> Phases 0–5 are done: the app runs end to end on the new stack (sign-in,
+> composer, live view, reader, notifier) and ships as one container that
+> migrates itself at start-up; Phase 6 (clean-out + docs) is next.
+> `README.md`, `docs/RUNNING.md` and `docs/OPERATIONS.md`
 > still describe the old Next.js + PocketBase app and are rewritten in Phase 6
 > (RUNNING.md has an interim block for running the current state).
 
@@ -50,7 +51,7 @@ before writing code against them; heed deprecation notices.
 - Vitest 4 projects: `unit` (node), `web` (happy-dom), `guardrails`
   (repo-reading convention tests), `integration` (real Postgres, self-skips).
 
-## Repo layout (Phase 4 state)
+## Repo layout (Phase 5 state)
 
 ```
 server/index.ts        Express bootstrap: dev = Vite middleware, prod = build/; SIGTERM/SIGINT → abortAll('shutdown') + drain, then close
@@ -132,9 +133,10 @@ src/
     test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
 public/                brand-mark.png, favicon.ico
 docs/rr-migration/     plan of record
-Dockerfile             node:24-alpine multi-stage; build stage runs prisma generate; runtime uses --ignore-scripts
-docker-compose.yml     postgres:18-alpine on 127.0.0.1:5432 + `web` (proves the image)
-.github/workflows/ci.yml  postgres service → npm ci → db:deploy → npm run check:all
+Dockerfile             node:24-alpine multi-stage; build stage runs prisma generate; runtime ships source + prod deps
+entrypoint.sh          the image's CMD: prisma migrate deploy → recover-jobs → exec node server/index.ts
+docker-compose.yml     postgres:18-alpine on 127.0.0.1:5432 + `web` (the app as it ships, on :3000)
+.github/workflows/ci.yml  check: postgres → npm ci → db:deploy → check:all; image: docker build → boot → /api/health
 ```
 
 Layering (enforced by `src/guardrails`): `web → domain, db, common,
@@ -260,6 +262,29 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
 | `npm run db:deploy` / `db:reset`           | apply migrations (CI/containers) / drop + reapply + generate   |
 | `npm run db:generate` / `db:studio`        | regenerate client (also `postinstall`) / Prisma Studio         |
 | `npm run job -- <name> [args]`             | one-shot jobs, natively: `recover-jobs`                        |
+
+## Container
+
+One image, one process (00-overview D4). `docker compose up -d postgres` is
+all day-to-day dev needs; `docker compose up --build` runs the app as it
+ships on `:3000`. `entrypoint.sh` is the image's **CMD**, not its entrypoint,
+so `docker run <image> node src/jobs/cli.ts <job>` replaces the start-up
+chain instead of appending to it.
+
+The runtime stage ships **source, not a bundle** (phase-5-plan P5-D1): the
+server and the jobs CLI are TypeScript that Node runs directly, so everything
+they import has to be copied into the image — `server/`,
+`src/{config,common,db,domain,jobs}/`, `prisma/`. Adding an import that
+reaches a directory not on that list breaks the container without breaking
+`npm run dev`, which is exactly how the Phase 1 image came to build and not
+boot.
+
+The opposite trap applies to packages. `@tabler/icons-react`,
+`@monaco-editor/react`, `monaco-editor` and `@fontsource/*` are
+**devDependencies** bundled into `build/server` by `ssr.noExternal`
+(phase-5-plan P5-D7), so the image never installs them. Importing one from a
+module that runs on the server at runtime, rather than through the bundle,
+fails only in the container.
 
 ## Environment
 

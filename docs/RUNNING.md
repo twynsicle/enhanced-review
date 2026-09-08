@@ -22,6 +22,9 @@
 >    GitHub; pick a repository and a PR or branch on the home page and start a
 >    review. `GET /api/health` reports `db: "ok"`.
 >
+> Or run the whole thing containerised: `docker compose up --build` serves it
+> on <http://localhost:3000> and migrates the database on the way up.
+>
 > Reset the database with `npm run db:reset`. Integration tests:
 > `npm run test:integration` (skips when Postgres is down). The runner
 > defaults to `REVIEW_EXECUTOR=stub` in `.env.example` (canned review, no

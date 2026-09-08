@@ -1,6 +1,6 @@
 # 00 — React Router migration overview (plan of plans)
 
-**Status:** executing — Phases 0–4 complete, Phase 5 next. **Branch:** `migrate-react-router`, cut from `main` (`d63b87c`).
+**Status:** executing — Phases 0–5 complete, Phase 6 next. **Branch:** `migrate-react-router`, cut from `main` (`d63b87c`).
 **Audience:** the maintainer and any agent picking this up cold.
 
 This is the index document for re-platforming `enhanced-review` from

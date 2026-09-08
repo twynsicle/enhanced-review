@@ -174,3 +174,77 @@ Each commit is green on `npm run check`; the container commits also run
 ---
 
 ## Deviations
+
+**Commit 1 (allowlist removal)**
+
+- Removing the feature was the user's answer inside this phase's question
+  round, so it landed here rather than in Phase 6. The `seed-allowlist` job
+  and the `SEED_GITHUB_LOGIN` idea both disappeared before the entrypoint was
+  written, which is why P5-D5's chain is migrate → recover → web.
+- `prisma migrate dev` would have prompted about dropping a non-empty table,
+  which a non-interactive shell cannot answer, so `0002_drop_allowed_users`
+  was hand-written (as `0001_init`'s CHECK constraints were) and applied with
+  `migrate deploy`. `migrate status` reports no drift afterwards.
+- The PocketBase-era `README.md`, `docs/README.md` and `docs/OPERATIONS.md`
+  still describe an invite-only beta. They are rewritten wholesale in Phase 6
+  and were left alone rather than half-edited; only the migration docs and
+  AGENTS.md were updated.
+- `screenshots/tools/dev-session.ts` (gitignored) also had to drop its
+  `allowedUser` calls before it could mint a session again.
+
+**Commit 2 (runtime image)**
+
+- `--ignore-scripts` on the runtime install left the Prisma CLI with no schema
+  engine, and it cannot fetch one at start-up because the image's `node` user
+  owns nothing under `/app` ("Can't write to /app/node_modules/@prisma/
+  engines"). That stage now runs lifecycle scripts, which means `prisma/` and
+  `prisma.config.ts` are copied before `npm ci`; the client written by the
+  resulting `postinstall` is replaced by the build stage's copy.
+- The §2 risk did not materialise: the CLI loads `prisma.config.ts` inside the
+  image ("Loaded Prisma config from prisma.config.ts"), so no `--schema`
+  fallback was needed.
+
+**Commit 3 (slimming)**
+
+- Moving `monaco-editor` alone changed nothing: it is a **non-optional peer**
+  of `@monaco-editor/react`, so npm kept installing it for the production
+  tree. The wrapper had to move to `devDependencies` as well, which is what
+  `ssr.noExternal` made possible.
+- `npm ci --libc=musl` did not stop npm installing the glibc build of the
+  Claude SDK's binary package; npm filtered by `os` and `cpu` (no darwin,
+  win32 or arm64 present) but not by `libc`. It is removed with `rm -rf`
+  instead, **in the same layer as the install** — a later `rm` left the image
+  the same size, because the files stay in the earlier layer.
+- Removing it is safe on this base image and was verified rather than
+  assumed: with the glibc package deleted, the musl `claude` binary still
+  reports its version, and the SDK resolves the musl variant on a musl host.
+- Measured: image 2.45 GB → 1.78 GB, `node_modules` 1.1 GB → 705 MB. What is
+  left above 25 MB, with reasons: `@anthropic-ai` 237 MB (the CLI the Claude
+  executor spawns), `@prisma` 167 MB (client + migrate engines), `prisma`
+  40 MB (the CLI, P5-D2), `effect` 34 MB and `@typescript` 27 MB (both pulled
+  by the Prisma CLI's config loader), `@mantine` 32 MB (server-rendered).
+
+**Commit 4 (compose)**
+
+- `init: true` means `docker-init` is PID 1 and node is not, which reads
+  against P5-D5's wording. Signals still arrive — `compose stop` logs
+  "shutting down" and exits 0 — and the init process is what reaps the git
+  and SDK children the review runner leaves behind.
+- The local acceptance run used an uncommitted port override (`3100:3000`)
+  and a separate compose project, because the maintainer's own dev server
+  holds `:3000`. The clean-database path was verified on that separate
+  project with a fresh volume: both migrations applied, then healthy.
+
+**Commit 5 (CI)**
+
+- The workflow could not be executed here. Its docker steps are the ones
+  rehearsed locally in commits 2–4, except that the runner uses
+  `--network host` to reach the Postgres service where the local rehearsal
+  used a compose network.
+
+**Still not verified**
+
+- A real `claude` executor run inside the container: it needs
+  `ANTHROPIC_API_KEY`, and this is carried forward from Phases 3 and 4. The
+  image contains the SDK's musl binary and `git`, and the stub executor runs
+  end to end in the container.
