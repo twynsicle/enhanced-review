@@ -14,6 +14,7 @@ export default [
       index('routes/home.tsx'),
       route('history', 'routes/history.tsx'),
       route('jobs/:id', 'routes/jobs.$id.tsx'),
+      route('reviews/:id', 'routes/reviews.$id.tsx'),
     ]),
     route('relink', 'routes/relink.tsx'),
     route('api/github/repos', 'routes/api.github.repos.ts'),

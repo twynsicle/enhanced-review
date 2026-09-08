@@ -338,3 +338,40 @@ Each commit is green on `npm run check`; integration stays green.
   `.claude/launch.json`) because the long-running port-3000 server did not
   reload its route manifest for the new route files; its boot recovery
   errored the seeded in-flight jobs once, as designed (`bootJobs`).
+
+**Commit 4 (reader)**
+
+- The view-time GitHub fan-out lives in `lib/review-metadata.server.ts`
+  (`loadReviewMetadata`), not inline in the loader, so it is unit-tested
+  against mocked domain calls. It reads the token with `readGithubToken`
+  rather than `requireGithubToken`: the reader must render without a token
+  (and when GitHub rejects one), as on `main`. PR metadata and reviewers are
+  fetched in parallel instead of sequentially.
+- `reviews.$id.tsx` exports `shouldRevalidate` returning false for a
+  search-param-only navigation. `?ch=` / `?file=` are client-side section
+  switches over data the page already holds; without it every sidebar click
+  re-ran the loader and its GitHub calls (the Next page did the same, as an
+  RSC refetch). The keyboard hook's heading focus retries for a few frames
+  because the new heading mounts on that navigation.
+- `LeadMarkdown` drops the legacy `size` prop: the inner markdown `text-sm`
+  always won, so `main` rendered leads at 14px serif and that is what the
+  port matches (the 18px design intent never reached the screen).
+- `InlineDiffChunk` is a placeholder that lists the selected hunk ranges
+  (`formatSelectedHunkLabel`); commit 5 replaces its body with the Monaco
+  diff. `FileView` and `ChapterCard` therefore drop the `owner/repo/baseRef/
+headRef` props until then.
+- `JobNotFound` moved to `components/jobs/job-not-found.tsx` so both route
+  boundaries import a component rather than one route importing another
+  route module. The 404 page renders inside the shell (topbar visible) on
+  both routes, where `main` rendered it bare.
+- `ChapterSidebar` keeps the legacy props (`reviewTitle` is accepted, unused)
+  and its four ported tests; the unused `sublabel` plumbing was not ported.
+  The sidebar and reader grid use CSS Modules for the active-row wash, the
+  hover states and the 64em breakpoint (Tailwind's `lg`), which Mantine's
+  breakpoints do not match.
+- Verification could not exercise the GitHub-backed sections (branch refs
+  line, reviewers, author description, staleness banner): the local browser
+  carries a placeholder token, so the fan-out degrades to the job byline.
+  Those paths are covered by `review-metadata.server.test.ts` and the
+  markdown/people components' unit tests. The truncation banner was verified
+  with a seeded `diff_truncated` review.

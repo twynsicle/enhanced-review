@@ -1,0 +1,214 @@
+/*
+ * Reader navigation. The chapter list and file tree are buttons with
+ * active/hover states and an active-row wash that Mantine props cannot
+ * express, so they live here; layout and type come from Mantine.
+ */
+.nav {
+  position: sticky;
+  top: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: calc(100vh - 6rem);
+  padding: 4px 12px 0 0;
+  overflow: hidden auto;
+}
+
+.riskCard {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--er-border);
+  background: color-mix(in oklab, var(--er-card) 70%, transparent);
+  text-align: left;
+  transition: background-color 150ms;
+}
+
+.riskCard:hover {
+  background: color-mix(in oklab, var(--er-muted) 40%, transparent);
+}
+
+.riskCard[data-active] {
+  border-color: color-mix(in oklab, var(--er-before) 35%, transparent);
+  background: var(--er-before-soft);
+}
+
+.riskCard:hover .chevron {
+  transform: translateX(2px);
+}
+
+.chevron {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--er-subtle);
+  transition: transform 150ms;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  gap: 10px;
+  text-align: left;
+}
+
+.index {
+  flex-shrink: 0;
+  padding-top: 4px;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--er-subtle);
+}
+
+.label {
+  display: block;
+  min-width: 0;
+  padding-left: 8px;
+  border-left: 2px solid transparent;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--er-muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item[data-active] .index {
+  color: var(--er-before);
+}
+
+.item[data-active] .label {
+  border-left-color: var(--er-before);
+  font-weight: 600;
+  color: var(--er-foreground);
+}
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--er-border);
+}
+
+.fileList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fileRow {
+  position: relative;
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  padding: 6px;
+  overflow: hidden;
+  border-radius: 6px;
+  color: var(--er-muted-foreground);
+  text-align: left;
+  transition: background-color 150ms;
+}
+
+.fileRow:hover {
+  background: color-mix(in oklab, var(--er-muted) 50%, transparent);
+}
+
+.fileRow[data-active]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--er-before) 22%, transparent),
+    color-mix(in oklab, var(--er-before) 6%, transparent) 8%,
+    transparent 22%
+  );
+}
+
+.fileRow > * {
+  position: relative;
+}
+
+.status {
+  margin-top: 2px;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 10px;
+}
+
+.status[data-status='added'],
+.status[data-status='copied'] {
+  color: var(--er-after);
+}
+
+.status[data-status='removed'] {
+  color: var(--er-risk);
+}
+
+.status[data-status='renamed'] {
+  color: var(--er-suggestion);
+}
+
+.status[data-status='modified'],
+.status[data-status='unchanged'] {
+  color: var(--er-before);
+}
+
+.basename,
+.dirname {
+  display: block;
+  overflow: hidden;
+  font-family: var(--mantine-font-family-monospace);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.basename {
+  font-size: 12px;
+  color: var(--er-foreground);
+}
+
+.dirname {
+  font-size: 10.5px;
+  color: var(--er-subtle);
+}
+
+.stats {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 10.5px;
+  color: var(--er-subtle);
+  white-space: nowrap;
+}
+
+.fileRow .stats {
+  margin-top: 2px;
+}
+
+.add {
+  color: var(--er-add);
+}
+
+.del {
+  color: var(--er-del);
+}

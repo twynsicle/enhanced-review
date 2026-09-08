@@ -96,26 +96,34 @@ src/
     routes.ts          route table — every file in routes/ must be listed here
     routes/            _gated.tsx (layout: allowlistGate) → _shell.tsx (layout: Topbar; loader {user, serverNow, polling})
                          → home.tsx (index: hero + ReviewComposer + Recent; action POST /?index → startReview), history.tsx (?status=),
-                           jobs.$id.tsx (live view; loader job + chunks, 404 → own ErrorBoundary; action intent=cancel|rerun)
+                           jobs.$id.tsx (live view; loader job + chunks, 404 → own ErrorBoundary; action intent=cancel|rerun),
+                           reviews.$id.tsx (reader; loader: done job + review + GitHub fan-out via lib/review-metadata.server,
+                           not done → /jobs/:id, ?ch=/?file= client-side via shouldRevalidate; action intent=rerun)
                        _gated (chrome-less) → relink.tsx, api.github.repos.ts, api.github.pulls.ts, api.github.branches.ts
                          (resource routes the composer loads via useFetcher; bodies typed in lib/github-api.ts, failures
                          returned with a status, rejected token → /relink), api.jobs.$id.ts (?after=<seq> → {job, chunks},
                          polled by the live view);  public: login.tsx, denied.tsx, auth.github.ts, auth.github.callback.ts,
-                       auth.logout.ts, health.ts.  Phase 4 adds reviews.$id, api/github/file and api/me/jobs/terminal.
+                       auth.logout.ts, health.ts.  Phase 4 still adds api/github/file and api/me/jobs/terminal.
     auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                        context (userContext/sessionContext), session-middleware, gate-middleware (allowlistGate, signOutHeaders)
     components/        brand-mark, color-scheme-toggle, app-error (generic error page, used by root + route boundaries);
                        topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
                        jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                        job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
-                       what-now, rerun-button), history/ (filter-chips, empty-library),
-                       home/ (review-composer, target-combobox, recent-reviews, sparkline), narrative/ (risk-score) —
-                       all browser-safe, styled via token()
+                       what-now, rerun-button, job-not-found (404 page shared with the reader)), history/ (filter-chips,
+                       empty-library), home/ (review-composer, target-combobox, recent-reviews, sparkline),
+                       narrative/ (the reader: chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state),
+                       chapter-sidebar (+ .module.css), chapter-card, summary-card, people-card, file-view, insight-callout,
+                       lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
+                       inline-diff-chunk (hunk-range placeholder until commit 5), review-banners, risk-score,
+                       use-narrative-keyboard) — all browser-safe, styled via token() or a sibling CSS Module
     stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
     theme/             Editorial Iris tokens.ts → theme.ts, css-variables.ts (--er-* vars), color-scheme.ts, theme.css
     lib/               parse.server.ts (Zod parseParams / parseSearchParams / parseFormData), github.server.ts (requireGithubToken,
                        withGithub → /relink, githubFailure), github-api.ts (resource-route body types, GITHUB_ERROR_STATUS),
                        jobs-api.ts (JobPollResponse, mergeChunks), rerun-action.server.ts (shared intent=rerun handler),
+                       review-metadata.server.ts (reader's view-time GitHub fan-out: PR header/reviewers or branch head,
+                       staleness compare; every section degrades on its own, no token → nothing fetched),
                        action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts
     test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
 legacy/                READ-ONLY old code awaiting port; excluded from every tool. Deleted end of Phase 4.

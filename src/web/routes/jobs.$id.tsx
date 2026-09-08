@@ -1,15 +1,15 @@
-import { Anchor, Container, Stack, Text, Title } from '@mantine/core';
-import { data, isRouteErrorResponse, Link, redirect, useRouteLoaderData } from 'react-router';
+import { Container, Stack } from '@mantine/core';
+import { data, isRouteErrorResponse, redirect, useRouteLoaderData } from 'react-router';
 import { z } from 'zod';
 import { cancelJob } from '@/domain/jobs/cancel-job.server';
 import { getJob, listChunksAfter, toJobView } from '@/domain/jobs/jobs.server';
 import { userContext } from '@/web/auth/context.server';
 import { AppError } from '@/web/components/app-error';
 import { JobLiveView } from '@/web/components/jobs/job-live-view';
+import { JobNotFound } from '@/web/components/jobs/job-not-found';
 import { actionError } from '@/web/lib/action-error';
 import { parseFormData, parseParams } from '@/web/lib/parse.server';
 import { rerunAction } from '@/web/lib/rerun-action.server';
-import { token } from '@/web/theme/tokens';
 import type { loader as shellLoader } from './_shell';
 import type { Route } from './+types/jobs.$id';
 
@@ -67,23 +67,4 @@ export default function JobPage({ loaderData }: Route.ComponentProps) {
 export function ErrorBoundary(props: Route.ErrorBoundaryProps) {
   if (isRouteErrorResponse(props.error) && props.error.status === 404) return <JobNotFound />;
   return <AppError error={props.error} />;
-}
-
-export function JobNotFound() {
-  return (
-    <Container component="main" size={576} w="100%" px={24} py={64}>
-      <Stack align="center" gap={24} ta="center">
-        <Title order={1} fz={20} fw={600} ff="text">
-          Review not found
-        </Title>
-        <Text fz="sm" c="dimmed">
-          This review id doesn’t match any job we know about. It may have been deleted, or the link
-          may be wrong.
-        </Text>
-        <Anchor component={Link} to="/history" fz="sm" fw={500} c={token('primary')}>
-          Back to review history →
-        </Anchor>
-      </Stack>
-    </Container>
-  );
 }
