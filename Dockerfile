@@ -4,9 +4,13 @@
 #
 #   build:  docker build -t enhanced-review .
 #   run:    docker run --rm -p 3000:3000 --env-file .env enhanced-review
+#   job:    docker run --rm --env-file .env enhanced-review \
+#             node src/jobs/cli.ts recover-jobs
 #
-# Phase 5 adds entrypoint.sh (migrate → seed → recover → web) and the jobs
-# bundle; this Dockerfile only proves the web service builds and boots.
+# The server and the jobs CLI are TypeScript that Node runs directly (type
+# stripping), so the runtime stage ships source, not a second bundle
+# (phase-5-plan P5-D1). Everything those two entry points import has to be
+# here: missing `src/domain` is what stopped the Phase 1 image from booting.
 
 FROM node:24-alpine AS deps
 WORKDIR /app
@@ -24,14 +28,41 @@ ENV NODE_ENV=production
 WORKDIR /app
 # git: the review runner shallow-clones the target repo (Phase 3).
 RUN apk add --no-cache git
-COPY package.json package-lock.json ./
-# The generated Prisma client is bundled into build/server; the runtime needs
-# only @prisma/client, @prisma/adapter-pg and pg, and never runs generate.
-RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts
+COPY package.json package-lock.json prisma.config.ts ./
+# `prisma migrate deploy` reads the config, the schema and the migration SQL,
+# and they have to be here before the install: unlike the other stages this
+# one runs lifecycle scripts, because Prisma's own install step is what puts
+# the schema engine in node_modules (the CLI cannot fetch it at runtime — the
+# image's node user owns nothing under /app), and the repo's postinstall
+# (`prisma generate`) needs the schema. The client it writes is replaced by
+# the build stage's copy below.
+COPY prisma ./prisma
+# Production dependencies only. `prisma` is one of them (phase-5-plan P5-D2)
+# so entrypoint.sh can apply migrations without a second image.
+RUN npm ci --omit=dev --no-audit --no-fund
+
+# Copied from the build stage rather than the context, so `src/db/generated`
+# (written by `prisma generate`, gitignored and docker-ignored) comes along.
 COPY --from=build /app/build ./build
-COPY server ./server
-COPY src/config ./src/config
-COPY src/common ./src/common
+COPY --from=build /app/server ./server
+COPY --from=build /app/src/config ./src/config
+COPY --from=build /app/src/common ./src/common
+COPY --from=build /app/src/db ./src/db
+COPY --from=build /app/src/domain ./src/domain
+COPY --from=build /app/src/jobs ./src/jobs
+COPY --chmod=755 entrypoint.sh ./entrypoint.sh
+
+# Reported by GET /api/health; CI passes the commit SHA.
+ARG APP_VERSION=""
+ENV APP_VERSION=$APP_VERSION
+
 USER node
 EXPOSE 3000
-CMD ["node", "server/index.ts"]
+
+# Node has fetch built in, so the check needs no extra package in the image.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))"
+
+# CMD, not ENTRYPOINT: `docker run <image> node src/jobs/cli.ts <job>` then
+# replaces the start-up chain with the one-off instead of appending to it.
+CMD ["./entrypoint.sh"]

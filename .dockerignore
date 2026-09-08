@@ -15,3 +15,6 @@ docs
 coverage
 *.md
 src/db/generated
+# Tests never run in the image.
+**/*.test.ts
+**/*.test.tsx
