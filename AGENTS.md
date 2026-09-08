@@ -74,6 +74,13 @@ src/
                        pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getPullReviewers, getCommitsAhead); types.ts shared
     review/            shared: narrative.ts (NarrativeReview Zod schema + types), target.ts (ReviewTarget schema, describeTarget),
                        language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
+      clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
+                       verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists)
+      prompt/          pure: ai-file-filter, diff-hunk-catalog (H0001… ids), narrative-prompt (system + user, truncation),
+                       parse-narrative (lenient sanitising, validated by NarrativeReviewSchema), types.ts (PrData)
+      executor/        types.ts (ReviewExecutor, errors); stub-executor.server.ts (STUB_REVIEW in fragments);
+                       claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist)
+      run.server.ts    runJob(input, deps) → 'done' | 'skipped' | 'aborted' | 'errored'; defaultRunJobDeps(); formatJobError
   jobs/                cli.ts (`npm run job -- <name>`), seed-allowlist.ts, errors.ts
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
