@@ -1,6 +1,6 @@
 import { logger } from '../../common/logger.ts';
 import { upsertUserFromGithub, type UserRow } from '../../db/users.ts';
-import { fetchGithubProfile, type FetchLike } from './github-profile.ts';
+import { fetchGithubProfile, type FetchLike } from './github-profile.server.ts';
 
 /** The user as the web layer sees it: what the topbar and loaders need. */
 export interface SessionUser {

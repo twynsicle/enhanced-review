@@ -62,10 +62,13 @@ prisma/
 prisma.config.ts       Prisma CLI config; loads .env, datasource url from DATABASE_URL
 src/
   common/              logger.ts (pino), time-ago.ts — imports only config from src/
-  config/              env.ts — Zod-parsed process.env, the only process.env reader; load-env.ts — loads .env for native entry points
+  config/              env.ts — Zod-parsed process.env, the only process.env reader; load-env.ts — loads .env for native entry points;
+                       host-env.ts — hostEnv()/pickHostEnv() for code that spawns subprocesses
   db/                  client.ts (PrismaClient singleton, pingDb), users.ts, sessions.ts, allowed-users.ts, generated/ (gitignored)
-  domain/
-    auth/              github-profile.ts (GET /user, Zod), sign-in.ts (upsert user), allowlist.ts (isAllowed, fails closed)
+  domain/              shared by server and browser; *.server.ts marks the server-only modules (see Layering)
+    auth/              github-profile.server.ts (GET /user, Zod), sign-in.server.ts (upsert user), allowlist.server.ts (isAllowed, fails closed)
+    review/            shared: narrative.ts (NarrativeReview Zod schema + types), target.ts (ReviewTarget schema, describeTarget),
+                       language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
   jobs/                cli.ts (`npm run job -- <name>`), seed-allowlist.ts, errors.ts
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
@@ -92,10 +95,16 @@ Layering (enforced by `src/guardrails`): `web → domain, db, common,
 config`; `domain → db, common, config`; `db → common, config`;
 `jobs → domain, db, common, config`; `common → config`; `config` imports
 nothing from `src/`. Only `src/web/` and `server/` may import React or
-`react-router`. Inside `web`, only route modules, `root.tsx`, `entry.server.tsx`
-and `*.server.ts` files may import `domain`, `db`, `config` or the logger —
-everything else in `web` ships to the browser. Only `src/db/` may import
-`@prisma/*` or the generated client (guardrail `prisma-access`).
+`react-router`. `db` and `config` are server-only; `domain` is **shared**
+between server and browser, and a domain module that imports `db`, `config`,
+the logger, a `node:` builtin, a server-only package (`@octokit/*`, the Claude
+SDK, `pg`, `pino`) or another `.server` module must be named `*.server.ts` —
+rule of thumb: name it `.server.ts` unless the browser is meant to import it.
+Inside `web`, only route modules, `root.tsx`, `entry.server.tsx` and
+`*.server.ts` files may import those server-only things; everything else in
+`web` ships to the browser and may import only non-`.server` domain modules
+and `common`. Only `src/db/` may import `@prisma/*` or the generated client
+(guardrail `prisma-access`).
 
 ## How auth works (Phase 2)
 
@@ -125,7 +134,10 @@ everything else in `web` ships to the browser. Only `src/db/` may import
   `src/db`, `src/domain`, `src/jobs` — uses relative imports with explicit
   `.ts` extensions.
 - Server-only modules use the React Router `*.server.ts` filename convention
-  (A12). Domain/db code is server-only by construction.
+  (A12, refined by phase-3-plan P3-D4): `db`/`config` by location, `domain`
+  and `web` by filename.
+- `process.env` is read only in `src/config`. Code that spawns a subprocess
+  gets the environment from `src/config/host-env.ts`.
 - `src/db/client.ts` owns the Prisma lifecycle (globalThis singleton for Vite
   HMR, disconnect on SIGTERM/SIGINT). `server/index.ts` does not import it.
 - Every loader/action parses `params`, search params and form data with Zod
@@ -164,8 +176,11 @@ everything else in `web` ships to the browser. Only `src/db/` may import
 `.env.example` is the canonical list with comments. Required: `DATABASE_URL`,
 `SESSION_SECRET` (≥ 32 chars), `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`,
 `APP_ORIGIN`. Optional: `NODE_ENV`, `PORT`, `APP_VERSION`, `LOG_LEVEL`
-(`silent` allowed), `LOG_PRETTY`. `vitest.config.ts` fills placeholders for the
-required keys so `npm run check` runs without a `.env`.
+(`silent` allowed), `LOG_PRETTY`, and the review runner's `REVIEW_EXECUTOR`
+(`stub | claude`, default `claude`), `REVIEW_MODEL`, `REVIEW_TIMEOUT_MIN`,
+`MAX_JOBS_PER_USER`, `ANTHROPIC_API_KEY`. `vitest.config.ts` fills
+placeholders for the required keys and forces `REVIEW_EXECUTOR=stub` so
+`npm run check` runs without a `.env` and never calls the SDK.
 
 ## Working on Windows
 

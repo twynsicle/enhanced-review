@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchGithubProfile, GithubProfileError } from './github-profile.ts';
+import { fetchGithubProfile, GithubProfileError } from './github-profile.server.ts';
 
 function fakeFetch(status: number, body: unknown) {
   return vi.fn(async () => Response.json(body, { status }));

@@ -1,7 +1,7 @@
 import { Authenticator } from 'remix-auth';
 import { GitHubStrategy } from 'remix-auth-github';
 import { env } from '@/config/env';
-import { signInWithGithubToken, type SessionUser } from '@/domain/auth/sign-in';
+import { signInWithGithubToken, type SessionUser } from '@/domain/auth/sign-in.server';
 import { oauthStateCookie } from './cookies.server';
 
 /**

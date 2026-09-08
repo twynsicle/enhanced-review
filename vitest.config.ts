@@ -29,6 +29,8 @@ const TEST_ENV_DEFAULTS: Record<string, string> = {
   GITHUB_CLIENT_SECRET: 'vitest-client-secret',
   APP_ORIGIN: 'http://localhost:3000',
   LOG_LEVEL: 'silent',
+  // No test may reach the Claude Agent SDK by accident.
+  REVIEW_EXECUTOR: 'stub',
 };
 for (const [key, value] of Object.entries(TEST_ENV_DEFAULTS)) {
   process.env[key] ??= value;

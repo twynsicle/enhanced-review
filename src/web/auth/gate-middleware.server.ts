@@ -1,6 +1,6 @@
 import { redirect, type MiddlewareFunction, type RouterContextProvider } from 'react-router';
 import { logger } from '@/common/logger';
-import { isAllowed } from '@/domain/auth/allowlist';
+import { isAllowed } from '@/domain/auth/allowlist.server';
 import { sessionContext, userContext } from './context.server';
 import { clearGithubTokenHeader } from './cookies.server';
 import { destroySession } from './session.server';

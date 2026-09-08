@@ -11,7 +11,7 @@ const sessions = {
 };
 const allowlist = { isAllowed: vi.fn<(login: string) => Promise<boolean>>() };
 vi.mock('@/db/sessions', () => sessions);
-vi.mock('@/domain/auth/allowlist', () => allowlist);
+vi.mock('@/domain/auth/allowlist.server', () => allowlist);
 
 const { sessionContext, userContext } = await import('./context.server');
 const { allowlistGate } = await import('./gate-middleware.server');

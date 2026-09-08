@@ -2,7 +2,7 @@ import { Alert, Box, Button, Code, Flex, Group, Paper, Stack, Text, Title } from
 import { IconSparkles } from '@tabler/icons-react';
 import { Form, redirect } from 'react-router';
 import { z } from 'zod';
-import { isAllowed } from '@/domain/auth/allowlist';
+import { isAllowed } from '@/domain/auth/allowlist.server';
 import { userContext } from '@/web/auth/context.server';
 import { BrandMark } from '@/web/components/brand-mark';
 import { ColorSchemeToggle } from '@/web/components/color-scheme-toggle';

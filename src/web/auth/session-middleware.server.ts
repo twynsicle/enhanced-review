@@ -1,6 +1,6 @@
 import type { MiddlewareFunction } from 'react-router';
 import { findUserById } from '@/db/users';
-import { toSessionUser } from '@/domain/auth/sign-in';
+import { toSessionUser } from '@/domain/auth/sign-in.server';
 import { sessionContext, userContext } from './context.server';
 import { loadSession, rollSession, shouldRoll } from './session.server';
 

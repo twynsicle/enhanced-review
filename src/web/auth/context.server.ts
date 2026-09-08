@@ -1,5 +1,5 @@
 import { createContext } from 'react-router';
-import type { SessionUser } from '@/domain/auth/sign-in';
+import type { SessionUser } from '@/domain/auth/sign-in.server';
 import type { LoadedSession } from './session.server';
 
 /**

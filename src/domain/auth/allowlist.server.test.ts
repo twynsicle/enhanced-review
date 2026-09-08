@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const isLoginAllowed = vi.fn<(login: string) => Promise<boolean>>();
 vi.mock('../../db/allowed-users.ts', () => ({ isLoginAllowed }));
 
-const { isAllowed } = await import('./allowlist.ts');
+const { isAllowed } = await import('./allowlist.server.ts');
 
 describe('isAllowed', () => {
   beforeEach(() => isLoginAllowed.mockReset());

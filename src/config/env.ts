@@ -28,6 +28,14 @@ const schema = z.object({
   GITHUB_CLIENT_ID: z.string().min(1),
   GITHUB_CLIENT_SECRET: z.string().min(1),
   APP_ORIGIN: z.url(),
+  // Review runner (phase-3-plan P3-D5).
+  REVIEW_EXECUTOR: z.enum(['stub', 'claude']).default('claude'),
+  REVIEW_MODEL: z.string().min(1).default('claude-haiku-4-5'),
+  REVIEW_TIMEOUT_MIN: z.coerce.number().int().min(1).default(15),
+  MAX_JOBS_PER_USER: z.coerce.number().int().min(1).default(1),
+  // Forwarded to the Claude Agent SDK subprocess; the SDK also honours
+  // CLAUDE_CODE_OAUTH_TOKEN, so it is not required even for the claude executor.
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof schema>;
