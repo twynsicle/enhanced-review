@@ -131,11 +131,11 @@ export const darkTokens: TokenMap = {
 };
 
 /**
- * Syntax colours for `highlight.js` output in markdown code fences
- * (phase-4-plan P4-D12): the GitHub light/dark themes' fifteen colours,
- * emitted as `--er-hljs-<name>` per scheme so fenced code follows the
- * colour scheme instead of shipping a vendor stylesheet. The block
- * background comes from the palette, not GitHub's `#0d1117` (P4-D2a).
+ * Syntax colours for `highlight.js` output in markdown code fences: the
+ * GitHub light/dark themes' fifteen colours, emitted as `--er-hljs-<name>`
+ * per scheme so fenced code follows the colour scheme instead of shipping a
+ * vendor stylesheet. The block background comes from the palette, not
+ * GitHub's `#0d1117`.
  */
 export const HLJS_TOKEN_NAMES = [
   'fg',
@@ -213,9 +213,9 @@ export function token(name: TokenName): string {
 export const LAYOUT_WIDTHS = { narrow: '92rem', wide: '110rem' } as const;
 
 /**
- * Corner radius scale. `--radius` was 0.75rem; shadcn derived sm/md/lg/xl from
- * it with 0.6× / 0.8× / 1× / 1.4× multipliers. Mantine gets the same five
- * stops so `radius="lg"` reproduces today's cards.
+ * Corner radius scale. The base radius is 0.75rem, with sm/md/lg/xl derived
+ * from it by 0.6× / 0.8× / 1× / 1.4× multipliers — the same five stops the
+ * previous UI used, so `radius="lg"` reproduces the same cards.
  */
 export const RADII = {
   xs: '0.3rem',

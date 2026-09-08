@@ -1,7 +1,7 @@
 /*
- * The live view's typographic timeline (phase-4-plan P4-D13): the gradient
- * rail and the phase markers are absolutely positioned against the list, and
- * the streaming cursor pulses — none of which a Mantine prop expresses.
+ * The live view's typographic timeline: the gradient rail and the phase
+ * markers are absolutely positioned against the list, and the streaming
+ * cursor pulses — none of which a Mantine prop expresses.
  */
 .list {
   position: relative;

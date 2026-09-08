@@ -34,11 +34,11 @@ const CHIP_STYLE = {
 
 /**
  * Repo → kind → PR/branch picker. The persisted last-target store *is* the
- * selection state (phase-4-plan P4-D10): every pick writes to it and the
- * current selection is derived from it against the lists the three resource
- * routes return, so a refresh restores the composer without effects that set
- * state. Stale picks (a repo or PR that is no longer listed) are cleared from
- * the store when the list arrives, as on `main`.
+ * selection state: every pick writes to it and the current selection is
+ * derived from it against the lists the three resource routes return, so a
+ * refresh restores the composer without effects that set state. Stale picks
+ * (a repo or PR that is no longer listed) are cleared from the store when the
+ * list arrives.
  */
 export function ReviewComposer({ userId }: { userId: string }) {
   const repos = useFetcher<ReposResponse>();

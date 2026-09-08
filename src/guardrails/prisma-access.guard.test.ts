@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { importSpecifiers, listFiles, readSource, report, resolveProjectImport } from './helpers';
 
 /**
- * Guardrail (phase-2-plan P2-D7) — Prisma stays behind `src/db/`. The
- * generated client, `@prisma/client` and the driver adapter are imported only
- * from `src/db/**`; every other area talks to the repository modules there.
+ * Guardrail — Prisma stays behind `src/db/`. The generated client,
+ * `@prisma/client` and the driver adapter are imported only from `src/db/**`;
+ * every other area talks to the repository modules there.
  */
 const PRISMA_PACKAGES = /^@prisma\//;
 

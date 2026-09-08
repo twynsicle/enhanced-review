@@ -19,12 +19,6 @@
 *.tsbuildinfo
 npm-debug.log*
 
-# PocketBase-era local state. Kept on disk until the Monaco diff baseline is
-# captured against `main` (docs/rr-migration/phase-1-plan.md, P1-D7); these
-# two lines go in Phase 6.
-/tools/pocketbase/
-/pb_data/
-
 # claude code (user-local permission overrides; project-shared settings.json is fine)
 .claude/settings.local.json
 

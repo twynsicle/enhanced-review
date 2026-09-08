@@ -3,7 +3,7 @@ import { persist, type PersistStorage } from 'zustand/middleware';
 import { LAYOUT_WIDTHS } from '@/web/theme/tokens';
 
 /**
- * Narrow ⇄ wide page width (phase-4-plan P4-D10). Persisted under the same
+ * Narrow ⇄ wide page width. Persisted under the same
  * `er-layout` key and raw `narrow | wide` value the old app used, so the
  * pre-paint script in `root.tsx` can read it without parsing JSON. The store
  * skips automatic hydration: the server and the hydrating render both see

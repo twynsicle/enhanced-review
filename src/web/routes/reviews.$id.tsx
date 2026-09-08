@@ -36,11 +36,11 @@ function parseActiveId(raw: string | undefined, chapters: NarrativeReview['chapt
 }
 
 /**
- * `/reviews/:id` — the rendered reader for a `done` job (`:id` is the job
- * id, so the live view's hand-off keeps its link). Unfinished jobs, and the
+ * `/reviews/:id` — the rendered reader for a `done` job (`:id` is the job id,
+ * so the live view's hand-off keeps its link). Unfinished jobs, and the
  * impossible done-without-review case, go back to `/jobs/:id`. GitHub is
  * consulted with whatever token the viewer has; without one, or when GitHub
- * refuses, the page still renders from the stored review (phase-4-plan §3).
+ * refuses, the page still renders from the stored review.
  */
 export async function loader({ params, request }: Route.LoaderArgs) {
   const { id } = parseParams(ParamsSchema, params);

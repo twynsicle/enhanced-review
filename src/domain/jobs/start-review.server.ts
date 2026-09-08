@@ -24,8 +24,8 @@ import { armTimeout as defaultArmTimeout } from './timeout.server.ts';
  *   launch: register controller, arm timeout, run fire-and-forget
  *
  * A rerun mirrors the source job's target but is owned by the viewer and
- * pinned to the *current* head (phase-3-plan lifecycle). The GitHub token
- * arrives from the caller's cookie and goes no further than the runner.
+ * pinned to the *current* head. The GitHub token arrives from the caller's
+ * cookie and goes no further than the runner.
  */
 export interface StartReviewInput {
   userId: string;

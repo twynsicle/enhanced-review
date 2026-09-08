@@ -17,9 +17,9 @@ import { runJob, type RunJobDeps } from './run.server.ts';
 import type { ReviewTarget } from './target.ts';
 
 /**
- * The stub review end to end (phase-3-plan P3-D10): a real local git
- * repository stands in for GitHub via a `file://` clone URL, the stub
- * executor stands in for the model, and Postgres is real.
+ * The stub review end to end: a real local git repository stands in for
+ * GitHub via a `file://` clone URL, the stub executor stands in for the
+ * model, and Postgres is real.
  */
 interface Fixture {
   root: string;

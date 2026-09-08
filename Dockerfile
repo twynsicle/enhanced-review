@@ -8,9 +8,9 @@
 #             node src/jobs/cli.ts recover-jobs
 #
 # The server and the jobs CLI are TypeScript that Node runs directly (type
-# stripping), so the runtime stage ships source, not a second bundle
-# (phase-5-plan P5-D1). Everything those two entry points import has to be
-# here: missing `src/domain` is what stopped the Phase 1 image from booting.
+# stripping), so the runtime stage ships source, not a second bundle.
+# Everything those two entry points import has to be here: a missing
+# `src/domain` is what stopped an earlier image from booting.
 
 FROM node:24-alpine AS deps
 WORKDIR /app
@@ -26,7 +26,7 @@ RUN npx prisma generate && npm run build
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
-# git: the review runner shallow-clones the target repo (Phase 3).
+# git: the review runner shallow-clones the target repo.
 RUN apk add --no-cache git
 COPY package.json package-lock.json prisma.config.ts ./
 # `prisma migrate deploy` reads the config, the schema and the migration SQL,
@@ -37,8 +37,8 @@ COPY package.json package-lock.json prisma.config.ts ./
 # (`prisma generate`) needs the schema. The client it writes is replaced by
 # the build stage's copy below.
 COPY prisma ./prisma
-# Production dependencies only. `prisma` is one of them (phase-5-plan P5-D2)
-# so entrypoint.sh can apply migrations without a second image.
+# Production dependencies only. `prisma` is one of them so entrypoint.sh can
+# apply migrations without a second image.
 #
 # The prune shares this layer because a later `rm` would leave the files in
 # the earlier one: npm filters the Claude SDK's optional binary packages by os

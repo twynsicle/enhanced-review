@@ -18,7 +18,7 @@ export interface CloneInput {
   jobId: string;
   /** GitHub token; sent as a basic-auth extraheader scoped to github.com. */
   token: string;
-  /** Where to fetch from (P3-D10: injected so tests can use `file://`). */
+  /** Where to fetch from (injected so tests can use `file://`). */
   cloneUrl: string;
   /** The ref to fetch for the head: `pull/N/head` or a branch name. */
   headRef: string;

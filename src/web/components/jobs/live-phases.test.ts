@@ -40,7 +40,7 @@ describe('derivePhases', () => {
       snapshot: { titles: ['Intro', 'Auth'], inProgressTitle: 'Tes' },
     });
     expect(states(phases)).toEqual(['done', 'done', 'active']);
-    // The in-progress title counts, as on `main`.
+    // The in-progress title counts.
     expect(phases[2]?.detail).toBe('3 chapters so far.');
     expect(phases[2]?.titles).toEqual([
       { state: 'done', text: 'Intro' },
@@ -109,12 +109,13 @@ describe('eyebrow and heading', () => {
 });
 
 describe('whatNowFor', () => {
-  it('matches the legacy prefixes', () => {
+  it('matches the expected prefixes', () => {
     expect(whatNowFor('timeout: exceeded 20m')).toMatch(/time limit/);
     expect(whatNowFor('token rejected')).toMatch(/re-link/);
     expect(whatNowFor('clone: head sha mismatch')).toMatch(/PR moved/);
     expect(whatNowFor('git: exit 128')).toMatch(/Clone failed/);
-    // `git` is tested before `github` on `main`; the port keeps that order.
+    // `git` is tested before `github`, so a `github:` failure still reads as a
+    // clone failure rather than falling through.
     expect(whatNowFor('github: 502')).toMatch(/Clone failed/);
     expect(whatNowFor('stream cap exceeded')).toMatch(/streaming cap/);
     expect(whatNowFor('executor: parse failed')).toMatch(/unparseable/);

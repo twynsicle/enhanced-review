@@ -11,12 +11,12 @@ import { sessionMiddleware } from '@/web/auth/session-middleware.server';
 import { LAYOUT_WIDTH_KEY } from '@/web/stores/layout-width';
 import type { Route } from './+types/root';
 
-// Applies the stored wide layout before first paint (phase-4-plan P4-D10),
-// the way ColorSchemeScript does for the colour scheme. The store itself
-// rehydrates after mount so SSR markup never depends on localStorage.
+// Applies the stored wide layout before first paint, the way
+// ColorSchemeScript does for the colour scheme. The store itself rehydrates
+// after mount so SSR markup never depends on localStorage.
 const LAYOUT_WIDTH_SCRIPT = `(function(){try{if(localStorage.getItem(${JSON.stringify(LAYOUT_WIDTH_KEY)})==='wide'){document.documentElement.style.setProperty('--review-max-width',${JSON.stringify(LAYOUT_WIDTHS.wide)})}}catch(e){}})();`;
 
-// Every request: resolve session + user into route context (phase-2-plan P2-D5).
+// Every request: resolve session + user into route context.
 export const middleware: Route.MiddlewareFunction[] = [sessionMiddleware];
 
 export const links: Route.LinksFunction = () => [{ rel: 'icon', href: '/favicon.ico' }];

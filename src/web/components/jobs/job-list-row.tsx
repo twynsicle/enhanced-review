@@ -16,8 +16,8 @@ function describeStatus(status: JobView['status']): string {
 
 /**
  * One row of a job list: avatar · title + sub-line · risk pill · status.
- * `history` rows title the whole target; `recent` rows title the PR or
- * branch and put the repo in the sub-line (phase-4-plan P4-D15).
+ * `history` rows title the whole target; `recent` rows title the PR or branch
+ * and put the repo in the sub-line.
  */
 export function JobListRow({
   job,

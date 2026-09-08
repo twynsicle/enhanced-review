@@ -13,7 +13,7 @@ import type {
  * the components that `useFetcher().load()` them. Failures are *returned*
  * (with a status) rather than thrown so a rate limit degrades one picker
  * instead of tripping the page's error boundary; a rejected token never gets
- * here — the loader redirects to `/relink` (phase-4-plan P4-D7).
+ * here — the loader redirects to `/relink`.
  */
 export interface GithubFailure {
   ok: false;
@@ -30,9 +30,9 @@ export type BranchesResponse =
   ({ ok: true; fullName: string } & RecentBranchesResult) | GithubFailure;
 
 /**
- * Both sides of one file for the inline diff (phase-4-plan P4-D8). Each side
- * is its own `GithubResult`: a `not-found` on one side is a legitimately
- * added or deleted file, so the route never fails the pair as a whole.
+ * Both sides of one file for the inline diff. Each side is its own
+ * `GithubResult`: a `not-found` on one side is a legitimately added or
+ * deleted file, so the route never fails the pair as a whole.
  */
 export interface FileResponse {
   ok: true;

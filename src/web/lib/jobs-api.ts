@@ -1,9 +1,9 @@
 import type { ChunkView, JobView } from '@/domain/jobs/job-view';
 
 /**
- * Body of `GET /api/jobs/:id?after=<seq>` (00-overview D5): the job row plus
- * the chunks streamed after `after`. The live view polls this with the
- * highest `seq` it has seen; `after=-1` returns every chunk.
+ * Body of `GET /api/jobs/:id?after=<seq>`: the job row plus the chunks
+ * streamed after `after`. The live view polls this with the highest `seq` it
+ * has seen; `after=-1` returns every chunk.
  */
 export interface JobPollResponse {
   job: JobView;
@@ -17,9 +17,9 @@ export function isJobPollResponse(value: unknown): value is JobPollResponse {
 }
 
 /**
- * Body of `GET /api/me/jobs/terminal?since=<iso>` (00-overview D6): the
- * viewer's jobs that reached a terminal status at or after `since`, plus
- * the server clock to use as the next `since`.
+ * Body of `GET /api/me/jobs/terminal?since=<iso>`: the viewer's jobs that
+ * reached a terminal status at or after `since`, plus the server clock to use
+ * as the next `since`.
  */
 export interface TerminalJobsResponse {
   now: string;

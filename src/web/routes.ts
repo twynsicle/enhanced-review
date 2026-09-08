@@ -1,13 +1,12 @@
 import { index, layout, route, type RouteConfig } from '@react-router/dev/routes';
 
 // Every file under src/web/routes/ must appear here (guardrail:
-// routes-registered). Pages and resource routes share this one table; see
-// docs/rr-migration/00-overview.md §4 "Routes" for the full target list.
+// routes-registered). Pages and resource routes share this one table.
 //
 // Protected routes nest under the pathless `_gated` layout, whose middleware
-// requires a signed-in user (phase-2-plan P2-D5). Pages with chrome nest
-// one level deeper under `_shell` (phase-4-plan P4-D5); `/relink` and the
-// resource routes are gated but chrome-less. Everything outside is public.
+// requires a signed-in user. Pages with chrome nest one level deeper under
+// `_shell`; `/relink` and the resource routes are gated but chrome-less.
+// Everything outside is public.
 export default [
   layout('routes/_gated.tsx', [
     layout('routes/_shell.tsx', [

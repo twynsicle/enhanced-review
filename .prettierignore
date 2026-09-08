@@ -4,7 +4,5 @@ build
 coverage
 screenshots
 public
-pb_data
-tools
 package-lock.json
 src/db/generated

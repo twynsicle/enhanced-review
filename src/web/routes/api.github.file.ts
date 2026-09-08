@@ -19,11 +19,11 @@ const isUnauthorized = (result: GithubResult<FileAtRef>) =>
   !result.ok && result.error.kind === 'unauthorized';
 
 /**
- * GET /api/github/file?owner&repo&path&base&head — both blobs of one file
- * for the inline diff, fetched in parallel with the viewer's token
- * (phase-4-plan P4-D8). Per-side failures (`not-found`, `too-large`,
- * `no-access`, …) come back inside the body for the component to fold; a
- * rejected token on either side is the relink redirect (P4-D7).
+ * GET /api/github/file?owner&repo&path&base&head — both blobs of one file for
+ * the inline diff, fetched in parallel with the viewer's token. Per-side
+ * failures (`not-found`, `too-large`, `no-access`, …) come back inside the
+ * body for the component to fold; a rejected token on either side is the
+ * relink redirect.
  */
 export function loader({ request }: Route.LoaderArgs) {
   const { owner, repo, path, base, head } = parseSearchParams(SearchSchema, request);

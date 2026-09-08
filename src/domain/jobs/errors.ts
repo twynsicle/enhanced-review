@@ -1,8 +1,8 @@
 /**
- * Failures the job service reports to its callers. Phase 4 maps them to
- * HTTP: in-flight → 409, not found → 404, head-SHA resolution → 502
- * (a GitHub auth failure is `GithubAuthError` and goes to `/relink`).
- * Shared with the browser only as types; nothing here touches Node.
+ * Failures the job service reports to its callers. The web layer maps them to
+ * HTTP: in-flight → 409, not found → 404, head-SHA resolution → 502 (a GitHub
+ * auth failure is `GithubAuthError` and goes to `/relink`). Shared with the
+ * browser only as types; nothing here touches Node.
  */
 export class JobInFlightError extends Error {
   readonly activeJobId: string;

@@ -48,9 +48,8 @@ export async function loader({ context }: Route.LoaderArgs) {
 }
 
 /**
- * POST / — start a review (phase-4-plan P4-D6). Success redirects to the
- * live view; a job already in flight is a 409 naming it; a rejected GitHub
- * token goes through /relink.
+ * POST / — start a review. Success redirects to the live view; a job already
+ * in flight is a 409 naming it; a rejected GitHub token goes through /relink.
  */
 export async function action({ request, context }: Route.ActionArgs) {
   const user = context.get(userContext);

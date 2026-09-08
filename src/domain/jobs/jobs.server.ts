@@ -80,7 +80,7 @@ export function listRecentActivity(days = 14, now = new Date()): Promise<Date[]>
 
 const iso = (date: Date | null): string | null => (date ? date.toISOString() : null);
 
-/** Browser-facing shape: ISO timestamps instead of `Date`s (phase-4-plan §2). */
+/** Browser-facing shape: ISO timestamps instead of `Date`s. */
 export function toJobView(job: ReviewJob): JobView {
   return {
     id: job.id,

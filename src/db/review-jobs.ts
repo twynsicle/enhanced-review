@@ -2,16 +2,16 @@ import { prisma } from './client.ts';
 import { type JobStatus, type Prisma } from './generated/client.ts';
 
 /**
- * `review_jobs` repository. Status transitions are conditional updates
- * (phase-3-plan P3-D2): each one names the states it may leave from and
- * returns whether a row actually changed, so callers never race each other
- * with read-then-write. JSON columns (`target`) come back untyped — the
- * layering rule keeps db below domain, so `domain/jobs` parses them.
+ * `review_jobs` repository. Status transitions are conditional updates: each
+ * one names the states it may leave from and returns whether a row actually
+ * changed, so callers never race each other with read-then-write. JSON
+ * columns (`target`) come back untyped — the layering rule keeps db below
+ * domain, so `domain/jobs` parses them.
  */
 export interface ReviewJobRecord {
   id: string;
   userId: string;
-  /** Denormalised from `users` at read time (P3-D12). */
+  /** Denormalised from `users` at read time. */
   githubLogin: string;
   target: unknown;
   status: JobStatus;
@@ -80,7 +80,7 @@ export async function findJobById(id: string): Promise<ReviewJobRecord | null> {
 
 /**
  * The user's newest pending-or-running job when they are at the cap, else
- * null. Count-then-act is not atomic; acceptable for the closed beta (P3-D9).
+ * null. Count-then-act is not atomic; acceptable for the closed beta.
  */
 export async function findInFlightJob(userId: string, cap: number): Promise<InFlightJob | null> {
   const rows = await prisma.reviewJob.findMany({

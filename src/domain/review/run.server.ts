@@ -35,14 +35,14 @@ import type { ReviewTarget } from './target.ts';
  * (streaming chunks) → finalizeDone. The caller (`domain/jobs`) owns the
  * AbortController, the timeout and the registry entry; the reason on the
  * signal says who aborted and therefore who already wrote the terminal
- * status (phase-3-plan lifecycle):
+ * status:
  *
  *   'cancel'   the cancel action wrote `cancelled` before signalling
  *   'timeout'  the timeout wrote `error` before signalling
  *   'shutdown' nobody has; the runner writes `error` best-effort
  *
- * Everything with a side effect is injected (P3-D10) so the stub review runs
- * end to end against a local git repository from an integration test.
+ * Everything with a side effect is injected so the stub review runs end to
+ * end against a local git repository from an integration test.
  */
 export interface RunJobInput {
   jobId: string;

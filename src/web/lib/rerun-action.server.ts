@@ -8,9 +8,9 @@ import { relinkRedirect, requireGithubToken } from '@/web/lib/github.server';
 
 /**
  * Shared by the `/jobs/:id` and `/reviews/:id` actions (`intent=rerun`):
- * rerun `sourceJobId` for the viewer and redirect to the new live page.
- * Errors map per phase-4-plan P4-D6. Lives in a `.server` module because a
- * route file's extra exports are shipped to the browser.
+ * rerun `sourceJobId` for the viewer and redirect to the new live page. Lives
+ * in a `.server` module because a route file's extra exports are shipped to
+ * the browser.
  */
 export async function rerunAction(
   request: Request,

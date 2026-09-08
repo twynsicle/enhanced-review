@@ -4,7 +4,7 @@ import { z } from 'zod';
  * What a review is about: a pull request or a branch pair, pinned to SHAs.
  * The picker builds it in the browser, the create action validates it, and
  * `review_jobs.target` stores it verbatim; the repository parses it back
- * through the same schema. Shared by server and browser (P3-D4).
+ * through the same schema. Shared by server and browser.
  *
  * `headSha` / `baseSha` are accepted from the client, but the job service
  * re-resolves them against GitHub before insert, so a stale value is harmless.

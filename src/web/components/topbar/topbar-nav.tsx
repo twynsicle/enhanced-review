@@ -7,7 +7,7 @@ const ITEMS = [
   { label: 'Library', href: '/history', match: (p: string) => p.startsWith('/history') },
 ] as const;
 
-/** Primary nav pills; hidden below the `sm` breakpoint as on `main`. */
+/** Primary nav pills; hidden below the `sm` breakpoint. */
 export function TopbarNav() {
   const { pathname } = useLocation();
   return (

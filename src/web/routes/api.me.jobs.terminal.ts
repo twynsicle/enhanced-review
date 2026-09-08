@@ -9,8 +9,7 @@ import type { Route } from './+types/api.me.jobs.terminal';
 const SearchSchema = z.object({ since: z.iso.datetime({ offset: true }) });
 
 /**
- * GET /api/me/jobs/terminal?since=<iso> — the notifier's poll (00-overview
- * D6): the viewer's jobs that reached `done | error | cancelled` at or after
+ * GET /api/me/jobs/terminal?since=<iso> — the notifier's poll: the viewer's jobs that reached `done | error | cancelled` at or after
  * `since`, plus the server clock for the next call. Only the viewer's own
  * jobs (the user comes from the session, never the query).
  */

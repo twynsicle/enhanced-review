@@ -4,10 +4,10 @@ import { useState, type ReactNode } from 'react';
 import { token } from '@/web/theme/tokens';
 
 /**
- * Generic single-select with the search box inside the dropdown (phase-4-plan
- * P4-D1), on Mantine's Combobox primitive. `items === null` means the list is
- * still loading. Keyboard handling (arrows, Enter, Escape) comes from the
- * primitive; the search input is focused whenever the dropdown opens.
+ * Generic single-select with the search box inside the dropdown, on Mantine's
+ * Combobox primitive. `items === null` means the list is still loading.
+ * Keyboard handling (arrows, Enter, Escape) comes from the primitive; the
+ * search input is focused whenever the dropdown opens.
  */
 export interface TargetComboboxProps<T> {
   items: T[] | null;

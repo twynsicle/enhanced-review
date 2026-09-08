@@ -1,8 +1,8 @@
 #!/bin/sh
 #
-# Container start-up (phase-5-plan P5-D5): bring the database to the current
-# migration, clear jobs orphaned by whatever stopped the last process, then
-# hand the container over to the server.
+# Container start-up: bring the database to the current migration, clear jobs
+# orphaned by whatever stopped the last process, then hand the container over
+# to the server.
 #
 # `set -e` is deliberate: a failed migration must kill the container rather
 # than leave a server running against an out-of-date schema. The last line is

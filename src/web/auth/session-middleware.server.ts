@@ -6,9 +6,9 @@ import { loadSession, rollSession, shouldRoll } from './session.server';
 
 /**
  * Root middleware: resolves the session + user for every request and exposes
- * them via route context. Never redirects — that is the gate's job
- * (phase-2-plan P2-D5). After the response is produced, rolls a session that
- * is past half-life unless something downstream destroyed it.
+ * them via route context. Never redirects — that is the gate's job. After the
+ * response is produced, rolls a session that is past half-life unless
+ * something downstream destroyed it.
  */
 export const sessionMiddleware: MiddlewareFunction<Response> = async (
   { request, context },

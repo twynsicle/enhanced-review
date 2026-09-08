@@ -3,10 +3,10 @@ import type { GitHubStrategy } from 'remix-auth-github';
 import { env } from '@/config/env';
 
 /**
- * The three cookies the auth flow touches (phase-2-plan P2-D3 / P2-D4).
- * All HttpOnly, SameSite=Lax, `Secure` whenever the app is served over https.
- * `er_session` and `gh_access_token` are signed with SESSION_SECRET, so a
- * tampered value parses as null instead of being trusted.
+ * The three cookies the auth flow touches. All HttpOnly, SameSite=Lax,
+ * `Secure` whenever the app is served over https. `er_session` and
+ * `gh_access_token` are signed with SESSION_SECRET, so a tampered value
+ * parses as null instead of being trusted.
  */
 const secure = new URL(env.APP_ORIGIN).protocol === 'https:';
 
@@ -23,7 +23,7 @@ export const sessionCookie = createCookie('er_session', {
   maxAge: SESSION_MAX_AGE_SEC,
 });
 
-/** The GitHub OAuth access token. Never stored anywhere else (00-overview D3). */
+/** The GitHub OAuth access token. Never stored anywhere else. */
 export const githubTokenCookie = createCookie('gh_access_token', {
   httpOnly: true,
   sameSite: 'lax',

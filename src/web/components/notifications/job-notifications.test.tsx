@@ -115,7 +115,7 @@ describe('<JobNotifications />', () => {
 });
 
 describe('describeTransition', () => {
-  it('maps the three terminal statuses to the legacy copy and destinations', () => {
+  it('maps the three terminal statuses to their copy and destinations', () => {
     expect(describeTransition(job())).toEqual({
       title: 'Review ready',
       description: 'acme/widgets PR #7',

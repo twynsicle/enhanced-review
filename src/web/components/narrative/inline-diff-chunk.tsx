@@ -16,8 +16,8 @@ import classes from './inline-diff-chunk.module.css';
 
 /**
  * Monaco is a browser-only module (it touches `window` on import), so it is
- * loaded lazily behind the hydration guard (00-overview A2). The library's
- * default CDN loader is kept, as on `main`.
+ * loaded lazily behind the hydration guard. The library's default CDN loader
+ * is kept.
  */
 const DiffEditor = lazy(() =>
   import('@monaco-editor/react').then((mod) => ({ default: mod.DiffEditor })),
@@ -41,7 +41,7 @@ type FetchState =
 const notFound = (side: GithubResult<FileAtRef>) => !side.ok && side.error.kind === 'not-found';
 
 /**
- * The legacy state machine over the two sides: both `not-found` is an error
+ * The state machine over the two sides: both `not-found` is an error
  * (the viewer lost the repo, or the SHAs are gone); one `not-found` is a
  * file added or deleted on that side, shown against empty content.
  */
@@ -248,12 +248,11 @@ function SnippetEditor({
 }
 
 /**
- * One file's reviewer-selected hunks: both blobs come from
- * `/api/github/file` in one round trip (phase-4-plan P4-D8), are sliced to
- * the lines around each hunk group (`buildInlineDiffSnippets`) and shown in
- * one Monaco `DiffEditor` per group; "Show full file" swaps in the whole
- * pair. A rejected token never reaches here — the loader redirects to
- * `/relink` and the fetcher follows.
+ * One file's reviewer-selected hunks: both blobs come from `/api/github/file`
+ * in one round trip, are sliced to the lines around each hunk group
+ * (`buildInlineDiffSnippets`) and shown in one Monaco `DiffEditor` per group;
+ * "Show full file" swaps in the whole pair. A rejected token never reaches
+ * here — the loader redirects to `/relink` and the fetcher follows.
  */
 export function InlineDiffChunk({
   chunk,

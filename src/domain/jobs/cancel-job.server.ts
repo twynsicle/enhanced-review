@@ -4,10 +4,10 @@ import { registry as defaultRegistry, type JobRegistry } from './registry.server
 
 /**
  * Owner-only cancellation. The conditional update in the repository is the
- * whole authorisation check; `not-cancellable` deliberately covers both
- * "not yours" and "already finished" so the response never leaks ownership
- * (the PocketBase-era 409 did the same). The status is written *before* the
- * runner is signalled so its abort path knows not to write one.
+ * whole authorisation check; `not-cancellable` deliberately covers both "not
+ * yours" and "already finished" so the response never leaks ownership. The
+ * status is written *before* the runner is signalled so its abort path knows
+ * not to write one.
  */
 export type CancelOutcome = 'cancelled' | 'not-cancellable';
 

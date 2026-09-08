@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * `GET https://api.github.com/user` for the token we just received from the
  * OAuth exchange. This is the only place the GitHub identity is read; the
- * result feeds `users.upsertUserFromGithub` (P2-D1).
+ * result feeds `users.upsertUserFromGithub`.
  */
 const GITHUB_USER_URL = 'https://api.github.com/user';
 

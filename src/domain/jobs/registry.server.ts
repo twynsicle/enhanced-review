@@ -1,11 +1,11 @@
 /**
  * In-process registry of running jobs: one AbortController per job so the
  * cancel action, the timeout and process shutdown can stop it. Lives on
- * `globalThis` under a `Symbol.for` key (phase-3-plan P3-D7) because Vite
- * evaluates its own instance of this module in development and the Express
- * bootstrap in `server/index.ts` runs natively outside that graph: both must
- * see the same map. The bootstrap reaches it through `JOBS_REGISTRY_KEY` to
- * abort and drain on SIGTERM/SIGINT.
+ * `globalThis` under a `Symbol.for` key because Vite evaluates its own
+ * instance of this module in development and the Express bootstrap in
+ * `server/index.ts` runs natively outside that graph: both must see the same
+ * map. The bootstrap reaches it through `JOBS_REGISTRY_KEY` to abort and
+ * drain on SIGTERM/SIGINT.
  *
  * Sized for a handful of concurrent jobs in one Node process — the reason
  * the server must never run under a forking manager.

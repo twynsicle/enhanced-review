@@ -5,7 +5,7 @@ import { signInWithGithubToken, type SessionUser } from '@/domain/auth/sign-in.s
 import { oauthStateCookie } from './cookies.server';
 
 /**
- * remix-auth wiring for the server-side GitHub redirect flow (00-overview D3).
+ * remix-auth wiring for the server-side GitHub redirect flow.
  * `authenticate()` on a request without `?code` redirects to GitHub; on the
  * callback it exchanges the code and runs the verify callback below. What the
  * caller does with the result (session cookie, token cookie) lives in the

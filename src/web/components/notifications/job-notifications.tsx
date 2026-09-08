@@ -28,7 +28,7 @@ function describeTargetShort(job: JobView): string {
   return `${t.owner}/${t.repo} ${t.ref}`;
 }
 
-/** The toast copy and destination for a job that just turned terminal (as on `main`). */
+/** The toast copy and destination for a job that just turned terminal. */
 export function describeTransition(job: JobView): {
   title: string;
   description: string;
@@ -78,13 +78,12 @@ function maybeFireBrowserNotification(job: JobView): void {
 }
 
 /**
- * Cross-page notifier (phase-4-plan §4, P4-D11): polls
- * `/api/me/jobs/terminal` at `terminalMs` (paused while the tab is hidden,
- * P4-D9), starting from the shell loader's `serverNow` and advancing to
- * each response's `now` (less an overlap window). A job that turned terminal toasts once per id per
- * session, except while the viewer is already on that job's live view or
- * reader; a browser `Notification` fires as well when the tab is hidden and
- * permission was granted. Mounted once by `_shell`.
+ * Cross-page notifier: polls `/api/me/jobs/terminal` at `terminalMs`,
+ * starting from the shell loader's `serverNow` and advancing to each
+ * response's `now` (less an overlap window). A job that turned terminal
+ * toasts once per id per session, except while the viewer is already on that
+ * job's live view or reader; a browser `Notification` fires as well when the
+ * tab is hidden and permission was granted. Mounted once by `_shell`.
  */
 export function JobNotifications({
   serverNow,
@@ -112,7 +111,7 @@ export function JobNotifications({
         id,
         title,
         color: TONE_COLOR[tone],
-        // Stays until dismissed or followed, as the toast did on `main`.
+        // Stays until dismissed or followed.
         autoClose: false,
         message: (
           <>

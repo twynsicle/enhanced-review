@@ -9,9 +9,9 @@ const ParamsSchema = z.object({ id: z.string().min(1) });
 const SearchSchema = z.object({ after: z.coerce.number().int().min(-1).default(-1) });
 
 /**
- * GET /api/jobs/:id?after=<seq> — the live view's poll (00-overview D5):
- * the job row plus every chunk with `seq > after`. Gated like a page, so an
- * expired session redirects to /login and the poller sees a non-JSON body.
+ * GET /api/jobs/:id?after=<seq> — the live view's poll: the job row plus
+ * every chunk with `seq > after`. Gated like a page, so an expired session
+ * redirects to /login and the poller sees a non-JSON body.
  */
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { id } = parseParams(ParamsSchema, params);

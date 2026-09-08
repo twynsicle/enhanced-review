@@ -5,8 +5,8 @@ import { MarkdownText } from './markdown-text';
  * Editorial passage layout: serif body, the first paragraph as the lead and
  * later paragraphs muted as supporting body. No drop cap: family and weight
  * carry the hierarchy, which keeps the page calmer when passages stack. Both
- * halves render at the markdown body size, as on `main` (its `size` prop
- * never reached the text, so the rendered 14px is what the reader matches).
+ * halves render at the markdown body size — 14px, the same as the rest of
+ * the reader's prose.
  */
 export function LeadMarkdown({
   text,

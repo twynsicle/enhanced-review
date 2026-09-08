@@ -6,10 +6,10 @@ import { Topbar } from '@/web/components/topbar/topbar';
 import type { Route } from './+types/_shell';
 
 /**
- * App shell for every page with chrome (phase-4-plan P4-D5): the topbar and
- * the cross-page job notifier. Nested inside `_gated`, so the user is always
- * present; `serverNow` seeds the notifier's `since` and the polling
- * intervals come from the environment (P4-D9).
+ * App shell for every page with chrome: the topbar and the cross-page job
+ * notifier. Nested inside `_gated`, so the user is always present;
+ * `serverNow` seeds the notifier's `since` and the polling intervals come
+ * from the environment.
  */
 export function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);

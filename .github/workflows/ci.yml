@@ -10,9 +10,9 @@ jobs:
   check:
     runs-on: ubuntu-latest
 
-    # Postgres for the integration project (phase-2-plan P2-D12). Locally
-    # `npm run check` needs no database; CI runs `check:all` so the
-    # integration tests are guaranteed to execute rather than self-skip.
+    # Postgres for the integration project. Locally `npm run check` needs no
+    # database; CI runs `check:all` so the integration tests are guaranteed to
+    # execute rather than self-skip.
     services:
       postgres:
         image: postgres:18-alpine
@@ -48,9 +48,9 @@ jobs:
       # typecheck + build + unit/web/guardrails tests + lint + format, then integration
       - run: npm run check:all
 
-  # Proves the container, not just the code (phase-5-plan P5-D4). The Phase 1
-  # image built happily and died at startup on a file the runtime stage never
-  # copied, so a build alone is not evidence.
+  # Proves the container, not just the code: an earlier image built happily
+  # and died at startup on a file the runtime stage never copied, so a build
+  # alone is not evidence.
   image:
     runs-on: ubuntu-latest
 

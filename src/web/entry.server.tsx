@@ -12,7 +12,7 @@ import { bootJobs } from '@/domain/jobs/boot.server';
  * React Router's server entry (the `react-router reveal` default, with the
  * logger in place of `console`). Also the earliest point inside the Vite
  * module graph, so the job runner boots here: orphaned jobs are recovered
- * before the first request is answered (phase-3-plan P3-D6).
+ * before the first request is answered.
  */
 await bootJobs();
 

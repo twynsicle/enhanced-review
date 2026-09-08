@@ -5,11 +5,11 @@ import { getBranchHead, getCommitsAhead, getPullReviewers } from '@/domain/githu
 import type { BranchReviewTarget, ReviewTarget } from '@/domain/review/target';
 
 /**
- * What the reader fetches from GitHub at view time (phase-4-plan §3): the PR
- * header for the summary card, the reviewers for the people card, and the
- * target's current head for the staleness banner. Every call degrades on
- * its own — a viewer without a token, or one GitHub rejects, still gets the
- * chapters, insights and markdown.
+ * What the reader fetches from GitHub at view time: the PR header for the
+ * summary card, the reviewers for the people card, and the target's current
+ * head for the staleness banner. Every call degrades on its own — a viewer
+ * without a token, or one GitHub rejects, still gets the chapters, insights
+ * and markdown.
  */
 export interface ReviewMetadata {
   pullMetadata: PullMetadata | null;

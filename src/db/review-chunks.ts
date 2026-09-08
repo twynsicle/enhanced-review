@@ -2,9 +2,8 @@ import { prisma } from './client.ts';
 
 /**
  * `review_chunks` repository: the executor's streamed text, one row per
- * fragment, keyed `(job_id, seq)` with `seq` starting at **0** (the PocketBase
- * era dropped chunk 0; see phase-0-plan). The live view polls
- * `listChunksAfter(jobId, lastSeenSeq)` (00-overview D5).
+ * fragment, keyed `(job_id, seq)` with `seq` starting at **0**. The live view
+ * polls `listChunksAfter(jobId, lastSeenSeq)`.
  */
 export interface ReviewChunkRecord {
   seq: number;

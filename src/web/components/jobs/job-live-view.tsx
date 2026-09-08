@@ -15,13 +15,12 @@ import { usePolling } from '@/web/lib/use-polling';
 import { token } from '@/web/theme/tokens';
 
 /**
- * Live view of one review job as a typographic timeline (phase-4-plan §4).
- * Seeded by the loader, then polled at `liveMs` through `/api/jobs/:id`
- * with `after` = the highest `seq` seen (00-overview D5) while the job is in
- * flight. On the transition to a terminal status the view refetches every
- * chunk once (the legacy terminal refresh) and, for `done` observed live,
- * replaces itself with the reader (P4-D2c). Mount with `key={job.id}` so a
- * rerun's redirect starts fresh state.
+ * Live view of one review job as a typographic timeline. Seeded by the
+ * loader, then polled at `liveMs` through `/api/jobs/:id` with `after` = the
+ * highest `seq` seen while the job is in flight. On the transition to a
+ * terminal status the view refetches every chunk once (a single terminal
+ * refresh) and, for `done` observed live, replaces itself with the reader.
+ * Mount with `key={job.id}` so a rerun's redirect starts fresh state.
  */
 export function JobLiveView({
   initialJob,

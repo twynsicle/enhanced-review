@@ -9,10 +9,10 @@ import { clearGithubTokenHeader, readGithubToken } from '@/web/auth/cookies.serv
 import { describeGithubError, GITHUB_ERROR_STATUS, type GithubFailure } from './github-api';
 
 /**
- * GitHub token handling for loaders and actions (phase-4-plan P4-D7). The
- * token lives only in the HttpOnly cookie (D3); a missing or rejected token
- * sends the user through `/relink`, which re-runs the OAuth flow. Thrown
- * redirects are followed by `useFetcher` as well as by document requests.
+ * GitHub token handling for loaders and actions. The token lives only in the
+ * HttpOnly cookie (D3); a missing or rejected token sends the user through
+ * `/relink`, which re-runs the OAuth flow. Thrown redirects are followed by
+ * `useFetcher` as well as by document requests.
  */
 export async function requireGithubToken(request: Request): Promise<string> {
   const token = await readGithubToken(request);

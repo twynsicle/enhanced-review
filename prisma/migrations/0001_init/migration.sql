@@ -113,6 +113,6 @@ ALTER TABLE "reviews" ADD CONSTRAINT "reviews_job_id_fkey" FOREIGN KEY ("job_id"
 -- AddForeignKey
 ALTER TABLE "review_chunks" ADD CONSTRAINT "review_chunks_job_id_fkey" FOREIGN KEY ("job_id") REFERENCES "review_jobs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- Hand-added (phase-2-plan P2-D2): constraints Prisma cannot express.
+-- Hand-added: constraints Prisma cannot express.
 ALTER TABLE "review_chunks" ADD CONSTRAINT "review_chunks_seq_check" CHECK ("seq" >= 0);
 ALTER TABLE "review_jobs" ADD CONSTRAINT "review_jobs_risk_score_check" CHECK ("risk_score" IS NULL OR "risk_score" BETWEEN 1 AND 5);

@@ -21,9 +21,9 @@ import {
  *   config → config
  *
  * `db` and `config` are server-only. `domain` is shared between server and
- * browser (phase-3-plan P3-D4): a domain module that reaches server-only code
- * — db, config, the logger, a `node:` builtin, a server-only package or a
- * `.server` module — must itself be named `*.server.ts`.
+ * browser: a domain module that reaches server-only code — db, config, the
+ * logger, a `node:` builtin, a server-only package or a `.server` module —
+ * must itself be named `*.server.ts`.
  *
  * Inside `web`, only server-side modules (route modules, root.tsx,
  * entry.server.tsx, `*.server.ts`) may reach into db/config, the logger or

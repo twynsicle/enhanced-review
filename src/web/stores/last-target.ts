@@ -4,9 +4,9 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 /**
  * The last review target each user composed, persisted incrementally as the
  * composer changes (repo, kind, PR, branch) so a refresh restores the whole
- * composer state (phase-4-plan P4-D10). `prNumber` and `branchRef` are kept
- * side by side so toggling the kind restores the previous pick either way.
- * One store for every user on the device, keyed by user id, under the single
+ * composer state. `prNumber` and `branchRef` are kept side by side so
+ * toggling the kind restores the previous pick either way. One store for
+ * every user on the device, keyed by user id, under the single
  * `er:last-target` key.
  */
 export interface LastTarget {

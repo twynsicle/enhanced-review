@@ -37,8 +37,6 @@
     "coverage/**",
     "screenshots/**",
     "public/**",
-    "pb_data/**",
-    "tools/**",
     "src/db/generated/**"
   ]
 }

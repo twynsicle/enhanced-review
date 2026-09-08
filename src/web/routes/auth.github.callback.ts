@@ -8,10 +8,10 @@ import type { Route } from './+types/auth.github.callback';
 
 /**
  * GET /auth/github/callback — GitHub sends the user back here. Exchange the
- * code, upsert the user (verify callback), then respond with two cookies:
- * the new session id and the GitHub token (00-overview D3). Any failure
- * (denied consent, state mismatch, GitHub API error) lands on /login with a
- * banner instead of an error page.
+ * code, upsert the user (verify callback), then respond with two cookies: the
+ * new session id and the GitHub token. Any failure (denied consent, state
+ * mismatch, GitHub API error) lands on /login with a banner instead of an
+ * error page.
  */
 export async function loader({ request }: Route.LoaderArgs) {
   let signIn: GithubSignIn;

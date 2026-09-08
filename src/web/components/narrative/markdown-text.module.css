@@ -1,7 +1,7 @@
 /*
  * Markdown rendered by react-markdown carries no classes of its own, so the
- * element styles live here on the wrapper. Fenced code takes its colours
- * from the per-scheme `--er-hljs-*` variables (theme.css, P4-D12).
+ * element styles live here on the wrapper. Fenced code takes its colours from
+ * the per-scheme `--er-hljs-*` variables (theme.css).
  */
 .root {
   font-size: 14px;

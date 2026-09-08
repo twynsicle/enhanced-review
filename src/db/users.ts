@@ -16,9 +16,9 @@ export function findUserById(id: string): Promise<UserRow | null> {
 }
 
 /**
- * Create-or-refresh keyed on the GitHub numeric id (phase-2-plan P2-D1).
- * Login, name and avatar are overwritten on every sign-in so a GitHub rename
- * or avatar change shows up next time the user signs in.
+ * Create-or-refresh keyed on the GitHub numeric id. Login, name and avatar
+ * are overwritten on every sign-in so a GitHub rename or avatar change shows
+ * up next time the user signs in.
  */
 export function upsertUserFromGithub(identity: GithubIdentity): Promise<UserRow> {
   const { githubId, githubLogin, name, avatarUrl } = identity;

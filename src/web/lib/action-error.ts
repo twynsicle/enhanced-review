@@ -1,11 +1,11 @@
 import { data } from 'react-router';
 
 /**
- * The one error shape every route action returns (phase-4-plan P4-D6).
- * Components read it from `fetcher.data`; the HTTP status carries the same
- * information for anything that talks to the action directly. A rejected
- * GitHub token is *not* an ActionError — actions throw `redirect('/relink')`
- * for that and the fetcher follows it.
+ * The one error shape every route action returns. Components read it from
+ * `fetcher.data`; the HTTP status carries the same information for anything
+ * that talks to the action directly. A rejected GitHub token is *not* an
+ * ActionError — actions throw `redirect('/relink')` for that and the fetcher
+ * follows it.
  */
 export const ACTION_ERROR_REASONS = [
   'job_in_flight',

@@ -3,8 +3,8 @@ import { prisma } from './client.ts';
 /**
  * Backing store for React Router's `createSessionStorage` (src/web/auth).
  * `data` is the opaque session payload; `userId` is lifted out of it so
- * sessions cascade when a user row is deleted and can be listed per user.
- * The GitHub token never goes in here (00-overview D3).
+ * sessions cascade when a user row is deleted and can be listed per user. The
+ * GitHub token never goes in here.
  */
 export type SessionData = Record<string, unknown>;
 

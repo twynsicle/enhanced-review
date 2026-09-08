@@ -12,7 +12,7 @@ import type { Route } from './+types/history';
 
 const PAGE_SIZE = 100;
 
-/** Unknown statuses fall back to "all" rather than 400, as on `main`. */
+/** Unknown statuses fall back to "all" rather than 400. */
 const SearchSchema = z.object({
   status: z.enum(JOB_STATUSES).optional().catch(undefined),
 });

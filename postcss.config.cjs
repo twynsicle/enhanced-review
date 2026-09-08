@@ -1,5 +1,5 @@
 // Mantine's PostCSS preset: rem()/em() helpers and light-dark/hover mixins
-// for the CSS Modules Phase 4 writes where theming can't reach.
+// for the CSS Modules used where Mantine theming can't reach.
 module.exports = {
   plugins: {
     'postcss-preset-mantine': {},

@@ -1,9 +1,9 @@
-// enhanced-review data model. Fresh history (00-overview D11): 0001_init is
-// the first migration; nothing is carried over from PocketBase.
+// enhanced-review data model. Fresh history: 0001_init is the first
+// migration; no data is carried over from the app this replaced.
 //
-// Conventions (phase-2-plan P2-D2): UUID v7 ids, camelCase fields mapped to
-// snake_case columns, snake_case plural table names. CHECK constraints that
-// Prisma cannot express (seq >= 0, risk_score 1..5) are hand-added in
+// Conventions: UUID v7 ids, camelCase fields mapped to snake_case columns,
+// snake_case plural table names. CHECK constraints that Prisma cannot express
+// (seq >= 0, risk_score 1..5) are hand-added in
 // migrations/0001_init/migration.sql.
 
 generator client {
@@ -19,8 +19,8 @@ datasource db {
   provider = "postgresql"
 }
 
-/// Someone who has signed in at least once. Identity is the GitHub numeric id
-/// (P2-D1); login / name / avatar are refreshed on every sign-in.
+/// Someone who has signed in at least once. Identity is the GitHub numeric
+/// id; login / name / avatar are refreshed on every sign-in.
 model User {
   id          String   @id @default(uuid(7)) @db.Uuid
   githubId    BigInt   @unique @map("github_id")
@@ -38,7 +38,7 @@ model User {
 
 /// React Router session row (createSessionStorage). The cookie holds only
 /// `id`; `data` is the session payload ({ userId }). Never holds the GitHub
-/// token (00-overview D3).
+/// token.
 model Session {
   id        String   @id @default(uuid(7)) @db.Uuid
   userId    String?  @map("user_id") @db.Uuid

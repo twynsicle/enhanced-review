@@ -20,7 +20,7 @@ export const meta: Route.MetaFunction = () => [{ title: 'Review in progress · e
 
 /**
  * `/jobs/:id` — live view of one review job. Any signed-in beta member can
- * watch any job (workspace visibility, as on `main`); only the owner can
+ * watch any job (workspace visibility); only the owner can
  * cancel it. Unknown ids throw 404 into this route's ErrorBoundary.
  */
 export async function loader({ params, context }: Route.LoaderArgs) {
@@ -31,7 +31,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   return { job: toJobView(job), chunks, viewerUserId: context.get(userContext)?.id ?? '' };
 }
 
-/** `intent=cancel` (owner only) or `intent=rerun` (phase-4-plan §2). */
+/** `intent=cancel` (owner only) or `intent=rerun`. */
 export async function action({ request, params, context }: Route.ActionArgs) {
   const { id } = parseParams(ParamsSchema, params);
   const { intent } = await parseFormData(IntentSchema, request);
@@ -63,7 +63,7 @@ export default function JobPage({ loaderData }: Route.ComponentProps) {
   );
 }
 
-/** 404 renders the legacy "Review not found" page; anything else defers to the root boundary. */
+/** 404 renders the "Review not found" page; anything else defers to the root boundary. */
 export function ErrorBoundary(props: Route.ErrorBoundaryProps) {
   if (isRouteErrorResponse(props.error) && props.error.status === 404) return <JobNotFound />;
   return <AppError error={props.error} />;

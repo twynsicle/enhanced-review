@@ -2,10 +2,10 @@ import { useDocumentVisibility } from '@mantine/hooks';
 import { useEffect, useRef } from 'react';
 
 /**
- * Fixed-cadence polling that pauses while the tab is hidden (phase-4-plan
- * P4-D9). `tick` runs immediately whenever polling becomes active (enable,
- * tab shown, interval change) and then every `intervalMs`. The latest `tick`
- * is always used, so callers may pass a fresh closure on every render.
+ * Fixed-cadence polling that pauses while the tab is hidden. `tick` runs
+ * immediately whenever polling becomes active (enable, tab shown, interval
+ * change) and then every `intervalMs`. The latest `tick` is always used, so
+ * callers may pass a fresh closure on every render.
  */
 export function usePolling({
   enabled,

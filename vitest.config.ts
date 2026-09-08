@@ -3,7 +3,7 @@ import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
-// Four projects (see docs/rr-migration/00-overview.md):
+// Four projects:
 //   unit         pure server/domain logic, Node environment
 //   web          React components + route modules under happy-dom
 //   guardrails   repo-reading convention tests
@@ -19,8 +19,8 @@ const srcDir = fileURLToPath(new URL('./src', import.meta.url))
 
 // `src/config/env.ts` requires the database and auth keys. Tests use the
 // developer's `.env` when there is one and fall back to placeholders for
-// whatever is missing, so `npm run check` needs no `.env` at all
-// (phase-2-plan P2-D9). Workers inherit process.env from this process.
+// whatever is missing, so `npm run check` needs no `.env` at all. Workers
+// inherit process.env from this process.
 if (existsSync('.env')) process.loadEnvFile('.env');
 const TEST_ENV_DEFAULTS: Record<string, string> = {
   DATABASE_URL: 'postgresql://enhanced_review:enhanced_review@127.0.0.1:5432/enhanced_review',

@@ -3,10 +3,9 @@ import type { GithubError, GithubResult } from './types.ts';
 
 /**
  * One `@octokit/core` instance per request, authenticated with the viewer's
- * OAuth token from the `gh_access_token` cookie (00-overview D3). Every
- * GitHub call in the app goes through an instance from here (phase-3-plan
- * P3-D1); endpoint modules take it as their first argument so tests can pass
- * a fake `{ request, graphql }`.
+ * OAuth token from the `gh_access_token` cookie. Every GitHub call in the app
+ * goes through an instance from here; endpoint modules take it as their first
+ * argument so tests can pass a fake `{ request, graphql }`.
  */
 export type GithubClient = Pick<Octokit, 'request' | 'graphql'>;
 

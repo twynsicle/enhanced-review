@@ -8,8 +8,8 @@ import { recoverJobs } from './recover-jobs.ts';
  * One-shot job runner: `npm run job -- <name> [args...]`.
  *
  * Runs natively under Node (type stripping), like `server/index.ts` — the
- * generated Prisma client is erasable TypeScript, so no bundle step is needed
- * (phase-2-plan Deviations). Exit codes: 0 ok, 1 job failed, 2 bad usage.
+ * generated Prisma client is erasable TypeScript, so no bundle step is
+ * needed. Exit codes: 0 ok, 1 job failed, 2 bad usage.
  */
 type JobHandler = (args: string[]) => Promise<unknown>;
 

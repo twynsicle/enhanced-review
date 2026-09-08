@@ -61,7 +61,7 @@ describe('requireUser', () => {
     expect(context.get(userContext)).toBeNull();
   });
 
-  it('lets any signed-in user through untouched (no allowlist since P5-D3)', async () => {
+  it('lets any signed-in user through untouched', async () => {
     const { response, next } = await run((ctx) => {
       ctx.set(userContext, user);
       ctx.set(sessionContext, session);

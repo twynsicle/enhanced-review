@@ -3,10 +3,10 @@ import { createSession, deleteSession, readSession, updateSession } from '@/db/s
 import { SESSION_MAX_AGE_SEC, sessionCookie } from './cookies.server';
 
 /**
- * DB-backed sessions (phase-2-plan P2-D3). React Router's
- * `createSessionStorage` handles id minting and cookie commit on sign-in; the
- * per-request path (root middleware) reads the row directly so it can see
- * `expiresAt` and roll the session past half-life.
+ * DB-backed sessions. React Router's `createSessionStorage` handles id
+ * minting and cookie commit on sign-in; the per-request path (root
+ * middleware) reads the row directly so it can see `expiresAt` and roll the
+ * session past half-life.
  */
 export interface SessionPayload {
   userId: string;

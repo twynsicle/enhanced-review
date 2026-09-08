@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * The narrative review shape: what the executor produces, what
  * `reviews.content` stores and what the reader renders. Shared by server and
- * browser (phase-3-plan P3-D4), so nothing here may touch Node or the db.
+ * browser, so nothing here may touch Node or the db.
  *
  * Zod is the source of truth; the exported types are inferred from it so the
  * schema that parses `reviews.content` at the db boundary and the type the

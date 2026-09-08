@@ -2,8 +2,6 @@ node_modules
 build
 .react-router
 screenshots
-pb_data
-tools
 docs
 .env
 .env.*

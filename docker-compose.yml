@@ -1,6 +1,6 @@
-# Local infrastructure and the full containerised app (phase-5-plan P5-D8).
-# Day-to-day dev only needs the database; `up --build` brings up the whole
-# thing, which is the acceptance test for the image.
+# Local infrastructure and the full containerised app. Day-to-day dev only
+# needs the database; `up --build` brings up the whole thing, which is the
+# acceptance test for the image.
 #
 #   docker compose up -d postgres      # dev: just the database
 #   docker compose up --build          # the app as it ships, on :3000

@@ -1,7 +1,7 @@
 /*
  * Two-column reader: the sidebar column width is the `--review-sidebar-width`
  * variable the drag handle updates. Below 64em the sidebar is hidden and the
- * article takes the full width, as on `main`.
+ * article takes the full width.
  */
 .grid {
   display: grid;

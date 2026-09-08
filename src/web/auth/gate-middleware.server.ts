@@ -20,13 +20,14 @@ export async function signOutHeaders(context: Readonly<RouterContextProvider>): 
 }
 
 /**
- * Layout middleware for every protected route (phase-2-plan P2-D5): requires
- * a signed-in user. Anyone else is signed out — the session row and both
- * cookies go — and redirected to `/login`.
+ * Layout middleware for every protected route: requires a signed-in user.
+ * Anyone else is signed out — the session row and both cookies go — and
+ * redirected to `/login`.
  *
- * Until phase-5-plan P5-D3 this also required the user's GitHub login to be
- * in `allowed_users` and sent everyone else to `/denied`. That table and the
- * page are gone: signing in with GitHub is the only condition now.
+ * This once also required the user's GitHub login to be in an `allowed_users`
+ * table, sending everyone else to `/denied`. Both are gone: signing in with
+ * GitHub is the only condition now, so whatever fronts the deployment is the
+ * access control.
  */
 export const requireUser: MiddlewareFunction<Response> = async ({ context }, next) => {
   const user = context.get(userContext);

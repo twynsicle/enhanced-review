@@ -26,8 +26,8 @@ body {
 
 /*
  * highlight.js classes emitted by rehype-highlight inside markdown code
- * fences, coloured by the per-scheme `--er-hljs-*` variables (P4-D12).
- * Same class groups as highlight.js's github / github-dark themes.
+ * fences, coloured by the per-scheme `--er-hljs-*` variables. Same class
+ * groups as highlight.js's github / github-dark themes.
  */
 .hljs {
   color: var(--er-hljs-fg);

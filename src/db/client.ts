@@ -9,11 +9,12 @@ import { PrismaClient } from './generated/client.ts';
  * Only `src/db/**` may import the generated client (guardrail: prisma-access);
  * everything else goes through the repository modules next to this file.
  *
- * Lifecycle is owned here (phase-2-plan P2-D8): the module is only ever
- * loaded through Vite (web server build, jobs bundle), never natively by
- * `server/index.ts`, and it disconnects itself on SIGTERM/SIGINT. In dev,
- * Vite re-evaluates SSR modules on change, so the instance and the signal
- * hook are parked on `globalThis` to avoid leaking pools per reload.
+ * Lifecycle is owned here: `server/index.ts` never imports it, so the pool is
+ * opened by whichever entry point first needs the database — the SSR module
+ * graph in the web app, or the jobs CLI running natively — and it disconnects
+ * itself on SIGTERM/SIGINT. In dev, Vite re-evaluates SSR modules on change,
+ * so the instance and the signal hook are parked on `globalThis` to avoid
+ * leaking pools per reload.
  */
 type PrismaGlobal = typeof globalThis & { enhancedReviewPrisma?: PrismaClient };
 const globalRef = globalThis as PrismaGlobal;

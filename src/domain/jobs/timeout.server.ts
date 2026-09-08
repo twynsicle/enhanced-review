@@ -5,8 +5,7 @@ import * as reviewJobs from '../../db/review-jobs.ts';
  * Per-job wall-clock limit (`REVIEW_TIMEOUT_MIN`). When it fires, the job is
  * marked `error` *first* and the controller aborted with reason `timeout`
  * second, so the runner's abort path knows the terminal status is already
- * written (phase-3-plan P3-D8). Returns a disarm function for the normal
- * completion path.
+ * written. Returns a disarm function for the normal completion path.
  */
 export interface ArmTimeoutOptions {
   minutes: number;

@@ -1,10 +1,10 @@
 /**
  * Express 5 bootstrap for the React Router app.
  *
- * Runs as a single Node process — the review runner (Phase 3) lives in this
- * process and holds an in-memory AbortController registry, so this server
- * must never be run under a forking/cluster process manager. Scale is
- * "one container, one process".
+ * Runs as a single Node process — the review runner lives in this process and
+ * holds an in-memory AbortController registry, so this server must never be
+ * run under a forking/cluster process manager. Scale is "one container, one
+ * process".
  *
  * Executed directly by Node (type stripping, no build step), so imports of
  * project code are relative with explicit `.ts` extensions; `@/` aliases are
@@ -50,10 +50,10 @@ const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, mode: env.NODE_ENV }, 'server listening');
 });
 
-// The job registry lives on globalThis (phase-3-plan P3-D7) because Vite
-// evaluates its own module instances in development; this file is outside
-// that graph, so it reaches the registry by its well-known key instead of an
-// import. Undefined until the first job has run.
+// The job registry lives on globalThis because Vite evaluates its own module
+// instances in development; this file is outside that graph, so it reaches
+// the registry by its well-known key instead of an import. Undefined until
+// the first job has run.
 function jobRegistry(): JobRegistryHandle | undefined {
   return (globalThis as Record<symbol, unknown>)[JOBS_REGISTRY_KEY] as
     JobRegistryHandle | undefined;
