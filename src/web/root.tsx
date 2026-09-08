@@ -1,14 +1,8 @@
 import './theme/theme.css';
-import { ColorSchemeScript, MantineProvider, mantineHtmlProps, Text, Title } from '@mantine/core';
+import { AppError } from '@/web/components/app-error';
+import { ColorSchemeScript, MantineProvider, mantineHtmlProps } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import {
-  isRouteErrorResponse,
-  Links,
-  Meta,
-  Outlet,
-  Scripts,
-  ScrollRestoration,
-} from 'react-router';
+import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
 import { COLOR_SCHEME_KEY, colorSchemeManager } from '@/web/theme/color-scheme';
 import { cssVariablesResolver } from '@/web/theme/css-variables';
 import { theme } from '@/web/theme/theme';
@@ -67,20 +61,5 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let title = 'Something went wrong';
-  let detail = 'An unexpected error occurred.';
-  if (isRouteErrorResponse(error)) {
-    title = error.status === 404 ? 'Not found' : `Error ${error.status}`;
-    detail = error.statusText || detail;
-  } else if (import.meta.env.DEV && error instanceof Error) {
-    detail = error.message;
-  }
-  return (
-    <main style={{ padding: '4rem 1.5rem', maxWidth: 640, margin: '0 auto' }}>
-      <Title order={1}>{title}</Title>
-      <Text mt="sm" c="dimmed">
-        {detail}
-      </Text>
-    </main>
-  );
+  return <AppError error={error} />;
 }

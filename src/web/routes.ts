@@ -10,11 +10,16 @@ import { index, layout, route, type RouteConfig } from '@react-router/dev/routes
 // resource routes are gated but chrome-less. Everything outside is public.
 export default [
   layout('routes/_gated.tsx', [
-    layout('routes/_shell.tsx', [index('routes/home.tsx'), route('history', 'routes/history.tsx')]),
+    layout('routes/_shell.tsx', [
+      index('routes/home.tsx'),
+      route('history', 'routes/history.tsx'),
+      route('jobs/:id', 'routes/jobs.$id.tsx'),
+    ]),
     route('relink', 'routes/relink.tsx'),
     route('api/github/repos', 'routes/api.github.repos.ts'),
     route('api/github/repos/:owner/:repo/pulls', 'routes/api.github.pulls.ts'),
     route('api/github/repos/:owner/:repo/branches', 'routes/api.github.branches.ts'),
+    route('api/jobs/:id', 'routes/api.jobs.$id.ts'),
   ]),
   route('login', 'routes/login.tsx'),
   route('denied', 'routes/denied.tsx'),

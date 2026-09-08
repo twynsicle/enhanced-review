@@ -311,3 +311,30 @@ Each commit is green on `npm run check`; integration stays green.
   create action run; with a running job seeded it answered 409 for real, and
   without one GitHub rejected the placeholder and the page landed on `/relink`
   with the cookie cleared — the P4-D7 path, verified end to end.
+
+**Commit 3 (live view)**
+
+- `rerunAction` lives in `src/web/lib/rerun-action.server.ts`, not as an
+  extra export of `jobs.$id.tsx`: React Router ships a route module's
+  non-route exports to the browser, and the helper imports server-only code
+  (the build refused it). The generic error page moved to
+  `components/app-error.tsx` for the same reason — a route boundary cannot
+  import `root.tsx` without dragging the session middleware client-side.
+- The live view polls with plain `fetch` + `res.json()` against the resource
+  route (which returns JSON for a direct request) rather than a `useFetcher`,
+  because the incremental chunk merge has to update state from the poll
+  callback; a fetcher would need an effect that sets state on `fetcher.data`
+  (oxlint `react/set-state-in-effect`). Ticks are serialised (a slow poll is
+  not overlapped) and the terminal transition triggers one `after=-1` refetch
+  before the `done` → `/reviews/:id` replace.
+- `getJob` treats a non-UUID id as not found: Postgres rejects the cast and
+  Prisma threw, turning `/jobs/nope` into a 500 instead of the 404 page.
+- The phase derivation (`live-phases.ts`) and `whatNowFor` are pure modules
+  with unit tests; two legacy quirks are kept knowingly — the in-progress
+  title counts toward "N chapters so far", and an error message starting with
+  `github` matches the `git` branch ("Clone failed") because `main` tests the
+  prefixes in that order.
+- Verification ran on a second dev server (port 3001, `web-3001` in the local
+  `.claude/launch.json`) because the long-running port-3000 server did not
+  reload its route manifest for the new route files; its boot recovery
+  errored the seeded in-flight jobs once, as designed (`bootJobs`).

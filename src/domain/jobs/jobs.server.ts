@@ -1,8 +1,9 @@
+import * as reviewChunks from '../../db/review-chunks.ts';
 import * as reviewJobs from '../../db/review-jobs.ts';
 import * as reviews from '../../db/reviews.ts';
 import { NarrativeReviewSchema, type NarrativeReview } from '../review/narrative.ts';
 import { ReviewTargetSchema, type ReviewTarget } from '../review/target.ts';
-import type { JobView } from './job-view.ts';
+import type { ChunkView, JobView } from './job-view.ts';
 
 /**
  * The read side of jobs for loaders: repository rows with their JSON
@@ -43,7 +44,11 @@ export function parseReview(record: reviews.ReviewRecord): Review {
   };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Ids come from URLs; anything that is not a UUID is "not found", not a Postgres cast error. */
 export async function getJob(id: string): Promise<ReviewJob | null> {
+  if (!UUID.test(id)) return null;
   const record = await reviewJobs.findJobById(id);
   return record ? parseJob(record) : null;
 }
@@ -55,6 +60,12 @@ export async function listJobs(options: reviewJobs.ListJobsOptions): Promise<Rev
 export async function getReview(jobId: string): Promise<Review | null> {
   const record = await reviews.findReviewByJobId(jobId);
   return record ? parseReview(record) : null;
+}
+
+/** Streamed chunks with `seq > after`, oldest first (`after = -1` → all). */
+export async function listChunksAfter(jobId: string, after = -1): Promise<ChunkView[]> {
+  const rows = await reviewChunks.listChunksAfter(jobId, after);
+  return rows.map(({ seq, content }) => ({ seq, content }));
 }
 
 /** Creation timestamps of the last `days` days, for the activity sparkline. */

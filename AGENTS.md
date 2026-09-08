@@ -84,7 +84,8 @@ src/
       run.server.ts    runJob(input, deps) → 'done' | 'skipped' | 'aborted' | 'errored'; defaultRunJobDeps(); formatJobError
     jobs/              all *.server.ts: registry (AbortControllers on globalThis[JOBS_REGISTRY_KEY]), timeout (armTimeout),
                        start-review (startReview / rerunJob / launchJob), cancel-job, recover-jobs, boot (bootJobs, once per process),
-                       jobs (read side: parseJob/parseReview, getJob, listJobs, getReview, listRecentActivity, toJobView);
+                       jobs (read side: parseJob/parseReview, getJob (non-UUID → null), listJobs, getReview, listChunksAfter,
+                       listRecentActivity, toJobView);
                        shared: errors.ts (JobInFlightError, …), status.ts (JOB_STATUSES), job-view.ts (JobView, jobHref), activity.ts
   jobs/                cli.ts (`npm run job -- <name>`), seed-allowlist.ts, recover-jobs.ts, errors.ts
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access
@@ -94,22 +95,27 @@ src/
     entry.server.tsx   RR server entry (`reveal` default, logger instead of console); awaits bootJobs() before the first request
     routes.ts          route table — every file in routes/ must be listed here
     routes/            _gated.tsx (layout: allowlistGate) → _shell.tsx (layout: Topbar; loader {user, serverNow, polling})
-                         → home.tsx (index: hero + ReviewComposer + Recent; action POST /?index → startReview), history.tsx (?status=)
+                         → home.tsx (index: hero + ReviewComposer + Recent; action POST /?index → startReview), history.tsx (?status=),
+                           jobs.$id.tsx (live view; loader job + chunks, 404 → own ErrorBoundary; action intent=cancel|rerun)
                        _gated (chrome-less) → relink.tsx, api.github.repos.ts, api.github.pulls.ts, api.github.branches.ts
                          (resource routes the composer loads via useFetcher; bodies typed in lib/github-api.ts, failures
-                         returned with a status, rejected token → /relink);  public: login.tsx, denied.tsx, auth.github.ts,
-                       auth.github.callback.ts, auth.logout.ts, health.ts.  Phase 4 adds jobs.$id, reviews.$id, api/jobs/:id,
-                       api/github/file and api/me/jobs/terminal.
+                         returned with a status, rejected token → /relink), api.jobs.$id.ts (?after=<seq> → {job, chunks},
+                         polled by the live view);  public: login.tsx, denied.tsx, auth.github.ts, auth.github.callback.ts,
+                       auth.logout.ts, health.ts.  Phase 4 adds reviews.$id, api/github/file and api/me/jobs/terminal.
     auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                        context (userContext/sessionContext), session-middleware, gate-middleware (allowlistGate, signOutHeaders)
-    components/        brand-mark, color-scheme-toggle; topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
-                       jobs/ (job-list-row, status-badge), history/ (filter-chips, empty-library),
+    components/        brand-mark, color-scheme-toggle, app-error (generic error page, used by root + route boundaries);
+                       topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
+                       jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
+                       job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
+                       what-now, rerun-button), history/ (filter-chips, empty-library),
                        home/ (review-composer, target-combobox, recent-reviews, sparkline), narrative/ (risk-score) —
                        all browser-safe, styled via token()
     stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
     theme/             Editorial Iris tokens.ts → theme.ts, css-variables.ts (--er-* vars), color-scheme.ts, theme.css
     lib/               parse.server.ts (Zod parseParams / parseSearchParams / parseFormData), github.server.ts (requireGithubToken,
                        withGithub → /relink, githubFailure), github-api.ts (resource-route body types, GITHUB_ERROR_STATUS),
+                       jobs-api.ts (JobPollResponse, mergeChunks), rerun-action.server.ts (shared intent=rerun handler),
                        action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts
     test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
 legacy/                READ-ONLY old code awaiting port; excluded from every tool. Deleted end of Phase 4.
