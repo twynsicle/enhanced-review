@@ -15,7 +15,6 @@ export const REPO_ROOT = process.cwd();
 const ALWAYS_EXCLUDE = [
   'node_modules/**',
   'build/**',
-  'legacy/**',
   '.react-router/**',
   'src/guardrails/**',
   'src/db/generated/**',
@@ -25,7 +24,7 @@ export function toPosix(p: string): string {
   return p.split(path.sep).join('/');
 }
 
-/** Repo-relative POSIX paths matching the patterns (minus build/legacy noise). */
+/** Repo-relative POSIX paths matching the patterns (minus build noise). */
 export function listFiles(patterns: string[], exclude: string[] = []): string[] {
   const excluded = [...ALWAYS_EXCLUDE, ...exclude];
   return globSync(patterns, { cwd: REPO_ROOT })

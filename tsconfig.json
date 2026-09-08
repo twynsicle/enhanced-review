@@ -28,5 +28,5 @@
     "prisma.config.ts",
     ".react-router/types/**/*"
   ],
-  "exclude": ["node_modules", "build", "legacy"]
+  "exclude": ["node_modules", "build"]
 }

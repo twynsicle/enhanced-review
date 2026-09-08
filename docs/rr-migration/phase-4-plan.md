@@ -438,3 +438,29 @@ Each commit is green on `npm run check`; integration stays green.
   "View" navigates to the reader and hides it. The browser `Notification`
   path is not reproducible headlessly (permission is `default` there) and is
   covered by the same code as `main`.
+
+**Commit 7 (close-out)**
+
+- `legacy/` is deleted with its exclusions in `tsconfig.json`,
+  `.oxlintrc.json`, `.prettierignore`, `.dockerignore` and the guardrail
+  helper's always-exclude list; the only remaining pointer is the tokens
+  file's comment naming `main` at `d63b87c` as the source of the palette.
+- The full Phase 0 matrix has a Phase 4 capture (`screenshots/phase-4/`,
+  composites in `screenshots/compare/`); the last eleven cells (relink,
+  home empty/PR picker light, history running row, `jobs--running-3`,
+  reader top/chapter-1 top/not-found light) were captured in this commit.
+  `jobs--running-3` is the streaming "Composing the narrative" state that
+  the live-view commit captured as `jobs--running-composing`.
+- Accepted deltas across the phase, in one place: Mantine notifications
+  replace the shadcn toast (left accent bar, inline "View" link, persistent);
+  the 404 page renders inside the shell on both job routes; the lead
+  paragraph is 14 px (the legacy 18 px never rendered); Mantine's `Menu`,
+  `Combobox`, `Skeleton` and `Badge` chrome differs in radius and spacing
+  from the shadcn originals within D2's "not pixel-perfect" tolerance; the
+  GitHub-backed reader sections and the browser `Notification` path were
+  verified by unit tests only (placeholder token, headless permission).
+- Not exercised locally: a real `claude` executor run (needs
+  `ANTHROPIC_API_KEY`), carried forward from Phase 3; the stub path is
+  covered end to end by the integration test and the manual walk-through.
+- AGENTS.md describes the Phase 4 tree, the overview status says Phase 5
+  next and `docs/RUNNING.md`'s interim block describes the runnable app.

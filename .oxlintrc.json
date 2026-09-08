@@ -33,7 +33,6 @@
   "ignorePatterns": [
     "build/**",
     ".react-router/**",
-    "legacy/**",
     "node_modules/**",
     "coverage/**",
     "screenshots/**",

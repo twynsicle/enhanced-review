@@ -4,10 +4,10 @@
 > app and is superseded until Phase 6 of the React Router re-platform lands.
 > Current state and plan: [rr-migration/](rr-migration/00-overview.md).
 
-> **Interim — running the migration branch today (Phase 3 state).** Only
-> sign-in, the allowlist gate and a placeholder page work; the review runner
-> and job lifecycle exist as a service (`src/domain/review`, `src/domain/jobs`)
-> and get their UI in Phase 4. Everything below this note is PocketBase-era.
+> **Interim — running the migration branch today (Phase 4 state).** The
+> whole app works on the new stack: sign in, pick a repo + PR/branch, watch
+> the live view, read the review, get the cross-page toast. Everything below
+> this note is PocketBase-era.
 >
 > 1. `docker compose up -d postgres` (Postgres 18 on `127.0.0.1:5432`).
 > 2. Copy `.env.example` to `.env`. `DATABASE_URL` and `APP_ORIGIN` defaults
@@ -21,8 +21,8 @@
 > 5. `npm run job -- seed-allowlist <your-github-login>` — idempotent; add as
 >    many logins as you like.
 > 6. `npm run dev` → <http://localhost:3000> redirects to `/login`; sign in with
->    GitHub; you land on the skeleton page with a Sign out button.
->    `GET /api/health` reports `db: "ok"`.
+>    GitHub; pick a repository and a PR or branch on the home page and start a
+>    review. `GET /api/health` reports `db: "ok"`.
 >
 > Reset the database with `npm run db:reset`. Integration tests:
 > `npm run test:integration` (skips when Postgres is down). The runner

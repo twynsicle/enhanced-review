@@ -1,16 +1,14 @@
 # Repo orientation for agents
 
 > **Migration in progress (React Router re-platform).** The app is being
-> rebuilt phase by phase on `migrate-react-router`; it is **not runnable
-> end-to-end until Phase 4 lands**. The plan of record is
+> rebuilt phase by phase on `migrate-react-router`. The plan of record is
 > `docs/rr-migration/00-overview.md` — read it before anything else. Phase
 > plans (`phase-N-plan.md`) say what each phase built and what it deviated on.
-> Phases 0–3 are done: the skeleton, Postgres/Prisma, GitHub sign-in, sessions
-> and the allowlist gate work, and the review runner + job lifecycle exist as
-> a service (`src/domain/review`, `src/domain/jobs`) with no UI on top yet.
-> `README.md`, `docs/RUNNING.md` and `docs/OPERATIONS.md` still describe the
-> old Next.js + PocketBase app and are rewritten in Phase 6 (RUNNING.md has an
-> interim block for running the current state).
+> Phases 0–4 are done: the app runs end to end again (sign-in, composer,
+> live view, reader, notifier) on the new stack; Phase 5 (jobs bundle +
+> container) is next. `README.md`, `docs/RUNNING.md` and `docs/OPERATIONS.md`
+> still describe the old Next.js + PocketBase app and are rewritten in Phase 6
+> (RUNNING.md has an interim block for running the current state).
 
 Web-based AI code-review tool (closed beta). Sign in with GitHub, pick a repo +
 PR/branch, the server clones it, runs the Claude Agent SDK against it, and
@@ -27,7 +25,6 @@ before writing code against them; heed deprecation notices.
 | ----------------------------------- | ------------------------------------------------------------------------- |
 | `docs/rr-migration/00-overview.md`  | Locked decisions (D1–D13), assumptions, target layout, phases, risks.     |
 | `docs/rr-migration/phase-N-plan.md` | What each phase built, its decisions (PN-Dx), deviations, exit criteria.  |
-| `legacy/README.md`                  | Map from the quarantined old code to where each piece is ported.          |
 | `README.md`, `docs/*.md`            | **Stale** (PocketBase era) until Phase 6. Use only for product behaviour. |
 
 ## Tech stack
@@ -53,7 +50,7 @@ before writing code against them; heed deprecation notices.
 - Vitest 4 projects: `unit` (node), `web` (happy-dom), `guardrails`
   (repo-reading convention tests), `integration` (real Postgres, self-skips).
 
-## Repo layout (Phase 3 state)
+## Repo layout (Phase 4 state)
 
 ```
 server/index.ts        Express bootstrap: dev = Vite middleware, prod = build/; SIGTERM/SIGINT → abortAll('shutdown') + drain, then close
@@ -133,7 +130,6 @@ src/
                        staleness compare; every section degrades on its own, no token → nothing fetched),
                        action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts
     test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
-legacy/                READ-ONLY old code awaiting port; excluded from every tool. Deleted end of Phase 4.
 public/                brand-mark.png, favicon.ico
 docs/rr-migration/     plan of record
 Dockerfile             node:24-alpine multi-stage; build stage runs prisma generate; runtime uses --ignore-scripts
@@ -241,7 +237,8 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
   migrate by itself.
 - Integration tests: `*.integration.test.ts`, wrap in `describeDb` from
   `src/test/db.ts`, call `resetDb()` in `beforeEach`. Files run serially.
-- `legacy/` is reference only. Port from it; never import it.
+- The old Next.js + PocketBase code is gone from the tree (Phase 4 close-out);
+  consult `main` at `d63b87c` for product behaviour that the docs miss.
 - No barrel `index.ts` files. Import the module you need
   (`@/web/theme/theme`, not `@/web/theme`).
 
