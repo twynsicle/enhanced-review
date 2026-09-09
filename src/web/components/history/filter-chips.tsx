@@ -22,7 +22,7 @@ export function FilterChips({ current }: { current: StatusFilter }) {
             aria-pressed={active}
             px={12}
             py={4}
-            fz={12}
+            fz="sm"
             fw={active ? 600 : undefined}
             style={{
               borderRadius: 999,

@@ -1,5 +1,6 @@
 import { Group, Stack, Text, Title } from '@mantine/core';
 import type { DiffChunk, NarrativeChapter, ReviewFile } from '@/domain/review/narrative';
+import { Caption } from '@/web/components/caption';
 import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
 import { token } from '@/web/theme/tokens';
 
@@ -47,32 +48,24 @@ export function FileView({
   return (
     <Stack component="article" id={`file-${filename}`} gap={28}>
       <Stack component="header" gap={12}>
-        <Text
-          fz={11}
-          fw={500}
-          tt="uppercase"
-          c={token('before')}
-          style={{ letterSpacing: '0.18em' }}
-        >
-          File
-        </Text>
+        <Caption tone="before">File</Caption>
         <Title
           order={1}
           tabIndex={-1}
           ff="monospace"
-          fz={28}
+          fz="xl"
           fw={600}
           lh={1.15}
           style={{ letterSpacing: '-0.01em', outline: 'none', wordBreak: 'break-all' }}
         >
           {dirname.length > 0 && (
-            <Text component="span" fz={18} fw={500} c={token('subtle')}>
+            <Text component="span" fz="lg" fw={500} c="dimmed">
               {dirname}/
             </Text>
           )}
           <span>{basename}</span>
         </Title>
-        <Group gap={12} fz={13} c="dimmed" style={{ rowGap: 4 }}>
+        <Group gap={12} fz="sm" c="dimmed" style={{ rowGap: 4 }}>
           {fileMeta && (
             <Text component="span" fz="inherit" tt="capitalize">
               {fileMeta.status}
@@ -127,7 +120,7 @@ export function FileView({
         <Text
           px={16}
           py={20}
-          fz={13.5}
+          fz="md"
           c="dimmed"
           style={{
             borderRadius: 8,

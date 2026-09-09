@@ -1,11 +1,20 @@
 /**
- * Editorial Iris — the app's semantic colour tokens, ported one-for-one from
- * the previous app's `globals.css` (`main` at `d63b87c`).
+ * Editorial Iris — the app's semantic colour tokens.
  *
- * Cobalt (hue 240) is the "before / current state" accent and the primary
- * chrome colour; mint (hue 160) is the "after / new state / approved"
+ * Cobalt (hue 240/245) is the "before / current state" accent and the primary
+ * chrome colour; mint (hue 165) is the "after / new state / approved"
  * counterpart. Insight kinds (risk / praise / suggestion / question) each pick
- * a hue. Values are oklch strings exactly as the baseline rendered them.
+ * a hue, and each comes as a triple: the base for text and rails, `-soft` for
+ * a tinted background, `-ink` for text sitting on that `-soft`.
+ *
+ * **Every token that carries text clears WCAG AA (4.5:1) against both
+ * `background` and `card` in its own scheme**, and every value is inside the
+ * sRGB gamut so what the browser paints is what the token says. The two
+ * schemes therefore hold *different* values for the accents: a mint that
+ * reads on an L=0.225 card cannot also read on white, which is why the
+ * light ramp is darker and less saturated than the dark one. `subtle` is the
+ * one deliberate exception — it is placeholder and decoration only, never
+ * body text. Re-check with the palette guardrail after editing any value.
  *
  * Consumed by `css-variables.ts`, which emits each token as `--er-<name>` per
  * colour scheme and maps the relevant ones onto Mantine's own variables.
@@ -27,6 +36,7 @@ export const TOKEN_NAMES = [
   'accent-foreground',
   'destructive',
   'border',
+  'border-strong',
   'input',
   'ring',
   'surface-2',
@@ -39,12 +49,16 @@ export const TOKEN_NAMES = [
   'after-ink',
   'risk',
   'risk-soft',
+  'risk-ink',
   'praise',
   'praise-soft',
+  'praise-ink',
   'suggestion',
   'suggestion-soft',
+  'suggestion-ink',
   'question',
   'question-soft',
+  'question-ink',
   'add',
   'del',
 ] as const;
@@ -53,81 +67,91 @@ export type TokenName = (typeof TOKEN_NAMES)[number];
 export type TokenMap = Record<TokenName, string>;
 
 export const lightTokens: TokenMap = {
-  background: 'oklch(0.985 0.004 245)',
+  background: 'oklch(0.97 0.006 245)',
   foreground: 'oklch(0.2 0.02 245)',
   card: 'oklch(1 0 0)',
   'card-foreground': 'oklch(0.2 0.02 245)',
   popover: 'oklch(1 0 0)',
   'popover-foreground': 'oklch(0.2 0.02 245)',
-  primary: 'oklch(0.52 0.18 240)',
-  'primary-foreground': 'oklch(0.985 0.004 245)',
-  secondary: 'oklch(0.96 0.04 240)',
-  'secondary-foreground': 'oklch(0.32 0.16 240)',
-  muted: 'oklch(0.95 0.008 245)',
-  'muted-foreground': 'oklch(0.5 0.02 245)',
-  accent: 'oklch(0.96 0.04 240)',
-  'accent-foreground': 'oklch(0.32 0.16 240)',
-  destructive: 'oklch(0.55 0.18 35)',
-  border: 'oklch(0.91 0.012 245)',
-  input: 'oklch(0.91 0.012 245)',
-  ring: 'oklch(0.52 0.18 240)',
-  'surface-2': 'oklch(0.97 0.008 245)',
-  subtle: 'oklch(0.66 0.015 245)',
-  before: 'oklch(0.6 0.21 245)',
-  'before-soft': 'oklch(0.96 0.04 240)',
-  'before-ink': 'oklch(0.32 0.16 240)',
-  after: 'oklch(0.64 0.18 165)',
+  primary: 'oklch(0.535 0.122 240)',
+  'primary-foreground': 'oklch(0.99 0.004 245)',
+  secondary: 'oklch(0.95 0.026 240)',
+  'secondary-foreground': 'oklch(0.32 0.075 240)',
+  muted: 'oklch(0.94 0.008 245)',
+  'muted-foreground': 'oklch(0.48 0.02 245)',
+  accent: 'oklch(0.95 0.026 240)',
+  'accent-foreground': 'oklch(0.32 0.075 240)',
+  destructive: 'oklch(0.53 0.18 35)',
+  border: 'oklch(0.85 0.012 245)',
+  'border-strong': 'oklch(0.642 0.015 245)',
+  input: 'oklch(0.85 0.012 245)',
+  ring: 'oklch(0.535 0.122 240)',
+  'surface-2': 'oklch(0.955 0.008 245)',
+  subtle: 'oklch(0.6 0.015 245)',
+  before: 'oklch(0.54 0.136 245)',
+  'before-soft': 'oklch(0.96 0.021 240)',
+  'before-ink': 'oklch(0.32 0.075 240)',
+  after: 'oklch(0.525 0.11 165)',
   'after-soft': 'oklch(0.94 0.05 160)',
-  'after-ink': 'oklch(0.32 0.13 160)',
-  risk: 'oklch(0.62 0.21 30)',
-  'risk-soft': 'oklch(0.95 0.05 35)',
-  praise: 'oklch(0.64 0.18 165)',
+  'after-ink': 'oklch(0.32 0.074 160)',
+  risk: 'oklch(0.57 0.23 30)',
+  'risk-soft': 'oklch(0.95 0.025 35)',
+  'risk-ink': 'oklch(0.35 0.145 30)',
+  praise: 'oklch(0.525 0.11 165)',
   'praise-soft': 'oklch(0.94 0.05 160)',
-  suggestion: 'oklch(0.68 0.17 80)',
-  'suggestion-soft': 'oklch(0.95 0.06 80)',
-  question: 'oklch(0.6 0.21 245)',
-  'question-soft': 'oklch(0.96 0.04 240)',
-  add: 'oklch(0.64 0.18 165)',
-  del: 'oklch(0.62 0.21 30)',
+  'praise-ink': 'oklch(0.32 0.074 160)',
+  suggestion: 'oklch(0.545 0.112 80)',
+  'suggestion-soft': 'oklch(0.95 0.046 80)',
+  'suggestion-ink': 'oklch(0.38 0.08 80)',
+  question: 'oklch(0.54 0.136 245)',
+  'question-soft': 'oklch(0.96 0.021 240)',
+  'question-ink': 'oklch(0.32 0.075 240)',
+  add: 'oklch(0.525 0.11 165)',
+  del: 'oklch(0.57 0.23 30)',
 };
 
 export const darkTokens: TokenMap = {
-  background: 'oklch(0.17 0.014 245)',
+  background: 'oklch(0.155 0.014 245)',
   foreground: 'oklch(0.97 0.005 245)',
-  card: 'oklch(0.21 0.016 245)',
+  card: 'oklch(0.225 0.016 245)',
   'card-foreground': 'oklch(0.97 0.005 245)',
-  popover: 'oklch(0.21 0.016 245)',
+  popover: 'oklch(0.225 0.016 245)',
   'popover-foreground': 'oklch(0.97 0.005 245)',
-  primary: 'oklch(0.72 0.17 240)',
-  'primary-foreground': 'oklch(0.17 0.014 245)',
-  secondary: 'oklch(0.3 0.1 240)',
-  'secondary-foreground': 'oklch(0.86 0.13 240)',
-  muted: 'oklch(0.25 0.018 245)',
-  'muted-foreground': 'oklch(0.72 0.012 245)',
-  accent: 'oklch(0.3 0.1 240)',
-  'accent-foreground': 'oklch(0.86 0.13 240)',
-  destructive: 'oklch(0.74 0.17 35)',
-  border: 'oklch(0.3 0.014 245)',
-  input: 'oklch(0.3 0.014 245)',
-  ring: 'oklch(0.72 0.17 240)',
-  'surface-2': 'oklch(0.25 0.018 245)',
-  subtle: 'oklch(0.55 0.015 245)',
-  before: 'oklch(0.6 0.21 245)',
-  'before-soft': 'oklch(0.3 0.1 240)',
-  'before-ink': 'oklch(0.86 0.13 240)',
-  after: 'oklch(0.64 0.18 165)',
-  'after-soft': 'oklch(0.3 0.1 160)',
+  primary: 'oklch(0.72 0.162 240)',
+  'primary-foreground': 'oklch(0.155 0.014 245)',
+  secondary: 'oklch(0.32 0.075 240)',
+  'secondary-foreground': 'oklch(0.86 0.077 240)',
+  muted: 'oklch(0.27 0.018 245)',
+  'muted-foreground': 'oklch(0.74 0.012 245)',
+  accent: 'oklch(0.32 0.075 240)',
+  'accent-foreground': 'oklch(0.86 0.077 240)',
+  destructive: 'oklch(0.74 0.161 35)',
+  border: 'oklch(0.37 0.014 245)',
+  'border-strong': 'oklch(0.516 0.015 245)',
+  input: 'oklch(0.37 0.014 245)',
+  ring: 'oklch(0.72 0.162 240)',
+  'surface-2': 'oklch(0.27 0.018 245)',
+  subtle: 'oklch(0.58 0.015 245)',
+  before: 'oklch(0.68 0.16 245)',
+  'before-soft': 'oklch(0.32 0.075 240)',
+  'before-ink': 'oklch(0.86 0.077 240)',
+  after: 'oklch(0.7 0.147 165)',
+  'after-soft': 'oklch(0.3 0.07 160)',
   'after-ink': 'oklch(0.88 0.14 160)',
-  risk: 'oklch(0.62 0.21 30)',
-  'risk-soft': 'oklch(0.28 0.09 35)',
-  praise: 'oklch(0.64 0.18 165)',
-  'praise-soft': 'oklch(0.28 0.09 160)',
-  suggestion: 'oklch(0.68 0.17 80)',
-  'suggestion-soft': 'oklch(0.28 0.08 80)',
-  question: 'oklch(0.6 0.21 245)',
-  'question-soft': 'oklch(0.28 0.08 240)',
-  add: 'oklch(0.64 0.18 165)',
-  del: 'oklch(0.62 0.21 30)',
+  risk: 'oklch(0.68 0.19 30)',
+  'risk-soft': 'oklch(0.3 0.09 35)',
+  'risk-ink': 'oklch(0.86 0.076 30)',
+  praise: 'oklch(0.7 0.147 165)',
+  'praise-soft': 'oklch(0.3 0.07 160)',
+  'praise-ink': 'oklch(0.88 0.14 160)',
+  suggestion: 'oklch(0.75 0.15 80)',
+  'suggestion-soft': 'oklch(0.3 0.065 80)',
+  'suggestion-ink': 'oklch(0.88 0.12 85)',
+  question: 'oklch(0.68 0.16 245)',
+  'question-soft': 'oklch(0.3 0.071 240)',
+  'question-ink': 'oklch(0.86 0.077 240)',
+  add: 'oklch(0.7 0.147 165)',
+  del: 'oklch(0.68 0.19 30)',
 };
 
 /**
@@ -223,4 +247,53 @@ export const RADII = {
   md: '0.6rem',
   lg: '0.75rem',
   xl: '1.05rem',
+} as const;
+
+/**
+ * The type scale — six steps, and the only sizes the UI is allowed to use.
+ *
+ * Five are Mantine's own `fontSizes` keys, so `fz="sm"` and every component
+ * default resolves here; `DISPLAY` is the page-title step, applied directly
+ * because Mantine's scale stops at `xl`. Steps are far enough apart to read
+ * as rank — the previous UI had twelve sizes with eight of them between 10px
+ * and 15px, differences too small to signal hierarchy and large enough to
+ * read as noise.
+ *
+ *   xs 11  uppercase labels, eyebrows, counts   (see components/caption.tsx)
+ *   sm 13  metadata, secondary and helper lines
+ *   md 15  body prose, insight text, table cells
+ *   lg 19  card and insight titles
+ *   xl 28  stat figures, file headlines
+ *   DISPLAY 40  page and chapter titles
+ */
+export const FONT_SIZES = {
+  xs: '11px',
+  sm: '13px',
+  md: '15px',
+  lg: '19px',
+  xl: '28px',
+} as const;
+
+/** Page- and chapter-title size; above Mantine's `xl` step. */
+export const DISPLAY_SIZE = 40;
+
+/** Line heights paired with `FONT_SIZES`; prose reads at `md`. */
+export const LINE_HEIGHTS = {
+  xs: '1.4',
+  sm: '1.5',
+  md: '1.6',
+  lg: '1.35',
+  xl: '1.15',
+} as const;
+
+/**
+ * The one uppercase-label treatment. Every eyebrow, caption, field label and
+ * section rule in the app uses these values through `components/caption.tsx`
+ * and varies only by colour — nine near-identical treatments differing by
+ * half a pixel and 0.04em of tracking is noise, not hierarchy.
+ */
+export const CAPTION_TYPE = {
+  size: FONT_SIZES.xs,
+  weight: 600,
+  tracking: '0.12em',
 } as const;

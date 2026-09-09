@@ -72,7 +72,8 @@ src/
                        listRecentActivity, toJobView);
                        shared: errors.ts (JobInFlightError, …), status.ts (JOB_STATUSES), job-view.ts (JobView, jobHref), activity.ts
   jobs/                cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.ts
-  guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access
+  guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access,
+                       palette (token contrast maths + the type scale and one-label rules)
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
   web/
     root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary, middleware: [sessionMiddleware]
@@ -92,7 +93,8 @@ src/
                        auth.github.ts, auth.github.callback.ts, auth.logout.ts, health.ts.
     auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                        context (userContext/sessionContext), session-middleware, gate-middleware (requireUser, signOutHeaders)
-    components/        brand-mark, color-scheme-toggle, app-error (generic error page, used by root + route boundaries);
+    components/        brand-mark, caption (the one uppercase label), color-scheme-toggle,
+                       app-error (generic error page, used by root + route boundaries);
                        topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
                        jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                        job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
@@ -107,7 +109,8 @@ src/
                        a 30 s overlap, toasts once per job id, suppressed on that job's pages, browser Notification when
                        hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
     stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
-    theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours) → theme.ts,
+    theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours + FONT_SIZES/DISPLAY_SIZE/
+                       CAPTION_TYPE, the type scale) → theme.ts (Mantine ramps, fontSizes, sans + mono),
                        css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules)
     lib/               parse.server.ts (Zod parseParams / parseSearchParams / parseFormData), github.server.ts (requireGithubToken,
                        withGithub → /relink, githubFailure), github-api.ts (resource-route body types, GITHUB_ERROR_STATUS),
@@ -203,6 +206,34 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
 - **Reads** go through `domain/jobs/jobs.server.ts`, which parses the JSON
   columns (`target` → `ReviewTargetSchema`, `content` →
   `NarrativeReviewSchema`); repositories return them as `unknown`.
+
+## Design system
+
+Two rules, both enforced by the `palette` guardrail, both the result of the
+reader growing twelve font sizes and nine near-identical label styles:
+
+- **Six font sizes, no more.** `FONT_SIZES` (Mantine's `xs`–`xl`: 11/13/15/19/28)
+  plus `DISPLAY_SIZE` (40) for page and chapter titles. Use `fz="sm"` or
+  `var(--mantine-font-size-sm)`, never a literal `fz={13}` or `font-size: 13px`.
+- **One uppercase label.** `components/caption.tsx`; it varies only by `tone`.
+  A component that needs the treatment without the component (a Mantine
+  `Badge`, say) reads `CAPTION_TYPE` rather than respelling the values.
+
+Two text families: sans for everything, mono for identifiers, paths, SHAs and
+code. There is no display serif.
+
+Colour is semantic tokens only (`token('muted-foreground')`, never a literal or
+a `color-mix` off `foreground`). Body text is `foreground`; anything secondary
+is `muted-foreground` — those two greys are the whole vocabulary. `subtle` is
+placeholder and decoration, never text. Text on a `-soft` fill takes the
+matching `-ink`. `border` draws cards and dividers; `border-strong` (≥ 3:1) is
+for control boundaries and is what Mantine's `default-border` resolves to.
+
+**Every token that carries text clears WCAG AA against both grounds of its own
+scheme, and every token is inside the sRGB gamut.** The two schemes therefore
+hold different accent values — a mint that reads on a dark card cannot also
+read on white, which is how the previous palette came to fail light mode. When
+changing a colour, run `npm test` and let the guardrail do the arithmetic.
 
 ## Conventions
 

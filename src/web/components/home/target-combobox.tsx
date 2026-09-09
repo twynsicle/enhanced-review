@@ -59,7 +59,7 @@ export function TargetCombobox<T>({
     options = filtered.map((item) => {
       const key = getKey(item);
       return (
-        <Combobox.Option key={key} value={key} active={key === selectedKey} py={7} fz={13}>
+        <Combobox.Option key={key} value={key} active={key === selectedKey} py={7} fz="sm">
           {renderItem(item)}
         </Combobox.Option>
       );
@@ -88,7 +88,7 @@ export function TargetCombobox<T>({
           w="100%"
           h={40}
           px={12}
-          fz={15}
+          fz="md"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -105,7 +105,7 @@ export function TargetCombobox<T>({
             {value ? (
               renderTrigger(value)
             ) : (
-              <Text component="span" fz={15} c="dimmed" truncate style={{ display: 'block' }}>
+              <Text component="span" fz="md" c="dimmed" truncate style={{ display: 'block' }}>
                 {placeholder}
               </Text>
             )}

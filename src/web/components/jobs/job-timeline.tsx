@@ -22,16 +22,16 @@ export function JobTimeline({ phases }: { phases: Phase[] }) {
             {MARKER[phase.state]}
           </span>
           <Group justify="space-between" align="baseline" gap={12} wrap="nowrap">
-            <Title order={3} fz={17} fw={600} style={{ letterSpacing: '-0.005em' }}>
+            <Title order={3} fz="lg" fw={600}>
               {phase.label}
             </Title>
             {phase.stamp && (
-              <Text component="span" ff="monospace" fz={11} c={token('subtle')}>
+              <Text component="span" ff="monospace" fz="xs" c="dimmed">
                 {phase.stamp}
               </Text>
             )}
           </Group>
-          <Text fz={13} c="dimmed" style={{ textWrap: 'pretty' }}>
+          <Text fz="sm" c="dimmed" style={{ textWrap: 'pretty' }}>
             {phase.detail}
           </Text>
           {phase.titles && phase.titles.length > 0 && (
@@ -49,8 +49,7 @@ export function JobTimeline({ phases }: { phases: Phase[] }) {
                 <Box
                   key={`${String(i)}:${title.text}`}
                   component="span"
-                  ff="var(--mantine-font-family-headings)"
-                  fz={14}
+                  fz="sm"
                   fs={title.state === 'active' ? 'italic' : undefined}
                   c={title.state === 'done' ? token('after-ink') : token('muted-foreground')}
                 >

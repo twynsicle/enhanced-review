@@ -61,13 +61,11 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@react-router/dev": "^8.3.1",
-    "@monaco-editor/react": "^4.7.0",
     "@fontsource-variable/inter-tight": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
-    "@fontsource/source-serif-4": "^5.3.0",
+    "@monaco-editor/react": "^4.7.0",
+    "@react-router/dev": "^8.3.1",
     "@tabler/icons-react": "^3.46.0",
-    "monaco-editor": "^0.56.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
@@ -79,6 +77,7 @@
     "@types/react-dom": "^19.2.7",
     "cross-env": "^10.1.0",
     "happy-dom": "^20.14.0",
+    "monaco-editor": "^0.56.0",
     "oxlint": "^1.82.0",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",

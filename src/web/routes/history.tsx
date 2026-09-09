@@ -3,11 +3,12 @@ import { Link } from 'react-router';
 import { z } from 'zod';
 import { listJobs, toJobView } from '@/domain/jobs/jobs.server';
 import { JOB_STATUSES } from '@/domain/jobs/status';
+import { Caption } from '@/web/components/caption';
 import { EmptyLibrary } from '@/web/components/history/empty-library';
 import { FilterChips, type StatusFilter } from '@/web/components/history/filter-chips';
 import { JobListRow } from '@/web/components/jobs/job-list-row';
 import { parseSearchParams } from '@/web/lib/parse.server';
-import { token } from '@/web/theme/tokens';
+import { DISPLAY_SIZE, token } from '@/web/theme/tokens';
 import type { Route } from './+types/history';
 
 const PAGE_SIZE = 100;
@@ -37,16 +38,8 @@ export default function History({ loaderData }: Route.ComponentProps) {
       ) : (
         <Stack gap={32}>
           <Stack component="header" gap={8}>
-            <Text
-              fz={11}
-              fw={500}
-              tt="uppercase"
-              c={token('before')}
-              style={{ letterSpacing: '0.18em' }}
-            >
-              ❖&nbsp;&nbsp;Library
-            </Text>
-            <Title order={1} fz={30} fw={600} style={{ letterSpacing: '-0.015em' }}>
+            <Caption tone="before">❖&nbsp;&nbsp;Library</Caption>
+            <Title order={1} fz={DISPLAY_SIZE} fw={600} style={{ letterSpacing: '-0.02em' }}>
               Every review, indexed.
             </Title>
           </Stack>

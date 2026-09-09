@@ -41,7 +41,7 @@
   border: 1.5px solid var(--marker-border);
   background: var(--marker-bg);
   color: var(--marker-fg);
-  font-size: 10px;
+  font-size: var(--mantine-font-size-xs);
   line-height: 1;
 }
 

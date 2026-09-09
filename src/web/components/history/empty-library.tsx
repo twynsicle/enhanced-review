@@ -53,10 +53,10 @@ export function EmptyLibrary() {
         <rect x="32" y="68" width="96" height="20" rx="3" fill={token('before-soft')} />
         <path d="M32 68 L32 88" stroke="currentColor" strokeWidth="2" />
       </svg>
-      <Title order={2} fz={30} fw={600} style={{ letterSpacing: '-0.015em' }}>
+      <Title order={2} fz="xl" fw={600} style={{ letterSpacing: '-0.015em' }}>
         The library is waiting.
       </Title>
-      <Text maw={448} fz={15} c="dimmed">
+      <Text maw={448} fz="md" c="dimmed">
         When you start your first review, it lives here — every chapter, every insight, every diff,
         written and indexed.
       </Text>

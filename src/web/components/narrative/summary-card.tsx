@@ -3,13 +3,12 @@ import type { ReactNode } from 'react';
 import type { PullMetadata, PullReviewer } from '@/domain/github/types';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/domain/review/narrative';
 import type { ReviewTarget } from '@/domain/review/target';
+import { Caption } from '@/web/components/caption';
 import { LeadMarkdown } from '@/web/components/narrative/lead-markdown';
 import { MarkdownText } from '@/web/components/narrative/markdown-text';
 import { type AiReviewerData, PeopleCard } from '@/web/components/narrative/people-card';
 import { RiskSummaryPanel, type RiskSummaryStat } from '@/web/components/narrative/risk-score';
-import { token } from '@/web/theme/tokens';
-
-const CAPTION = { fz: 10.5, fw: 500, tt: 'uppercase', style: { letterSpacing: '0.16em' } } as const;
+import { DISPLAY_SIZE, token } from '@/web/theme/tokens';
 
 /**
  * The synthesised summary section: title line, risk panel + people card,
@@ -76,36 +75,28 @@ export function SummaryCard({
     <Stack component="article" id={`chapter-${SUMMARY_SECTION_ID}`} gap={28}>
       <Stack component="header" gap={12}>
         <Group justify="space-between" align="flex-start" gap={12} wrap="nowrap">
-          <Text
-            fz={11}
-            fw={500}
-            tt="uppercase"
-            c={token('before')}
-            style={{ letterSpacing: '0.18em' }}
-          >
-            Review&nbsp;&nbsp;·&nbsp;&nbsp;Summary
-          </Text>
+          <Caption tone="before">Review&nbsp;&nbsp;·&nbsp;&nbsp;Summary</Caption>
           {actions}
         </Group>
         <Title
           order={1}
           id={`chapter-heading-${SUMMARY_SECTION_ID}`}
           tabIndex={-1}
-          fz={42}
+          fz={DISPLAY_SIZE}
           fw={600}
-          lh={1.05}
+          lh={1.1}
           style={{ letterSpacing: '-0.02em', outline: 'none' }}
         >
           {title}
         </Title>
-        <Group gap={12} fz={13} c="dimmed" style={{ rowGap: 4 }}>
-          <Text component="span" ff="monospace" fz={12.5}>
+        <Group gap={12} fz="sm" c="dimmed" style={{ rowGap: 4 }}>
+          <Text component="span" ff="monospace" fz="inherit">
             {target.owner}/{target.repo}
           </Text>
           {prNumber !== null && (
             <>
               {dot}
-              <Text component="span" ff="monospace" fz={12.5}>
+              <Text component="span" ff="monospace" fz="inherit">
                 PR #{prNumber}
               </Text>
             </>
@@ -119,7 +110,7 @@ export function SummaryCard({
                 wrap="nowrap"
                 display="inline-flex"
                 ff="monospace"
-                fz={12.5}
+                fz="inherit"
               >
                 <span>{headRef}</span>
                 <span aria-hidden>→</span>
@@ -131,7 +122,7 @@ export function SummaryCard({
           <Text
             component="code"
             ff="monospace"
-            fz={11}
+            fz="xs"
             px={6}
             py={2}
             style={{ borderRadius: 4, background: token('muted') }}
@@ -155,14 +146,12 @@ export function SummaryCard({
       </Grid>
 
       <Stack component="section" gap={12}>
-        <Title order={3} ff="text" {...CAPTION} c={token('subtle')}>
-          Description
-        </Title>
+        <Caption component="h3">Description</Caption>
         <LeadMarkdown text={review.overviewSummary} />
       </Stack>
 
       {!review.riskAssessment && reviewedFileCount > 0 && (
-        <Text fz={13} c="dimmed">
+        <Text fz="sm" c="dimmed">
           {reviewedFileCount} {reviewedFileCount === 1 ? 'file' : 'files'} ·{' '}
           <Text component="span" fz="inherit" c={token('add')}>
             +{additions}
@@ -180,15 +169,7 @@ export function SummaryCard({
           pt={20}
           style={{ borderTop: `1px solid ${token('border')}` }}
         >
-          <Title
-            order={3}
-            ff="text"
-            {...CAPTION}
-            c={token('subtle')}
-            style={{ letterSpacing: '0.18em' }}
-          >
-            Author description
-          </Title>
+          <Caption component="h3">Author description</Caption>
           <MarkdownText text={pullMetadata.body} />
         </Stack>
       )}

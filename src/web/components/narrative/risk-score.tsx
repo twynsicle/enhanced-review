@@ -14,7 +14,8 @@ import type {
   ReviewRiskFactorImpact,
   ReviewRiskScore,
 } from '@/domain/review/narrative';
-import { token, type TokenName } from '@/web/theme/tokens';
+import { Caption } from '@/web/components/caption';
+import { CAPTION_TYPE, token, type TokenName } from '@/web/theme/tokens';
 
 export function normalizeRiskScore(score: number | null | undefined): ReviewRiskScore | null {
   if (typeof score !== 'number' || !Number.isFinite(score)) return null;
@@ -52,7 +53,13 @@ const SOFT: Record<RiskTone, TokenName> = {
   risk: 'risk-soft',
 };
 
-const CAPTION = { fz: 10.5, fw: 500, tt: 'uppercase', style: { letterSpacing: '0.16em' } } as const;
+/** Text on a `-soft` fill needs the matching `-ink`; the base tone is tuned
+ * for the page ground and does not clear AA against its own tint. */
+const INK: Record<RiskTone, TokenName> = {
+  praise: 'praise-ink',
+  suggestion: 'suggestion-ink',
+  risk: 'risk-ink',
+};
 
 function riskTitle(score: ReviewRiskScore): string {
   return `Risk ${score} of 5: ${riskLabel(score)}`;
@@ -95,7 +102,7 @@ export function RiskScoreBars({
         ))}
       </Box>
       {!hideLabel && (
-        <Text component="span" fz={isLg ? 13 : 11} fw={isLg ? 600 : 500} style={{ color: tint }}>
+        <Text component="span" fz={isLg ? 'sm' : 'xs'} fw={600} style={{ color: tint }}>
           Risk · {normalized}/5 · {riskLabel(normalized)}
         </Text>
       )}
@@ -108,7 +115,7 @@ export function RiskInlineLabel({ score }: { score: number | null | undefined })
   const normalized = normalizeRiskScore(score);
   if (normalized === null) return null;
   return (
-    <Text component="span" fz={12} fw={600} style={{ color: token(RAMP[normalized]) }}>
+    <Text component="span" fz="sm" fw={600} style={{ color: token(RAMP[normalized]) }}>
       {normalized}/5 · {riskLabel(normalized)}
     </Text>
   );
@@ -131,7 +138,7 @@ export function RiskScorePill({
       px={10}
       py={2}
       ff="monospace"
-      fz={10.5}
+      fz="xs"
       fw={600}
       style={{
         display: 'inline-flex',
@@ -139,15 +146,15 @@ export function RiskScorePill({
         flexShrink: 0,
         borderRadius: 999,
         textTransform: 'uppercase',
-        letterSpacing: '0.1em',
-        border: `1px solid color-mix(in oklab, ${token(tone)} 40%, transparent)`,
+        letterSpacing: CAPTION_TYPE.tracking,
+        border: `1px solid color-mix(in oklab, ${token(tone)} 45%, transparent)`,
         background: token(SOFT[tone]),
-        color: token(tone),
+        color: token(INK[tone]),
       }}
     >
       R{normalized}
       {showLabel && (
-        <Text component="span" ml={6} ff="text" tt="none" style={{ letterSpacing: 'normal' }}>
+        <Text component="span" ml={6} tt="none" style={{ letterSpacing: 'normal' }}>
           {riskLabel(normalized)}
         </Text>
       )}
@@ -190,22 +197,20 @@ export function RiskSummaryPanel({
       }}
     >
       <Group justify="space-between" align="baseline" gap={12}>
-        <Text {...CAPTION} c={token('subtle')}>
-          Risk rating
-        </Text>
-        <Text component="span" ff="monospace" fz={10.5} c={token('subtle')}>
+        <Caption>Risk rating</Caption>
+        <Text component="span" ff="monospace" fz="xs" c="dimmed">
           computed by reviewer
         </Text>
       </Group>
 
       <RiskScoreBars score={assessment.score} size="lg" />
 
-      <Title order={2} fz={18} fw={600} lh={1.375} style={{ letterSpacing: '-0.005em' }}>
+      <Title order={2} fz="lg" fw={600} lh={1.35} style={{ textWrap: 'pretty' }}>
         {assessment.summary}
       </Title>
 
       {assessment.rationale.trim().length > 0 && (
-        <Text maw="82ch" fz={13.5} lh={1.6} c="dimmed">
+        <Text maw="76ch" fz="sm" c="dimmed">
           {assessment.rationale}
         </Text>
       )}
@@ -221,14 +226,12 @@ export function RiskSummaryPanel({
         >
           {stats.map((stat) => (
             <Box key={stat.label} miw={0}>
-              <Text component="dt" {...CAPTION} c={token('subtle')}>
-                {stat.label}
-              </Text>
-              <Text component="dd" mt={4} m={0} ff="heading" fz={28} fw={600} lh={1}>
+              <Caption component="dt">{stat.label}</Caption>
+              <Text component="dd" mt={6} m={0} fz="xl" fw={600} lh={1}>
                 {stat.value}
               </Text>
               {stat.sub && (
-                <Text component="dd" mt={4} m={0} fz={12} c="dimmed">
+                <Text component="dd" mt={4} m={0} fz="sm" c="dimmed">
                   {stat.sub}
                 </Text>
               )}
@@ -242,9 +245,8 @@ export function RiskSummaryPanel({
           <UnstyledButton
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
-            {...CAPTION}
-            c={token('subtle')}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '0.16em' }}
+            c="dimmed"
+            style={{ display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Box
               component="span"
@@ -257,13 +259,13 @@ export function RiskSummaryPanel({
             >
               ▸
             </Box>
-            <span>{open ? 'Hide breakdown' : 'Show breakdown'}</span>
+            <Caption>{open ? 'Hide breakdown' : 'Show breakdown'}</Caption>
           </UnstyledButton>
           <Collapse expanded={open}>
             <SimpleGrid component="dl" cols={{ base: 1, sm: 2 }} spacing={12} mt={16} m={0}>
               {assessment.factors.map((factor, index) => (
                 <Box key={`${factor.name}-${index}`} miw={0}>
-                  <Group component="dt" gap={8} wrap="nowrap" fz={12} fw={600}>
+                  <Group component="dt" gap={8} wrap="nowrap">
                     <Box
                       component="span"
                       style={{
@@ -274,11 +276,11 @@ export function RiskSummaryPanel({
                         background: token(factorTone(factor.impact)),
                       }}
                     />
-                    <Text component="span" fz={12} fw={600} truncate>
+                    <Text component="span" fz="sm" fw={600} truncate>
                       {factor.name}
                     </Text>
                   </Group>
-                  <Text component="dd" mt={4} m={0} fz={12.5} lh={1.5} c="dimmed">
+                  <Text component="dd" mt={4} m={0} fz="sm" c="dimmed">
                     {factor.detail}
                   </Text>
                 </Box>

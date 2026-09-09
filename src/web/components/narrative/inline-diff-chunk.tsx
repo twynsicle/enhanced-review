@@ -310,7 +310,7 @@ export function InlineDiffChunk({
       style={{
         overflow: 'hidden',
         borderRadius: 8,
-        boxShadow: `0 0 0 1px color-mix(in oklab, ${token('foreground')} 10%, transparent)`,
+        boxShadow: `0 0 0 1px ${token('border')}`,
         background: token('card'),
       }}
     >
@@ -318,9 +318,9 @@ export function InlineDiffChunk({
         gap={8}
         px={12}
         py={8}
-        fz={12}
+        fz="sm"
         style={{
-          borderBottom: `1px solid color-mix(in oklab, ${token('foreground')} 10%, transparent)`,
+          borderBottom: `1px solid ${token('border')}`,
           background: `color-mix(in oklab, ${token('muted')} 30%, transparent)`,
         }}
       >
@@ -332,11 +332,11 @@ export function InlineDiffChunk({
           style={{ wordBreak: 'break-all' }}
         >
           {dirname.length > 0 && (
-            <Text component="span" fz={11} c={token('subtle')}>
+            <Text component="span" fz="xs" c="dimmed">
               {dirname}/
             </Text>
           )}
-          <Text component="span" fz={13} fw={600}>
+          <Text component="span" fz="sm" fw={600}>
             {basename}
           </Text>
         </Text>
@@ -355,7 +355,7 @@ export function InlineDiffChunk({
             ml="auto"
             px={8}
             py={2}
-            fz={12}
+            fz="sm"
             c="dimmed"
             style={{ borderRadius: 4 }}
             onClick={() => setExpanded((prev) => !prev)}
@@ -366,12 +366,12 @@ export function InlineDiffChunk({
       </Group>
 
       {state.kind === 'loading' && (
-        <Text px={12} py={16} fz={12} c="dimmed">
+        <Text px={12} py={16} fz="sm" c="dimmed">
           Loading…
         </Text>
       )}
       {state.kind === 'error' && (
-        <Text px={12} py={16} fz={12} c="dimmed">
+        <Text px={12} py={16} fz="sm" c="dimmed">
           {describeError(state.error)}
         </Text>
       )}

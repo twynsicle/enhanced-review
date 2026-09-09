@@ -42,8 +42,8 @@
 
 .chevron {
   margin-left: auto;
-  font-size: 14px;
-  color: var(--er-subtle);
+  font-size: var(--mantine-font-size-sm);
+  color: var(--er-muted-foreground);
   transition: transform 150ms;
 }
 
@@ -68,9 +68,9 @@
   flex-shrink: 0;
   padding-top: 4px;
   font-family: var(--mantine-font-family-monospace);
-  font-size: 10px;
+  font-size: var(--mantine-font-size-xs);
   font-variant-numeric: tabular-nums;
-  color: var(--er-subtle);
+  color: var(--er-muted-foreground);
 }
 
 .label {
@@ -78,7 +78,7 @@
   min-width: 0;
   padding-left: 8px;
   border-left: 2px solid transparent;
-  font-size: 13px;
+  font-size: var(--mantine-font-size-sm);
   line-height: 1.35;
   color: var(--er-muted-foreground);
   overflow: hidden;
@@ -153,7 +153,7 @@
 .status {
   margin-top: 2px;
   font-family: var(--mantine-font-family-monospace);
-  font-size: 10px;
+  font-size: var(--mantine-font-size-xs);
 }
 
 .status[data-status='added'],
@@ -185,19 +185,19 @@
 }
 
 .basename {
-  font-size: 12px;
+  font-size: var(--mantine-font-size-sm);
   color: var(--er-foreground);
 }
 
 .dirname {
-  font-size: 10.5px;
-  color: var(--er-subtle);
+  font-size: var(--mantine-font-size-xs);
+  color: var(--er-muted-foreground);
 }
 
 .stats {
   font-family: var(--mantine-font-family-monospace);
-  font-size: 10.5px;
-  color: var(--er-subtle);
+  font-size: var(--mantine-font-size-xs);
+  color: var(--er-muted-foreground);
   white-space: nowrap;
 }
 

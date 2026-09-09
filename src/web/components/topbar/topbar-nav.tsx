@@ -11,7 +11,7 @@ const ITEMS = [
 export function TopbarNav() {
   const { pathname } = useLocation();
   return (
-    <Group component="nav" aria-label="Primary" gap={4} visibleFrom="sm" fz={12.5}>
+    <Group component="nav" aria-label="Primary" gap={4} visibleFrom="sm" fz="sm">
       {ITEMS.map((item) => {
         const active = item.match(pathname);
         return (

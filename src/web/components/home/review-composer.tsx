@@ -15,6 +15,7 @@ import { useEffect, useMemo, type ReactNode } from 'react';
 import { Link, useFetcher } from 'react-router';
 import type { BranchSummary, PullSummary, RepoSummary } from '@/domain/github/types';
 import type { ReviewTarget } from '@/domain/review/target';
+import { Caption } from '@/web/components/caption';
 import { isActionError } from '@/web/lib/action-error';
 import type { BranchesResponse, PullsResponse, ReposResponse } from '@/web/lib/github-api';
 import {
@@ -423,7 +424,7 @@ export function ReviewComposer({ userId }: { userId: string }) {
         wrap="nowrap"
         style={{ borderTop: `1px solid ${token('border')}` }}
       >
-        <Text fz={12.5} c="dimmed" miw={0} truncate style={{ flex: 1 }}>
+        <Text fz="sm" c="dimmed" miw={0} truncate style={{ flex: 1 }}>
           {target ? (
             <SelectionHint target={target} />
           ) : (
@@ -475,16 +476,7 @@ export function ReviewComposer({ userId }: { userId: string }) {
 function Field({ label, grow, children }: { label: string; grow?: number; children: ReactNode }) {
   return (
     <Stack component="label" gap={6} miw={0} style={{ flex: grow ? `${grow} 1 0` : '0 0 auto' }}>
-      <Text
-        component="span"
-        fz={10.5}
-        fw={500}
-        tt="uppercase"
-        c={token('subtle')}
-        style={{ letterSpacing: '0.14em' }}
-      >
-        {label}
-      </Text>
+      <Caption>{label}</Caption>
       {children}
     </Stack>
   );
@@ -539,7 +531,7 @@ function FieldError({ message, onRetry }: { message: string; onRetry: () => void
 
 function kindItem(icon: ReactNode, label: string) {
   return (
-    <Group component="span" gap={6} wrap="nowrap" fz={12} fw={500}>
+    <Group component="span" gap={6} wrap="nowrap" fz="sm" fw={500}>
       {icon}
       {label}
     </Group>

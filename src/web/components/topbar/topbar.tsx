@@ -49,13 +49,7 @@ export function Topbar({ user }: { user: TopbarUser | null }) {
             }}
           >
             <BrandMark size={48} />
-            <Text
-              component="span"
-              ff="heading"
-              fz={15}
-              fw={600}
-              style={{ letterSpacing: '-0.01em' }}
-            >
+            <Text component="span" fz="md" fw={600} style={{ letterSpacing: '-0.01em' }}>
               Enhanced&nbsp;Review
             </Text>
           </Box>

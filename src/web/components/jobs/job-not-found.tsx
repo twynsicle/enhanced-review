@@ -7,7 +7,7 @@ export function JobNotFound() {
   return (
     <Container component="main" size={576} w="100%" px={24} py={64}>
       <Stack align="center" gap={24} ta="center">
-        <Title order={1} fz={20} fw={600} ff="text">
+        <Title order={1} fz="xl" fw={600}>
           Review not found
         </Title>
         <Text fz="sm" c="dimmed">

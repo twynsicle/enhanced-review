@@ -2,14 +2,13 @@ import { Avatar, Box, Group, Stack, Text } from '@mantine/core';
 import type { ReactNode } from 'react';
 import type { PullReviewer, ReviewerState } from '@/domain/github/types';
 import { BrandMark } from '@/web/components/brand-mark';
+import { Caption } from '@/web/components/caption';
 import { token, type TokenName } from '@/web/theme/tokens';
 
 export interface AiReviewerData {
   durationMs: number | null;
   insightCount: number;
 }
-
-const CAPTION = { fz: 10.5, fw: 500, tt: 'uppercase', style: { letterSpacing: '0.16em' } } as const;
 
 /** Author, GitHub reviewers (latest state each) and the AI reviewer's own line. */
 export function PeopleCard({
@@ -35,11 +34,9 @@ export function PeopleCard({
         background: token('card'),
       }}
     >
-      <Text {...CAPTION} c={token('subtle')}>
-        People
-      </Text>
+      <Caption>People</Caption>
 
-      <Stack component="dl" gap={12} m={0} fz={13}>
+      <Stack component="dl" gap={12} m={0} fz="sm">
         <Row label="Author">
           <Person avatarUrl={author.avatarUrl} login={author.login} />
         </Row>
@@ -64,7 +61,7 @@ export function PeopleCard({
                         </Text>
                         {reviewer.submittedAt && (
                           <>
-                            <Text component="span" fz="inherit" aria-hidden c={token('subtle')}>
+                            <Text component="span" fz="inherit" aria-hidden c="dimmed">
                               ·
                             </Text>
                             <span>{formatRelativeTime(reviewer.submittedAt)}</span>
@@ -103,7 +100,7 @@ export function PeopleCard({
                 <Text fz="inherit" fw={500} truncate>
                   @enhanced-review
                 </Text>
-                <Text fz={12} c="dimmed" truncate>
+                <Text fz="xs" c="dimmed" truncate>
                   {formatAiSubLine(aiReviewer)}
                 </Text>
               </Stack>
@@ -133,9 +130,9 @@ function Row({
         alignItems: align,
       }}
     >
-      <Text component="dt" {...CAPTION} c={token('subtle')} pt={align === 'start' ? 4 : 0}>
+      <Caption component="dt" pt={align === 'start' ? 4 : 0}>
         {label}
-      </Text>
+      </Caption>
       <Box component="dd" m={0} miw={0}>
         {children}
       </Box>
@@ -159,7 +156,7 @@ function Person({
         alt=""
         size={24}
         radius="xl"
-        fz={10}
+        // Mantine derives the placeholder's size from `size`; `fz` is ignored here.
         fw={600}
         tt="uppercase"
         style={{ flexShrink: 0 }}
@@ -171,7 +168,7 @@ function Person({
           @{login}
         </Text>
         {secondary && (
-          <Text fz={12} c="dimmed" truncate>
+          <Text fz="xs" c="dimmed" truncate>
             {secondary}
           </Text>
         )}

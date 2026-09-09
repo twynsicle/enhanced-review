@@ -1,9 +1,10 @@
 import { Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import type { NarrativeChapter } from '@/domain/review/narrative';
+import { Caption } from '@/web/components/caption';
 import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
 import { InsightCallout } from '@/web/components/narrative/insight-callout';
 import { LeadMarkdown } from '@/web/components/narrative/lead-markdown';
-import { token } from '@/web/theme/tokens';
+import { DISPLAY_SIZE, token } from '@/web/theme/tokens';
 
 const ORDINALS = [
   'Zero',
@@ -35,24 +36,15 @@ export function SectionRule({ label, count }: { label: string; count: number }) 
       pb={8}
       style={{ borderBottom: `1px solid ${token('border')}` }}
     >
-      <Text
-        component="span"
-        fz={10.5}
-        fw={600}
-        tt="uppercase"
-        c={token('subtle')}
-        style={{ letterSpacing: '0.18em' }}
-      >
-        {label}
-      </Text>
-      <Text component="span" ff="monospace" fz={11} c={token('subtle')}>
+      <Caption>{label}</Caption>
+      <Text component="span" ff="monospace" fz="xs" c="dimmed">
         {count}
       </Text>
     </Group>
   );
 }
 
-/** One chapter as an article: eyebrow, serif title, lead, insights grid, files. */
+/** One chapter as an article: eyebrow, title, passage, insights grid, files. */
 export function ChapterCard({
   chapter,
   chapterIndex,
@@ -79,27 +71,19 @@ export function ChapterCard({
       gap={28}
     >
       <Stack component="header" gap={12}>
-        <Text
-          fz={11}
-          fw={500}
-          tt="uppercase"
-          c={token('before')}
-          style={{ letterSpacing: '0.18em' }}
-        >
-          {chapterEyebrow(chapterIndex)}
-        </Text>
+        <Caption tone="before">{chapterEyebrow(chapterIndex)}</Caption>
         <Title
           order={1}
           id={`chapter-heading-${chapter.id}`}
           tabIndex={-1}
-          fz={42}
+          fz={DISPLAY_SIZE}
           fw={600}
-          lh={1.05}
+          lh={1.1}
           style={{ letterSpacing: '-0.02em', outline: 'none' }}
         >
           {chapter.title}
         </Title>
-        <Text fz={13} c="dimmed">
+        <Text fz="sm" c="dimmed">
           {fileCount} file{fileCount === 1 ? '' : 's'} touched · {insightCount} insight
           {insightCount === 1 ? '' : 's'}
         </Text>

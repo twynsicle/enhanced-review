@@ -67,7 +67,7 @@ export function UserMenu({ user }: { user: TopbarUser }) {
           }}
         >
           <Avatar src={user.avatarUrl} alt="" size={32} radius="xl" color="gray">
-            <Text fz={10} fw={600} c="dimmed">
+            <Text fz="xs" fw={600} c="dimmed">
               {initials}
             </Text>
           </Avatar>

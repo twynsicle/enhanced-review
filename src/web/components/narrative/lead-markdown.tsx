@@ -2,11 +2,14 @@ import { Box, Text } from '@mantine/core';
 import { MarkdownText } from './markdown-text';
 
 /**
- * Editorial passage layout: serif body, the first paragraph as the lead and
- * later paragraphs muted as supporting body. No drop cap: family and weight
- * carry the hierarchy, which keeps the page calmer when passages stack. Both
- * halves render at the markdown body size — 14px, the same as the rest of
- * the reader's prose.
+ * A narrative passage: the reviewer's overview, or a chapter's description.
+ *
+ * It renders as plain body prose. There is deliberately no lead/rest split
+ * any more — the passage used to set its first paragraph in the display serif
+ * and dim everything after it, which put two faces and two greys inside a
+ * single run of text and read as an inconsistency rather than a hierarchy.
+ * Rank on this page comes from the heading above the passage, not from
+ * restyling the passage itself.
  */
 export function LeadMarkdown({
   text,
@@ -20,18 +23,9 @@ export function LeadMarkdown({
     return <Text c="dimmed">{emptyFallback}</Text>;
   }
 
-  const firstBreak = trimmed.indexOf('\n\n');
-  const first = firstBreak === -1 ? trimmed : trimmed.slice(0, firstBreak).trim();
-  const rest = firstBreak === -1 ? '' : trimmed.slice(firstBreak).trim();
-
   return (
-    <Box ff="heading" lh={1.65} style={{ textWrap: 'pretty' }}>
-      <MarkdownText text={first} />
-      {rest.length > 0 && (
-        <Box mt={20} c="dimmed">
-          <MarkdownText text={rest} />
-        </Box>
-      )}
+    <Box maw="76ch" style={{ textWrap: 'pretty' }}>
+      <MarkdownText text={trimmed} />
     </Box>
   );
 }
