@@ -24,7 +24,7 @@ export function LeadMarkdown({
   }
 
   return (
-    <Box maw="76ch" style={{ textWrap: 'pretty' }}>
+    <Box style={{ textWrap: 'pretty' }}>
       <MarkdownText text={trimmed} />
     </Box>
   );

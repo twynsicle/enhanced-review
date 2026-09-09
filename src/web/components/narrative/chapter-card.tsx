@@ -1,6 +1,7 @@
 import { Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import type { NarrativeChapter } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
+import classes from '@/web/components/narrative/article.module.css';
 import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
 import { InsightCallout } from '@/web/components/narrative/insight-callout';
 import { LeadMarkdown } from '@/web/components/narrative/lead-markdown';
@@ -64,11 +65,10 @@ export function ChapterCard({
   const fileCount = chapter.diffChunks.length;
   const insightCount = chapter.insights.length;
   return (
-    <Stack
-      component="article"
+    <article
+      className={classes.article}
       id={`chapter-${chapter.id}`}
       aria-labelledby={`chapter-heading-${chapter.id}`}
-      gap={28}
     >
       <Stack component="header" gap={12}>
         <Caption tone="before">{chapterEyebrow(chapterIndex)}</Caption>
@@ -104,8 +104,13 @@ export function ChapterCard({
         </Stack>
       )}
 
+      {/*
+       * The one thing here that earns the extra width. Diffs are the reason
+       * the wide-layout toggle exists, so they span past the reading measure
+       * while every block above them keeps it.
+       */}
       {fileCount > 0 && (
-        <Stack component="section" gap={20}>
+        <Stack component="section" gap={20} data-bleed>
           <SectionRule label="Files in this chapter" count={fileCount} />
           {chapter.diffChunks.map((chunk, i) => (
             <InlineDiffChunk
@@ -119,6 +124,6 @@ export function ChapterCard({
           ))}
         </Stack>
       )}
-    </Stack>
+    </article>
   );
 }

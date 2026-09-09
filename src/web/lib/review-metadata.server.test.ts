@@ -1,12 +1,11 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GithubResult, PullMetadata, PullReviewer } from '@/domain/github/types';
+import type { GithubResult, PullMetadata } from '@/domain/github/types';
 import type { ReviewTarget } from '@/domain/review/target';
 
 const client = { createOctokit: vi.fn(() => ({ request: vi.fn(), graphql: vi.fn() })) };
 const pulls = { getPullMetadata: vi.fn<() => Promise<GithubResult<PullMetadata>>>() };
 const viewTime = {
-  getPullReviewers: vi.fn<() => Promise<GithubResult<PullReviewer[]>>>(),
   getBranchHead: vi.fn<() => Promise<GithubResult<{ sha: string; commitMessage: string }>>>(),
   getCommitsAhead: vi.fn<() => Promise<GithubResult<{ count: number }>>>(),
 };
@@ -14,8 +13,7 @@ vi.mock('@/domain/github/client.server', () => client);
 vi.mock('@/domain/github/pull-metadata.server', () => pulls);
 vi.mock('@/domain/github/view-time.server', () => viewTime);
 
-const { deriveDurationMs, loadReviewMetadata, EMPTY_REVIEW_METADATA } =
-  await import('./review-metadata.server');
+const { loadReviewMetadata, EMPTY_REVIEW_METADATA } = await import('./review-metadata.server');
 
 const PR: ReviewTarget = {
   kind: 'pr',
@@ -54,10 +52,6 @@ const fail = { ok: false as const, error: { kind: 'unauthorized' as const, statu
 beforeEach(() => {
   vi.clearAllMocks();
   pulls.getPullMetadata.mockResolvedValue({ ok: true, data: METADATA });
-  viewTime.getPullReviewers.mockResolvedValue({
-    ok: true,
-    data: [{ login: 'bob', avatarUrl: null, state: 'approved', submittedAt: null }],
-  });
   viewTime.getBranchHead.mockResolvedValue({
     ok: true,
     data: { sha: 'cccc', commitMessage: 'feat: subject\n\nbody' },
@@ -74,10 +68,9 @@ describe('loadReviewMetadata', () => {
     expect(client.createOctokit).not.toHaveBeenCalled();
   });
 
-  it('PR: header + reviewers, no compare when the head is unchanged', async () => {
+  it('PR: header, no compare when the head is unchanged', async () => {
     const result = await loadReviewMetadata({ ...base, token: 't', target: PR });
     expect(result.pullMetadata).toEqual(METADATA);
-    expect(result.reviewers).toHaveLength(1);
     expect(result.currentHeadSha).toBe('aaaa');
     expect(result.commitsAhead).toBe(0);
     expect(viewTime.getCommitsAhead).not.toHaveBeenCalled();
@@ -101,7 +94,6 @@ describe('loadReviewMetadata', () => {
     const result = await loadReviewMetadata({ ...base, token: 't', target: PR });
     expect(result.pullMetadata).toBeNull();
     expect(result.currentHeadSha).toBeNull();
-    expect(result.reviewers).toHaveLength(1);
   });
 
   it('branch: synthesises a PR-shaped summary from the branch head', async () => {
@@ -114,7 +106,6 @@ describe('loadReviewMetadata', () => {
       headSha: 'cccc',
       body: null,
     });
-    expect(result.reviewers).toEqual([]);
     expect(result.commitsAhead).toBe(3);
   });
 
@@ -122,15 +113,5 @@ describe('loadReviewMetadata', () => {
     viewTime.getBranchHead.mockResolvedValue(fail);
     const result = await loadReviewMetadata({ ...base, token: 't', target: BRANCH });
     expect(result).toEqual(EMPTY_REVIEW_METADATA);
-  });
-});
-
-describe('deriveDurationMs', () => {
-  it('is the positive span between start and completion', () => {
-    const started = new Date('2026-01-01T00:00:00Z');
-    expect(deriveDurationMs(started, new Date('2026-01-01T00:00:20Z'))).toBe(20_000);
-    expect(deriveDurationMs(started, started)).toBeNull();
-    expect(deriveDurationMs(null, started)).toBeNull();
-    expect(deriveDurationMs(started, null)).toBeNull();
   });
 });

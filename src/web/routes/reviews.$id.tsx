@@ -15,7 +15,7 @@ import { PageShell } from '@/web/components/page-shell';
 import { StalenessBanner, TruncationBanner } from '@/web/components/narrative/review-banners';
 import { parseFormData, parseParams, parseSearchParams } from '@/web/lib/parse.server';
 import { rerunAction } from '@/web/lib/rerun-action.server';
-import { deriveDurationMs, loadReviewMetadata } from '@/web/lib/review-metadata.server';
+import { loadReviewMetadata } from '@/web/lib/review-metadata.server';
 import type { Route } from './+types/reviews.$id';
 
 const ParamsSchema = z.object({ id: z.string().min(1) });
@@ -58,17 +58,14 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     headSha,
     githubLogin: job.githubLogin,
   });
-  const insightCount = review.content.chapters.reduce((sum, c) => sum + c.insights.length, 0);
 
   return {
     job: toJobView(job),
     review: review.content,
     diffTruncated: review.diffTruncated,
     pullMetadata: metadata.pullMetadata,
-    reviewers: metadata.reviewers,
     isStale: metadata.currentHeadSha !== null && metadata.currentHeadSha !== headSha,
     commitsAhead: metadata.commitsAhead,
-    aiReviewer: { durationMs: deriveDurationMs(job.startedAt, job.completedAt), insightCount },
     initialActiveId: parseActiveId(ch, review.content.chapters),
   };
 }
@@ -111,14 +108,11 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {
         review={review}
         target={job.target}
         pullMetadata={loaderData.pullMetadata}
-        reviewers={loaderData.reviewers}
-        aiReviewer={loaderData.aiReviewer}
         baseRef={job.target.baseSha}
         headRef={job.headSha ?? ''}
         initialActiveId={loaderData.initialActiveId}
         jobId={job.id}
         jobAuthor={job.githubLogin}
-        jobHeadSha={job.headSha ?? ''}
       />
     </PageShell>
   );

@@ -54,7 +54,6 @@ const REVIEW: Review = {
 };
 const EMPTY: ReviewMetadata = {
   pullMetadata: null,
-  reviewers: [],
   currentHeadSha: null,
   commitsAhead: 0,
 };
@@ -103,10 +102,8 @@ describe('/reviews/:id loader', () => {
       review: { prTitle: 'Feature' },
       diffTruncated: true,
       pullMetadata: null,
-      reviewers: [],
       isStale: false,
       commitsAhead: 0,
-      aiReviewer: { durationMs: 20_000, insightCount: 2 },
       initialActiveId: '__summary__',
     });
     expect(metadata.loadReviewMetadata).toHaveBeenCalledWith({

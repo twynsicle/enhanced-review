@@ -56,7 +56,7 @@ src/
     auth/              github-profile.server.ts (GET /user, Zod), sign-in.server.ts (upsert user)
     github/            all *.server.ts on one @octokit/core instance per request: client (createOctokit, GithubAuthError,
                        classifyGithubError, toResult), repos, pulls, branches (GraphQL), resolve-target (re-pin SHAs),
-                       pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getPullReviewers, getCommitsAhead); types.ts shared
+                       pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getCommitsAhead); types.ts shared
     review/            shared: narrative.ts (NarrativeReview Zod schema + types), target.ts (ReviewTarget schema, describeTarget),
                        language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
       clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
@@ -102,7 +102,8 @@ src/
                        what-now, rerun-button, job-not-found (404 page shared with the reader)), history/ (filter-chips,
                        empty-history), home/ (review-composer, target-combobox, recent-reviews, sparkline),
                        narrative/ (the reader: chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state),
-                       chapter-sidebar (+ .module.css), chapter-card, summary-card, people-card, file-view, insight-callout,
+                       chapter-sidebar (+ .module.css), chapter-card, summary-card, file-view, insight-callout,
+                       article.module.css (the reading measure + the diff bleed lane),
                        lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                        inline-diff-chunk (+ .module.css; useFetcher → /api/github/file, snippets per hunk group,
                        lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme), review-banners, risk-score,
@@ -117,11 +118,12 @@ src/
                        withGithub → /relink, githubFailure), github-api.ts (resource-route body types, GITHUB_ERROR_STATUS),
                        jobs-api.ts (JobPollResponse, TerminalJobsResponse, mergeChunks), rerun-action.server.ts (shared
                        intent=rerun handler),
-                       review-metadata.server.ts (reader's view-time GitHub fan-out: PR header/reviewers or branch head,
+                       review-metadata.server.ts (reader's view-time GitHub fan-out: PR header or branch head,
                        staleness compare; every section degrades on its own, no token → nothing fetched),
                        action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts
     test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
-public/                brand-mark.png, favicon.ico
+public/                Passage brand-mark.svg (+ PNG export), favicon.svg / favicon.ico (tighter padding for small sizes),
+                       apple-touch-icon.png
 docs/OPERATIONS.md     runbook for a running deployment
 Dockerfile             node:24-alpine multi-stage; build stage runs prisma generate; runtime ships source + prod deps
 entrypoint.sh          the image's CMD: prisma migrate deploy → recover-jobs → exec node server/index.ts
@@ -220,6 +222,15 @@ reader growing twelve font sizes and nine near-identical label styles:
   A component that needs the treatment without the component (a Mantine
   `Badge`, say) reads `CAPTION_TYPE` rather than respelling the values.
 
+**One reading measure.** In the reader, every block — heading, card, prose,
+caption — sits in a single column capped at `--er-measure` (42rem) via
+`narrative/article.module.css`, so they share one right edge. Only a diff or a
+code block opts out, with `data-bleed`, and spans the rest of the column: those
+are the only things here that read better wide, and they are what the
+wide-layout toggle is for. Do not give a prose block its own `max-width` — that
+is what had text wrapping near the middle of a much wider card, lined up with
+nothing.
+
 **One page width.** Every page inside the shell renders through
 `components/page-shell.tsx`, which is also where the topbar's inner bar gets
 its `maw` and `px`, so the header lines up with the page beneath it and the
@@ -228,7 +239,8 @@ the text: prose keeps its own measure in `ch`, and a page whose content gains
 nothing from the extra room (the job timeline) caps itself and stays
 left-aligned so the left edge never jumps between pages. Do not reintroduce a
 per-route `Container size={...}` — that is what made the toggle look broken
-everywhere outside the reader.
+everywhere outside the reader. `PageShell` pads the bottom more than the top
+(`SHELL_PB`): a page that ends flush with its last element reads as cut off.
 
 Two text families: sans for everything, mono for identifiers, paths, SHAs and
 code. There is no display serif.

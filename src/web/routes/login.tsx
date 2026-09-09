@@ -86,10 +86,6 @@ export default function Login({ loaderData }: Route.ComponentProps) {
               </Form>
             </Stack>
           </Paper>
-
-          <Text mt="lg" ta="center" size="xs" c="dimmed">
-            By signing in you agree to leave us alone if the AI says something silly.
-          </Text>
         </Box>
       </Flex>
     </Box>

@@ -7,14 +7,13 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useSearchParams } from 'react-router';
-import type { PullMetadata, PullReviewer } from '@/domain/github/types';
+import type { PullMetadata } from '@/domain/github/types';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/domain/review/narrative';
 import type { ReviewTarget } from '@/domain/review/target';
 import { RerunButton } from '@/web/components/jobs/rerun-button';
 import { ChapterCard } from '@/web/components/narrative/chapter-card';
 import { ChapterSidebar } from '@/web/components/narrative/chapter-sidebar';
 import { FileView } from '@/web/components/narrative/file-view';
-import type { AiReviewerData } from '@/web/components/narrative/people-card';
 import { SummaryCard } from '@/web/components/narrative/summary-card';
 import { useNarrativeKeyboard } from '@/web/components/narrative/use-narrative-keyboard';
 import classes from './chapter-reader.module.css';
@@ -43,8 +42,6 @@ export interface ChapterReaderProps {
   review: NarrativeReview;
   target: ReviewTarget;
   pullMetadata: PullMetadata | null;
-  reviewers: PullReviewer[];
-  aiReviewer: AiReviewerData;
   /** Refs the inline diffs compare: the target's base SHA and the reviewed head SHA. */
   baseRef: string;
   headRef: string;
@@ -53,7 +50,6 @@ export interface ChapterReaderProps {
   jobId: string;
   /** Byline for the summary header when GitHub metadata is unavailable. */
   jobAuthor: string;
-  jobHeadSha: string;
 }
 
 /**
@@ -66,14 +62,11 @@ export function ChapterReader({
   review,
   target,
   pullMetadata,
-  reviewers,
-  aiReviewer,
   baseRef,
   headRef,
   initialActiveId,
   jobId,
   jobAuthor,
-  jobHeadSha,
 }: ChapterReaderProps) {
   const refs = { owner: target.owner, repo: target.repo, baseRef, headRef };
   const [searchParams, setSearchParams] = useSearchParams();
@@ -184,9 +177,7 @@ export function ChapterReader({
             review={review}
             target={target}
             pullMetadata={pullMetadata}
-            reviewers={reviewers}
-            aiReviewer={aiReviewer}
-            byline={{ author: jobAuthor, sha: jobHeadSha }}
+            byline={{ author: jobAuthor }}
             actions={<RerunButton jobId={jobId} />}
           />
         ) : (

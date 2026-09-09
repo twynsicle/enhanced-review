@@ -162,25 +162,13 @@ export function RiskScorePill({
   );
 }
 
-export interface RiskSummaryStat {
-  label: string;
-  value: string | number;
-  sub?: string;
-}
-
 function factorTone(impact: ReviewRiskFactorImpact): TokenName {
   if (impact === 'raises') return 'risk';
   if (impact === 'lowers') return 'praise';
   return 'muted-foreground';
 }
 
-export function RiskSummaryPanel({
-  assessment,
-  stats,
-}: {
-  assessment?: ReviewRiskAssessment;
-  stats?: RiskSummaryStat[];
-}) {
+export function RiskSummaryPanel({ assessment }: { assessment?: ReviewRiskAssessment }) {
   const [open, setOpen] = useState(false);
   if (!assessment) return null;
   const divider = { borderTop: `1px solid ${token('border')}` };
@@ -196,12 +184,7 @@ export function RiskSummaryPanel({
         background: token('card'),
       }}
     >
-      <Group justify="space-between" align="baseline" gap={12}>
-        <Caption>Risk rating</Caption>
-        <Text component="span" ff="monospace" fz="xs" c="dimmed">
-          computed by reviewer
-        </Text>
-      </Group>
+      <Caption>Risk rating</Caption>
 
       <RiskScoreBars score={assessment.score} size="lg" />
 
@@ -210,34 +193,9 @@ export function RiskSummaryPanel({
       </Title>
 
       {assessment.rationale.trim().length > 0 && (
-        <Text maw="76ch" fz="sm" c="dimmed">
+        <Text fz="sm" c="dimmed">
           {assessment.rationale}
         </Text>
-      )}
-
-      {stats && stats.length > 0 && (
-        <SimpleGrid
-          component="dl"
-          cols={{ base: 1, sm: 2 }}
-          spacing={16}
-          pt={16}
-          m={0}
-          style={divider}
-        >
-          {stats.map((stat) => (
-            <Box key={stat.label} miw={0}>
-              <Caption component="dt">{stat.label}</Caption>
-              <Text component="dd" mt={6} m={0} fz="xl" fw={600} lh={1}>
-                {stat.value}
-              </Text>
-              {stat.sub && (
-                <Text component="dd" mt={4} m={0} fz="sm" c="dimmed">
-                  {stat.sub}
-                </Text>
-              )}
-            </Box>
-          ))}
-        </SimpleGrid>
       )}
 
       {assessment.factors.length > 0 && (

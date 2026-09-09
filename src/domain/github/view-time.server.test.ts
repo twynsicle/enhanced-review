@@ -1,11 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { GithubClient } from './client.server.ts';
-import {
-  getBranchHead,
-  getCommitsAhead,
-  getFileAtRef,
-  getPullReviewers,
-} from './view-time.server.ts';
+import { getBranchHead, getCommitsAhead, getFileAtRef } from './view-time.server.ts';
 
 type RequestMock = ReturnType<typeof vi.fn>;
 
@@ -162,90 +157,5 @@ describe('getCommitsAhead', () => {
     await expect(
       getCommitsAhead(fakeOctokit(request), { owner: 'a', repo: 'r', base: 'old', head: 'new' }),
     ).resolves.toEqual({ ok: false, error: { kind: 'no-access', status: 403 } });
-  });
-});
-
-describe('getPullReviewers', () => {
-  const PR = { owner: 'a', repo: 'r', number: 7 };
-
-  it('keeps only the latest review per login and merges in requested reviewers', async () => {
-    const request = vi
-      .fn()
-      .mockReturnValueOnce(
-        ok([
-          {
-            user: { login: 'jonas', avatar_url: 'https://example/jonas' },
-            state: 'COMMENTED',
-            submitted_at: '2026-04-20T10:00:00Z',
-          },
-          {
-            user: { login: 'jonas', avatar_url: 'https://example/jonas' },
-            state: 'APPROVED',
-            submitted_at: '2026-04-21T12:00:00Z',
-          },
-          {
-            user: { login: 'kira', avatar_url: 'https://example/kira' },
-            state: 'CHANGES_REQUESTED',
-            submitted_at: '2026-04-21T14:00:00Z',
-          },
-          {
-            user: { login: 'noisy', avatar_url: 'https://example/noisy' },
-            state: 'DISMISSED',
-            submitted_at: '2026-04-21T15:00:00Z',
-          },
-          { user: null, state: 'APPROVED', submitted_at: '2026-04-21T16:00:00Z' },
-        ]),
-      )
-      .mockReturnValueOnce(
-        ok({
-          users: [
-            { login: 'newcomer', avatar_url: 'https://example/newcomer' },
-            { login: 'jonas', avatar_url: 'https://example/jonas' },
-          ],
-        }),
-      );
-
-    const result = await getPullReviewers(fakeOctokit(request), PR);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-
-    const byLogin = Object.fromEntries(result.data.map((r) => [r.login, r]));
-    expect(Object.keys(byLogin).toSorted()).toEqual(['jonas', 'kira', 'newcomer']);
-    expect(byLogin['jonas']).toMatchObject({
-      state: 'approved',
-      submittedAt: '2026-04-21T12:00:00Z',
-    });
-    expect(byLogin['kira']).toMatchObject({ state: 'changes_requested' });
-    expect(byLogin['newcomer']).toMatchObject({ state: 'pending', submittedAt: null });
-  });
-
-  it('still returns submitted reviews when the requested-reviewers call fails', async () => {
-    const request = vi
-      .fn()
-      .mockReturnValueOnce(
-        ok([
-          {
-            user: { login: 'alice', avatar_url: 'https://example/alice' },
-            state: 'APPROVED',
-            submitted_at: '2026-04-21T12:00:00Z',
-          },
-        ]),
-      )
-      .mockRejectedValueOnce(httpError(404));
-
-    const result = await getPullReviewers(fakeOctokit(request), PR);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data).toHaveLength(1);
-    expect(result.data[0]).toMatchObject({ login: 'alice', state: 'approved' });
-  });
-
-  it('propagates the reviews-endpoint error without calling requested_reviewers', async () => {
-    const request = vi.fn().mockRejectedValueOnce(httpError(401));
-    await expect(getPullReviewers(fakeOctokit(request), PR)).resolves.toEqual({
-      ok: false,
-      error: { kind: 'unauthorized', status: 401 },
-    });
-    expect(request).toHaveBeenCalledTimes(1);
   });
 });

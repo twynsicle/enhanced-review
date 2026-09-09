@@ -7,10 +7,16 @@
  * check; the latest in-progress one shows a typing cursor.
  *
  * Strategy: locate the `"chapters"` array opening, then walk the remaining
- * text looking for `"title"` keys. A title whose closing quote has not been
- * emitted yet is the in-progress one. Any scanner failure returns
- * `{ titles: [], inProgressTitle: null }` and the UI falls back to a generic
- * "Streaming…" line.
+ * text tracking nesting depth, taking `"title"` keys that are direct children
+ * of a chapter object and stopping at the array's closing `]`. A title whose
+ * closing quote has not been emitted yet is the in-progress one. Any scanner
+ * failure returns `{ titles: [], inProgressTitle: null }` and the UI falls
+ * back to a generic "Streaming…" line.
+ *
+ * Depth is the whole point. An earlier version searched for every `"title"`
+ * key after the array opening, which was correct until insights grew a title
+ * of their own — after that a review with 2 chapters and 4 insights reported
+ * "6 chapters" and listed insight headlines in the chapter checklist.
  *
  * Deliberately not a real JSON parser: the model's output is wrapped in
  * `<narrative_review>` tags but the surrounding free text can be anything, and
@@ -44,22 +50,52 @@ function doExtract(buffer: string): ChapterTitleSnapshot {
   const titles: string[] = [];
   let inProgressTitle: string | null = null;
 
+  // Nesting relative to the inside of the chapters array: a chapter object
+  // puts us at 1, so a `"title"` key is a chapter's own only at depth 1.
+  // An insight sits at 3 (chapter object → insights array → insight object).
+  let depth = 0;
   let i = chaptersIdx;
+
   while (i < buffer.length) {
-    const titleAt = findTitleKey(buffer, i);
-    if (titleAt === -1) break;
+    const ch = buffer[i];
 
-    const valueStart = findStringValueStart(buffer, titleAt);
-    if (valueStart === -1) break;
+    if (ch === '"') {
+      const read = readJsonString(buffer, i);
+      // A string still streaming means nothing further can be read; if it was
+      // a chapter title we would have taken the branch below instead.
+      if (read.kind === 'open') break;
 
-    const read = readJsonString(buffer, valueStart);
-    if (read.kind === 'closed') {
-      titles.push(read.value);
+      if (depth === 1 && read.value === 'title') {
+        const colon = skipWhitespace(buffer, read.endIdx);
+        if (buffer[colon] === ':') {
+          const valueStart = skipWhitespace(buffer, colon + 1);
+          if (buffer[valueStart] !== '"') break;
+          const value = readJsonString(buffer, valueStart);
+          if (value.kind === 'open') {
+            inProgressTitle = value.value;
+            break;
+          }
+          titles.push(value.value);
+          i = value.endIdx;
+          continue;
+        }
+      }
+
+      // Any other string — a key we do not want, or a value that might itself
+      // contain braces — is stepped over whole, so its contents cannot move
+      // the depth counter.
       i = read.endIdx;
-    } else {
-      inProgressTitle = read.value;
-      break;
+      continue;
     }
+
+    if (ch === '{' || ch === '[') depth += 1;
+    else if (ch === '}') depth -= 1;
+    else if (ch === ']') {
+      depth -= 1;
+      // The `]` that closes the chapters array itself.
+      if (depth < 0) break;
+    }
+    i += 1;
   }
 
   return { titles, inProgressTitle };
@@ -85,30 +121,6 @@ function findChaptersArrayStart(buffer: string): number {
     return j + 1;
   }
   return -1;
-}
-
-/** Index of the next `"title"` used as a key (followed by `:`), or -1. */
-function findTitleKey(buffer: string, from: number): number {
-  const key = '"title"';
-  let j = from;
-  while (j < buffer.length) {
-    const at = buffer.indexOf(key, j);
-    if (at === -1) return -1;
-    const k = skipWhitespace(buffer, at + key.length);
-    if (buffer[k] === ':') return at;
-    j = at + 1;
-  }
-  return -1;
-}
-
-/** Index of the opening `"` of the string value after a key, or -1 if not streamed yet. */
-function findStringValueStart(buffer: string, keyStart: number): number {
-  let j = keyStart;
-  while (j < buffer.length && buffer[j] !== ':') j += 1;
-  if (j >= buffer.length) return -1;
-  j = skipWhitespace(buffer, j + 1);
-  if (j >= buffer.length || buffer[j] !== '"') return -1;
-  return j;
 }
 
 type ReadStringResult =

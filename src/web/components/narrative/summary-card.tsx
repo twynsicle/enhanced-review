@@ -1,48 +1,41 @@
-import { Grid, Group, Stack, Text, Title } from '@mantine/core';
+import { Group, Stack, Text, Title } from '@mantine/core';
 import type { ReactNode } from 'react';
-import type { PullMetadata, PullReviewer } from '@/domain/github/types';
+import type { PullMetadata } from '@/domain/github/types';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/domain/review/narrative';
 import type { ReviewTarget } from '@/domain/review/target';
 import { Caption } from '@/web/components/caption';
+import classes from '@/web/components/narrative/article.module.css';
 import { LeadMarkdown } from '@/web/components/narrative/lead-markdown';
 import { MarkdownText } from '@/web/components/narrative/markdown-text';
-import { type AiReviewerData, PeopleCard } from '@/web/components/narrative/people-card';
-import { RiskSummaryPanel, type RiskSummaryStat } from '@/web/components/narrative/risk-score';
+import { RiskSummaryPanel } from '@/web/components/narrative/risk-score';
 import { DISPLAY_SIZE, token } from '@/web/theme/tokens';
 
 /**
- * The synthesised summary section: title line, risk panel + people card,
- * the reviewer's overview and, when GitHub answered, the author's own PR
- * description. `pullMetadata` is null when the viewer cannot reach GitHub;
- * the card then falls back to what the job already knows.
+ * The synthesised summary section: title line, risk panel, the reviewer's
+ * overview and, when GitHub answered, the author's own PR description.
+ * `pullMetadata` is null when the viewer cannot reach GitHub; the card then
+ * falls back to what the job already knows.
  */
 export function SummaryCard({
   review,
   target,
   pullMetadata,
-  reviewers,
-  aiReviewer,
   byline,
   actions,
 }: {
   review: NarrativeReview;
   target: ReviewTarget;
   pullMetadata: PullMetadata | null;
-  reviewers: PullReviewer[];
-  aiReviewer: AiReviewerData;
   /** Job-level byline used when GitHub metadata is not available. */
-  byline: { author: string; sha: string };
+  byline: { author: string };
   /** Header action (the rerun button). */
   actions?: ReactNode;
 }) {
   const baseRef = pullMetadata?.baseRefName ?? (target.kind === 'branch' ? target.baseRef : null);
   const headRef = pullMetadata?.headRefName ?? (target.kind === 'branch' ? target.ref : null);
   const author = pullMetadata?.authorLogin ?? byline.author;
-  const authorAvatar =
-    pullMetadata?.authorAvatarUrl ?? `https://github.com/${byline.author}.png?size=64`;
   const title =
     review.prTitle || pullMetadata?.title || (target.kind === 'pr' ? target.title : target.ref);
-  const sha = byline.sha.slice(0, 7);
   const reviewedFiles = review.files ?? [];
   const reviewedFileCount = reviewedFiles.length || pullMetadata?.changedFiles || 0;
   const additions =
@@ -53,16 +46,6 @@ export function SummaryCard({
     reviewedFiles.length > 0
       ? reviewedFiles.reduce((sum, file) => sum + file.deletions, 0)
       : (pullMetadata?.deletions ?? 0);
-  const insightCount = review.chapters.reduce((sum, ch) => sum + ch.insights.length, 0);
-
-  const stats: RiskSummaryStat[] = [
-    { label: 'Files', value: reviewedFileCount, sub: `+${additions} / -${deletions}` },
-    {
-      label: 'Chapters',
-      value: review.chapters.length,
-      sub: `${insightCount} ${insightCount === 1 ? 'insight' : 'insights'}`,
-    },
-  ];
 
   const prNumber = target.kind === 'pr' ? target.number : null;
   const dot = (
@@ -72,10 +55,10 @@ export function SummaryCard({
   );
 
   return (
-    <Stack component="article" id={`chapter-${SUMMARY_SECTION_ID}`} gap={28}>
+    <div className={classes.article} id={`chapter-${SUMMARY_SECTION_ID}`}>
       <Stack component="header" gap={12}>
         <Group justify="space-between" align="flex-start" gap={12} wrap="nowrap">
-          <Caption tone="before">Review&nbsp;&nbsp;·&nbsp;&nbsp;Summary</Caption>
+          <Caption tone="before">Summary</Caption>
           {actions}
         </Group>
         <Title
@@ -89,6 +72,12 @@ export function SummaryCard({
         >
           {title}
         </Title>
+        {/*
+         * Where this review came from, and nothing else. The reviewed commit
+         * SHA used to sit here too, but a seven-character hash tells the reader
+         * nothing about the change and the staleness banner is what actually
+         * needs to reason about commits.
+         */}
         <Group gap={12} fz="sm" c="dimmed" style={{ rowGap: 4 }}>
           <Text component="span" ff="monospace" fz="inherit">
             {target.owner}/{target.repo}
@@ -119,34 +108,16 @@ export function SummaryCard({
             </>
           )}
           {dot}
-          <Text
-            component="code"
-            ff="monospace"
-            fz="xs"
-            px={6}
-            py={2}
-            style={{ borderRadius: 4, background: token('muted') }}
-          >
-            {sha}
+          <Text component="span" fz="inherit">
+            @{author}
           </Text>
         </Group>
       </Stack>
 
-      <Grid gap={16}>
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <RiskSummaryPanel assessment={review.riskAssessment} stats={stats} />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <PeopleCard
-            author={{ login: author, avatarUrl: authorAvatar }}
-            reviewers={reviewers}
-            aiReviewer={aiReviewer}
-          />
-        </Grid.Col>
-      </Grid>
+      <RiskSummaryPanel assessment={review.riskAssessment} />
 
       <Stack component="section" gap={12}>
-        <Caption component="h3">Description</Caption>
+        <Caption component="h3">Review summary</Caption>
         <LeadMarkdown text={review.overviewSummary} />
       </Stack>
 
@@ -169,10 +140,10 @@ export function SummaryCard({
           pt={20}
           style={{ borderTop: `1px solid ${token('border')}` }}
         >
-          <Caption component="h3">Author description</Caption>
+          <Caption component="h3">Author&rsquo;s description</Caption>
           <MarkdownText text={pullMetadata.body} />
         </Stack>
       )}
-    </Stack>
+    </div>
   );
 }

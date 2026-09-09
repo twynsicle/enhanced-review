@@ -8,7 +8,6 @@ import { listJobs, listRecentActivity, toJobView } from '@/domain/jobs/jobs.serv
 import { startReview } from '@/domain/jobs/start-review.server';
 import { ReviewTargetSchema } from '@/domain/review/target';
 import { userContext } from '@/web/auth/context.server';
-import { Caption } from '@/web/components/caption';
 import { RecentReviews } from '@/web/components/home/recent-reviews';
 import { ReviewComposer } from '@/web/components/home/review-composer';
 import { PageShell } from '@/web/components/page-shell';
@@ -79,7 +78,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       <Stack gap={48}>
         <Stack component="section" gap={24}>
           <Stack gap={8}>
-            <Caption tone="before">❖&nbsp;&nbsp;A new review</Caption>
             <Title
               order={1}
               fz={DISPLAY_SIZE}
@@ -87,11 +85,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               lh={1.1}
               style={{ letterSpacing: '-0.02em' }}
             >
-              The reviewer is ready when you are.
+              Start a review
             </Title>
             <Text maw="58ch" fz="md" c="dimmed">
-              Choose a pull request or branch — we’ll read every line, write the chapters, and
-              surface the few things that genuinely need a human eye.
+              Choose a pull request or branch. Every changed line is read and returned as a
+              chaptered walkthrough of what changed and why.
             </Text>
           </Stack>
           <ReviewComposer userId={loaderData.userId} />
