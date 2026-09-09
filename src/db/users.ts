@@ -18,7 +18,8 @@ export function findUserById(id: string): Promise<UserRow | null> {
 /**
  * Create-or-refresh keyed on the GitHub numeric id. Login, name and avatar
  * are overwritten on every sign-in so a GitHub rename or avatar change shows
- * up next time the user signs in.
+ * up next time the user signs in. `githubLogin` carries no unique constraint,
+ * so a login that has moved to another GitHub account still writes cleanly.
  */
 export function upsertUserFromGithub(identity: GithubIdentity): Promise<UserRow> {
   const { githubId, githubLogin, name, avatarUrl } = identity;

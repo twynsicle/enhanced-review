@@ -139,7 +139,9 @@ export function parseNarrativeReview(text: string, hunkIndex?: DiffHunkIndex): P
   const startTag = '<narrative_review>';
   const endTag = '</narrative_review>';
   const startIdx = text.indexOf(startTag);
-  const endIdx = text.indexOf(endTag);
+  // Anchored at the opening tag: a preamble that mentions the closing tag
+  // before the real block must not win the search and yield an empty slice.
+  const endIdx = startIdx === -1 ? -1 : text.indexOf(endTag, startIdx);
   if (startIdx === -1 || endIdx === -1) {
     return { ok: false, error: 'Response did not contain expected <narrative_review> tags' };
   }

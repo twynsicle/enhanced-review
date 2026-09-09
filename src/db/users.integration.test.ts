@@ -28,6 +28,26 @@ describeDb('users repository', () => {
     expect(second.updatedAt.getTime()).toBeGreaterThanOrEqual(first.updatedAt.getTime());
   });
 
+  it('lets a reused GitHub login move to another account', async () => {
+    // GitHub frees a login on rename or account deletion. The stale row keeps
+    // the old cached login until its owner signs in again, so the new owner
+    // must still be able to sign in meanwhile — `github_login` is not unique.
+    const stale = await upsertUserFromGithub({
+      githubId: 1n,
+      githubLogin: 'shared',
+      name: null,
+      avatarUrl: null,
+    });
+    const fresh = await upsertUserFromGithub({
+      githubId: 2n,
+      githubLogin: 'shared',
+      name: null,
+      avatarUrl: null,
+    });
+    expect(fresh.id).not.toBe(stale.id);
+    await expect(findUserById(stale.id)).resolves.toMatchObject({ githubLogin: 'shared' });
+  });
+
   it('finds by id and returns null for unknown ids', async () => {
     const row = await upsertUserFromGithub({
       githubId: 7n,

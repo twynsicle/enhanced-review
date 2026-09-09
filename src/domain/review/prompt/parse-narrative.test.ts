@@ -218,4 +218,14 @@ describe('parseNarrativeReview', () => {
       error: 'Narrative review JSON is missing required fields',
     });
   });
+
+  it('ignores a closing tag mentioned in the preamble before the real block', () => {
+    const text = `I will end the block with </narrative_review> when I am done.\n${wrap({
+      prTitle: 't',
+      overviewSummary: 's',
+      chapters: [],
+    })}`;
+    const result = parseNarrativeReview(text);
+    expect(result.ok && result.data.prTitle).toBe('t');
+  });
 });

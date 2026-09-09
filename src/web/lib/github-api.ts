@@ -23,11 +23,21 @@ export interface GithubFailure {
 
 export type ReposResponse = { ok: true; repos: RepoSummary[] } | GithubFailure;
 
+/**
+ * A failure from one of the per-repo lists. It echoes `fullName` for the same
+ * reason the success bodies do: the picker loads each list once per repo and
+ * decides from the echo whether the body in hand is that repo's. An
+ * unattributable failure would read as "never loaded" — retried on every
+ * render, or (once that loop is guarded) stuck loading for good.
+ */
+export type RepoScopedFailure = GithubFailure & { fullName: string };
+
 /** `fullName` echoes the request so a stale response for another repo is ignored. */
-export type PullsResponse = { ok: true; fullName: string; pulls: PullSummary[] } | GithubFailure;
+export type PullsResponse =
+  { ok: true; fullName: string; pulls: PullSummary[] } | RepoScopedFailure;
 
 export type BranchesResponse =
-  ({ ok: true; fullName: string } & RecentBranchesResult) | GithubFailure;
+  ({ ok: true; fullName: string } & RecentBranchesResult) | RepoScopedFailure;
 
 /**
  * Both sides of one file for the inline diff. Each side is its own

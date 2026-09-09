@@ -19,7 +19,7 @@ export function loader({ request, params }: Route.LoaderArgs) {
       };
       return body;
     } catch (err) {
-      return githubFailure(err);
+      return githubFailure(err, `${owner}/${repo}`);
     }
   });
 }

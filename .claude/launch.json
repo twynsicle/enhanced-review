@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "web-3001",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["cross-env", "PORT=3001", "node", "server/index.ts"],
+      "port": 3001
     }
   ]
 }

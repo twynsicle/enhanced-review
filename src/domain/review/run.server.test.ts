@@ -56,8 +56,8 @@ function fakeGit(headSha = HEAD): { git: GitRunner; calls: string[][] } {
     const [cmd, ...rest] = opts.args;
     let stdout = '';
     if (cmd === 'rev-parse') stdout = `${headSha}\n`;
-    else if (cmd === 'diff' && rest.includes('--numstat')) stdout = '1\t1\tf.txt\n';
-    else if (cmd === 'diff' && rest.includes('--name-status')) stdout = 'M\tf.txt\n';
+    else if (cmd === 'diff' && rest.includes('--numstat')) stdout = '1\t1\tf.txt\0';
+    else if (cmd === 'diff' && rest.includes('--name-status')) stdout = 'M\0f.txt\0';
     else if (cmd === 'diff') stdout = DIFF;
     else if (cmd === 'log') stdout = 'Alice\n--BODY--\nfeature commit\n\nmore body\n';
     return { stdout, stderr: '', exitCode: 0 };
@@ -139,8 +139,8 @@ describe('runJob', () => {
       'rev-parse HEAD',
       `fetch --depth=1 origin ${BASE}`,
       `diff ${BASE}..${HEAD}`,
-      `diff --numstat ${BASE}..${HEAD}`,
-      `diff --name-status ${BASE}..${HEAD}`,
+      `diff --numstat -z ${BASE}..${HEAD}`,
+      `diff --name-status -z ${BASE}..${HEAD}`,
       'log -1 --format=%an%n--BODY--%n%B',
     ]);
     expect(d.getPullMetadata).not.toHaveBeenCalled();

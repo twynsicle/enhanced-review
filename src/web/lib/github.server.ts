@@ -46,11 +46,18 @@ export async function withGithub<T>(
 /**
  * The `GithubFailure` body (with status) a resource route *returns* for a
  * thrown GitHub error. Auth errors are re-thrown for `withGithub` to turn
- * into the relink redirect.
+ * into the relink redirect. The per-repo lists pass `fullName` so the failure
+ * is attributable to a repo the same way their success bodies are
+ * (`RepoScopedFailure`).
  */
-export function githubFailure(err: unknown) {
+export function githubFailure(err: unknown, fullName?: string) {
   if (err instanceof GithubAuthError) throw err;
   const error = classifyGithubError(err);
-  const body: GithubFailure = { ok: false, error, message: describeGithubError(error) };
+  const body: GithubFailure & { fullName?: string } = {
+    ok: false,
+    error,
+    message: describeGithubError(error),
+    ...(fullName === undefined ? {} : { fullName }),
+  };
   return data(body, { status: GITHUB_ERROR_STATUS[error.kind] });
 }

@@ -1,4 +1,14 @@
-import { Box, Button, Code, Flex, Group, SegmentedControl, Stack, Text } from '@mantine/core';
+import {
+  Box,
+  Button,
+  Code,
+  Flex,
+  Group,
+  SegmentedControl,
+  Stack,
+  Text,
+  UnstyledButton,
+} from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconArrowRight, IconGitBranch, IconGitPullRequest, IconLock } from '@tabler/icons-react';
 import { useEffect, useMemo, type ReactNode } from 'react';
@@ -60,7 +70,9 @@ export function ReviewComposer({ userId }: { userId: string }) {
   }, [loadRepos]);
 
   const repoList = repos.data?.ok ? repos.data.repos : null;
-  const reposError = repos.data && !repos.data.ok ? repos.data.message : null;
+  // Hidden again while a retry is in flight, so the field shows one state at a time.
+  const reposError =
+    repos.state === 'idle' && repos.data && !repos.data.ok ? repos.data.message : null;
   const repo = useMemo(
     () =>
       last && repoList ? (repoList.find((r) => r.fullName === last.repoFullName) ?? null) : null,
@@ -75,23 +87,49 @@ export function ReviewComposer({ userId }: { userId: string }) {
     }
   }, [last, repoList, userId]);
 
-  // Lazy, once per repo per kind: the response echoes `fullName`, so a stale
-  // body for another repo reads as "not loaded".
-  const pullsFor = pulls.data?.ok ? pulls.data.fullName : null;
-  const branchesFor = branches.data?.ok ? branches.data.fullName : null;
+  // Lazy, once per repo: *both* outcomes echo `fullName`, so any settled body
+  // for this repo — success or failure — reads as "loaded" and stops the
+  // effect, while a body for another repo reads as "not loaded" and reloads on
+  // a repo switch. The echo on the failure body is what closes the loop: it
+  // carried no repo once, so a failure read as "never asked" and the effect
+  // re-fired forever. After a failure the only way back is the Retry below.
+  const pullsFor = pulls.data ? pulls.data.fullName : null;
+  const branchesFor = branches.data ? branches.data.fullName : null;
+  const pullsUrl = repo ? `/api/github/repos/${repo.owner}/${repo.name}/pulls` : null;
+  const branchesUrl = repo ? `/api/github/repos/${repo.owner}/${repo.name}/branches` : null;
   const loadPulls = pulls.load;
   const loadBranches = branches.load;
   useEffect(() => {
-    if (!repo || kind !== 'pr' || pulls.state !== 'idle' || pullsFor === repo.fullName) return;
-    if (pulls.data && !pulls.data.ok && pulls.data.error.kind !== 'unknown') return;
-    void loadPulls(`/api/github/repos/${repo.owner}/${repo.name}/pulls`);
-  }, [repo, kind, pulls.state, pulls.data, pullsFor, loadPulls]);
+    if (!repo || !pullsUrl || kind !== 'pr' || pulls.state !== 'idle') return;
+    if (pullsFor === repo.fullName) return;
+    void loadPulls(pullsUrl);
+  }, [repo, pullsUrl, kind, pulls.state, pullsFor, loadPulls]);
   useEffect(() => {
-    if (!repo || kind !== 'branch' || branches.state !== 'idle' || branchesFor === repo.fullName)
-      return;
-    if (branches.data && !branches.data.ok && branches.data.error.kind !== 'unknown') return;
-    void loadBranches(`/api/github/repos/${repo.owner}/${repo.name}/branches`);
-  }, [repo, kind, branches.state, branches.data, branchesFor, loadBranches]);
+    if (!repo || !branchesUrl || kind !== 'branch' || branches.state !== 'idle') return;
+    if (branchesFor === repo.fullName) return;
+    void loadBranches(branchesUrl);
+  }, [repo, branchesUrl, kind, branches.state, branchesFor, loadBranches]);
+
+  // Shown in place of the dropdown, so a list that failed never masquerades as
+  // one still loading. Only once nothing newer is in flight, which is also what
+  // hides it again while a retry runs.
+  const listFailure =
+    kind === 'pr'
+      ? pulls.state === 'idle' && pulls.data && !pulls.data.ok
+        ? pulls.data
+        : null
+      : branches.state === 'idle' && branches.data && !branches.data.ok
+        ? branches.data
+        : null;
+  const listError =
+    repo && listFailure && listFailure.fullName === repo.fullName ? listFailure.message : null;
+  const retryList = () => {
+    if (kind === 'pr') {
+      if (pullsUrl) void loadPulls(pullsUrl);
+    } else if (branchesUrl) {
+      void loadBranches(branchesUrl);
+    }
+  };
 
   const pullList = repo && pulls.data?.ok && pullsFor === repo.fullName ? pulls.data.pulls : null;
   const branchData =
@@ -117,6 +155,8 @@ export function ReviewComposer({ userId }: { userId: string }) {
   useEffect(() => {
     if (pulls.data && !pulls.data.ok) {
       notifications.show({
+        // A stable id keeps a repeat from stacking a second toast.
+        id: 'pulls-error',
         title: 'Could not load PRs',
         message: pulls.data.message,
         color: 'risk',
@@ -126,6 +166,7 @@ export function ReviewComposer({ userId }: { userId: string }) {
   useEffect(() => {
     if (branches.data && !branches.data.ok) {
       notifications.show({
+        id: 'branches-error',
         title: 'Could not load branches',
         message: branches.data.message,
         color: 'risk',
@@ -215,22 +256,12 @@ export function ReviewComposer({ userId }: { userId: string }) {
       >
         <Field label="Repository" grow={1.3}>
           {reposError ? (
-            <Group
-              h={40}
-              px={12}
-              fz="sm"
-              wrap="nowrap"
-              style={{
-                borderRadius: 8,
-                border: `1px solid color-mix(in oklab, ${token('destructive')} 40%, transparent)`,
-                background: `color-mix(in oklab, ${token('destructive')} 10%, transparent)`,
-                color: token('destructive'),
+            <FieldError
+              message={reposError}
+              onRetry={() => {
+                void loadRepos('/api/github/repos');
               }}
-            >
-              <Text component="span" truncate>
-                {reposError}
-              </Text>
-            </Group>
+            />
           ) : (
             <TargetCombobox<RepoSummary>
               items={repoList}
@@ -286,7 +317,9 @@ export function ReviewComposer({ userId }: { userId: string }) {
         </Field>
 
         <Field label={kind === 'pr' ? 'Pull request' : 'Branch'} grow={1.2}>
-          {kind === 'pr' ? (
+          {listError ? (
+            <FieldError message={listError} onRetry={retryList} />
+          ) : kind === 'pr' ? (
             <TargetCombobox<PullSummary>
               items={repo ? pullList : []}
               value={pull}
@@ -454,6 +487,53 @@ function Field({ label, grow, children }: { label: string; grow?: number; childr
       </Text>
       {children}
     </Stack>
+  );
+}
+
+/**
+ * A field that could not load, in the dropdown's own place and shape: the
+ * reason plus the way out. Every list here is loaded at most once per repo, so
+ * without the retry a single transient GitHub error would strand that field
+ * until the page is reloaded.
+ */
+function FieldError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <Group
+      role="alert"
+      h={40}
+      px={12}
+      gap={8}
+      fz="sm"
+      wrap="nowrap"
+      justify="space-between"
+      style={{
+        borderRadius: 8,
+        border: `1px solid color-mix(in oklab, ${token('destructive')} 40%, transparent)`,
+        background: `color-mix(in oklab, ${token('destructive')} 10%, transparent)`,
+        color: token('destructive'),
+      }}
+    >
+      <Text component="span" truncate>
+        {message}
+      </Text>
+      <UnstyledButton
+        type="button"
+        // The field's `<label>` wraps this button, so without an explicit name
+        // it would be announced as the whole label + message.
+        aria-label="Retry"
+        onClick={onRetry}
+        fz="xs"
+        fw={500}
+        style={{
+          flexShrink: 0,
+          color: 'inherit',
+          textDecoration: 'underline',
+          textUnderlineOffset: 2,
+        }}
+      >
+        Retry
+      </UnstyledButton>
+    </Group>
   );
 }
 

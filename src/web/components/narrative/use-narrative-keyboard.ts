@@ -22,6 +22,18 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
 }
 
+const INTERACTIVE_SELECTOR = 'button, a[href], [role="button"], summary, [contenteditable="true"]';
+
+/**
+ * True when focus sits on a control that owns Space itself. Buttons and links
+ * activate on keyup, so a `preventDefault()` here would swallow the click —
+ * "Re-run", "Show full file", a sidebar chapter and the resize handle would
+ * all silently do nothing.
+ */
+function ownsSpace(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.closest(INTERACTIVE_SELECTOR) !== null;
+}
+
 /**
  * Keyboard navigation for the chapter reader. `onSelect` drives the URL
  * state a layer up. Bindings:
@@ -31,6 +43,10 @@ function isTypingTarget(target: EventTarget | null): boolean {
  *   - `Home`          → first chapter
  *   - `End`           → summary
  *   - `1`–`9`         → chapter at that index
+ *
+ * The Space bindings step aside when focus is on a button, link or other
+ * control that activates on Space; the arrow keys keep working from a focused
+ * control, which is the point of having them.
  */
 export function useNarrativeKeyboard({
   chapters,
@@ -63,6 +79,9 @@ export function useNarrativeKeyboard({
       if (isTypingTarget(e.target)) return;
       // Leave Cmd-/Ctrl-/Alt- combinations to the browser; Shift is Shift+Space.
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // Space belongs to a focused button/link; the arrows never do.
+      if (e.key === ' ' && ownsSpace(e.target)) return;
 
       if (e.key === 'ArrowRight' || (e.key === ' ' && !e.shiftKey)) {
         if (isSummary) {

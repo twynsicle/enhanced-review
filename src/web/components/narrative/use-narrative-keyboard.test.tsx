@@ -95,6 +95,46 @@ describe('useNarrativeKeyboard', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  it('leaves Space to a focused button so it can activate', () => {
+    render(
+      <>
+        <Harness activeId="ch1" onSelect={onSelect} />
+        <button type="button">
+          <span data-testid="label">Re-run</span>
+        </button>
+      </>,
+    );
+    const button = document.querySelector('button');
+    if (!button) throw new Error('button not rendered');
+
+    const onButton = fireEvent.keyDown(button, { key: ' ', bubbles: true, cancelable: true });
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onButton).toBe(true); // not preventDefault()ed
+
+    // Shift+Space is the "previous chapter" half of the same binding.
+    fireEvent.keyDown(button, { key: ' ', shiftKey: true, bubbles: true });
+    expect(onSelect).not.toHaveBeenCalled();
+
+    // A child of the button counts too — icons and labels are the usual target.
+    const label = document.querySelector('[data-testid="label"]');
+    if (!label) throw new Error('label not rendered');
+    fireEvent.keyDown(label, { key: ' ', bubbles: true });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('still moves with the arrow keys from a focused button', () => {
+    render(
+      <>
+        <Harness activeId="ch1" onSelect={onSelect} />
+        <button type="button">Re-run</button>
+      </>,
+    );
+    const button = document.querySelector('button');
+    if (!button) throw new Error('button not rendered');
+    fireEvent.keyDown(button, { key: 'ArrowRight', bubbles: true });
+    expect(onSelect).toHaveBeenCalledWith('ch2');
+  });
+
   it('ignores Cmd/Ctrl-modified keys (browser shortcuts win)', () => {
     render(<Harness activeId="ch1" onSelect={onSelect} />);
     fireEvent.keyDown(document, { key: 'ArrowRight', metaKey: true });

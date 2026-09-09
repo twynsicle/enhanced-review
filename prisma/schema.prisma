@@ -20,11 +20,14 @@ datasource db {
 }
 
 /// Someone who has signed in at least once. Identity is the GitHub numeric
-/// id; login / name / avatar are refreshed on every sign-in.
+/// id; login / name / avatar are refreshed on every sign-in. `github_login`
+/// is deliberately NOT unique: GitHub logins are reusable after a rename or
+/// an account deletion, and a stale row holding the name must not block the
+/// new owner's sign-in (see migrations/0003_drop_github_login_unique).
 model User {
   id          String   @id @default(uuid(7)) @db.Uuid
   githubId    BigInt   @unique @map("github_id")
-  githubLogin String   @unique @map("github_login") @db.VarChar(100)
+  githubLogin String   @map("github_login") @db.VarChar(100)
   name        String?
   avatarUrl   String?  @map("avatar_url")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)

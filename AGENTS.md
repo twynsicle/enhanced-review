@@ -42,7 +42,8 @@ before writing code against them; heed deprecation notices.
 server/index.ts        Express bootstrap: dev = Vite middleware, prod = build/; SIGTERM/SIGINT → abortAll('shutdown') + drain, then close
 prisma/
   schema.prisma        5 models (users, sessions, review_jobs, reviews, review_chunks) + JobStatus
-  migrations/          0001_init (hand-added CHECK constraints), 0002_drop_allowed_users
+  migrations/          0001_init (hand-added CHECK constraints), 0002_drop_allowed_users,
+                       0003_drop_github_login_unique (logins are reusable; identity is github_id)
 prisma.config.ts       Prisma CLI config; loads .env, datasource url from DATABASE_URL
 src/
   common/              logger.ts (pino), time-ago.ts — imports only config from src/
