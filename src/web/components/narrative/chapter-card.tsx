@@ -1,4 +1,4 @@
-import { Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Group, Stack, Text, Title } from '@mantine/core';
 import type { NarrativeChapter } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
 import classes from '@/web/components/narrative/article.module.css';
@@ -96,11 +96,19 @@ export function ChapterCard({
       {insightCount > 0 && (
         <Stack component="section" gap={16}>
           <SectionRule label="Insights" count={insightCount} />
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing={16}>
+          {/*
+           * One column, not two. At the reading measure a two-up grid gave
+           * each callout ~328px, and widening the grid alone would have put a
+           * third edge on the page — cards ending somewhere between where the
+           * prose ends and where the diffs do. A full-measure card is also
+           * shorter than a half-measure one, so stacking costs far less height
+           * than the doubled count suggests.
+           */}
+          <Stack gap={16}>
             {chapter.insights.map((insight, i) => (
               <InsightCallout key={i} insight={insight} />
             ))}
-          </SimpleGrid>
+          </Stack>
         </Stack>
       )}
 

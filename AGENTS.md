@@ -231,6 +231,14 @@ wide-layout toggle is for. Do not give a prose block its own `max-width` — tha
 is what had text wrapping near the middle of a much wider card, lined up with
 nothing.
 
+Two widths on the page, and no more: the measure, and the full column. A third
+lane sized between them — cards ending somewhere after the prose but before the
+diffs — reads as confusion rather than hierarchy. That is why card grids
+(insights, risk factors) stack in one column instead of widening: measured on a
+real review, stacking cost 131px on six risk factors and _saved_ 96px on the
+insights, because a full-measure card wraps to fewer lines and a two-up grid
+equalises its rows to the tallest cell.
+
 **One page width.** Every page inside the shell renders through
 `components/page-shell.tsx`, which is also where the topbar's inner bar gets
 its `maw` and `px`, so the header lines up with the page beneath it and the

@@ -1,13 +1,4 @@
-import {
-  Box,
-  Collapse,
-  Group,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title,
-  UnstyledButton,
-} from '@mantine/core';
+import { Box, Collapse, Group, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { useState } from 'react';
 import type {
   ReviewRiskAssessment,
@@ -220,7 +211,7 @@ export function RiskSummaryPanel({ assessment }: { assessment?: ReviewRiskAssess
             <Caption>{open ? 'Hide breakdown' : 'Show breakdown'}</Caption>
           </UnstyledButton>
           <Collapse expanded={open}>
-            <SimpleGrid component="dl" cols={{ base: 1, sm: 2 }} spacing={12} mt={16} m={0}>
+            <Stack component="dl" gap={12} mt={16} m={0}>
               {assessment.factors.map((factor, index) => (
                 <Box key={`${factor.name}-${index}`} miw={0}>
                   <Group component="dt" gap={8} wrap="nowrap">
@@ -243,7 +234,7 @@ export function RiskSummaryPanel({ assessment }: { assessment?: ReviewRiskAssess
                   </Text>
                 </Box>
               ))}
-            </SimpleGrid>
+            </Stack>
           </Collapse>
         </Box>
       )}
