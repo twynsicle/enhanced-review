@@ -2,16 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "next-dev",
+      "name": "web",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
     },
     {
-      "name": "pocketbase",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "pb"],
-      "port": 8090
+      "name": "web-3001",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["cross-env", "PORT=3001", "node", "server/index.ts"],
+      "port": 3001
     }
   ]
 }

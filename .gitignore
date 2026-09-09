@@ -1,52 +1,32 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
 
-# testing
+# build output (react-router build, jobs bundle) and generated route types
+/build
+/.react-router
+
+# tests
 /coverage
 
-# next.js
-/.next/
-/out/
-
-# production
-/build
+# env files — .env.example is the committed template
+.env
+.env.*
+!.env.example
 
 # misc
 .DS_Store
 *.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-!.env.example
-
-# vercel
-.vercel
-
-# typescript
 *.tsbuildinfo
-next-env.d.ts
-
-# pocketbase
-/tools/pocketbase/
-/pb_data/
+npm-debug.log*
 
 # claude code (user-local permission overrides; project-shared settings.json is fine)
 .claude/settings.local.json
 
 # playwright mcp runtime artifacts (console logs + page snapshots)
 .playwright-mcp/
+
+# local UI baseline + phase screenshots for the RR migration
+/screenshots/
+
+# Prisma client output (npm run db:generate / postinstall)
+/src/db/generated/

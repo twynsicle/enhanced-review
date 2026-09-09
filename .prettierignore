@@ -1,9 +1,8 @@
-.next
-.next/dev
 node_modules
-out
 build
+.react-router
 coverage
+screenshots
 public
 package-lock.json
-src/components/ui
+src/db/generated

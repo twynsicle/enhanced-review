@@ -1,0 +1,122 @@
+/* Fonts — self-hosted (A1). Same three families as the previous app. */
+@import '@fontsource-variable/inter-tight';
+@import '@fontsource/source-serif-4/400.css';
+@import '@fontsource/source-serif-4/500.css';
+@import '@fontsource/source-serif-4/600.css';
+@import '@fontsource/source-serif-4/700.css';
+@import '@fontsource/source-serif-4/400-italic.css';
+@import '@fontsource/source-serif-4/600-italic.css';
+@import '@fontsource-variable/jetbrains-mono';
+
+/* Mantine */
+@import '@mantine/core/styles.css';
+@import '@mantine/notifications/styles.css';
+
+/* The only global CSS. Everything else is theme or component-level. */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/*
+ * highlight.js classes emitted by rehype-highlight inside markdown code
+ * fences, coloured by the per-scheme `--er-hljs-*` variables. Same class
+ * groups as highlight.js's github / github-dark themes.
+ */
+.hljs {
+  color: var(--er-hljs-fg);
+  background: var(--er-hljs-bg);
+}
+
+.hljs-doctag,
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-variable.language_ {
+  color: var(--er-hljs-keyword);
+}
+
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-title.function_ {
+  color: var(--er-hljs-entity);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: var(--er-hljs-constant);
+}
+
+.hljs-regexp,
+.hljs-string,
+.hljs-meta .hljs-string {
+  color: var(--er-hljs-string);
+}
+
+.hljs-built_in,
+.hljs-symbol {
+  color: var(--er-hljs-variable);
+}
+
+.hljs-comment,
+.hljs-code,
+.hljs-formula {
+  color: var(--er-hljs-comment);
+}
+
+.hljs-name,
+.hljs-quote,
+.hljs-selector-tag,
+.hljs-selector-pseudo {
+  color: var(--er-hljs-tag);
+}
+
+.hljs-subst {
+  color: var(--er-hljs-fg);
+}
+
+.hljs-section {
+  color: var(--er-hljs-heading);
+  font-weight: bold;
+}
+
+.hljs-bullet {
+  color: var(--er-hljs-list);
+}
+
+.hljs-emphasis {
+  color: var(--er-hljs-fg);
+  font-style: italic;
+}
+
+.hljs-strong {
+  color: var(--er-hljs-fg);
+  font-weight: bold;
+}
+
+.hljs-addition {
+  color: var(--er-hljs-addition);
+  background-color: var(--er-hljs-addition-bg);
+}
+
+.hljs-deletion {
+  color: var(--er-hljs-deletion);
+  background-color: var(--er-hljs-deletion-bg);
+}

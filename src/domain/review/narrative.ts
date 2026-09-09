@@ -1,0 +1,107 @@
+import { z } from 'zod';
+
+/**
+ * The narrative review shape: what the executor produces, what
+ * `reviews.content` stores and what the reader renders. Shared by server and
+ * browser, so nothing here may touch Node or the db.
+ *
+ * Zod is the source of truth; the exported types are inferred from it so the
+ * schema that parses `reviews.content` at the db boundary and the type the
+ * components consume cannot drift apart. The schema is deliberately lenient
+ * where older reviews may lack a field (`title` on insights, `description`,
+ * `riskAssessment`, `files`).
+ */
+export const InsightTypeSchema = z.enum(['context', 'rationale', 'highlight', 'reference']);
+export type InsightType = z.infer<typeof InsightTypeSchema>;
+
+export const InsightSchema = z.object({
+  type: InsightTypeSchema,
+  /** Short headline (4–10 words) naming the takeaway. Absent on older reviews. */
+  title: z.string().optional(),
+  text: z.string(),
+});
+export type Insight = z.infer<typeof InsightSchema>;
+
+export const DiffLineSpanSchema = z.object({
+  startLine: z.number().int(),
+  lineCount: z.number().int(),
+});
+export type DiffLineSpan = z.infer<typeof DiffLineSpanSchema>;
+
+export const ResolvedDiffHunkSchema = z.object({
+  id: z.string(),
+  fileOrder: z.number().int(),
+  original: DiffLineSpanSchema,
+  modified: DiffLineSpanSchema,
+});
+export type ResolvedDiffHunk = z.infer<typeof ResolvedDiffHunkSchema>;
+
+export const DiffChunkSchema = z.object({
+  filename: z.string(),
+  language: z.string(),
+  hunks: z.array(ResolvedDiffHunkSchema),
+});
+export type DiffChunk = z.infer<typeof DiffChunkSchema>;
+
+export const ReviewFileStatusSchema = z.enum([
+  'added',
+  'modified',
+  'removed',
+  'renamed',
+  'copied',
+  'unchanged',
+]);
+export type ReviewFileStatus = z.infer<typeof ReviewFileStatusSchema>;
+
+export const ReviewFileSchema = z.object({
+  filename: z.string(),
+  status: ReviewFileStatusSchema,
+  additions: z.number().int(),
+  deletions: z.number().int(),
+});
+export type ReviewFile = z.infer<typeof ReviewFileSchema>;
+
+export const ReviewRiskScoreSchema = z.literal([1, 2, 3, 4, 5]);
+export type ReviewRiskScore = z.infer<typeof ReviewRiskScoreSchema>;
+
+export const ReviewRiskFactorImpactSchema = z.enum(['raises', 'lowers', 'neutral']);
+export type ReviewRiskFactorImpact = z.infer<typeof ReviewRiskFactorImpactSchema>;
+
+export const ReviewRiskFactorSchema = z.object({
+  name: z.string(),
+  impact: ReviewRiskFactorImpactSchema,
+  detail: z.string(),
+});
+export type ReviewRiskFactor = z.infer<typeof ReviewRiskFactorSchema>;
+
+export const ReviewRiskAssessmentSchema = z.object({
+  score: ReviewRiskScoreSchema,
+  summary: z.string(),
+  rationale: z.string(),
+  factors: z.array(ReviewRiskFactorSchema),
+});
+export type ReviewRiskAssessment = z.infer<typeof ReviewRiskAssessmentSchema>;
+
+export const NarrativeChapterSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  insights: z.array(InsightSchema),
+  diffChunks: z.array(DiffChunkSchema),
+});
+export type NarrativeChapter = z.infer<typeof NarrativeChapterSchema>;
+
+export const NarrativeReviewSchema = z.object({
+  prTitle: z.string(),
+  overviewSummary: z.string(),
+  riskAssessment: ReviewRiskAssessmentSchema.optional(),
+  files: z.array(ReviewFileSchema).optional(),
+  chapters: z.array(NarrativeChapterSchema),
+});
+export type NarrativeReview = z.infer<typeof NarrativeReviewSchema>;
+
+/**
+ * Reserved id the reader uses for the synthesised summary section that
+ * precedes the first chapter.
+ */
+export const SUMMARY_SECTION_ID = '__summary__';

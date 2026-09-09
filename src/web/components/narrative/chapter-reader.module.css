@@ -1,0 +1,53 @@
+/*
+ * Two-column reader: the sidebar column width is the `--review-sidebar-width`
+ * variable the drag handle updates. Below 64em the sidebar is hidden and the
+ * article takes the full width.
+ */
+.grid {
+  display: grid;
+  gap: 40px;
+}
+
+.aside {
+  display: none;
+}
+
+.main {
+  min-width: 0;
+}
+
+@media (min-width: 64em) {
+  .grid {
+    grid-template-columns: var(--review-sidebar-width) minmax(0, 1fr);
+  }
+
+  .aside {
+    position: relative;
+    display: block;
+    min-width: 0;
+  }
+}
+
+.handle {
+  position: absolute;
+  top: 0;
+  right: -20px;
+  width: 12px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: col-resize;
+  transition: background-color 150ms;
+}
+
+.handle:hover {
+  background: color-mix(in oklab, var(--er-before) 15%, transparent);
+}
+
+.handle:focus-visible {
+  outline: none;
+  background: color-mix(in oklab, var(--er-before) 20%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--er-before) 50%, transparent);
+}

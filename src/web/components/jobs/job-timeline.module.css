@@ -1,0 +1,83 @@
+/*
+ * The live view's typographic timeline: the gradient rail and the phase
+ * markers are absolutely positioned against the list, and the streaming
+ * cursor pulses — none of which a Mantine prop expresses.
+ */
+.list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin: 0;
+  padding: 0 0 0 32px;
+  list-style: none;
+}
+
+.rail {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 11px;
+  width: 1px;
+  background: linear-gradient(var(--er-before), var(--er-after), var(--er-border));
+}
+
+.phase {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.marker {
+  position: absolute;
+  top: 2px;
+  left: -28px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--marker-border);
+  background: var(--marker-bg);
+  color: var(--marker-fg);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.marker[data-state='pending'] {
+  --marker-bg: var(--er-background);
+  --marker-border: var(--er-border);
+  --marker-fg: var(--er-before);
+}
+
+.marker[data-state='active'] {
+  --marker-bg: var(--er-before);
+  --marker-border: var(--er-before);
+  --marker-fg: var(--er-background);
+}
+
+.marker[data-state='error'] {
+  --marker-bg: var(--er-destructive);
+  --marker-border: var(--er-destructive);
+  --marker-fg: var(--er-background);
+}
+
+.marker[data-state='done'],
+.marker[data-state='cancelled'] {
+  --marker-bg: var(--er-surface-2);
+  --marker-border: var(--er-after);
+  --marker-fg: var(--er-after);
+}
+
+.cursor {
+  display: inline-block;
+  margin-left: 4px;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
