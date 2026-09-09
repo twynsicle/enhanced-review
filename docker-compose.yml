@@ -1,9 +1,16 @@
 # Local infrastructure and the full containerised app. Day-to-day dev only
-# needs the database; `up --build` brings up the whole thing, which is the
-# acceptance test for the image.
+# needs the database, so that is all a bare `up` starts. The app itself sits
+# behind the `app` profile and has to be asked for by name.
 #
-#   docker compose up -d postgres      # dev: just the database
-#   docker compose up --build          # the app as it ships, on :3000
+#   docker compose up -d                        # dev: just the database
+#   docker compose --profile app up --build     # the app as it ships, on :3000
+#   docker compose --profile app down           # stop it again
+#
+# The profile is the point: `web` publishes :3000, which is the same port
+# `npm run dev` wants. Without it, any bare `up`, any `docker compose restart`
+# and Docker Desktop's own start button would quietly put a container built
+# from older source on that port, and the dev server would fail to bind and
+# leave you looking at a stale build wondering why your edits do nothing.
 #
 # `web` reads secrets from .env (SESSION_SECRET, GITHUB_CLIENT_ID/SECRET and,
 # for real reviews, ANTHROPIC_API_KEY). Its entrypoint migrates the database
@@ -28,6 +35,11 @@ services:
       retries: 10
 
   web:
+    # Not part of a bare `up` — see the note at the top of this file. Compose
+    # enables a profile automatically when a command names its service, so
+    # `docker compose run --rm web …`, `logs web` and `up -d web` all still
+    # work without repeating `--profile app`.
+    profiles: ['app']
     build:
       context: .
       args:

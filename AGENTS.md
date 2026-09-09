@@ -125,7 +125,7 @@ public/                brand-mark.png, favicon.ico
 docs/OPERATIONS.md     runbook for a running deployment
 Dockerfile             node:24-alpine multi-stage; build stage runs prisma generate; runtime ships source + prod deps
 entrypoint.sh          the image's CMD: prisma migrate deploy → recover-jobs → exec node server/index.ts
-docker-compose.yml     postgres:18-alpine on 127.0.0.1:5432 + `web` (the app as it ships, on :3000)
+docker-compose.yml     postgres:18-alpine on 127.0.0.1:5432 + `web` (the app as it ships, on :3000, behind the `app` profile)
 .github/workflows/ci.yml  check: postgres → npm ci → db:deploy → check:all; image: docker build → boot → /api/health
 ```
 
@@ -295,9 +295,15 @@ exempt (WCAG 1.4.3) and the guardrail does not look at them.
 
 ## Container
 
-One image, one process. `docker compose up -d postgres` is
-all day-to-day dev needs; `docker compose up --build` runs the app as it
-ships on `:3000`. `entrypoint.sh` is the image's **CMD**, not its entrypoint,
+One image, one process. `docker compose up -d` is all day-to-day dev needs:
+it starts Postgres alone, because `web` is behind the `app` profile.
+`docker compose --profile app up --build` runs the app as it ships on `:3000`.
+The profile exists because that port is also `npm run dev`'s — a bare `up`, a
+`restart` or Docker Desktop's start button used to raise a container built from
+whatever the tree held at image-build time, which silently beat the dev server
+to the port and served a stale build. Compose enables a profile automatically
+when a command names the service, so `run --rm web …` and `logs web` need no
+flag. CI builds the image with plain `docker build` and is unaffected. `entrypoint.sh` is the image's **CMD**, not its entrypoint,
 so `docker run <image> node src/jobs/cli.ts <job>` replaces the start-up
 chain instead of appending to it.
 

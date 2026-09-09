@@ -49,8 +49,11 @@ the stub executor, which streams a canned review.
 From a fresh clone:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d
 ```
+
+That starts Postgres and nothing else — the app itself is behind a profile, so
+it never takes `:3000` out from under `npm run dev`.
 
 ```bash
 cp .env.example .env
@@ -94,10 +97,14 @@ before any database command.
 ## Running it as it ships
 
 ```bash
-docker compose up --build
+docker compose --profile app up --build
 ```
 
-One image, one process, on <http://localhost:3000>. The container applies
+One image, one process, on <http://localhost:3000>. `--profile app` is what
+opts you in; a bare `docker compose up` leaves the port free for the dev
+server. Stop it again with `docker compose --profile app down`, and note that
+the image is built from your working tree at build time — `restart` re-runs the
+old build, only `--build` picks up new code. The container applies
 migrations and clears orphaned jobs before serving, so a fresh volume needs no
 manual step. It reads `SESSION_SECRET`, the GitHub credentials and
 `ANTHROPIC_API_KEY` from your `.env`.
