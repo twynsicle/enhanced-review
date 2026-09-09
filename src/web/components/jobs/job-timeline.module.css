@@ -65,9 +65,9 @@
 
 .marker[data-state='done'],
 .marker[data-state='cancelled'] {
-  --marker-bg: var(--er-surface-2);
+  --marker-bg: var(--er-after-soft);
   --marker-border: var(--er-after);
-  --marker-fg: var(--er-after);
+  --marker-fg: var(--er-after-ink);
 }
 
 .cursor {

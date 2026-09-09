@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { token } from '@/web/theme/tokens';
 
 /** `/history` with no jobs at all (the unfiltered view). */
-export function EmptyLibrary() {
+export function EmptyHistory() {
   return (
     <Stack component="section" align="center" gap={24} maw={672} mx="auto" py={96} ta="center">
       <svg

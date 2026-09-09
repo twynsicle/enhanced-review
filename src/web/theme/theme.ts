@@ -33,7 +33,7 @@ const iris: MantineColorsTuple = [
   '#76c7ff',
   '#11afff',
   '#0292d7',
-  '#0075ad',
+  '#006fa4',
   '#005b88',
   '#004264',
   '#002f4a',

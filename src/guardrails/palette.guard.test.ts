@@ -89,6 +89,14 @@ const TEXT_TOKENS: TokenName[] = [
   'del',
 ];
 
+/**
+ * Every surface a token can be painted on. `surface-2` and `muted` are as real
+ * as the other two — inline code chips, hover fills, tinted rows — and an
+ * accent tuned only against `card` fails on them by a couple of tenths, which
+ * is exactly how the filter chips and the timeline markers slipped under AA.
+ */
+const GROUNDS = ['background', 'card', 'surface-2', 'muted'] as const;
+
 /** Kinds whose text sits on the matching `-soft` fill (pills, chips). */
 const TINTED_KINDS = ['before', 'after', 'risk', 'praise', 'suggestion', 'question'] as const;
 
@@ -98,10 +106,9 @@ const SCHEMES: [string, TokenMap][] = [
 ];
 
 describe('guardrail: palette', () => {
-  it.each(SCHEMES)('%s: text tokens clear AA on both grounds', (_scheme, tokens) => {
+  it.each(SCHEMES)('%s: text tokens clear AA on every ground', (_scheme, tokens) => {
     const failures = TEXT_TOKENS.flatMap((name) =>
-      (['background', 'card'] as const)
-        .map((ground) => ({ ground, ratio: contrast(tokens[name], tokens[ground]) }))
+      GROUNDS.map((ground) => ({ ground, ratio: contrast(tokens[name], tokens[ground]) }))
         .filter(({ ratio }) => ratio < AA)
         .map(({ ground, ratio }) => `${name} on ${ground}: ${ratio.toFixed(2)}:1`),
     );
@@ -118,8 +125,8 @@ describe('guardrail: palette', () => {
     expect(failures).toEqual([]);
   });
 
-  it.each(SCHEMES)('%s: border-strong is perceivable against both grounds', (_scheme, tokens) => {
-    for (const ground of ['background', 'card'] as const) {
+  it.each(SCHEMES)('%s: border-strong is perceivable against every ground', (_scheme, tokens) => {
+    for (const ground of GROUNDS) {
       expect(contrast(tokens['border-strong'], tokens[ground])).toBeGreaterThanOrEqual(
         UI_COMPONENT,
       );

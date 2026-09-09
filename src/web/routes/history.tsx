@@ -1,12 +1,13 @@
-import { Anchor, Box, Code, Container, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Box, Code, Stack, Text, Title } from '@mantine/core';
 import { Link } from 'react-router';
 import { z } from 'zod';
 import { listJobs, toJobView } from '@/domain/jobs/jobs.server';
 import { JOB_STATUSES } from '@/domain/jobs/status';
 import { Caption } from '@/web/components/caption';
-import { EmptyLibrary } from '@/web/components/history/empty-library';
+import { EmptyHistory } from '@/web/components/history/empty-history';
 import { FilterChips, type StatusFilter } from '@/web/components/history/filter-chips';
 import { JobListRow } from '@/web/components/jobs/job-list-row';
+import { PageShell } from '@/web/components/page-shell';
 import { parseSearchParams } from '@/web/lib/parse.server';
 import { DISPLAY_SIZE, token } from '@/web/theme/tokens';
 import type { Route } from './+types/history';
@@ -18,7 +19,7 @@ const SearchSchema = z.object({
   status: z.enum(JOB_STATUSES).optional().catch(undefined),
 });
 
-export const meta: Route.MetaFunction = () => [{ title: 'Library — enhanced-review' }];
+export const meta: Route.MetaFunction = () => [{ title: 'History — enhanced-review' }];
 
 /** Workspace-wide list: every beta member's jobs, newest first. */
 export async function loader({ request }: Route.LoaderArgs) {
@@ -32,13 +33,13 @@ export default function History({ loaderData }: Route.ComponentProps) {
   const isEmpty = jobs.length === 0 && status === 'all';
 
   return (
-    <Container component="main" size={896} w="100%" px={28} py={48}>
+    <PageShell>
       {isEmpty ? (
-        <EmptyLibrary />
+        <EmptyHistory />
       ) : (
         <Stack gap={32}>
           <Stack component="header" gap={8}>
-            <Caption tone="before">❖&nbsp;&nbsp;Library</Caption>
+            <Caption tone="before">❖&nbsp;&nbsp;History</Caption>
             <Title order={1} fz={DISPLAY_SIZE} fw={600} style={{ letterSpacing: '-0.02em' }}>
               Every review, indexed.
             </Title>
@@ -74,6 +75,6 @@ export default function History({ loaderData }: Route.ComponentProps) {
           )}
         </Stack>
       )}
-    </Container>
+    </PageShell>
   );
 }

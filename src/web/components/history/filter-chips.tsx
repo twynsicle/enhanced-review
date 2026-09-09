@@ -28,7 +28,9 @@ export function FilterChips({ current }: { current: StatusFilter }) {
               borderRadius: 999,
               textDecoration: 'none',
               transition: 'background-color 120ms',
-              color: active ? token('before') : token('muted-foreground'),
+              // On the tint, not the page: the `-ink` pair, per the design
+              // system rules in AGENTS.md.
+              color: active ? token('before-ink') : token('muted-foreground'),
               background: active ? token('before-soft') : token('card'),
               border: active ? '1px solid transparent' : `1px solid ${token('border')}`,
             }}

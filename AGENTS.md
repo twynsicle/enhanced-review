@@ -93,13 +93,14 @@ src/
                        auth.github.ts, auth.github.callback.ts, auth.logout.ts, health.ts.
     auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                        context (userContext/sessionContext), session-middleware, gate-middleware (requireUser, signOutHeaders)
-    components/        brand-mark, caption (the one uppercase label), color-scheme-toggle,
+    components/        brand-mark, caption (the one uppercase label), page-shell (the one page width,
+                       shared with the topbar), color-scheme-toggle,
                        app-error (generic error page, used by root + route boundaries);
                        topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
                        jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                        job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
                        what-now, rerun-button, job-not-found (404 page shared with the reader)), history/ (filter-chips,
-                       empty-library), home/ (review-composer, target-combobox, recent-reviews, sparkline),
+                       empty-history), home/ (review-composer, target-combobox, recent-reviews, sparkline),
                        narrative/ (the reader: chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state),
                        chapter-sidebar (+ .module.css), chapter-card, summary-card, people-card, file-view, insight-callout,
                        lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
@@ -219,6 +220,16 @@ reader growing twelve font sizes and nine near-identical label styles:
   A component that needs the treatment without the component (a Mantine
   `Badge`, say) reads `CAPTION_TYPE` rather than respelling the values.
 
+**One page width.** Every page inside the shell renders through
+`components/page-shell.tsx`, which is also where the topbar's inner bar gets
+its `maw` and `px`, so the header lines up with the page beneath it and the
+narrow/wide toggle moves both. Widening the shell is not the same as widening
+the text: prose keeps its own measure in `ch`, and a page whose content gains
+nothing from the extra room (the job timeline) caps itself and stays
+left-aligned so the left edge never jumps between pages. Do not reintroduce a
+per-route `Container size={...}` — that is what made the toggle look broken
+everywhere outside the reader.
+
 Two text families: sans for everything, mono for identifiers, paths, SHAs and
 code. There is no display serif.
 
@@ -229,11 +240,16 @@ placeholder and decoration, never text. Text on a `-soft` fill takes the
 matching `-ink`. `border` draws cards and dividers; `border-strong` (≥ 3:1) is
 for control boundaries and is what Mantine's `default-border` resolves to.
 
-**Every token that carries text clears WCAG AA against both grounds of its own
-scheme, and every token is inside the sRGB gamut.** The two schemes therefore
-hold different accent values — a mint that reads on a dark card cannot also
-read on white, which is how the previous palette came to fail light mode. When
-changing a colour, run `npm test` and let the guardrail do the arithmetic.
+**Every token that carries text clears WCAG AA against all four grounds of its
+own scheme — `background`, `card`, `surface-2` and `muted` — every `-ink`
+clears AA on its own `-soft`, and every token is inside the sRGB gamut.** All
+four grounds, not just the page: a colour fitted only against `background`
+fails the moment it lands on a chip or a list row, which is how the filter
+chips shipped at 4.37:1. The two schemes therefore hold different accent
+values — a mint that reads on a dark card cannot also read on white, which is
+how the previous palette came to fail light mode. When changing a colour, run
+`npm test` and let the guardrail do the arithmetic. Disabled controls are
+exempt (WCAG 1.4.3) and the guardrail does not look at them.
 
 ## Conventions
 

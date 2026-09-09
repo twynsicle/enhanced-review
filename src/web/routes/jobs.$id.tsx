@@ -1,4 +1,4 @@
-import { Container, Stack } from '@mantine/core';
+import { Stack } from '@mantine/core';
 import { data, isRouteErrorResponse, redirect, useRouteLoaderData } from 'react-router';
 import { z } from 'zod';
 import { cancelJob } from '@/domain/jobs/cancel-job.server';
@@ -6,6 +6,7 @@ import { getJob, listChunksAfter, toJobView } from '@/domain/jobs/jobs.server';
 import { userContext } from '@/web/auth/context.server';
 import { AppError } from '@/web/components/app-error';
 import { JobLiveView } from '@/web/components/jobs/job-live-view';
+import { PageShell } from '@/web/components/page-shell';
 import { JobNotFound } from '@/web/components/jobs/job-not-found';
 import { actionError } from '@/web/lib/action-error';
 import { parseFormData, parseParams } from '@/web/lib/parse.server';
@@ -49,8 +50,11 @@ export default function JobPage({ loaderData }: Route.ComponentProps) {
   const shell = useRouteLoaderData<typeof shellLoader>('routes/_shell');
   const liveMs = shell?.polling.liveMs ?? 2000;
   return (
-    <Container component="main" size={768} w="100%" px={28} py={48}>
-      <Stack gap={40}>
+    <PageShell>
+      {/* A phase timeline gains nothing from a wide window — its stamps would
+          drift away from their labels — so it keeps a reading measure and
+          stays at the shell's left edge, where every other page starts. */}
+      <Stack gap={40} maw={768}>
         <JobLiveView
           key={loaderData.job.id}
           initialJob={loaderData.job}
@@ -59,7 +63,7 @@ export default function JobPage({ loaderData }: Route.ComponentProps) {
           liveMs={liveMs}
         />
       </Stack>
-    </Container>
+    </PageShell>
   );
 }
 

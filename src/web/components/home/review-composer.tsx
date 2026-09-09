@@ -237,25 +237,17 @@ export function ReviewComposer({ userId }: { userId: string }) {
         boxShadow: '0 1px 0 rgba(140,200,255,0.04), 0 18px 50px -28px rgba(80,200,200,0.45)',
       }}
     >
-      <Box
-        aria-hidden
-        pos="absolute"
-        top={0}
-        left={24}
-        right={24}
-        h={1}
-        style={{
-          pointerEvents: 'none',
-          background: `linear-gradient(90deg, ${token('before')}, ${token('after')})`,
-        }}
-      />
       <Flex
         direction={{ base: 'column', sm: 'row' }}
         align={{ sm: 'flex-end' }}
         gap={{ base: 20, sm: 24 }}
         p={24}
       >
-        <Field label="Repository" grow={1.3}>
+        {/* A repo name is short and a PR title is not, so the growth is
+            weighted towards the field whose content actually needs the room —
+            it used to be the other way round, and the title truncated while
+            the repo sat in white space. */}
+        <Field label="Repository" grow={1}>
           {reposError ? (
             <FieldError
               message={reposError}
@@ -317,7 +309,7 @@ export function ReviewComposer({ userId }: { userId: string }) {
           />
         </Field>
 
-        <Field label={kind === 'pr' ? 'Pull request' : 'Branch'} grow={1.2}>
+        <Field label={kind === 'pr' ? 'Pull request' : 'Branch'} grow={2.2}>
           {listError ? (
             <FieldError message={listError} onRetry={retryList} />
           ) : kind === 'pr' ? (

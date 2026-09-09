@@ -1,4 +1,3 @@
-import { Box } from '@mantine/core';
 import {
   data,
   isRouteErrorResponse,
@@ -12,6 +11,7 @@ import { readGithubToken } from '@/web/auth/cookies.server';
 import { AppError } from '@/web/components/app-error';
 import { JobNotFound } from '@/web/components/jobs/job-not-found';
 import { ChapterReader } from '@/web/components/narrative/chapter-reader';
+import { PageShell } from '@/web/components/page-shell';
 import { StalenessBanner, TruncationBanner } from '@/web/components/narrative/review-banners';
 import { parseFormData, parseParams, parseSearchParams } from '@/web/lib/parse.server';
 import { rerunAction } from '@/web/lib/rerun-action.server';
@@ -98,12 +98,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
 export default function ReviewPage({ loaderData }: Route.ComponentProps) {
   const { job, review } = loaderData;
   return (
-    <Box
-      component="main"
-      mx="auto"
-      w="100%"
-      maw="var(--review-max-width, 92rem)"
-      px={24}
+    <PageShell
       py={32}
       style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: '100%' }}
     >
@@ -125,7 +120,7 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {
         jobAuthor={job.githubLogin}
         jobHeadSha={job.headSha ?? ''}
       />
-    </Box>
+    </PageShell>
   );
 }
 

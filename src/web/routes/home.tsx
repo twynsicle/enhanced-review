@@ -1,4 +1,4 @@
-import { Container, Stack, Text, Title } from '@mantine/core';
+import { Stack, Text, Title } from '@mantine/core';
 import { redirect } from 'react-router';
 import { z } from 'zod';
 import { GithubAuthError } from '@/domain/github/client.server';
@@ -11,6 +11,7 @@ import { userContext } from '@/web/auth/context.server';
 import { Caption } from '@/web/components/caption';
 import { RecentReviews } from '@/web/components/home/recent-reviews';
 import { ReviewComposer } from '@/web/components/home/review-composer';
+import { PageShell } from '@/web/components/page-shell';
 import { actionError } from '@/web/lib/action-error';
 import { relinkRedirect, requireGithubToken } from '@/web/lib/github.server';
 import { parseFormData } from '@/web/lib/parse.server';
@@ -74,13 +75,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   return (
-    <Container
-      component="main"
-      size={896}
-      w="100%"
-      px={{ base: 20, sm: 28 }}
-      py={{ base: 48, sm: 56 }}
-    >
+    <PageShell py={{ base: 48, sm: 56 }}>
       <Stack gap={48}>
         <Stack component="section" gap={24}>
           <Stack gap={8}>
@@ -103,6 +98,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         </Stack>
         <RecentReviews jobs={loaderData.recent} activity={loaderData.activity} />
       </Stack>
-    </Container>
+    </PageShell>
   );
 }

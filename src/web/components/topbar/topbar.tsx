@@ -1,6 +1,7 @@
 import { Box, Group, Text } from '@mantine/core';
 import { Link } from 'react-router';
 import { BrandMark } from '@/web/components/brand-mark';
+import { SHELL_MAX_WIDTH, SHELL_PX } from '@/web/components/page-shell';
 import { ColorSchemeToggle } from '@/web/components/color-scheme-toggle';
 import { token } from '@/web/theme/tokens';
 import { LayoutWidthToggle } from './layout-width-toggle';
@@ -9,8 +10,8 @@ import { UserMenu, type TopbarUser } from './user-menu';
 
 /**
  * Sticky, translucent header shared by every page inside the app shell. Its
- * inner bar follows `--review-max-width` so the wide-layout toggle widens
- * the topbar together with the reader.
+ * inner bar takes its width and gutter from `PageShell`, so the header always
+ * lines up with the page beneath it and the wide-layout toggle moves both.
  */
 export function Topbar({ user }: { user: TopbarUser | null }) {
   return (
@@ -28,9 +29,9 @@ export function Topbar({ user }: { user: TopbarUser | null }) {
     >
       <Group
         h={56}
-        maw="var(--review-max-width, 92rem)"
+        maw={SHELL_MAX_WIDTH}
         mx="auto"
-        px={{ base: 20, sm: 28 }}
+        px={SHELL_PX}
         justify="space-between"
         gap={24}
         wrap="nowrap"
