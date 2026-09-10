@@ -30,7 +30,7 @@ const schema = z.object({
   APP_ORIGIN: z.url(),
   // Review runner.
   REVIEW_EXECUTOR: z.enum(['stub', 'claude']).default('claude'),
-  REVIEW_MODEL: z.string().min(1).default('claude-haiku-4-5'),
+  REVIEW_MODEL: z.string().min(1).default('claude-sonnet-5'),
   REVIEW_TIMEOUT_MIN: z.coerce.number().int().min(1).default(15),
   MAX_JOBS_PER_USER: z.coerce.number().int().min(1).default(1),
   // Forwarded to the Claude Agent SDK subprocess; the SDK also honours

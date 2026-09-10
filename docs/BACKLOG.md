@@ -63,3 +63,25 @@ The added operational surface is not worth it at this stage, and (2) gets most
 of the benefit for none of it.
 
 Revisit if and when the deployment story changes.
+
+## Choosing the review model per review
+
+`REVIEW_MODEL` is one value for the whole deployment. Model choice matters
+more than it looks: constructing a diagram — deciding what is worth drawing,
+marking what changed, keeping a graph coherent — is judgement work, and a
+cheaper model is visibly worse at it than at summarising a diff.
+
+The idea is to expose the model as a setting the user controls, defaulting to
+Sonnet, so a routine review can be run cheaply and a gnarly one can be given a
+stronger model.
+
+Not free, because it is not really a client preference: the choice has to reach
+the runner at job creation, which means a column on `review_jobs` rather than
+another Zustand store, plus an allowlist so the field cannot become a way to
+name an arbitrary model. There is also no settings surface in the app today —
+the persisted preferences that exist (`layout-width`, `last-target`) are
+browser-only — so this brings a settings route with it, or a control on the
+composer beside the target picker.
+
+Worth doing once there is evidence about which reviews actually need the
+stronger model.
