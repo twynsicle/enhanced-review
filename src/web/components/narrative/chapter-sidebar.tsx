@@ -1,15 +1,13 @@
-import { Box, Group, Stack, Text, UnstyledButton } from '@mantine/core';
+import { Box, Group, Stack, UnstyledButton } from '@mantine/core';
 import {
   SUMMARY_SECTION_ID,
   type NarrativeChapter,
   type ReviewFile,
   type ReviewRiskAssessment,
 } from '@/domain/review/narrative';
+import { Caption } from '@/web/components/caption';
 import { RiskInlineLabel, RiskScoreBars } from '@/web/components/narrative/risk-score';
-import { token } from '@/web/theme/tokens';
 import classes from './chapter-sidebar.module.css';
-
-const CAPTION = { fz: 10.5, fw: 500, tt: 'uppercase', style: { letterSpacing: '0.18em' } } as const;
 
 interface ChapterSidebarProps {
   chapters: readonly NarrativeChapter[];
@@ -51,9 +49,7 @@ export function ChapterSidebar({
         >
           <RiskScoreBars score={riskAssessment.score} size="lg" hideLabel />
           <Stack gap={0} miw={0}>
-            <Text component="span" {...CAPTION} fw={600} c={token('subtle')}>
-              Risk
-            </Text>
+            <Caption>Risk</Caption>
             <RiskInlineLabel score={riskAssessment.score} />
           </Stack>
           <span aria-hidden className={classes.chevron}>
@@ -63,9 +59,7 @@ export function ChapterSidebar({
       )}
 
       <Stack component="section" gap={12}>
-        <Text {...CAPTION} c={token('subtle')}>
-          Chapters
-        </Text>
+        <Caption>Chapters</Caption>
         <ul className={classes.list}>
           <SidebarItem
             id={SUMMARY_SECTION_ID}
@@ -173,9 +167,7 @@ function FilesHeader({ files }: { files: readonly ReviewFile[] }) {
   // px 6 mirrors the row padding so the totals line up with the per-row stats.
   return (
     <Group justify="space-between" align="baseline" gap={8} px={6}>
-      <Text {...CAPTION} c={token('subtle')}>
-        Files
-      </Text>
+      <Caption>Files</Caption>
       {(additions > 0 || deletions > 0) && <Stats additions={additions} deletions={deletions} />}
     </Group>
   );

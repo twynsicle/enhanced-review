@@ -1,0 +1,32 @@
+/*
+ * The reader's one measure.
+ *
+ * Every block in a chapter or the summary sits in a single column capped at
+ * `--er-measure`, so headings, cards, prose and captions all share one right
+ * edge. Before this, each prose block carried its own `max-width: 76ch` inside
+ * a much wider card, so text wrapped somewhere near the middle of the page and
+ * lined up with nothing around it.
+ *
+ * The second track is what the wide-layout toggle is for. A diff or a code
+ * block marked `data-bleed` spans both tracks and uses the whole column, since
+ * those are the only things here that genuinely read better wide — prose does
+ * not. That keeps the toggle visibly useful on the reader without stretching
+ * a line of body copy across 1700px.
+ */
+.article {
+  display: grid;
+  align-content: start;
+  grid-template-columns:
+    [content-start] minmax(0, var(--er-measure))
+    [content-end] minmax(0, 1fr);
+  row-gap: var(--article-row-gap, 28px);
+}
+
+.article > * {
+  grid-column: content-start / content-end;
+  min-width: 0;
+}
+
+.article > [data-bleed] {
+  grid-column: content-start / -1;
+}

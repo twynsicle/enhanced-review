@@ -36,6 +36,43 @@ describe('extractChapterTitles', () => {
     });
   });
 
+  it('does not count insight titles as chapters', () => {
+    // The regression that made a 2-chapter review report "6 chapters": every
+    // insight carries an optional title of its own, nested inside the chapter.
+    const buf =
+      `${PRE}{"id":"c1","title":"First","insights":[` +
+      `{"type":"context","title":"An insight headline","text":"t"},` +
+      `{"type":"rationale","title":"Another insight","text":"t"}]},` +
+      `{"id":"c2","title":"Second","insights":[` +
+      `{"type":"highlight","title":"Third insight","text":"t"}]}]`;
+    expect(extractChapterTitles(buf)).toEqual({
+      titles: ['First', 'Second'],
+      inProgressTitle: null,
+    });
+  });
+
+  it('stops at the end of the chapters array', () => {
+    // `files` comes after `chapters` and a later schema addition could put a
+    // `title` there too; nothing outside the array may be counted.
+    const buf =
+      `${PRE}{"id":"c1","title":"Only chapter","insights":[]}],` +
+      `"files":[{"filename":"a.ts","title":"not a chapter","status":"modified"}]}`;
+    expect(extractChapterTitles(buf)).toEqual({
+      titles: ['Only chapter'],
+      inProgressTitle: null,
+    });
+  });
+
+  it('is not confused by braces or quotes inside a chapter string value', () => {
+    const buf =
+      `${PRE}{"id":"c1","description":"a } brace and a \\"quote\\"","title":"Real title",` +
+      `"insights":[{"type":"context","title":"Nested","text":"t"}]}]`;
+    expect(extractChapterTitles(buf)).toEqual({
+      titles: ['Real title'],
+      inProgressTitle: null,
+    });
+  });
+
   it('does not pick up the prTitle as a chapter title', () => {
     const buf = `${PRE}{"id":"c1","title":"Real chapter"}`;
     const result = extractChapterTitles(buf);

@@ -1,5 +1,6 @@
 import { Badge } from '@mantine/core';
 import type { JobStatus } from '@/domain/jobs/status';
+import { CAPTION_TYPE } from '@/web/theme/tokens';
 
 const TONE: Record<JobStatus, string> = {
   pending: 'gray',
@@ -17,8 +18,10 @@ export function StatusBadge({ status }: { status: JobStatus }) {
       color={TONE[status]}
       radius="xl"
       size="sm"
-      fw={500}
-      style={{ letterSpacing: '0.1em', textTransform: 'uppercase' }}
+      fz={CAPTION_TYPE.size}
+      fw={CAPTION_TYPE.weight}
+      tt="uppercase"
+      style={{ letterSpacing: CAPTION_TYPE.tracking }}
     >
       {status}
     </Badge>

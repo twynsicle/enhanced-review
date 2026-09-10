@@ -9,6 +9,12 @@ repository actually contains and what the commands were verified on. On any
 other container host the same commands apply — substitute your own way of
 setting environment variables, reading logs and running a one-off container.
 
+The `web` service sits behind the `app` profile so that local development gets
+the database without the app competing for `:3000`. A deployment therefore
+starts with `docker compose --profile app up -d`. Commands that name the
+service — `logs web`, `run --rm web …` — enable the profile themselves and are
+written here without the flag.
+
 ## Quick reference
 
 | Want to…                   | See                                                 |

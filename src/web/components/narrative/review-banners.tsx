@@ -7,7 +7,7 @@ function bannerStyle(tone: TokenName) {
     borderRadius: 6,
     border: `1px solid color-mix(in oklab, ${token(tone)} 40%, transparent)`,
     background: `color-mix(in oklab, ${token(tone)} 10%, transparent)`,
-    color: `color-mix(in oklab, ${token(tone)} 55%, ${token('foreground')})`,
+    color: token('foreground'),
   };
 }
 

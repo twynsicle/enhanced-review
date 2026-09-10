@@ -17,7 +17,12 @@ import {
  * Emits every Editorial Iris token as `--er-<name>` for the active colour
  * scheme, and points the Mantine variables that drive component chrome at
  * the same tokens so `Paper`, `Text c="dimmed"`, inputs, borders and anchors
- * pick up the baseline colours without per-component overrides (D2).
+ * pick up the palette without per-component overrides.
+ *
+ * Note the two border tokens: `border` is the structural hairline that draws
+ * cards and dividers, while `border-strong` clears 3:1 and is what Mantine's
+ * `default-border` points at, so input and button outlines stay perceivable
+ * (WCAG 1.4.11) without every divider on the page shouting.
  */
 function schemeVariables(tokens: TokenMap, hljs: HljsTokenMap): Record<string, string> {
   const vars: Record<string, string> = {};
@@ -32,7 +37,7 @@ function schemeVariables(tokens: TokenMap, hljs: HljsTokenMap): Record<string, s
   vars['--mantine-color-default'] = tokens.card;
   vars['--mantine-color-default-hover'] = tokens.muted;
   vars['--mantine-color-default-color'] = tokens.foreground;
-  vars['--mantine-color-default-border'] = tokens.border;
+  vars['--mantine-color-default-border'] = tokens['border-strong'];
   vars['--mantine-color-error'] = tokens.destructive;
   return vars;
 }

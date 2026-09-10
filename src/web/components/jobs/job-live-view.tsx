@@ -5,6 +5,7 @@ import type { ChunkView, JobView } from '@/domain/jobs/job-view';
 import { isTerminalStatus } from '@/domain/jobs/status';
 import { extractChapterTitles } from '@/domain/review/partial-narrative-parse';
 import { describeTarget } from '@/domain/review/target';
+import { Caption } from '@/web/components/caption';
 import { JobTimeline } from '@/web/components/jobs/job-timeline';
 import { derivePhases, phaseEyebrow, phaseHeading } from '@/web/components/jobs/live-phases';
 import { RerunButton } from '@/web/components/jobs/rerun-button';
@@ -12,7 +13,7 @@ import { whatNowFor } from '@/web/components/jobs/what-now';
 import { isActionError } from '@/web/lib/action-error';
 import { isJobPollResponse, lastSeq, mergeChunks } from '@/web/lib/jobs-api';
 import { usePolling } from '@/web/lib/use-polling';
-import { token } from '@/web/theme/tokens';
+import { DISPLAY_SIZE, token } from '@/web/theme/tokens';
 
 /**
  * Live view of one review job as a typographic timeline. Seeded by the
@@ -100,25 +101,11 @@ export function JobLiveView({
   return (
     <>
       <Stack component="header" gap={8}>
-        <Text
-          fz={11}
-          fw={500}
-          tt="uppercase"
-          c={token('before')}
-          style={{ letterSpacing: '0.18em' }}
-        >
-          ❖&nbsp;&nbsp;{phaseEyebrow(job.status)}
-        </Text>
-        <Title
-          order={1}
-          fz={{ base: 30, sm: 32 }}
-          fw={600}
-          lh={1.1}
-          style={{ letterSpacing: '-0.015em' }}
-        >
+        <Caption tone="before">❖&nbsp;&nbsp;{phaseEyebrow(job.status)}</Caption>
+        <Title order={1} fz={DISPLAY_SIZE} fw={600} lh={1.1} style={{ letterSpacing: '-0.02em' }}>
           {phaseHeading(job.status, job.target)}
         </Title>
-        <Text ff="monospace" fz={12} c="dimmed">
+        <Text ff="monospace" fz="sm" c="dimmed">
           {describeTarget(job.target)} · <span>{(job.headSha ?? '').slice(0, 7)}</span>
         </Text>
       </Stack>

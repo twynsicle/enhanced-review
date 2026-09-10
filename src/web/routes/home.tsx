@@ -1,4 +1,4 @@
-import { Container, Stack, Text, Title } from '@mantine/core';
+import { Stack, Text, Title } from '@mantine/core';
 import { redirect } from 'react-router';
 import { z } from 'zod';
 import { GithubAuthError } from '@/domain/github/client.server';
@@ -10,10 +10,11 @@ import { ReviewTargetSchema } from '@/domain/review/target';
 import { userContext } from '@/web/auth/context.server';
 import { RecentReviews } from '@/web/components/home/recent-reviews';
 import { ReviewComposer } from '@/web/components/home/review-composer';
+import { PageShell } from '@/web/components/page-shell';
 import { actionError } from '@/web/lib/action-error';
 import { relinkRedirect, requireGithubToken } from '@/web/lib/github.server';
 import { parseFormData } from '@/web/lib/parse.server';
-import { token } from '@/web/theme/tokens';
+import { DISPLAY_SIZE } from '@/web/theme/tokens';
 import type { Route } from './+types/home';
 
 const RECENT_LIMIT = 5;
@@ -73,43 +74,28 @@ export async function action({ request, context }: Route.ActionArgs) {
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   return (
-    <Container
-      component="main"
-      size={896}
-      w="100%"
-      px={{ base: 20, sm: 28 }}
-      py={{ base: 48, sm: 56 }}
-    >
+    <PageShell py={{ base: 48, sm: 56 }}>
       <Stack gap={48}>
         <Stack component="section" gap={24}>
           <Stack gap={8}>
-            <Text
-              fz={11}
-              fw={500}
-              tt="uppercase"
-              c={token('before')}
-              style={{ letterSpacing: '0.18em' }}
-            >
-              ❖&nbsp;&nbsp;A new review
-            </Text>
             <Title
               order={1}
-              fz={{ base: 36, sm: 44 }}
+              fz={DISPLAY_SIZE}
               fw={600}
-              lh={1.05}
+              lh={1.1}
               style={{ letterSpacing: '-0.02em' }}
             >
-              The reviewer is ready when you are.
+              Start a review
             </Title>
-            <Text maw="58ch" fz={15} lh={1.55} c="dimmed">
-              Choose a pull request or branch — we’ll read every line, write the chapters, and
-              surface the few things that genuinely need a human eye.
+            <Text maw="58ch" fz="md" c="dimmed">
+              Choose a pull request or branch. Every changed line is read and returned as a
+              chaptered walkthrough of what changed and why.
             </Text>
           </Stack>
           <ReviewComposer userId={loaderData.userId} />
         </Stack>
         <RecentReviews jobs={loaderData.recent} activity={loaderData.activity} />
       </Stack>
-    </Container>
+    </PageShell>
   );
 }

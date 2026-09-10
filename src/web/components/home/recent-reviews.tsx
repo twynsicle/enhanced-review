@@ -9,10 +9,10 @@ export function RecentReviews({ jobs, activity }: { jobs: JobView[]; activity: n
   return (
     <Stack component="section" aria-label="Recent reviews" gap={16}>
       <Group justify="space-between" align="baseline" gap={12}>
-        <Title order={2} fz={20} fw={600} style={{ letterSpacing: '-0.01em' }}>
+        <Title order={2} fz="lg" fw={600}>
           Recent
         </Title>
-        <Group gap={8} wrap="nowrap" fz={11.5} c="dimmed">
+        <Group gap={8} wrap="nowrap" fz="xs" c="dimmed">
           <Sparkline
             data={activity}
             color={token('before')}

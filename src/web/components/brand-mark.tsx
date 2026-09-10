@@ -1,11 +1,11 @@
 /**
- * Product mark — two-pane review icon from `public/brand-mark.png`, kept as
- * the raw asset so it stays pixel-identical to the favicon.
+ * Passage product mark. Small placements use the favicon's tighter padding
+ * to keep the central channel legible; larger placements use the app tile.
  */
 export function BrandMark({ size = 28 }: { size?: number }) {
   return (
     <img
-      src="/brand-mark.png"
+      src={size <= 24 ? '/favicon.svg' : '/brand-mark.svg'}
       alt=""
       aria-hidden
       width={size}

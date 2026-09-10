@@ -1,20 +1,13 @@
 import { z } from 'zod';
 import { detectLanguage } from '../review/language-map.ts';
 import { type GithubClient, toResult } from './client.server.ts';
-import type {
-  BranchHead,
-  CommitsAhead,
-  FileAtRef,
-  GithubResult,
-  PullReviewer,
-  ReviewerState,
-} from './types.ts';
+import type { BranchHead, CommitsAhead, FileAtRef, GithubResult } from './types.ts';
 
 /**
  * View-time GitHub reads for the reader: file blobs for inline diffs, branch
- * heads and commit counts for the staleness banner, reviewers for the people
- * card. Deliberately re-fetched on every render rather than persisted.
- * Everything returns a `GithubResult` so the page degrades per section.
+ * heads and commit counts for the staleness banner. Deliberately re-fetched
+ * on every render rather than persisted. Everything returns a `GithubResult`
+ * so the page degrades per section.
  */
 const MAX_CONTENT_BYTES = 1_000_000;
 
@@ -85,77 +78,6 @@ export function getBranchHead(
     });
     return { sha: data.commit.sha, commitMessage: data.commit.commit.message };
   });
-}
-
-function mapReviewState(raw: string): ReviewerState | null {
-  switch (raw.toUpperCase()) {
-    case 'APPROVED':
-      return 'approved';
-    case 'CHANGES_REQUESTED':
-      return 'changes_requested';
-    case 'COMMENTED':
-      return 'commented';
-    default:
-      return null;
-  }
-}
-
-/**
- * Reviewers on a PR: submitted reviews collapsed to one row per user (latest
- * wins) plus still-pending requested reviewers. A failure on the
- * requested-reviewers call keeps the submitted ones.
- */
-export async function getPullReviewers(
-  octokit: GithubClient,
-  args: { owner: string; repo: string; number: number },
-): Promise<GithubResult<PullReviewer[]>> {
-  const reviews = await toResult(() =>
-    octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews', {
-      owner: args.owner,
-      repo: args.repo,
-      pull_number: args.number,
-      per_page: 100,
-    }),
-  );
-  if (!reviews.ok) return reviews;
-
-  const latestByLogin = new Map<string, PullReviewer>();
-  for (const review of reviews.data.data) {
-    const login = review.user?.login;
-    if (!login) continue;
-    const state = mapReviewState(review.state);
-    if (state === null) continue;
-    const submittedAt = review.submitted_at ?? null;
-    const existing = latestByLogin.get(login);
-    if (existing?.submittedAt && submittedAt && submittedAt <= existing.submittedAt) continue;
-    latestByLogin.set(login, {
-      login,
-      avatarUrl: review.user?.avatar_url ?? null,
-      state,
-      submittedAt,
-    });
-  }
-
-  const requested = await toResult(() =>
-    octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers', {
-      owner: args.owner,
-      repo: args.repo,
-      pull_number: args.number,
-    }),
-  );
-  if (requested.ok) {
-    for (const user of requested.data.data.users) {
-      if (latestByLogin.has(user.login)) continue;
-      latestByLogin.set(user.login, {
-        login: user.login,
-        avatarUrl: user.avatar_url,
-        state: 'pending',
-        submittedAt: null,
-      });
-    }
-  }
-
-  return { ok: true, data: [...latestByLogin.values()] };
 }
 
 /** Commits between `base` and `head` for the staleness banner; 0 when equal (no call). */

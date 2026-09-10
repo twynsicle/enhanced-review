@@ -6,7 +6,7 @@ import { userContext } from '@/web/auth/context.server';
 import { BrandMark } from '@/web/components/brand-mark';
 import { ColorSchemeToggle } from '@/web/components/color-scheme-toggle';
 import { parseSearchParams } from '@/web/lib/parse.server';
-import { token } from '@/web/theme/tokens';
+import { DISPLAY_SIZE, token } from '@/web/theme/tokens';
 import type { Route } from './+types/login';
 
 export const meta: Route.MetaFunction = () => [{ title: 'Sign in — enhanced-review' }];
@@ -46,7 +46,7 @@ export default function Login({ loaderData }: Route.ComponentProps) {
           <Stack align="center" gap="lg" ta="center">
             <BrandMark size={48} />
             <Stack gap="xs">
-              <Title order={1} fz={{ base: 30, sm: 36 }} style={{ letterSpacing: '-0.015em' }}>
+              <Title order={1} fz={DISPLAY_SIZE} style={{ letterSpacing: '-0.02em' }}>
                 Enhanced&nbsp;Review
               </Title>
               <Text size="sm" c="dimmed">
@@ -86,10 +86,6 @@ export default function Login({ loaderData }: Route.ComponentProps) {
               </Form>
             </Stack>
           </Paper>
-
-          <Text mt="lg" ta="center" size="xs" c="dimmed">
-            By signing in you agree to leave us alone if the AI says something silly.
-          </Text>
         </Box>
       </Flex>
     </Box>

@@ -1,4 +1,3 @@
-import { Box } from '@mantine/core';
 import {
   data,
   isRouteErrorResponse,
@@ -12,10 +11,11 @@ import { readGithubToken } from '@/web/auth/cookies.server';
 import { AppError } from '@/web/components/app-error';
 import { JobNotFound } from '@/web/components/jobs/job-not-found';
 import { ChapterReader } from '@/web/components/narrative/chapter-reader';
+import { PageShell } from '@/web/components/page-shell';
 import { StalenessBanner, TruncationBanner } from '@/web/components/narrative/review-banners';
 import { parseFormData, parseParams, parseSearchParams } from '@/web/lib/parse.server';
 import { rerunAction } from '@/web/lib/rerun-action.server';
-import { deriveDurationMs, loadReviewMetadata } from '@/web/lib/review-metadata.server';
+import { loadReviewMetadata } from '@/web/lib/review-metadata.server';
 import type { Route } from './+types/reviews.$id';
 
 const ParamsSchema = z.object({ id: z.string().min(1) });
@@ -58,17 +58,14 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     headSha,
     githubLogin: job.githubLogin,
   });
-  const insightCount = review.content.chapters.reduce((sum, c) => sum + c.insights.length, 0);
 
   return {
     job: toJobView(job),
     review: review.content,
     diffTruncated: review.diffTruncated,
     pullMetadata: metadata.pullMetadata,
-    reviewers: metadata.reviewers,
     isStale: metadata.currentHeadSha !== null && metadata.currentHeadSha !== headSha,
     commitsAhead: metadata.commitsAhead,
-    aiReviewer: { durationMs: deriveDurationMs(job.startedAt, job.completedAt), insightCount },
     initialActiveId: parseActiveId(ch, review.content.chapters),
   };
 }
@@ -98,12 +95,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
 export default function ReviewPage({ loaderData }: Route.ComponentProps) {
   const { job, review } = loaderData;
   return (
-    <Box
-      component="main"
-      mx="auto"
-      w="100%"
-      maw="var(--review-max-width, 92rem)"
-      px={24}
+    <PageShell
       py={32}
       style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: '100%' }}
     >
@@ -116,16 +108,13 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {
         review={review}
         target={job.target}
         pullMetadata={loaderData.pullMetadata}
-        reviewers={loaderData.reviewers}
-        aiReviewer={loaderData.aiReviewer}
         baseRef={job.target.baseSha}
         headRef={job.headSha ?? ''}
         initialActiveId={loaderData.initialActiveId}
         jobId={job.id}
         jobAuthor={job.githubLogin}
-        jobHeadSha={job.headSha ?? ''}
       />
-    </Box>
+    </PageShell>
   );
 }
 

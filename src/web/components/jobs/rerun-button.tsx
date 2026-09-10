@@ -65,7 +65,7 @@ export function RerunButton({
         radius="xl"
         h={32}
         px={12}
-        fz={13}
+        fz="sm"
         disabled={busy}
         onClick={onClick}
         aria-busy={busy}

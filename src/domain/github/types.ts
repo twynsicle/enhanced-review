@@ -100,15 +100,6 @@ export interface BranchHead {
   commitMessage: string;
 }
 
-export type ReviewerState = 'approved' | 'changes_requested' | 'commented' | 'pending';
-
-export interface PullReviewer {
-  login: string;
-  avatarUrl: string | null;
-  state: ReviewerState;
-  submittedAt: string | null;
-}
-
 export interface CommitsAhead {
   count: number;
 }

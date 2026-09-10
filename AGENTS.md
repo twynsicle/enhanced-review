@@ -56,7 +56,7 @@ src/
     auth/              github-profile.server.ts (GET /user, Zod), sign-in.server.ts (upsert user)
     github/            all *.server.ts on one @octokit/core instance per request: client (createOctokit, GithubAuthError,
                        classifyGithubError, toResult), repos, pulls, branches (GraphQL), resolve-target (re-pin SHAs),
-                       pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getPullReviewers, getCommitsAhead); types.ts shared
+                       pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getCommitsAhead); types.ts shared
     review/            shared: narrative.ts (NarrativeReview Zod schema + types), target.ts (ReviewTarget schema, describeTarget),
                        language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
       clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
@@ -72,7 +72,9 @@ src/
                        listRecentActivity, toJobView);
                        shared: errors.ts (JobInFlightError, …), status.ts (JOB_STATUSES), job-view.ts (JobView, jobHref), activity.ts
   jobs/                cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.ts
-  guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access
+  guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access,
+                       palette (token contrast maths incl. `-soft` tints as grounds, a line scan for
+                       page-ground colours on a tint, + the type scale and one-label rules)
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
   web/
     root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary, middleware: [sessionMiddleware]
@@ -92,14 +94,17 @@ src/
                        auth.github.ts, auth.github.callback.ts, auth.logout.ts, health.ts.
     auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                        context (userContext/sessionContext), session-middleware, gate-middleware (requireUser, signOutHeaders)
-    components/        brand-mark, color-scheme-toggle, app-error (generic error page, used by root + route boundaries);
+    components/        brand-mark, caption (the one uppercase label), page-shell (the one page width,
+                       shared with the topbar), color-scheme-toggle,
+                       app-error (generic error page, used by root + route boundaries);
                        topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
                        jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                        job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
                        what-now, rerun-button, job-not-found (404 page shared with the reader)), history/ (filter-chips,
-                       empty-library), home/ (review-composer, target-combobox, recent-reviews, sparkline),
+                       empty-history), home/ (review-composer, target-combobox, recent-reviews, sparkline),
                        narrative/ (the reader: chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state),
-                       chapter-sidebar (+ .module.css), chapter-card, summary-card, people-card, file-view, insight-callout,
+                       chapter-sidebar (+ .module.css), chapter-card, summary-card, file-view, insight-callout,
+                       article.module.css (the reading measure + the diff bleed lane),
                        lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                        inline-diff-chunk (+ .module.css; useFetcher → /api/github/file, snippets per hunk group,
                        lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme), review-banners, risk-score,
@@ -107,21 +112,23 @@ src/
                        a 30 s overlap, toasts once per job id, suppressed on that job's pages, browser Notification when
                        hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
     stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
-    theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours) → theme.ts,
+    theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours + FONT_SIZES/DISPLAY_SIZE/
+                       CAPTION_TYPE, the type scale) → theme.ts (Mantine ramps, fontSizes, sans + mono),
                        css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules)
     lib/               parse.server.ts (Zod parseParams / parseSearchParams / parseFormData), github.server.ts (requireGithubToken,
                        withGithub → /relink, githubFailure), github-api.ts (resource-route body types, GITHUB_ERROR_STATUS),
                        jobs-api.ts (JobPollResponse, TerminalJobsResponse, mergeChunks), rerun-action.server.ts (shared
                        intent=rerun handler),
-                       review-metadata.server.ts (reader's view-time GitHub fan-out: PR header/reviewers or branch head,
+                       review-metadata.server.ts (reader's view-time GitHub fan-out: PR header or branch head,
                        staleness compare; every section degrades on its own, no token → nothing fetched),
                        action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts
     test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
-public/                brand-mark.png, favicon.ico
+public/                Passage brand-mark.svg (+ PNG export), favicon.svg / favicon.ico (tighter padding for small sizes),
+                       apple-touch-icon.png
 docs/OPERATIONS.md     runbook for a running deployment
 Dockerfile             node:24-alpine multi-stage; build stage runs prisma generate; runtime ships source + prod deps
 entrypoint.sh          the image's CMD: prisma migrate deploy → recover-jobs → exec node server/index.ts
-docker-compose.yml     postgres:18-alpine on 127.0.0.1:5432 + `web` (the app as it ships, on :3000)
+docker-compose.yml     postgres:18-alpine on 127.0.0.1:5432 + `web` (the app as it ships, on :3000, behind the `app` profile)
 .github/workflows/ci.yml  check: postgres → npm ci → db:deploy → check:all; image: docker build → boot → /api/health
 ```
 
@@ -204,6 +211,74 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
   columns (`target` → `ReviewTargetSchema`, `content` →
   `NarrativeReviewSchema`); repositories return them as `unknown`.
 
+## Design system
+
+Two rules, both enforced by the `palette` guardrail, both the result of the
+reader growing twelve font sizes and nine near-identical label styles:
+
+- **Six font sizes, no more.** `FONT_SIZES` (Mantine's `xs`–`xl`: 11/13/15/19/28)
+  plus `DISPLAY_SIZE` (40) for page and chapter titles. Use `fz="sm"` or
+  `var(--mantine-font-size-sm)`, never a literal `fz={13}` or `font-size: 13px`.
+- **One uppercase label.** `components/caption.tsx`; it varies only by `tone`.
+  A component that needs the treatment without the component (a Mantine
+  `Badge`, say) reads `CAPTION_TYPE` rather than respelling the values.
+
+**One reading measure.** In the reader, every block — heading, card, prose,
+caption — sits in a single column capped at `--er-measure` (42rem) via
+`narrative/article.module.css`, so they share one right edge. Only a diff or a
+code block opts out, with `data-bleed`, and spans the rest of the column: those
+are the only things here that read better wide, and they are what the
+wide-layout toggle is for. Do not give a prose block its own `max-width` — that
+is what had text wrapping near the middle of a much wider card, lined up with
+nothing.
+
+Two widths on the page, and no more: the measure, and the full column. A third
+lane sized between them — cards ending somewhere after the prose but before the
+diffs — reads as confusion rather than hierarchy. That is why card grids
+(insights, risk factors) stack in one column instead of widening: measured on a
+real review, stacking cost 131px on six risk factors and _saved_ 96px on the
+insights, because a full-measure card wraps to fewer lines and a two-up grid
+equalises its rows to the tallest cell.
+
+**One page width.** Every page inside the shell renders through
+`components/page-shell.tsx`, which is also where the topbar's inner bar gets
+its `maw` and `px`, so the header lines up with the page beneath it and the
+narrow/wide toggle moves both. Widening the shell is not the same as widening
+the text: prose keeps its own measure in `ch`, and a page whose content gains
+nothing from the extra room (the job timeline) caps itself and stays
+left-aligned so the left edge never jumps between pages. Do not reintroduce a
+per-route `Container size={...}` — that is what made the toggle look broken
+everywhere outside the reader. `PageShell` pads the bottom more than the top
+(`SHELL_PB`): a page that ends flush with its last element reads as cut off.
+
+Two text families: sans for everything, mono for identifiers, paths, SHAs and
+code. There is no display serif.
+
+Colour is semantic tokens only (`token('muted-foreground')`, never a literal or
+a `color-mix` off `foreground`). Body text is `foreground`; anything secondary
+is `muted-foreground` — those two greys are the whole vocabulary. `subtle` is
+placeholder and decoration, never text. Text on a `-soft` fill takes the
+matching `-ink` — enforced, not merely advised: the guardrail treats every
+`-soft` as a ground in its own right and scans components for a page-ground
+colour under an unconditional tint fill. The base accents are tuned against the
+page, not against tints (`risk` on `before-soft` is 4.01:1 in dark), so reaching
+for one on a fill ships text under AA. A tint is also a poor state cue — no page
+ground clears 3:1 against `before-soft` — so a selected control on a tint gets a
+`before` ring rather than a paler fill. `border` draws cards and dividers;
+`border-strong` (≥ 3:1) is
+for control boundaries and is what Mantine's `default-border` resolves to.
+
+**Every token that carries text clears WCAG AA against all four grounds of its
+own scheme — `background`, `card`, `surface-2` and `muted` — every `-ink`
+clears AA on its own `-soft`, and every token is inside the sRGB gamut.** All
+four grounds, not just the page: a colour fitted only against `background`
+fails the moment it lands on a chip or a list row, which is how the filter
+chips shipped at 4.37:1. The two schemes therefore hold different accent
+values — a mint that reads on a dark card cannot also read on white, which is
+how the previous palette came to fail light mode. When changing a colour, run
+`npm test` and let the guardrail do the arithmetic. Disabled controls are
+exempt (WCAG 1.4.3) and the guardrail does not look at them.
+
 ## Conventions
 
 - Path alias `@/*` → `src/*` is used in `src/web/` (bundled by Vite).
@@ -248,9 +323,15 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
 
 ## Container
 
-One image, one process. `docker compose up -d postgres` is
-all day-to-day dev needs; `docker compose up --build` runs the app as it
-ships on `:3000`. `entrypoint.sh` is the image's **CMD**, not its entrypoint,
+One image, one process. `docker compose up -d` is all day-to-day dev needs:
+it starts Postgres alone, because `web` is behind the `app` profile.
+`docker compose --profile app up --build` runs the app as it ships on `:3000`.
+The profile exists because that port is also `npm run dev`'s — a bare `up`, a
+`restart` or Docker Desktop's start button used to raise a container built from
+whatever the tree held at image-build time, which silently beat the dev server
+to the port and served a stale build. Compose enables a profile automatically
+when a command names the service, so `run --rm web …` and `logs web` need no
+flag. CI builds the image with plain `docker build` and is unaffected. `entrypoint.sh` is the image's **CMD**, not its entrypoint,
 so `docker run <image> node src/jobs/cli.ts <job>` replaces the start-up
 chain instead of appending to it.
 

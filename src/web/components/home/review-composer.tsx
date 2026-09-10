@@ -15,6 +15,7 @@ import { useEffect, useMemo, type ReactNode } from 'react';
 import { Link, useFetcher } from 'react-router';
 import type { BranchSummary, PullSummary, RepoSummary } from '@/domain/github/types';
 import type { ReviewTarget } from '@/domain/review/target';
+import { Caption } from '@/web/components/caption';
 import { isActionError } from '@/web/lib/action-error';
 import type { BranchesResponse, PullsResponse, ReposResponse } from '@/web/lib/github-api';
 import {
@@ -236,25 +237,17 @@ export function ReviewComposer({ userId }: { userId: string }) {
         boxShadow: '0 1px 0 rgba(140,200,255,0.04), 0 18px 50px -28px rgba(80,200,200,0.45)',
       }}
     >
-      <Box
-        aria-hidden
-        pos="absolute"
-        top={0}
-        left={24}
-        right={24}
-        h={1}
-        style={{
-          pointerEvents: 'none',
-          background: `linear-gradient(90deg, ${token('before')}, ${token('after')})`,
-        }}
-      />
       <Flex
         direction={{ base: 'column', sm: 'row' }}
         align={{ sm: 'flex-end' }}
         gap={{ base: 20, sm: 24 }}
         p={24}
       >
-        <Field label="Repository" grow={1.3}>
+        {/* A repo name is short and a PR title is not, so the growth is
+            weighted towards the field whose content actually needs the room —
+            it used to be the other way round, and the title truncated while
+            the repo sat in white space. */}
+        <Field label="Repository" grow={1}>
           {reposError ? (
             <FieldError
               message={reposError}
@@ -316,7 +309,7 @@ export function ReviewComposer({ userId }: { userId: string }) {
           />
         </Field>
 
-        <Field label={kind === 'pr' ? 'Pull request' : 'Branch'} grow={1.2}>
+        <Field label={kind === 'pr' ? 'Pull request' : 'Branch'} grow={2.2}>
           {listError ? (
             <FieldError message={listError} onRetry={retryList} />
           ) : kind === 'pr' ? (
@@ -423,7 +416,7 @@ export function ReviewComposer({ userId }: { userId: string }) {
         wrap="nowrap"
         style={{ borderTop: `1px solid ${token('border')}` }}
       >
-        <Text fz={12.5} c="dimmed" miw={0} truncate style={{ flex: 1 }}>
+        <Text fz="sm" c="dimmed" miw={0} truncate style={{ flex: 1 }}>
           {target ? (
             <SelectionHint target={target} />
           ) : (
@@ -475,16 +468,7 @@ export function ReviewComposer({ userId }: { userId: string }) {
 function Field({ label, grow, children }: { label: string; grow?: number; children: ReactNode }) {
   return (
     <Stack component="label" gap={6} miw={0} style={{ flex: grow ? `${grow} 1 0` : '0 0 auto' }}>
-      <Text
-        component="span"
-        fz={10.5}
-        fw={500}
-        tt="uppercase"
-        c={token('subtle')}
-        style={{ letterSpacing: '0.14em' }}
-      >
-        {label}
-      </Text>
+      <Caption>{label}</Caption>
       {children}
     </Stack>
   );
@@ -539,7 +523,7 @@ function FieldError({ message, onRetry }: { message: string; onRetry: () => void
 
 function kindItem(icon: ReactNode, label: string) {
   return (
-    <Group component="span" gap={6} wrap="nowrap" fz={12} fw={500}>
+    <Group component="span" gap={6} wrap="nowrap" fz="sm" fw={500}>
       {icon}
       {label}
     </Group>
@@ -568,19 +552,34 @@ function KindToggle({
         { value: 'pr', label: kindItem(<IconGitPullRequest size={14} />, 'PR') },
         { value: 'branch', label: kindItem(<IconGitBranch size={14} />, 'Branch') },
       ]}
+      // The track is a `before-soft` fill, so every label takes `before-ink`
+      // rather than a page-ground colour: the unselected ones sit straight on
+      // the tint, and the selected one sits on the `surface-2` indicator,
+      // which `before-ink` also clears AA against in both schemes.
+      //
+      // That leaves both labels the same colour, so the indicator has to carry
+      // the selected state on its own. Its `surface-2` fill is only 1.02:1
+      // (light) / 1.20:1 (dark) against the tint it sits on — no page ground
+      // reads on this track — so the state cue is the `before` ring, 4.98:1
+      // against the track and 4.90:1 against the fill in light, 4.40:1 and
+      // 5.27:1 in dark. A 1px shadow is not a dependable 3:1 boundary.
       styles={{
         root: {
           background: token('before-soft'),
           padding: 4,
           opacity: disabled ? 0.6 : 1,
-          '--sc-label-color': token('before'),
+          '--sc-label-color': token('before-ink'),
         },
-        indicator: { background: token('surface-2'), boxShadow: '0 1px 2px rgba(0,0,0,0.4)' },
+        indicator: {
+          background: token('surface-2'),
+          border: `1px solid ${token('before')}`,
+          boxShadow: '0 1px 2px rgba(0,0,0,0.4)',
+        },
         label: {
           padding: '0 12px',
           height: 28,
           lineHeight: '28px',
-          color: token('muted-foreground'),
+          color: token('before-ink'),
         },
         control: { border: 'none' },
       }}

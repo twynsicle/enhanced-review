@@ -19,7 +19,11 @@ const LAYOUT_WIDTH_SCRIPT = `(function(){try{if(localStorage.getItem(${JSON.stri
 // Every request: resolve session + user into route context.
 export const middleware: Route.MiddlewareFunction[] = [sessionMiddleware];
 
-export const links: Route.LinksFunction = () => [{ rel: 'icon', href: '/favicon.ico' }];
+export const links: Route.LinksFunction = () => [
+  { rel: 'icon', href: '/favicon.ico?v=passage', sizes: '16x16 32x32 48x48' },
+  { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml', sizes: 'any' },
+  { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' },
+];
 
 export const meta: Route.MetaFunction = () => [
   { title: 'enhanced-review' },

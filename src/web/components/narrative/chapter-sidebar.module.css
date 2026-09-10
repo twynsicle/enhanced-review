@@ -31,9 +31,18 @@
   background: color-mix(in oklab, var(--er-muted) 40%, transparent);
 }
 
+/*
+ * The summary is the reader's opening section, so this card is active on
+ * arrival. Its children — the `Risk` caption, the score label and the meter —
+ * take their colours from `token()` calls a component away and cannot know
+ * they are on a fill, so the active state uses `surface-2`, a ground the
+ * palette guardrail already checks them against, and carries the affordance
+ * on a full-strength `before` border instead of a tint the base accents do
+ * not clear AA on (`risk` on `before-soft` is 4.01:1 in dark).
+ */
 .riskCard[data-active] {
-  border-color: color-mix(in oklab, var(--er-before) 35%, transparent);
-  background: var(--er-before-soft);
+  border-color: var(--er-before);
+  background: var(--er-surface-2);
 }
 
 .riskCard:hover .chevron {
@@ -42,8 +51,8 @@
 
 .chevron {
   margin-left: auto;
-  font-size: 14px;
-  color: var(--er-subtle);
+  font-size: var(--mantine-font-size-sm);
+  color: var(--er-muted-foreground);
   transition: transform 150ms;
 }
 
@@ -68,9 +77,9 @@
   flex-shrink: 0;
   padding-top: 4px;
   font-family: var(--mantine-font-family-monospace);
-  font-size: 10px;
+  font-size: var(--mantine-font-size-xs);
   font-variant-numeric: tabular-nums;
-  color: var(--er-subtle);
+  color: var(--er-muted-foreground);
 }
 
 .label {
@@ -78,7 +87,7 @@
   min-width: 0;
   padding-left: 8px;
   border-left: 2px solid transparent;
-  font-size: 13px;
+  font-size: var(--mantine-font-size-sm);
   line-height: 1.35;
   color: var(--er-muted-foreground);
   overflow: hidden;
@@ -153,7 +162,7 @@
 .status {
   margin-top: 2px;
   font-family: var(--mantine-font-family-monospace);
-  font-size: 10px;
+  font-size: var(--mantine-font-size-xs);
 }
 
 .status[data-status='added'],
@@ -185,19 +194,19 @@
 }
 
 .basename {
-  font-size: 12px;
+  font-size: var(--mantine-font-size-sm);
   color: var(--er-foreground);
 }
 
 .dirname {
-  font-size: 10.5px;
-  color: var(--er-subtle);
+  font-size: var(--mantine-font-size-xs);
+  color: var(--er-muted-foreground);
 }
 
 .stats {
   font-family: var(--mantine-font-family-monospace);
-  font-size: 10.5px;
-  color: var(--er-subtle);
+  font-size: var(--mantine-font-size-xs);
+  color: var(--er-muted-foreground);
   white-space: nowrap;
 }
 

@@ -1,5 +1,6 @@
 import { Stack, Text, Title } from '@mantine/core';
 import type { Insight, InsightType } from '@/domain/review/narrative';
+import { Caption } from '@/web/components/caption';
 import { token, type TokenName } from '@/web/theme/tokens';
 
 /**
@@ -26,28 +27,13 @@ export function InsightCallout({ insight }: { insight: Insight }) {
       pr={8}
       style={{ borderLeft: `3px solid ${token(tone)}` }}
     >
-      <Text
-        component="span"
-        fz={10.5}
-        fw={600}
-        tt="uppercase"
-        style={{ letterSpacing: '0.14em', color: token(tone) }}
-      >
-        {label}
-      </Text>
+      <Caption tone={tone}>{label}</Caption>
       {hasTitle && (
-        <Title order={3} ff="text" fz={15} fw={600} lh={1.375} style={{ textWrap: 'pretty' }}>
+        <Title order={3} fz="lg" fw={600} lh={1.35} style={{ textWrap: 'pretty' }}>
           {insight.title}
         </Title>
       )}
-      <Text
-        fz={13.5}
-        lh={1.55}
-        style={{
-          color: `color-mix(in oklab, ${token('foreground')} 80%, transparent)`,
-          textWrap: 'pretty',
-        }}
-      >
+      <Text fz="md" style={{ textWrap: 'pretty' }}>
         {insight.text}
       </Text>
     </Stack>

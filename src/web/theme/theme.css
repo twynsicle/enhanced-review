@@ -1,11 +1,5 @@
-/* Fonts — self-hosted (A1). Same three families as the previous app. */
+/* Fonts — self-hosted. Two families: sans for text, mono for code. */
 @import '@fontsource-variable/inter-tight';
-@import '@fontsource/source-serif-4/400.css';
-@import '@fontsource/source-serif-4/500.css';
-@import '@fontsource/source-serif-4/600.css';
-@import '@fontsource/source-serif-4/700.css';
-@import '@fontsource/source-serif-4/400-italic.css';
-@import '@fontsource/source-serif-4/600-italic.css';
 @import '@fontsource-variable/jetbrains-mono';
 
 /* Mantine */
@@ -13,6 +7,16 @@
 @import '@mantine/notifications/styles.css';
 
 /* The only global CSS. Everything else is theme or component-level. */
+:root {
+  /*
+   * The one reading measure. Prose, headings and cards in the reader share
+   * this width so they line up on a single right edge; only diffs and code
+   * break past it. Roughly 80 characters at the 15px body size — long enough
+   * not to feel cramped, short enough that the eye finds the next line.
+   */
+  --er-measure: 42rem;
+}
+
 html,
 body {
   height: 100%;

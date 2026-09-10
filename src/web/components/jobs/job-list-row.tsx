@@ -59,12 +59,12 @@ export function JobListRow({
         />
       }
       label={
-        <Text ff="heading" fz={15} fw={500} truncate style={{ letterSpacing: '-0.005em' }}>
+        <Text fz="md" fw={500} truncate>
           {title}
         </Text>
       }
       description={
-        <Text fz={11.5} c="dimmed" truncate>
+        <Text fz="sm" c="dimmed" truncate>
           {sub}
         </Text>
       }
@@ -73,7 +73,7 @@ export function JobListRow({
           {job.status === 'done' ? (
             <RiskScorePill score={job.riskScore} showLabel={false} />
           ) : (
-            <Box component="span" visibleFrom="sm" ff="monospace" fz={11} c={token('subtle')}>
+            <Box component="span" visibleFrom="sm" ff="monospace" fz="xs" c="dimmed">
               {variant === 'recent' ? describeStatus(job.status) : ''}
             </Box>
           )}

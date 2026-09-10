@@ -4,14 +4,14 @@ import { token } from '@/web/theme/tokens';
 
 const ITEMS = [
   { label: 'Reviews', href: '/', match: (p: string) => p === '/' },
-  { label: 'Library', href: '/history', match: (p: string) => p.startsWith('/history') },
+  { label: 'History', href: '/history', match: (p: string) => p.startsWith('/history') },
 ] as const;
 
 /** Primary nav pills; hidden below the `sm` breakpoint. */
 export function TopbarNav() {
   const { pathname } = useLocation();
   return (
-    <Group component="nav" aria-label="Primary" gap={4} visibleFrom="sm" fz={12.5}>
+    <Group component="nav" aria-label="Primary" gap={4} visibleFrom="sm" fz="sm">
       {ITEMS.map((item) => {
         const active = item.match(pathname);
         return (
@@ -26,7 +26,8 @@ export function TopbarNav() {
             style={{
               borderRadius: 999,
               textDecoration: 'none',
-              color: active ? token('before') : token('muted-foreground'),
+              // The active pill sits on a tint, so it takes `-ink`.
+              color: active ? token('before-ink') : token('muted-foreground'),
               background: active ? token('before-soft') : undefined,
               transition: 'color 120ms',
             }}
