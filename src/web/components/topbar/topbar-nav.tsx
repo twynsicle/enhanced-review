@@ -5,6 +5,7 @@ import { token } from '@/web/theme/tokens';
 const ITEMS = [
   { label: 'Reviews', href: '/', match: (p: string) => p === '/' },
   { label: 'History', href: '/history', match: (p: string) => p.startsWith('/history') },
+  { label: 'Schedules', href: '/schedules', match: (p: string) => p.startsWith('/schedules') },
 ] as const;
 
 /** Primary nav pills; hidden below the `sm` breakpoint. */

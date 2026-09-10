@@ -36,10 +36,18 @@ export function JobListRow({
       : target.kind === 'pr'
         ? target.title
         : target.ref;
-  const sub =
-    variant === 'history'
-      ? `@${job.githubLogin} · ${timeAgo(job.createdAt)} · ${sha}`
-      : `${target.owner}/${target.repo} · @${job.githubLogin} · ${sha} · ${timeAgo(job.createdAt)}`;
+  // A scheduled run is owned by the person who armed it, so the login alone
+  // would read as "they submitted this at 03:00".
+  const origin = job.scheduleId ? 'scheduled' : null;
+  const sub = [
+    variant === 'history' ? null : `${target.owner}/${target.repo}`,
+    `@${job.githubLogin}`,
+    origin,
+    variant === 'history' ? timeAgo(job.createdAt) : sha,
+    variant === 'history' ? sha : timeAgo(job.createdAt),
+  ]
+    .filter((part) => part !== null)
+    .join(' · ');
 
   return (
     <NavLink

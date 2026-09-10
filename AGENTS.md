@@ -41,9 +41,11 @@ before writing code against them; heed deprecation notices.
 ```
 server/index.ts        Express bootstrap: dev = Vite middleware, prod = build/; SIGTERM/SIGINT → abortAll('shutdown') + drain, then close
 prisma/
-  schema.prisma        5 models (users, sessions, review_jobs, reviews, review_chunks) + JobStatus
+  schema.prisma        6 models (users, sessions, review_jobs, review_schedules, reviews, review_chunks)
+                       + JobStatus, ScheduleStatus, ScheduleCadence
   migrations/          0001_init (hand-added CHECK constraints), 0002_drop_allowed_users,
-                       0003_drop_github_login_unique (logins are reusable; identity is github_id)
+                       0003_drop_github_login_unique (logins are reusable; identity is github_id),
+                       0004_review_schedules (+ review_jobs.schedule_id, ON DELETE SET NULL)
 prisma.config.ts       Prisma CLI config; loads .env, datasource url from DATABASE_URL
 src/
   common/              logger.ts (pino), time-ago.ts — imports only config from src/
@@ -51,6 +53,9 @@ src/
                        host-env.ts — hostEnv()/pickHostEnv() for code that spawns subprocesses
   db/                  client.ts (PrismaClient singleton, pingDb), users.ts, sessions.ts, allowed-users.ts,
                        review-jobs.ts (conditional status transitions, lists, health counts), reviews.ts, review-chunks.ts,
+                       review-schedules.ts (same conditional-transition shape: claimDueSchedules (active → running, one row
+                       at a time), completeRun / releaseRun / failRun, owner-scoped pause/resume, releaseClaimedSchedules,
+                       isDuplicateSchedule (P2002 stays behind db)),
                        generated/ (gitignored). JSON columns come back `unknown`; domain parses them.
   domain/              shared by server and browser; *.server.ts marks the server-only modules (see Layering)
     auth/              github-profile.server.ts (GET /user, Zod), sign-in.server.ts (upsert user)
@@ -71,7 +76,14 @@ src/
                        jobs (read side: parseJob/parseReview, getJob (non-UUID → null), listJobs, getReview, listChunksAfter,
                        listRecentActivity, toJobView);
                        shared: errors.ts (JobInFlightError, …), status.ts (JOB_STATUSES), job-view.ts (JobView, jobHref), activity.ts
-  jobs/                cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.ts
+    schedules/         shared: schedule.ts (SCHEDULE_STATUSES/CADENCES, ScheduleView, scheduleTargetKey, describeCadence),
+                       cadence.ts (Intl-only wall-clock maths: localPartsAt/instantOfLocal/firstRunAt/nextRunAt),
+                       errors.ts (ScheduleLimitError, DuplicateScheduleError, …);
+                       *.server.ts: schedules.server.ts (parseSchedule/toScheduleView + create/pause/resume/delete,
+                       owner check is the user_id in the conditional update), tick.server.ts (runSchedulerTick: claim →
+                       startReview → completeRun | releaseRun | failRun, every side effect injected),
+                       scheduler.server.ts (the setInterval loop on globalThis[SCHEDULER_KEY], runOnce, recoverClaimedSchedules)
+  jobs/                cli.ts (`npm run job -- <name>`), recover-jobs.ts, run-schedules.ts, errors.ts
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access,
                        palette (token contrast maths incl. `-soft` tints as grounds, a line scan for
                        page-ground colours on a tint, + the type scale and one-label rules)
@@ -82,6 +94,8 @@ src/
     routes.ts          route table — every file in routes/ must be listed here
     routes/            _gated.tsx (layout: requireUser) → _shell.tsx (layout: Topbar + JobNotifications; loader {user, serverNow, polling})
                          → home.tsx (index: hero + ReviewComposer + Recent; action POST /?index → startReview), history.tsx (?status=),
+                           schedules.tsx (the viewer's *own* schedules; action intent=create|pause|resume|delete —
+                           the composer's Schedule popover posts `create` here),
                            jobs.$id.tsx (live view; loader job + chunks, 404 → own ErrorBoundary; action intent=cancel|rerun),
                            reviews.$id.tsx (reader; loader: done job + review + GitHub fan-out via lib/review-metadata.server,
                            not done → /jobs/:id, ?ch=/?file= client-side via shouldRevalidate; action intent=rerun)
@@ -101,7 +115,8 @@ src/
                        jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                        job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
                        what-now, rerun-button, job-not-found (404 page shared with the reader)), history/ (filter-chips,
-                       empty-history), home/ (review-composer, target-combobox, recent-reviews, sparkline),
+                       empty-history), schedules/ (schedule-row, schedule-status-badge, empty-schedules),
+                       home/ (review-composer, target-combobox, schedule-popover, recent-reviews, sparkline),
                        narrative/ (the reader: chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state),
                        chapter-sidebar (+ .module.css), chapter-card, summary-card, file-view, insight-callout,
                        article.module.css (the reading measure + the diff bleed lane),
@@ -168,7 +183,10 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
 - `POST /auth/logout` uses the same `signOutHeaders`. `/relink` (gated)
   re-runs the OAuth flow when the token cookie is missing/rejected.
 - Authorisation is explicit in loaders and actions: any signed-in user may
-  read any job or review, only the owner may cancel one.
+  read any job or review, only the owner may cancel one, and only the owner
+  may pause, resume or delete a schedule. `/schedules` lists the viewer's own
+  rows only — a schedule spends _its owner's_ job budget, so someone else's is
+  not something you can act on.
 
 ## How a review runs
 
@@ -206,10 +224,44 @@ and `common`. Only `src/db/` may import `@prisma/*` or the generated client
   on the registry (reached through `globalThis[JOBS_REGISTRY_KEY]`, since the
   bootstrap sits outside Vite's module graph), `drain` for up to 5 s, then
   close. `/api/health` reports `queueDepth`, `oldestPendingAgeSec`,
-  `errorsLast24h`.
+  `errorsLast24h`, `activeSchedules`, `claimedSchedules`, `failedSchedules`.
 - **Reads** go through `domain/jobs/jobs.server.ts`, which parses the JSON
   columns (`target` → `ReviewTargetSchema`, `content` →
   `NarrativeReviewSchema`); repositories return them as `unknown`.
+
+## How a schedule runs
+
+- **Model**: `review_schedules` is a target plus a cadence, a local hour and an
+  IANA zone, owned by one user and unique on `(user_id, target_key)`.
+  `review_jobs.schedule_id` records which schedule launched a job (null for a
+  manual submit, nulled rather than cascaded when the schedule is deleted).
+- **Lifecycle**: `active → running` is a _claim_, taken by a tick and given
+  back the moment the launch resolves — `completeRun` (launched),
+  `releaseRun` (nothing launched) or `failRun` (threw; at
+  `SCHEDULE_MAX_FAILURES` the row is parked as `failed`). The owner moves it
+  to `paused` and back. Every transition is a conditional update, so two ticks
+  cannot claim the same row and a pause cannot land under a running launch.
+- **Tick** (`domain/schedules/tick.server.ts`): claim up to
+  `SCHEDULER_BATCH_SIZE` rows due at or before now, oldest first, then for
+  each call `startReview` with the machine token and the schedule's id. A
+  `JobInFlightError` is a _deferral_, not a failure — the owner's cap is not
+  the schedule's fault. Everything is injected, so the whole loop tests
+  without a database.
+- **Loop** (`scheduler.server.ts`): a `setInterval` on
+  `globalThis[SCHEDULER_KEY]` (Vite re-evaluates the module; the handle must
+  not), unref'd, with a `ticking` flag so an overrunning tick is not stacked
+  on. Started once per process by `bootJobs()`, after both recovery steps.
+  `SCHEDULER_ENABLED=0` or a missing `SCHEDULER_GITHUB_TOKEN` leaves it idle.
+- **Credentials**: there is no token column. A user's GitHub token lives only
+  in their cookie, so scheduled runs authenticate as the machine account in
+  `SCHEDULER_GITHUB_TOKEN`. Do not add a token column to fix this — see
+  `docs/OPERATIONS.md#scheduled-reviews` for the trade-off as it stands.
+- **Cadence maths** (`cadence.ts`) is `Intl`-only and shared with the browser,
+  so the composer can preview the first run. A schedule stores a _local_ hour
+  in a named zone, never a UTC hour.
+- **Recovery**: a process that dies mid-tick leaves rows in `running`, which
+  nothing else releases; `recoverClaimedSchedules()` runs at boot alongside
+  the job sweep, and `npm run job -- run-schedules` does both by hand.
 
 ## Design system
 
@@ -319,7 +371,7 @@ exempt (WCAG 1.4.3) and the guardrail does not look at them.
 | `npm run db:migrate`                       | `prisma migrate dev && prisma generate` (local schema changes) |
 | `npm run db:deploy` / `db:reset`           | apply migrations (CI/containers) / drop + reapply + generate   |
 | `npm run db:generate` / `db:studio`        | regenerate client (also `postinstall`) / Prisma Studio         |
-| `npm run job -- <name> [args]`             | one-shot jobs, natively: `recover-jobs`                        |
+| `npm run job -- <name> [args]`             | one-shot jobs, natively: `recover-jobs`, `run-schedules`       |
 
 ## Container
 
@@ -355,7 +407,11 @@ at runtime, rather than through the bundle, fails only in the container.
 `APP_ORIGIN`. Optional: `NODE_ENV`, `PORT`, `APP_VERSION`, `LOG_LEVEL`
 (`silent` allowed), `LOG_PRETTY`, and the review runner's `REVIEW_EXECUTOR`
 (`stub | claude`, default `claude`), `REVIEW_MODEL`, `REVIEW_TIMEOUT_MIN`,
-`MAX_JOBS_PER_USER`, `ANTHROPIC_API_KEY`, and the browser polling cadence
+`MAX_JOBS_PER_USER`, `ANTHROPIC_API_KEY`, the scheduler's `SCHEDULER_ENABLED`
+(default on), `SCHEDULER_TICK_MS`, `SCHEDULER_BATCH_SIZE`,
+`SCHEDULER_GITHUB_TOKEN` (unset → the loop never fires),
+`SCHEDULE_MAX_FAILURES`, `SCHEDULE_RETRY_BACKOFF_MIN`,
+`MAX_SCHEDULES_PER_USER`, and the browser polling cadence
 `LIVE_POLL_MS` / `TERMINAL_POLL_MS`. `vitest.config.ts` fills
 placeholders for the required keys and forces `REVIEW_EXECUTOR=stub` so
 `npm run check` runs without a `.env` and never calls the SDK.

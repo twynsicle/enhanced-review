@@ -2,6 +2,7 @@ import { logger } from '@/common/logger';
 import { env } from '@/config/env';
 import { pingDb } from '@/db/client';
 import { countErrorsSince, countJobsByStatus, oldestPendingCreatedAt } from '@/db/review-jobs';
+import { countSchedulesByStatus } from '@/db/review-schedules';
 
 /**
  * GET /api/health — public, no secrets in the payload.
@@ -18,6 +19,14 @@ export interface HealthBody {
   queueDepth: number | null;
   oldestPendingAgeSec: number | null;
   errorsLast24h: number | null;
+  activeSchedules: number | null;
+  /**
+   * Schedules stuck mid-claim. Steady state is 0 or 1: a number that stays
+   * high means ticks are dying between the claim and the launch.
+   */
+  claimedSchedules: number | null;
+  /** Schedules parked after SCHEDULE_MAX_FAILURES consecutive failures. */
+  failedSchedules: number | null;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -31,11 +40,22 @@ export async function loader(): Promise<Response> {
       return null;
     });
 
-  const [db, queueDepth, oldestPending, errorsLast24h] = await Promise.all([
+  const [
+    db,
+    queueDepth,
+    oldestPending,
+    errorsLast24h,
+    activeSchedules,
+    claimedSchedules,
+    failedSchedules,
+  ] = await Promise.all([
     pingDb(),
     guard('queueDepth', countJobsByStatus('pending')),
     guard('oldestPending', oldestPendingCreatedAt()),
     guard('errorsLast24h', countErrorsSince(new Date(Date.now() - DAY_MS))),
+    guard('activeSchedules', countSchedulesByStatus('active')),
+    guard('claimedSchedules', countSchedulesByStatus('running')),
+    guard('failedSchedules', countSchedulesByStatus('failed')),
   ]);
 
   const body: HealthBody = {
@@ -47,6 +67,9 @@ export async function loader(): Promise<Response> {
       ? Math.max(0, Math.round((Date.now() - oldestPending.getTime()) / 1000))
       : null,
     errorsLast24h,
+    activeSchedules,
+    claimedSchedules,
+    failedSchedules,
   };
   return Response.json(body, { headers: { 'cache-control': 'no-store' } });
 }
