@@ -31,6 +31,12 @@ export interface StartReviewInput {
   userId: string;
   token: string;
   target: ReviewTarget;
+  /**
+   * Set by a scheduler tick so the job it creates says where it came from.
+   * Absent for a manual submit. The rest of the path is identical — a
+   * scheduled review is an ordinary review with a provenance column.
+   */
+  scheduleId?: string;
 }
 
 export interface RerunJobInput {
@@ -135,6 +141,7 @@ async function createAndLaunch(
   token: string,
   target: ReviewTarget,
   deps: StartReviewDeps,
+  scheduleId?: string,
 ): Promise<{ id: string }> {
   const inFlight = await deps.findInFlightJob(userId, deps.maxJobsPerUser);
   if (inFlight) throw new JobInFlightError(inFlight.id);
@@ -147,8 +154,16 @@ async function createAndLaunch(
     throw new HeadShaResolutionError(err);
   }
 
-  const job = await deps.createJob({ userId, target: fresh.target, headSha: fresh.headSha });
-  logger.info({ job_id: job.id, user_id: userId, target: target.kind }, 'job created');
+  const job = await deps.createJob({
+    userId,
+    target: fresh.target,
+    headSha: fresh.headSha,
+    scheduleId: scheduleId ?? null,
+  });
+  logger.info(
+    { job_id: job.id, user_id: userId, target: target.kind, schedule_id: scheduleId ?? null },
+    'job created',
+  );
   deps.launch({ jobId: job.id, token, target: fresh.target, headSha: fresh.headSha });
   return { id: job.id };
 }
@@ -157,7 +172,7 @@ export function startReview(
   input: StartReviewInput,
   deps: StartReviewDeps = defaultStartReviewDeps(),
 ): Promise<{ id: string }> {
-  return createAndLaunch(input.userId, input.token, input.target, deps);
+  return createAndLaunch(input.userId, input.token, input.target, deps, input.scheduleId);
 }
 
 export async function rerunJob(

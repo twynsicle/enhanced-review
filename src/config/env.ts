@@ -36,6 +36,26 @@ const schema = z.object({
   // Forwarded to the Claude Agent SDK subprocess; the SDK also honours
   // CLAUDE_CODE_OAUTH_TOKEN, so it is not required even for the claude executor.
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  // Scheduler. The loop runs in the same process as the review runner, so the
+  // same "one container, one process" rule applies to it.
+  SCHEDULER_ENABLED: z
+    .enum(['0', '1'])
+    .default('1')
+    .transform((v) => v === '1'),
+  SCHEDULER_TICK_MS: z.coerce.number().int().min(5000).default(60_000),
+  /** Schedules one tick may claim; the rest wait for the next one. */
+  SCHEDULER_BATCH_SIZE: z.coerce.number().int().min(1).default(5),
+  /**
+   * Personal access token scheduled runs clone with. A user's own token is
+   * never persisted, so without this the loop has nothing to authenticate as
+   * and stays idle; schedules can still be created and paused.
+   */
+  SCHEDULER_GITHUB_TOKEN: z.string().min(1).optional(),
+  /** Consecutive launch failures before a schedule is parked as `failed`. */
+  SCHEDULE_MAX_FAILURES: z.coerce.number().int().min(1).default(3),
+  /** How long a schedule waits after a failed launch before trying again. */
+  SCHEDULE_RETRY_BACKOFF_MIN: z.coerce.number().int().min(1).default(10),
+  MAX_SCHEDULES_PER_USER: z.coerce.number().int().min(1).default(10),
   // Polling cadence handed to the browser by the app shell.
   LIVE_POLL_MS: z.coerce.number().int().min(250).default(2000),
   TERMINAL_POLL_MS: z.coerce.number().int().min(1000).default(10_000),

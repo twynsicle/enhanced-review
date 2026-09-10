@@ -22,9 +22,41 @@ describe('parseEnv', () => {
       REVIEW_MODEL: 'claude-haiku-4-5',
       REVIEW_TIMEOUT_MIN: 15,
       MAX_JOBS_PER_USER: 1,
+      SCHEDULER_ENABLED: true,
+      SCHEDULER_TICK_MS: 60_000,
+      SCHEDULER_BATCH_SIZE: 5,
+      SCHEDULE_MAX_FAILURES: 3,
+      SCHEDULE_RETRY_BACKOFF_MIN: 10,
+      MAX_SCHEDULES_PER_USER: 10,
       LIVE_POLL_MS: 2000,
       TERMINAL_POLL_MS: 10_000,
     });
+  });
+
+  it('parses the scheduler keys', () => {
+    const env = parseEnv({
+      ...REQUIRED,
+      SCHEDULER_ENABLED: '0',
+      SCHEDULER_TICK_MS: '30000',
+      SCHEDULER_BATCH_SIZE: '20',
+      SCHEDULER_GITHUB_TOKEN: 'ghp_machine',
+      SCHEDULE_MAX_FAILURES: '5',
+      SCHEDULE_RETRY_BACKOFF_MIN: '30',
+      MAX_SCHEDULES_PER_USER: '25',
+    });
+    expect(env.SCHEDULER_ENABLED).toBe(false);
+    expect(env.SCHEDULER_TICK_MS).toBe(30_000);
+    expect(env.SCHEDULER_BATCH_SIZE).toBe(20);
+    expect(env.SCHEDULER_GITHUB_TOKEN).toBe('ghp_machine');
+    expect(env.SCHEDULE_MAX_FAILURES).toBe(5);
+    expect(env.SCHEDULE_RETRY_BACKOFF_MIN).toBe(30);
+    expect(env.MAX_SCHEDULES_PER_USER).toBe(25);
+  });
+
+  it('refuses a tick faster than five seconds', () => {
+    expect(() => parseEnv({ ...REQUIRED, SCHEDULER_TICK_MS: '1000' })).toThrowError(
+      /SCHEDULER_TICK_MS/,
+    );
   });
 
   it('parses the review runner keys', () => {
