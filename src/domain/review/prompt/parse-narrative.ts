@@ -11,13 +11,16 @@ import {
   type ReviewRiskScore,
 } from '../narrative.ts';
 import type { DiffHunkIndex } from './diff-hunk-catalog.ts';
+import { sanitizeDiagram } from './parse-diagram.ts';
 
 /**
  * Turns the model's `<narrative_review>` block into a `NarrativeReview`.
  * Lenient on purpose: missing ids/titles are synthesised, unknown insight
  * types fall back to `context`, an out-of-range risk score drops the whole
  * assessment, and hunk ids are resolved against the prompt's index (unknown
- * or wrong-file ids are dropped). The result is validated against
+ * or wrong-file ids are dropped). Diagrams go through `parse-diagram.ts`,
+ * which validates each one on its own so a malformed picture cannot take the
+ * review down with it. The result is validated against
  * `NarrativeReviewSchema`, so whatever lands in `reviews.content` parses
  * back at read time.
  */
@@ -132,7 +135,16 @@ function sanitizeChapter(raw: Rec, index: number, hunkIndex: DiffHunkIndex | und
     }))
     .filter((chunk) => chunk.hunks.length > 0);
 
-  return { id, title, description, insights: sanitizeInsights(raw['insights']), diffChunks };
+  const diagram = sanitizeDiagram(raw['diagram'], `${id}-diagram`, hunkIndex);
+
+  return {
+    id,
+    title,
+    description,
+    insights: sanitizeInsights(raw['insights']),
+    diffChunks,
+    ...(diagram ? { diagram } : {}),
+  };
 }
 
 export function parseNarrativeReview(text: string, hunkIndex?: DiffHunkIndex): ParseResult {
@@ -163,10 +175,12 @@ export function parseNarrativeReview(text: string, hunkIndex?: DiffHunkIndex): P
   }
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment']);
+  const overviewDiagram = sanitizeDiagram(parsed['overviewDiagram'], 'overview-diagram', hunkIndex);
   const candidate = {
     prTitle: parsed['prTitle'],
     overviewSummary: parsed['overviewSummary'],
     ...(riskAssessment ? { riskAssessment } : {}),
+    ...(overviewDiagram ? { overviewDiagram } : {}),
     chapters: parsed['chapters'].map((chapter, index) =>
       sanitizeChapter(isRecord(chapter) ? chapter : {}, index, hunkIndex),
     ),

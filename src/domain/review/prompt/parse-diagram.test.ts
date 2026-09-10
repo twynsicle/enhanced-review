@@ -1,0 +1,299 @@
+import { describe, expect, it } from 'vitest';
+import { isGraphDiagram } from '../diagram.ts';
+import { buildDiffHunkIndex } from './diff-hunk-catalog.ts';
+import { sanitizeDiagram } from './parse-diagram.ts';
+
+const DIFF = `diff --git a/src/a.ts b/src/a.ts
+--- a/src/a.ts
++++ b/src/a.ts
+@@ -1,3 +1,4 @@
++x
+@@ -20,2 +21,3 @@
++y
+diff --git a/src/b.ts b/src/b.ts
+--- a/src/b.ts
++++ b/src/b.ts
+@@ -5,1 +5,1 @@
+-z
++w
+`;
+
+const hunkIndex = buildDiffHunkIndex(DIFF);
+
+/** A minimum viable graph: two nodes, one edge, a caption. */
+function graph(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    kind: 'architecture',
+    title: 'Shape',
+    caption: 'What the prose cannot say.',
+    nodes: [
+      { id: 'a', label: 'A' },
+      { id: 'b', label: 'B' },
+    ],
+    edges: [{ from: 'a', to: 'b' }],
+    ...overrides,
+  };
+}
+
+describe('sanitizeDiagram', () => {
+  it('drops a diagram with no caption', () => {
+    expect(sanitizeDiagram({ ...graph(), caption: '   ' }, 'd', hunkIndex)).toBeUndefined();
+  });
+
+  it('drops a diagram whose kind is not one of the four', () => {
+    expect(sanitizeDiagram(graph({ kind: 'gantt' }), 'd', hunkIndex)).toBeUndefined();
+  });
+
+  it('falls back to a per-kind title but keeps the caption verbatim', () => {
+    const result = sanitizeDiagram(graph({ title: '', kind: 'state' }), 'd', hunkIndex);
+    expect(result?.title).toBe('States');
+    expect(result?.caption).toBe('What the prose cannot say.');
+    expect(result?.id).toBe('d');
+  });
+
+  it('drops edges whose endpoints are not nodes', () => {
+    const result = sanitizeDiagram(
+      graph({
+        edges: [
+          { from: 'a', to: 'b' },
+          { from: 'a', to: 'ghost' },
+        ],
+      }),
+      'd',
+      hunkIndex,
+    );
+    expect(result && isGraphDiagram(result) && result.edges).toHaveLength(1);
+  });
+
+  it('keeps parallel edges between the same pair, each with its own label', () => {
+    const result = sanitizeDiagram(
+      graph({
+        edges: [
+          { from: 'a', to: 'b', label: 'launched' },
+          { from: 'a', to: 'b', label: 'deferred' },
+          { from: 'a', to: 'b', label: 'failed' },
+        ],
+      }),
+      'd',
+      hunkIndex,
+    );
+    const labels = result && isGraphDiagram(result) ? result.edges.map((e) => e.label) : [];
+    expect(labels).toEqual(['launched', 'deferred', 'failed']);
+  });
+
+  it('clears a group reference that names no group', () => {
+    const result = sanitizeDiagram(
+      graph({
+        groups: [{ id: 'web', label: 'Web' }],
+        nodes: [
+          { id: 'a', label: 'A', group: 'web' },
+          { id: 'b', label: 'B', group: 'nowhere' },
+        ],
+      }),
+      'd',
+      hunkIndex,
+    );
+    const nodes = result && isGraphDiagram(result) ? result.nodes : [];
+    expect(nodes[0]?.group).toBe('web');
+    expect(nodes[1]?.group).toBeUndefined();
+  });
+
+  it('clears a filename the diff does not contain, keeping the node', () => {
+    const result = sanitizeDiagram(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', filename: 'src/a.ts' },
+          { id: 'b', label: 'B', filename: 'src/invented.ts' },
+        ],
+      }),
+      'd',
+      hunkIndex,
+    );
+    const nodes = result && isGraphDiagram(result) ? result.nodes : [];
+    expect(nodes).toHaveLength(2);
+    expect(nodes[0]?.filename).toBe('src/a.ts');
+    expect(nodes[1]?.filename).toBeUndefined();
+  });
+
+  it('keeps only hunk ids that belong to the node file', () => {
+    const result = sanitizeDiagram(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', filename: 'src/a.ts', hunkIds: ['H0001', 'H0003', 'H9999'] },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+      'd',
+      hunkIndex,
+    );
+    const nodes = result && isGraphDiagram(result) ? result.nodes : [];
+    expect(nodes[0]?.hunkIds).toEqual(['H0001']);
+  });
+
+  it('ignores grounding on nodes that are not code', () => {
+    const result = sanitizeDiagram(
+      graph({
+        nodes: [
+          { id: 'a', label: 'Postgres', kind: 'data', filename: 'src/a.ts', hunkIds: ['H0001'] },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+      'd',
+      hunkIndex,
+    );
+    const nodes = result && isGraphDiagram(result) ? result.nodes : [];
+    expect(nodes[0]?.filename).toBeUndefined();
+    expect(nodes[0]?.hunkIds).toBeUndefined();
+  });
+
+  it('keeps one initial state, and only on a state machine', () => {
+    const asState = sanitizeDiagram(
+      graph({
+        kind: 'state',
+        nodes: [
+          { id: 'a', label: 'A', initial: true },
+          { id: 'b', label: 'B', initial: true },
+        ],
+      }),
+      'd',
+      hunkIndex,
+    );
+    const stateNodes = asState && isGraphDiagram(asState) ? asState.nodes : [];
+    expect(stateNodes[0]?.initial).toBe(true);
+    expect(stateNodes[1]?.initial).toBeUndefined();
+
+    const asArchitecture = sanitizeDiagram(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', initial: true },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+      'd',
+      hunkIndex,
+    );
+    const archNodes = asArchitecture && isGraphDiagram(asArchitecture) ? asArchitecture.nodes : [];
+    expect(archNodes[0]?.initial).toBeUndefined();
+  });
+
+  it('drops the diagram when fewer than two nodes survive', () => {
+    expect(
+      sanitizeDiagram(
+        graph({
+          nodes: [
+            { id: 'a', label: 'A' },
+            { id: 'a', label: 'dup' },
+          ],
+        }),
+        'd',
+        hunkIndex,
+      ),
+    ).toBeUndefined();
+  });
+
+  it('truncates an over-long label instead of dropping the node', () => {
+    const long = 'A'.repeat(80);
+    const result = sanitizeDiagram(
+      graph({
+        nodes: [
+          { id: 'a', label: long },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+      'd',
+      hunkIndex,
+    );
+    const nodes = result && isGraphDiagram(result) ? result.nodes : [];
+    expect(nodes).toHaveLength(2);
+    expect(nodes[0]?.label).toHaveLength(48);
+  });
+
+  it('defaults kind, change and direction', () => {
+    const result = sanitizeDiagram(graph(), 'd', hunkIndex);
+    const nodes = result && isGraphDiagram(result) ? result.nodes : [];
+    expect(nodes[0]?.kind).toBe('code');
+    expect(nodes[0]?.change).toBe('unchanged');
+    expect(result && isGraphDiagram(result) && result.direction).toBe('down');
+  });
+});
+
+function sequence(steps: unknown[]): Record<string, unknown> {
+  return {
+    kind: 'sequence',
+    title: 'One tick',
+    caption: 'The three outcomes of a single pass.',
+    participants: [
+      { id: 'loop', label: 'Loop' },
+      { id: 'db', label: 'Schedules', kind: 'data' },
+    ],
+    steps,
+  };
+}
+
+describe('sanitizeDiagram (sequence)', () => {
+  it('drops messages that name an unknown participant', () => {
+    const result = sanitizeDiagram(
+      sequence([
+        { type: 'message', from: 'loop', to: 'db', label: 'claim' },
+        { type: 'message', from: 'loop', to: 'ghost', label: 'vanish' },
+      ]),
+      'd',
+      hunkIndex,
+    );
+    expect(result?.kind === 'sequence' && result.steps).toHaveLength(1);
+  });
+
+  it('keeps two levels of grouping and drops the third', () => {
+    const result = sanitizeDiagram(
+      sequence([
+        {
+          type: 'group',
+          style: 'loop',
+          label: 'for each claimed schedule',
+          branches: [
+            {
+              steps: [
+                {
+                  type: 'group',
+                  style: 'alt',
+                  branches: [
+                    {
+                      label: 'launched',
+                      steps: [
+                        { type: 'message', from: 'loop', to: 'db', label: 'completeRun' },
+                        { type: 'group', style: 'opt', branches: [{ steps: [] }] },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ]),
+      'd',
+      hunkIndex,
+    );
+
+    const steps = result?.kind === 'sequence' ? result.steps : [];
+    expect(steps).toHaveLength(1);
+    const outer = steps[0];
+    expect(outer?.type === 'group' && outer.style).toBe('loop');
+    const inner = outer?.type === 'group' ? outer.branches[0]?.steps[0] : undefined;
+    expect(inner?.type === 'group' && inner.style).toBe('alt');
+    // The third level is gone; the message beside it survives.
+    const leafSteps = inner?.type === 'group' ? inner.branches[0]?.steps : [];
+    expect(leafSteps).toHaveLength(1);
+    expect(leafSteps?.[0]?.type).toBe('message');
+  });
+
+  it('drops the diagram when no steps survive', () => {
+    expect(
+      sanitizeDiagram(
+        sequence([{ type: 'message', from: 'ghost', to: 'db', label: 'nope' }]),
+        'd',
+        hunkIndex,
+      ),
+    ).toBeUndefined();
+  });
+});
