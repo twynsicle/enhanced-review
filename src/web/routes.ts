@@ -12,6 +12,7 @@ export default [
     layout('routes/_shell.tsx', [
       index('routes/home.tsx'),
       route('history', 'routes/history.tsx'),
+      route('schedules', 'routes/schedules.tsx'),
       route('jobs/:id', 'routes/jobs.$id.tsx'),
       route('reviews/:id', 'routes/reviews.$id.tsx'),
     ]),

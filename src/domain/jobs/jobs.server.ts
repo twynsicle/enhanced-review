@@ -94,6 +94,7 @@ export function toJobView(job: ReviewJob): JobView {
     cancelledAt: iso(job.cancelledAt),
     errorMessage: job.errorMessage,
     riskScore: job.riskScore,
+    scheduleId: job.scheduleId,
     createdAt: job.createdAt.toISOString(),
     updatedAt: job.updatedAt.toISOString(),
   };

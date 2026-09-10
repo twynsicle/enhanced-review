@@ -3,6 +3,7 @@ import { logger } from '../common/logger.ts';
 import { disconnectDb } from '../db/client.ts';
 import { UsageError } from './errors.ts';
 import { recoverJobs } from './recover-jobs.ts';
+import { runSchedules } from './run-schedules.ts';
 
 /**
  * One-shot job runner: `npm run job -- <name> [args...]`.
@@ -15,6 +16,7 @@ type JobHandler = (args: string[]) => Promise<unknown>;
 
 const JOBS: Record<string, JobHandler> = {
   'recover-jobs': recoverJobs,
+  'run-schedules': runSchedules,
 };
 
 async function main(argv: string[]): Promise<number> {

@@ -7,8 +7,10 @@ const jobs = {
   oldestPendingCreatedAt: vi.fn<() => Promise<Date | null>>(),
   countErrorsSince: vi.fn<() => Promise<number>>(),
 };
+const schedules = { countSchedulesByStatus: vi.fn<() => Promise<number>>() };
 vi.mock('@/db/client', () => client);
 vi.mock('@/db/review-jobs', () => jobs);
+vi.mock('@/db/review-schedules', () => schedules);
 
 const { loader } = await import('./health');
 
@@ -24,6 +26,7 @@ beforeEach(() => {
   jobs.countJobsByStatus.mockResolvedValue(3);
   jobs.oldestPendingCreatedAt.mockResolvedValue(new Date(Date.now() - 30_000));
   jobs.countErrorsSince.mockResolvedValue(1);
+  schedules.countSchedulesByStatus.mockResolvedValue(2);
 });
 
 describe('GET /api/health', () => {
@@ -33,6 +36,20 @@ describe('GET /api/health', () => {
     expect(json['oldestPendingAgeSec']).toBeGreaterThanOrEqual(29);
     expect(json['oldestPendingAgeSec']).toBeLessThan(60);
     expect(jobs.countJobsByStatus).toHaveBeenCalledWith('pending');
+  });
+
+  it('reports the scheduler counts alongside the queue', async () => {
+    const json = await body();
+    expect(json).toMatchObject({
+      activeSchedules: 2,
+      claimedSchedules: 2,
+      failedSchedules: 2,
+    });
+    expect(schedules.countSchedulesByStatus.mock.calls.flat()).toEqual([
+      'active',
+      'running',
+      'failed',
+    ]);
   });
 
   it('reports null oldestPendingAgeSec when nothing is pending', async () => {

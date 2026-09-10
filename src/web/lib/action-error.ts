@@ -13,6 +13,9 @@ export const ACTION_ERROR_REASONS = [
   'not_found',
   'invalid_target',
   'head_resolution_failed',
+  'schedule_limit',
+  'duplicate_schedule',
+  'not_schedulable',
   'unknown',
 ] as const;
 
@@ -32,6 +35,11 @@ export const ACTION_ERROR_STATUS: Record<ActionErrorReason, number> = {
   not_found: 404,
   invalid_target: 400,
   head_resolution_failed: 502,
+  schedule_limit: 409,
+  duplicate_schedule: 409,
+  // Covers both "not yours" and "not in a state that allows it", so the
+  // response cannot be used to probe who owns a schedule.
+  not_schedulable: 409,
   unknown: 500,
 };
 

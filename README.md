@@ -130,7 +130,7 @@ docker compose run --rm web node src/jobs/cli.ts recover-jobs
 | `npm run db:migrate`              | Create and apply a migration, then regenerate the client     |
 | `npm run db:deploy` / `db:reset`  | Apply migrations / drop, reapply and regenerate              |
 | `npm run db:studio`               | Prisma Studio                                                |
-| `npm run job -- <name>`           | One-shot jobs. Currently: `recover-jobs`                     |
+| `npm run job -- <name>`           | One-shot jobs: `recover-jobs`, `run-schedules`               |
 
 ## How it works
 
@@ -148,8 +148,8 @@ layout whose middleware requires a signed-in user; anyone else has their
 session destroyed, both cookies cleared, and is redirected to `/login`.
 
 There is no allowlist. Every signed-in user can see every other user's
-reviews, and only the owner can cancel one. **Whatever fronts the deployment
-is the access control** — see
+reviews; only the owner can cancel one, and only the owner can change one of
+their schedules. **Whatever fronts the deployment is the access control** — see
 [Access control](docs/OPERATIONS.md#access-control).
 
 ### A review, end to end
@@ -178,6 +178,22 @@ Jobs run in-process, so a row left `pending` or `running` by a stopped process
 can never finish. The server clears those at boot, and
 `npm run job -- recover-jobs` does the same on demand.
 
+### Scheduled reviews
+
+A target can be armed with a cadence instead of run by hand. `/schedules`
+lists what you have armed; the composer's **Schedule** button is where one is
+created. A loop inside the same process ticks every `SCHEDULER_TICK_MS`,
+claims the schedules that have fallen due with a conditional `active →
+running` update, and starts each one through exactly the same path the
+composer uses — same in-flight cap, same head re-resolution, same runner. A
+launch that fails backs off; three in a row park the schedule until its owner
+resumes it.
+
+Scheduled runs authenticate as a machine account (`SCHEDULER_GITHUB_TOKEN`),
+because a user's own token lives only in their cookie and is never persisted.
+Without that key the loop stays idle and says so once at boot. See
+[Scheduled reviews](docs/OPERATIONS.md#scheduled-reviews).
+
 ### Executors
 
 `REVIEW_EXECUTOR=stub` replays a canned review in fragments — the local
@@ -190,8 +206,9 @@ environment variables.
 ### Scope
 
 Deliberate cuts, unchanged from the proof of concept: narrative review only
-(no staged/unstaged workspace browser), manual triggers only (no webhooks),
-and reviews live in this app with no write-back to the GitHub pull request.
+(no staged/unstaged workspace browser), no webhooks — a review starts either
+because someone asked for it or because a schedule fell due — and reviews live
+in this app with no write-back to the GitHub pull request.
 
 ## Repo layout
 

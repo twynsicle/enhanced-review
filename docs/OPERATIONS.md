@@ -24,6 +24,7 @@ written here without the flag.
 | Check the app is healthy   | [Health endpoint](#health-endpoint)                 |
 | Read the logs              | [Logs](#logs)                                       |
 | Deal with a stuck job      | [Stuck and orphaned jobs](#stuck-and-orphaned-jobs) |
+| Run reviews on a cadence   | [Scheduled reviews](#scheduled-reviews)             |
 | Rotate the Anthropic key   | [Rotating secrets](#rotating-secrets)               |
 | Sign everyone out          | [Rotating secrets](#rotating-secrets)               |
 | Apply a schema change      | [Migrations and deploys](#migrations-and-deploys)   |
@@ -36,8 +37,9 @@ written here without the flag.
 
 **There is none inside the app beyond GitHub sign-in.** Anyone with a GitHub
 account who reaches the deployment can sign in, start reviews against their own
-repositories, and read every review anyone else has run. The only per-user
-check is on cancellation: a job may be cancelled by its owner alone.
+repositories, and read every review anyone else has run. The per-user checks
+are on the things that change state: a job may be cancelled by its owner
+alone, and a schedule may be paused, resumed or deleted by its owner alone.
 
 An `allowed_users` allowlist used to gate this. It was removed, so the network
 boundary in front of the deployment — VPN, SSO proxy, IP allowlist, or simply
@@ -90,12 +92,29 @@ Tunable:
 | `ANTHROPIC_API_KEY`  | unset              | Required when `REVIEW_EXECUTOR=claude`.                                     |
 | `REVIEW_TIMEOUT_MIN` | `15`               | Per-job wall-clock budget. On expiry the job is marked `error` and aborted. |
 | `MAX_JOBS_PER_USER`  | `1`                | Pending-or-running jobs one user may have. Raise to loosen the cap.         |
-| `LOG_LEVEL`          | `info`             | `trace` `debug` `info` `warn` `error` `fatal` `silent`.                     |
-| `LOG_PRETTY`         | unset              | `1` swaps in pino-pretty. Local use only.                                   |
-| `LIVE_POLL_MS`       | `2000`             | How often a live job view asks for new chunks.                              |
-| `TERMINAL_POLL_MS`   | `10000`            | How often the cross-page notifier checks for finished reviews.              |
-| `APP_VERSION`        | unset              | Reported by `/api/health`. The image build sets it.                         |
-| `PORT`               | `3000`             | HTTP port.                                                                  |
+
+Scheduler — see [Scheduled reviews](#scheduled-reviews):
+
+| Key                          | Default | What                                                                      |
+| ---------------------------- | ------- | ------------------------------------------------------------------------- |
+| `SCHEDULER_ENABLED`          | `1`     | `0` stops the loop without touching the schedules themselves.             |
+| `SCHEDULER_TICK_MS`          | `60000` | How often the loop looks for due schedules. Minimum 5000.                 |
+| `SCHEDULER_BATCH_SIZE`       | `5`     | Schedules one tick may claim; the rest wait for the next tick.            |
+| `SCHEDULER_GITHUB_TOKEN`     | unset   | PAT (`repo`) scheduled runs clone with. Unset means the loop never fires. |
+| `SCHEDULE_MAX_FAILURES`      | `3`     | Consecutive failed launches before a schedule is parked as `failed`.      |
+| `SCHEDULE_RETRY_BACKOFF_MIN` | `10`    | Minutes a schedule waits after a failed launch.                           |
+| `MAX_SCHEDULES_PER_USER`     | `10`    | Schedules one user may have, across every repository.                     |
+
+Rest of the tunables:
+
+| Key                | Default | What                                                           |
+| ------------------ | ------- | -------------------------------------------------------------- |
+| `LOG_LEVEL`        | `info`  | `trace` `debug` `info` `warn` `error` `fatal` `silent`.        |
+| `LOG_PRETTY`       | unset   | `1` swaps in pino-pretty. Local use only.                      |
+| `LIVE_POLL_MS`     | `2000`  | How often a live job view asks for new chunks.                 |
+| `TERMINAL_POLL_MS` | `10000` | How often the cross-page notifier checks for finished reviews. |
+| `APP_VERSION`      | unset   | Reported by `/api/health`. The image build sets it.            |
+| `PORT`             | `3000`  | HTTP port.                                                     |
 
 Both polling intervals are handed to the browser by the app shell and pause
 while a tab is hidden. Raising them is the cheapest way to cut load if the
@@ -114,7 +133,10 @@ pinger means "the process is up and answering", not "everything is fine".
   "db": "ok",
   "queueDepth": 2,
   "oldestPendingAgeSec": 47,
-  "errorsLast24h": 1
+  "errorsLast24h": 1,
+  "activeSchedules": 12,
+  "claimedSchedules": 0,
+  "failedSchedules": 1
 }
 ```
 
@@ -124,6 +146,12 @@ pinger means "the process is up and answering", not "everything is fine".
 - `oldestPendingAgeSec` — age of the oldest pending job, `null` if none. A
   value climbing past a few minutes means jobs are being created but not run.
 - `errorsLast24h` — jobs that completed with `error` in the last 24 hours.
+- `activeSchedules` — schedules armed and waiting for their next run.
+- `claimedSchedules` — schedules a tick is mid-launch on. Steady state is 0 or
+  1; a number that stays high means ticks are dying between claim and launch,
+  and boot recovery is the thing that clears them.
+- `failedSchedules` — schedules parked after `SCHEDULE_MAX_FAILURES`
+  consecutive failures. Only their owner can bring one back.
 
 The container's own `HEALTHCHECK` polls this endpoint and only checks that the
 response is 200, so it detects a dead process, not a sick one.
@@ -195,6 +223,60 @@ UPDATE review_jobs
 
 Deleting the `review_jobs` row removes its review and chunks with it, through
 `ON DELETE CASCADE`.
+
+## Scheduled reviews
+
+A user can attach a cadence to a target from the composer. The scheduler loop
+runs **inside the web process**, on the same "one container, one process" rule
+as the review runner: every instance that serves traffic also ticks, so a
+second instance would halve the interval between runs. If you ever run two,
+set `SCHEDULER_ENABLED=0` on all but one.
+
+Each tick claims up to `SCHEDULER_BATCH_SIZE` due schedules with a conditional
+`active → running` update, starts a review for each through the same path the
+composer uses, and puts the row back as `active` with its next run computed.
+Two ticks can list the same row; only one can claim it.
+
+**Scheduled runs need their own credentials.** A user's GitHub token lives
+only in their cookie and is never persisted, so there is nothing to replay
+when a schedule fires at 03:00. `SCHEDULER_GITHUB_TOKEN` is a machine PAT with
+`repo` scope that every scheduled run clones with. Consequences worth knowing:
+
+- With it unset the loop logs `scheduler idle: SCHEDULER_GITHUB_TOKEN is not
+set` once at boot and nothing ever fires. Schedules can still be created,
+  paused and deleted.
+- The token's reach is the scheduler's reach. A user can arm a schedule for
+  any repository they can see; whether the run succeeds depends on whether the
+  _machine_ account can see it too. A failure here is a normal schedule
+  failure — three of them park the schedule.
+- Rotating it is a restart, like every other key.
+
+Scheduled jobs count against their owner's `MAX_JOBS_PER_USER`. When the owner
+already has a review in flight the tick defers rather than failing, so a
+schedule never spends someone's failure budget on their own busy-ness.
+
+To force a pass without waiting out the interval — or to drive the loop from
+cron with `SCHEDULER_ENABLED=0`:
+
+```bash
+docker compose run --rm web node src/jobs/cli.ts run-schedules
+```
+
+It releases stale claims first, then runs exactly one tick. It starts real
+reviews, so it is not a dry run.
+
+A schedule stuck in `running` belongs to a process that died mid-tick; the
+next boot releases it, and `run-schedules` does the same by hand. To park one
+directly:
+
+```sql
+UPDATE review_schedules
+   SET status = 'paused'
+ WHERE id = '<SCHEDULE-ID>';
+```
+
+Deleting a `review_schedules` row leaves the reviews it produced alone: their
+`schedule_id` is set to null rather than cascading.
 
 ## Rotating secrets
 

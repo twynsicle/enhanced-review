@@ -33,8 +33,9 @@ model User {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  sessions Session[]
-  jobs     ReviewJob[]
+  sessions  Session[]
+  jobs      ReviewJob[]
+  schedules ReviewSchedule[]
 
   @@map("users")
 }
@@ -84,17 +85,88 @@ model ReviewJob {
   errorMessage String?   @map("error_message")
   /// Denormalised from the finished review so lists can show it (1..5).
   riskScore    Int?      @map("risk_score") @db.SmallInt
+  /// Set when a scheduler tick launched this job; null for a manual submit.
+  /// Nulled rather than cascaded when the schedule goes away, so a review
+  /// outlives the schedule that produced it.
+  scheduleId   String?   @map("schedule_id") @db.Uuid
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  review Review?
-  chunks ReviewChunk[]
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedule ReviewSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  review   Review?
+  chunks   ReviewChunk[]
 
   @@index([status])
   @@index([userId])
   @@index([createdAt])
+  @@index([scheduleId])
   @@map("review_jobs")
+}
+
+/// Where a schedule is in its lifecycle. `running` is held only while a
+/// scheduler tick has claimed the row and is launching its job, so two ticks
+/// can never claim the same schedule.
+enum ScheduleStatus {
+  active
+  running
+  paused
+  failed
+
+  @@map("schedule_status")
+}
+
+/// How often a schedule fires. `hourly` ignores `hour_of_day`; `weekly` fires
+/// on the same local weekday as the schedule's first run.
+enum ScheduleCadence {
+  hourly
+  daily
+  weekly
+
+  @@map("schedule_cadence")
+}
+
+/// A standing instruction to review one target on a cadence. Owner-only
+/// pause / resume / delete are enforced the way cancel is. There is no token
+/// column on purpose — the GitHub token is never persisted, so scheduled runs
+/// use the machine token in SCHEDULER_GITHUB_TOKEN.
+model ReviewSchedule {
+  id     String @id @default(uuid(7)) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  /// ReviewTarget JSON (pr | branch) — the shape review_jobs.target holds.
+  target Json
+  /// Stable identity of `target`: "pr:owner/repo" | "branch:owner/repo@ref".
+  /// Unique per user, so one target can be armed only once per person.
+  targetKey String @map("target_key") @db.VarChar(255)
+
+  cadence   ScheduleCadence
+  /// IANA zone the wall-clock hour below is read in ("Europe/London").
+  timeZone  String          @map("time_zone") @db.VarChar(64)
+  /// Local hour a daily/weekly schedule fires at, 0..23. Ignored by `hourly`.
+  hourOfDay Int             @map("hour_of_day") @db.SmallInt
+
+  status    ScheduleStatus
+  /// When the next run falls due; `(status, next_run_at)` is the tick's index.
+  nextRunAt DateTime  @map("next_run_at") @db.Timestamptz(3)
+  lastRunAt DateTime? @map("last_run_at") @db.Timestamptz(3)
+  /// Denormalised so the list can link the newest run without a join. No FK:
+  /// a deleted job leaves an id the read side treats as "no run yet".
+  lastJobId String?   @map("last_job_id") @db.Uuid
+
+  /// Reset by a successful launch; at SCHEDULE_MAX_FAILURES the row goes `failed`.
+  consecutiveFailures Int     @default(0) @map("consecutive_failures") @db.SmallInt
+  lastError           String? @map("last_error")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs ReviewJob[]
+
+  @@unique([userId, targetKey])
+  @@index([status, nextRunAt])
+  @@index([userId])
+  @@map("review_schedules")
 }
 
 /// Final NarrativeReview, one per completed job.

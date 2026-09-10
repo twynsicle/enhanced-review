@@ -31,6 +31,7 @@ import {
   type LastTarget,
 } from '@/web/stores/last-target';
 import { token } from '@/web/theme/tokens';
+import { SchedulePopover } from './schedule-popover';
 import { TargetCombobox } from './target-combobox';
 
 type Kind = LastTarget['kind'];
@@ -441,6 +442,8 @@ export function ReviewComposer({ userId }: { userId: string }) {
               View running review →
             </Button>
           )}
+          {/* Same selection, two verbs: run it now, or arm it. */}
+          <SchedulePopover target={target} />
           <Button
             onClick={onSubmit}
             disabled={!target || submitting}

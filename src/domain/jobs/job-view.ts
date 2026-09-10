@@ -19,6 +19,8 @@ export interface JobView {
   cancelledAt: string | null;
   errorMessage: string | null;
   riskScore: number | null;
+  /** Non-null when a schedule launched this job; the lists badge it. */
+  scheduleId: string | null;
   createdAt: string;
   updatedAt: string;
 }

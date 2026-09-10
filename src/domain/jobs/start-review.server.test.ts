@@ -38,6 +38,7 @@ function record(overrides: Partial<ReviewJobRecord> = {}): ReviewJobRecord {
     cancelledAt: null,
     errorMessage: null,
     riskScore: null,
+    scheduleId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -70,6 +71,7 @@ describe('startReview', () => {
       userId: 'user-2',
       target: FRESH,
       headSha: 'newSha',
+      scheduleId: null,
     });
     expect(d.launch).toHaveBeenCalledWith({
       jobId: 'new-job',
@@ -77,6 +79,17 @@ describe('startReview', () => {
       target: FRESH,
       headSha: 'newSha',
     });
+  });
+
+  it('stamps a scheduled run with the schedule that asked for it', async () => {
+    const d = deps();
+    await startReview(
+      { userId: 'owner', token: 'machine-token', target: TARGET, scheduleId: 'sched-1' },
+      d,
+    );
+    expect(d.createJob).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'owner', scheduleId: 'sched-1' }),
+    );
   });
 
   it('refuses while the user has a job in flight, naming it', async () => {
@@ -123,6 +136,7 @@ describe('rerunJob', () => {
       userId: 'viewer',
       target: FRESH,
       headSha: 'newSha',
+      scheduleId: null,
     });
     expect(d.launch).toHaveBeenCalledWith(expect.objectContaining({ token: 'viewer-token' }));
   });

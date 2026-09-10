@@ -10,6 +10,6 @@ export const describeDb = inject('dbAvailable') ? describe : describe.skip;
 /** Wipe every table. Integration files run serially, so this is race-free. */
 export async function resetDb(): Promise<void> {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE users, sessions, review_jobs, reviews, review_chunks CASCADE',
+    'TRUNCATE users, sessions, review_jobs, review_schedules, reviews, review_chunks CASCADE',
   );
 }
