@@ -55,7 +55,7 @@ export function SummaryCard({
   );
 
   return (
-    <div className={classes.article} id={`chapter-${SUMMARY_SECTION_ID}`}>
+    <article className={classes.article} id={`chapter-${SUMMARY_SECTION_ID}`}>
       <Stack component="header" gap={12}>
         <Group justify="space-between" align="flex-start" gap={12} wrap="nowrap">
           <Caption tone="before">Summary</Caption>
@@ -144,6 +144,6 @@ export function SummaryCard({
           <MarkdownText text={pullMetadata.body} />
         </Stack>
       )}
-    </div>
+    </article>
   );
 }

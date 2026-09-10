@@ -51,7 +51,10 @@ export function JobTimeline({ phases }: { phases: Phase[] }) {
                   component="span"
                   fz="sm"
                   fs={title.state === 'active' ? 'italic' : undefined}
-                  c={title.state === 'done' ? token('after-ink') : token('muted-foreground')}
+                  // On the `before-soft` fill above, so both branches are an
+                  // `-ink`: `after-ink` reads as finished, `before-ink` as
+                  // still streaming.
+                  c={title.state === 'done' ? token('after-ink') : token('before-ink')}
                 >
                   {title.state === 'done' ? '✓' : '◦'} {title.text}
                   {title.state === 'active' && (

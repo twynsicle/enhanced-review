@@ -552,19 +552,34 @@ function KindToggle({
         { value: 'pr', label: kindItem(<IconGitPullRequest size={14} />, 'PR') },
         { value: 'branch', label: kindItem(<IconGitBranch size={14} />, 'Branch') },
       ]}
+      // The track is a `before-soft` fill, so every label takes `before-ink`
+      // rather than a page-ground colour: the unselected ones sit straight on
+      // the tint, and the selected one sits on the `surface-2` indicator,
+      // which `before-ink` also clears AA against in both schemes.
+      //
+      // That leaves both labels the same colour, so the indicator has to carry
+      // the selected state on its own. Its `surface-2` fill is only 1.02:1
+      // (light) / 1.20:1 (dark) against the tint it sits on — no page ground
+      // reads on this track — so the state cue is the `before` ring, 4.98:1
+      // against the track and 4.90:1 against the fill in light, 4.40:1 and
+      // 5.27:1 in dark. A 1px shadow is not a dependable 3:1 boundary.
       styles={{
         root: {
           background: token('before-soft'),
           padding: 4,
           opacity: disabled ? 0.6 : 1,
-          '--sc-label-color': token('before'),
+          '--sc-label-color': token('before-ink'),
         },
-        indicator: { background: token('surface-2'), boxShadow: '0 1px 2px rgba(0,0,0,0.4)' },
+        indicator: {
+          background: token('surface-2'),
+          border: `1px solid ${token('before')}`,
+          boxShadow: '0 1px 2px rgba(0,0,0,0.4)',
+        },
         label: {
           padding: '0 12px',
           height: 28,
           lineHeight: '28px',
-          color: token('muted-foreground'),
+          color: token('before-ink'),
         },
         control: { border: 'none' },
       }}

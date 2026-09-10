@@ -73,7 +73,8 @@ src/
                        shared: errors.ts (JobInFlightError, …), status.ts (JOB_STATUSES), job-view.ts (JobView, jobHref), activity.ts
   jobs/                cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.ts
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access,
-                       palette (token contrast maths + the type scale and one-label rules)
+                       palette (token contrast maths incl. `-soft` tints as grounds, a line scan for
+                       page-ground colours on a tint, + the type scale and one-label rules)
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
   web/
     root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary, middleware: [sessionMiddleware]
@@ -257,7 +258,14 @@ Colour is semantic tokens only (`token('muted-foreground')`, never a literal or
 a `color-mix` off `foreground`). Body text is `foreground`; anything secondary
 is `muted-foreground` — those two greys are the whole vocabulary. `subtle` is
 placeholder and decoration, never text. Text on a `-soft` fill takes the
-matching `-ink`. `border` draws cards and dividers; `border-strong` (≥ 3:1) is
+matching `-ink` — enforced, not merely advised: the guardrail treats every
+`-soft` as a ground in its own right and scans components for a page-ground
+colour under an unconditional tint fill. The base accents are tuned against the
+page, not against tints (`risk` on `before-soft` is 4.01:1 in dark), so reaching
+for one on a fill ships text under AA. A tint is also a poor state cue — no page
+ground clears 3:1 against `before-soft` — so a selected control on a tint gets a
+`before` ring rather than a paler fill. `border` draws cards and dividers;
+`border-strong` (≥ 3:1) is
 for control boundaries and is what Mantine's `default-border` resolves to.
 
 **Every token that carries text clears WCAG AA against all four grounds of its
