@@ -1,15 +1,18 @@
 import { Box, Group, Stack, UnstyledButton } from '@mantine/core';
 import {
-  SUMMARY_SECTION_ID,
+  RISK_SECTION_ID,
   type NarrativeChapter,
   type ReviewFile,
   type ReviewRiskAssessment,
 } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
 import { RiskInlineLabel, RiskScoreBars } from '@/web/components/narrative/risk-score';
+import type { ReaderSection } from '@/web/components/narrative/sections';
 import classes from './chapter-sidebar.module.css';
 
 interface ChapterSidebarProps {
+  /** Every section of the reader, in order; see `sections.ts`. */
+  sections: readonly ReaderSection[];
   chapters: readonly NarrativeChapter[];
   activeId: string;
   /** Filename currently shown in the file-only view, or null. */
@@ -23,11 +26,16 @@ interface ChapterSidebarProps {
 }
 
 /**
- * Editorial navigation. Chapter links sit first; a compact changed-file tree
+ * Editorial navigation. Section links sit first; a compact changed-file tree
  * follows so readers can jump by file when the narrative is not the path
  * they want. `reviewTitle` is accepted for parity with the page but not shown.
+ *
+ * The risk card is the risk section's entry. It is not repeated as a row in
+ * the list below, because two controls that go to one place make a list the
+ * reader has to read twice to be sure.
  */
 export function ChapterSidebar({
+  sections,
   chapters,
   activeId,
   activeFile = null,
@@ -37,15 +45,16 @@ export function ChapterSidebar({
   riskAssessment,
 }: ChapterSidebarProps) {
   const reviewFiles = buildReviewFiles(chapters, files);
+  const rows = sections.filter((section) => section.kind !== 'risk');
 
   return (
     <nav aria-label="Review navigation" className={classes.nav}>
       {riskAssessment && (
         <UnstyledButton
           className={classes.riskCard}
-          data-active={activeId === SUMMARY_SECTION_ID || undefined}
-          onClick={() => onSelect(SUMMARY_SECTION_ID)}
-          aria-label={`Risk ${riskAssessment.score} of 5 — open the review summary`}
+          data-active={activeId === RISK_SECTION_ID || undefined}
+          onClick={() => onSelect(RISK_SECTION_ID)}
+          aria-label={`Risk ${riskAssessment.score} of 5 — open the risk assessment`}
         >
           <RiskScoreBars score={riskAssessment.score} size="lg" hideLabel />
           <Stack gap={0} miw={0}>
@@ -61,20 +70,11 @@ export function ChapterSidebar({
       <Stack component="section" gap={12}>
         <Caption>Chapters</Caption>
         <ul className={classes.list}>
-          <SidebarItem
-            id={SUMMARY_SECTION_ID}
-            label="Summary"
-            active={activeId === SUMMARY_SECTION_ID}
-            index={null}
-            onSelect={onSelect}
-          />
-          {chapters.map((ch, i) => (
+          {rows.map((section) => (
             <SidebarItem
-              key={ch.id}
-              id={ch.id}
-              label={ch.title}
-              active={ch.id === activeId}
-              index={i + 1}
+              key={section.id}
+              section={section}
+              active={section.id === activeId}
               onSelect={onSelect}
             />
           ))}
@@ -92,30 +92,39 @@ export function ChapterSidebar({
 }
 
 function SidebarItem({
-  id,
-  label,
+  section,
   active,
-  index,
   onSelect,
 }: {
-  id: string;
-  label: string;
+  section: ReaderSection;
   active: boolean;
-  index: number | null;
   onSelect: (id: string) => void;
 }) {
+  const { chapterNumber, hasDiagram } = section;
   return (
     <li>
       <UnstyledButton
         className={classes.item}
         aria-current={active ? 'true' : undefined}
         data-active={active || undefined}
-        onClick={() => onSelect(id)}
+        onClick={() => onSelect(section.id)}
       >
         <span className={classes.index}>
-          {index === null ? '00' : index.toString().padStart(2, '0')}
+          {chapterNumber === null ? '00' : chapterNumber.toString().padStart(2, '0')}
         </span>
-        <span className={classes.label}>{label}</span>
+        <span className={classes.label}>{section.label}</span>
+        {/*
+         * Which sections carry a picture, marked on the list the reader
+         * already scans. A separate "Diagrams" block was the alternative, but
+         * a diagram is not addressable apart from its section — both entries
+         * would navigate to the same place, and the sidebar would grow a
+         * fourth list to say what one glyph says here.
+         */}
+        {hasDiagram && (
+          <span className={classes.diagramMark} aria-label="has a diagram">
+            ◧
+          </span>
+        )}
       </UnstyledButton>
     </li>
   );

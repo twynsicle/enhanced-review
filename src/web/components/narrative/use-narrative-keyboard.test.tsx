@@ -1,16 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SUMMARY_SECTION_ID, type NarrativeChapter } from '@/domain/review/narrative';
+import { RISK_SECTION_ID, SUMMARY_SECTION_ID } from '@/domain/review/narrative';
 import { fireEvent, render } from '@/web/test/render';
+import type { ReaderSection } from './sections';
 import { useNarrativeKeyboard } from './use-narrative-keyboard';
 
-const chapters: NarrativeChapter[] = [
-  { id: 'ch1', title: 'One', insights: [], diffChunks: [] },
-  { id: 'ch2', title: 'Two', insights: [], diffChunks: [] },
-  { id: 'ch3', title: 'Three', insights: [], diffChunks: [] },
+function chapter(id: string, label: string, chapterNumber: number): ReaderSection {
+  return { id, kind: 'chapter', label, chapterNumber, hasDiagram: false };
+}
+
+const sections: ReaderSection[] = [
+  {
+    id: SUMMARY_SECTION_ID,
+    kind: 'summary',
+    label: 'Summary',
+    chapterNumber: null,
+    hasDiagram: false,
+  },
+  chapter('ch1', 'One', 1),
+  chapter('ch2', 'Two', 2),
+  chapter('ch3', 'Three', 3),
 ];
 
-function Harness({ activeId, onSelect }: { activeId: string; onSelect: (id: string) => void }) {
-  useNarrativeKeyboard({ chapters, activeId, onSelect });
+const withRisk: ReaderSection[] = [
+  sections[0] as ReaderSection,
+  { id: RISK_SECTION_ID, kind: 'risk', label: 'Risk', chapterNumber: null, hasDiagram: false },
+  ...sections.slice(1),
+];
+
+function Harness({
+  activeId,
+  onSelect,
+  list = sections,
+}: {
+  activeId: string;
+  onSelect: (id: string) => void;
+  list?: readonly ReaderSection[];
+}) {
+  useNarrativeKeyboard({ sections: list, activeId, onSelect });
   return null;
 }
 
@@ -27,16 +53,24 @@ describe('useNarrativeKeyboard', () => {
     expect(onSelect).toHaveBeenCalledWith('ch2');
   });
 
-  it('ArrowRight on the last chapter jumps to the summary', () => {
+  it('ArrowRight on the last section stops there', () => {
     render(<Harness activeId="ch3" onSelect={onSelect} />);
     fireEvent.keyDown(document, { key: 'ArrowRight' });
-    expect(onSelect).toHaveBeenCalledWith(SUMMARY_SECTION_ID);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it('ArrowRight on the summary is a no-op', () => {
+  it('ArrowRight on the summary moves forward, not nowhere', () => {
+    // The summary used to sit last in this cycle while sitting first in the
+    // sidebar, which left this key doing nothing on the opening section.
     render(<Harness activeId={SUMMARY_SECTION_ID} onSelect={onSelect} />);
     fireEvent.keyDown(document, { key: 'ArrowRight' });
-    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSelect).toHaveBeenCalledWith('ch1');
+  });
+
+  it('walks through risk when the review has one', () => {
+    render(<Harness activeId={SUMMARY_SECTION_ID} onSelect={onSelect} list={withRisk} />);
+    fireEvent.keyDown(document, { key: 'ArrowRight' });
+    expect(onSelect).toHaveBeenCalledWith(RISK_SECTION_ID);
   });
 
   it('ArrowLeft moves to the previous chapter', () => {
@@ -45,22 +79,30 @@ describe('useNarrativeKeyboard', () => {
     expect(onSelect).toHaveBeenCalledWith('ch1');
   });
 
-  it('ArrowLeft on the summary jumps to the last chapter', () => {
+  it('ArrowLeft on the summary stops there', () => {
     render(<Harness activeId={SUMMARY_SECTION_ID} onSelect={onSelect} />);
     fireEvent.keyDown(document, { key: 'ArrowLeft' });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('Home jumps to the first section', () => {
+    render(<Harness activeId="ch3" onSelect={onSelect} />);
+    fireEvent.keyDown(document, { key: 'Home' });
+    expect(onSelect).toHaveBeenCalledWith(SUMMARY_SECTION_ID);
+  });
+
+  it('End jumps to the last section', () => {
+    render(<Harness activeId="ch1" onSelect={onSelect} />);
+    fireEvent.keyDown(document, { key: 'End' });
     expect(onSelect).toHaveBeenCalledWith('ch3');
   });
 
-  it('Home jumps to the first chapter', () => {
-    render(<Harness activeId="ch3" onSelect={onSelect} />);
-    fireEvent.keyDown(document, { key: 'Home' });
-    expect(onSelect).toHaveBeenCalledWith('ch1');
-  });
-
-  it('End jumps to the summary', () => {
-    render(<Harness activeId="ch1" onSelect={onSelect} />);
-    fireEvent.keyDown(document, { key: 'End' });
-    expect(onSelect).toHaveBeenCalledWith(SUMMARY_SECTION_ID);
+  it('1–9 counts chapters, not sections', () => {
+    // With risk in the list, chapter two is the fourth section; the digit
+    // has to mean what the sidebar prints beside the row.
+    render(<Harness activeId={SUMMARY_SECTION_ID} onSelect={onSelect} list={withRisk} />);
+    fireEvent.keyDown(document, { key: '2' });
+    expect(onSelect).toHaveBeenCalledWith('ch2');
   });
 
   it('1–9 jumps to the chapter at that index', () => {

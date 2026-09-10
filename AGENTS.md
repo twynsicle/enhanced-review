@@ -57,7 +57,8 @@ src/
     github/            all *.server.ts on one @octokit/core instance per request: client (createOctokit, GithubAuthError,
                        classifyGithubError, toResult), repos, pulls, branches (GraphQL), resolve-target (re-pin SHAs),
                        pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getCommitsAhead); types.ts shared
-    review/            shared: narrative.ts (NarrativeReview Zod schema + types; chapter.diagram? + overviewDiagram?),
+    review/            shared: narrative.ts (NarrativeReview Zod schema + types; chapter.diagram? + overviewDiagram?;
+                       SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's two synthesised sections),
                        diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                        node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
                        DIAGRAM_LIMITS, hasUniformChange), target.ts (ReviewTarget schema, describeTarget),
@@ -109,7 +110,11 @@ src/
                        what-now, rerun-button, job-not-found (404 page shared with the reader)), history/ (filter-chips,
                        empty-history), home/ (review-composer, target-combobox, recent-reviews, sparkline),
                        narrative/ (the reader: chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state),
-                       chapter-sidebar (+ .module.css), chapter-card, summary-card, file-view, insight-callout,
+                       sections.ts (readerSections: the one ordered list of sections — summary, risk when there is an
+                       assessment, then the chapters — that the sidebar renders and the keyboard walks),
+                       chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, and a row carrying
+                       a diagram is marked), chapter-card, summary-card (title/meta, overview diagram, AI overview,
+                       author's description collapsed last), risk-card, file-view, insight-callout,
                        article.module.css (the reading measure + the diff bleed lane),
                        lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                        inline-diff-chunk (+ .module.css; useFetcher → /api/github/file, snippets per hunk group,

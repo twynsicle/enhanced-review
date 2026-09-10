@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SUMMARY_SECTION_ID, type NarrativeChapter } from '@/domain/review/narrative';
+import {
+  RISK_SECTION_ID,
+  SUMMARY_SECTION_ID,
+  type NarrativeChapter,
+  type ReviewRiskAssessment,
+} from '@/domain/review/narrative';
+import { HAND_BEFORE_AFTER } from '@/web/test/diagram-fixtures';
 import { fireEvent, render, screen } from '@/web/test/render';
 import { ChapterSidebar } from './chapter-sidebar';
+import type { ReaderSection } from './sections';
 
 const chapters: NarrativeChapter[] = [
   {
@@ -13,12 +20,45 @@ const chapters: NarrativeChapter[] = [
   { id: 'ch2', title: 'Risks and follow-ups', insights: [], diffChunks: [] },
 ];
 
+const sections: ReaderSection[] = [
+  {
+    id: SUMMARY_SECTION_ID,
+    kind: 'summary',
+    label: 'Summary',
+    chapterNumber: null,
+    hasDiagram: false,
+  },
+  { id: 'ch1', kind: 'chapter', label: 'Shape of the change', chapterNumber: 1, hasDiagram: false },
+  {
+    id: 'ch2',
+    kind: 'chapter',
+    label: 'Risks and follow-ups',
+    chapterNumber: 2,
+    hasDiagram: false,
+  },
+];
+
+const riskAssessment: ReviewRiskAssessment = {
+  score: 4,
+  summary: 'High risk because data can be affected.',
+  rationale: 'Persistence behavior changed.',
+  factors: [],
+};
+
+/** The same list with a risk section, as `readerSections` builds it. */
+const withRisk: ReaderSection[] = [
+  sections[0] as ReaderSection,
+  { id: RISK_SECTION_ID, kind: 'risk', label: 'Risk', chapterNumber: null, hasDiagram: false },
+  ...sections.slice(1),
+];
+
 const noop = () => {};
 
 describe('<ChapterSidebar />', () => {
   it('renders summary plus each chapter title', () => {
     render(
       <ChapterSidebar
+        sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
         reviewTitle="My PR"
@@ -35,6 +75,7 @@ describe('<ChapterSidebar />', () => {
   it('marks the active item with aria-current', () => {
     const { rerender } = render(
       <ChapterSidebar
+        sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
         reviewTitle="t"
@@ -51,6 +92,7 @@ describe('<ChapterSidebar />', () => {
 
     rerender(
       <ChapterSidebar
+        sections={sections}
         chapters={chapters}
         activeId="ch2"
         reviewTitle="t"
@@ -67,6 +109,7 @@ describe('<ChapterSidebar />', () => {
     const onSelect = vi.fn();
     render(
       <ChapterSidebar
+        sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
         reviewTitle="t"
@@ -78,19 +121,15 @@ describe('<ChapterSidebar />', () => {
     expect(onSelect).toHaveBeenCalledWith('ch2');
   });
 
-  it('renders the risk score above chapters and routes it to summary', () => {
+  it('renders the risk score above the list and routes it to the risk section', () => {
     const onSelect = vi.fn();
     render(
       <ChapterSidebar
+        sections={withRisk}
         chapters={chapters}
         activeId="ch1"
         reviewTitle="t"
-        riskAssessment={{
-          score: 4,
-          summary: 'High risk because data can be affected.',
-          rationale: 'Persistence behavior changed.',
-          factors: [],
-        }}
+        riskAssessment={riskAssessment}
         onSelect={onSelect}
         onSelectFile={noop}
       />,
@@ -101,12 +140,52 @@ describe('<ChapterSidebar />', () => {
     expect(riskCard).toBeDefined();
     expect(screen.getByTitle('Risk 4 of 5: High')).toBeDefined();
     fireEvent.click(riskCard);
-    expect(onSelect).toHaveBeenCalledWith(SUMMARY_SECTION_ID);
+    expect(onSelect).toHaveBeenCalledWith(RISK_SECTION_ID);
+  });
+
+  it('gives risk one entry, not two', () => {
+    // The card is the risk section's row. A second row in the list below
+    // would be a duplicate control for the same destination.
+    render(
+      <ChapterSidebar
+        sections={withRisk}
+        chapters={chapters}
+        activeId={SUMMARY_SECTION_ID}
+        reviewTitle="t"
+        riskAssessment={riskAssessment}
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+    expect(screen.getAllByText('Risk')).toHaveLength(1);
+    expect(screen.queryByRole('listitem', { name: /Risk$/ })).toBeNull();
+  });
+
+  it('marks the sections that carry a diagram, and only those', () => {
+    render(
+      <ChapterSidebar
+        sections={sections.map((section) =>
+          section.id === 'ch2' ? { ...section, hasDiagram: true } : section,
+        )}
+        chapters={[
+          chapters[0] as NarrativeChapter,
+          { ...(chapters[1] as NarrativeChapter), diagram: HAND_BEFORE_AFTER },
+        ]}
+        activeId={SUMMARY_SECTION_ID}
+        reviewTitle="t"
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+    const marks = screen.getAllByLabelText('has a diagram');
+    expect(marks).toHaveLength(1);
+    expect(marks[0]?.closest('button')?.textContent).toContain('Risks and follow-ups');
   });
 
   it('falls back to the files chapters selected hunks from', () => {
     render(
       <ChapterSidebar
+        sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
         reviewTitle="t"
@@ -124,6 +203,7 @@ describe('<ChapterSidebar />', () => {
     const onSelectFile = vi.fn();
     render(
       <ChapterSidebar
+        sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
         reviewTitle="t"
@@ -146,6 +226,7 @@ describe('<ChapterSidebar />', () => {
   it('marks the active file row with aria-current', () => {
     render(
       <ChapterSidebar
+        sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
         activeFile="src/app/page.tsx"

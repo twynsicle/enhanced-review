@@ -1,5 +1,4 @@
-import { Box, Collapse, Group, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { useState } from 'react';
+import { Box, Group, Stack, Text, Title } from '@mantine/core';
 import type {
   ReviewRiskAssessment,
   ReviewRiskFactorImpact,
@@ -159,85 +158,74 @@ function factorTone(impact: ReviewRiskFactorImpact): TokenName {
   return 'muted-foreground';
 }
 
-export function RiskSummaryPanel({ assessment }: { assessment?: ReviewRiskAssessment }) {
-  const [open, setOpen] = useState(false);
-  if (!assessment) return null;
-  const divider = { borderTop: `1px solid ${token('border')}` };
-
+/**
+ * The risk assessment's body: meter, verdict, rationale, and the factors
+ * behind the score.
+ *
+ * There is no card around it. This used to be a bordered panel wedged between
+ * the summary's title and its prose, where the border was what separated risk
+ * from everything else competing for the same page. Risk is its own section
+ * now, so the border would draw a box around the only thing on the page —
+ * furniture around nothing. The factors expand by default for the same
+ * reason: they are the argument for the score, not an aside to it.
+ */
+export function RiskAssessmentBody({ assessment }: { assessment: ReviewRiskAssessment }) {
   return (
-    <Stack
-      component="section"
-      gap={16}
-      p={20}
-      style={{
-        borderRadius: 12,
-        border: `1px solid ${token('border')}`,
-        background: token('card'),
-      }}
-    >
-      <Caption>Risk rating</Caption>
+    <>
+      <Stack gap={16}>
+        <RiskScoreBars score={assessment.score} size="lg" />
 
-      <RiskScoreBars score={assessment.score} size="lg" />
+        <Title order={2} fz="xl" fw={600} lh={1.25} style={{ textWrap: 'pretty' }}>
+          {assessment.summary}
+        </Title>
 
-      <Title order={2} fz="lg" fw={600} lh={1.35} style={{ textWrap: 'pretty' }}>
-        {assessment.summary}
-      </Title>
-
-      {assessment.rationale.trim().length > 0 && (
-        <Text fz="sm" c="dimmed">
-          {assessment.rationale}
-        </Text>
-      )}
+        {assessment.rationale.trim().length > 0 && (
+          <Text fz="md" c="dimmed">
+            {assessment.rationale}
+          </Text>
+        )}
+      </Stack>
 
       {assessment.factors.length > 0 && (
-        <Box pt={16} style={divider}>
-          <UnstyledButton
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            c="dimmed"
-            style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+        <Stack component="section" gap={16}>
+          <Group
+            component="header"
+            justify="space-between"
+            align="baseline"
+            pb={8}
+            style={{ borderBottom: `1px solid ${token('border')}` }}
           >
-            <Box
-              component="span"
-              aria-hidden
-              style={{
-                display: 'inline-block',
-                transition: 'transform 120ms',
-                transform: open ? 'rotate(90deg)' : undefined,
-              }}
-            >
-              ▸
-            </Box>
-            <Caption>{open ? 'Hide breakdown' : 'Show breakdown'}</Caption>
-          </UnstyledButton>
-          <Collapse expanded={open}>
-            <Stack component="dl" gap={12} mt={16} m={0}>
-              {assessment.factors.map((factor, index) => (
-                <Box key={`${factor.name}-${index}`} miw={0}>
-                  <Group component="dt" gap={8} wrap="nowrap">
-                    <Box
-                      component="span"
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: '50%',
-                        flexShrink: 0,
-                        background: token(factorTone(factor.impact)),
-                      }}
-                    />
-                    <Text component="span" fz="sm" fw={600} truncate>
-                      {factor.name}
-                    </Text>
-                  </Group>
-                  <Text component="dd" mt={4} m={0} fz="sm" c="dimmed">
-                    {factor.detail}
+            <Caption>What moved the score</Caption>
+            <Text component="span" ff="monospace" fz="xs" c="dimmed">
+              {assessment.factors.length}
+            </Text>
+          </Group>
+          <Stack component="dl" gap={16} m={0}>
+            {assessment.factors.map((factor, index) => (
+              <Box key={`${factor.name}-${index}`} miw={0}>
+                <Group component="dt" gap={8} wrap="nowrap">
+                  <Box
+                    component="span"
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      flexShrink: 0,
+                      background: token(factorTone(factor.impact)),
+                    }}
+                  />
+                  <Text component="span" fz="sm" fw={600} truncate>
+                    {factor.name}
                   </Text>
-                </Box>
-              ))}
-            </Stack>
-          </Collapse>
-        </Box>
+                </Group>
+                <Text component="dd" mt={4} m={0} fz="sm" c="dimmed">
+                  {factor.detail}
+                </Text>
+              </Box>
+            ))}
+          </Stack>
+        </Stack>
       )}
-    </Stack>
+    </>
   );
 }
