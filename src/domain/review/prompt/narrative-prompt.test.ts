@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DIAGRAM_LIMITS } from '../diagram.ts';
 import { buildNarrativePrompt } from './narrative-prompt.ts';
 import type { PrData } from './types.ts';
 
@@ -49,6 +50,17 @@ describe('buildNarrativePrompt', () => {
     expect(user).toContain('Because widgets.');
     expect(system).toContain('<narrative_review>');
     expect(system).toContain('hunkIds');
+  });
+
+  it('states the diagram contract with the real limits, not a template hole', () => {
+    const { system } = buildNarrativePrompt(prData());
+    expect(system).toContain('"overviewDiagram"');
+    expect(system).toContain('architecture | state | beforeAfter | sequence');
+    expect(system).toContain('describes a CHANGE, not a system');
+    // The caps come from DIAGRAM_LIMITS so the prompt cannot drift from the
+    // schema that rejects what it asks for.
+    expect(system).toContain(`at most ${String(DIAGRAM_LIMITS.labelChars)} characters`);
+    expect(system).not.toContain('${');
   });
 
   it('substitutes a placeholder for an empty description', () => {

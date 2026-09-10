@@ -1,3 +1,4 @@
+import { DIAGRAM_LIMITS } from '../diagram.ts';
 import { isExcludedFromAI } from './ai-file-filter.ts';
 import { buildDiffHunkIndex, type DiffHunkIndex } from './diff-hunk-catalog.ts';
 import type { PrData } from './types.ts';
@@ -27,6 +28,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
 {
   "prTitle": "string — the PR title",
   "overviewSummary": "string — 2-4 sentence high-level summary of the entire PR",
+  "overviewDiagram": "optional object — see Diagrams below. Only for the shape of the whole change",
   "riskAssessment": {
     "score": "number — integer 1-5",
     "summary": "string — one sentence reviewer-facing risk headline",
@@ -57,7 +59,8 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
           "language": "string — programming language",
           "hunkIds": ["string — one or more hunk IDs from the Changed Hunks list (example: H0007)"]
         }
-      ]
+      ],
+      "diagram": "optional object — see Diagrams below. At most one per chapter"
     }
   ]
 }
@@ -87,6 +90,61 @@ Guidelines:
 - Adjust the baseline score for modifiers: add weight for large diffs, many changed files, subtle algorithms, concurrency, migrations, distributed systems, ambiguous requirements, weak rollout/rollback story, or sparse tests around risky paths.
 - Lower the score only when the evidence is strong: focused change size, excellent relevant tests, feature flags, backward-compatible migration strategy, clear rollback, or mostly mechanical changes.
 - In riskAssessment.factors include 3-6 concrete factors. Cover size/complexity and test coverage when the diff gives evidence either way. Say when evidence is absent rather than inventing test coverage.
+
+Diagrams:
+
+A diagram is optional and usually absent. There are two places one may go: "overviewDiagram" on the review, and "diagram" on a chapter — at most one each. Every diagram has:
+
+{
+  "id": "string — unique slug",
+  "title": "string — short figure label, 2-5 words",
+  "caption": "string — one or two sentences saying what this picture shows that the prose cannot",
+  "kind": "architecture | state | beforeAfter | sequence"
+}
+
+"architecture", "state" and "beforeAfter" share one structure:
+
+{
+  "direction": "down | right",
+  "groups": [{ "id": "string", "label": "string" }],
+  "nodes": [
+    {
+      "id": "string — unique within this diagram",
+      "label": "string — a name, not a sentence",
+      "kind": "code | data | external | actor",
+      "change": "added | removed | modified | unchanged",
+      "group": "string — id of one of the groups above (optional)",
+      "filename": "string — a path from Files Changed. Only on 'code' nodes (optional)",
+      "hunkIds": ["string — ids from Changed Hunks belonging to that same file (optional)"],
+      "initial": "boolean — the entry state. State machines only, at most one per diagram",
+      "note": "string — a short aside (optional)"
+    }
+  ],
+  "edges": [{ "from": "node id", "to": "node id", "label": "string (optional)", "change": "added | removed | modified | unchanged" }]
+}
+
+"sequence" has its own structure:
+
+{
+  "participants": [{ "id": "string", "label": "string", "kind": "code | data | external | actor", "change": "...", "filename": "optional", "hunkIds": ["optional"] }],
+  "steps": [
+    { "type": "message", "from": "participant id", "to": "participant id", "label": "string", "style": "call | return", "change": "..." },
+    { "type": "group", "style": "alt | opt | loop", "label": "string (optional)", "branches": [{ "label": "string (optional)", "steps": ["message or group"] }] }
+  ]
+}
+
+Rules for diagrams:
+- A diagram here describes a CHANGE, not a system. Mark every node and edge with what this PR did to it. A diagram in which nothing is added, removed or modified is documentation rather than review, and should not be included at all.
+- Include one only when it shows something the prose cannot: a shape, an ordering, a branch, a cycle, a boundary being crossed. If a chapter is a list of small edits, omit the diagram. Most chapters should not have one.
+- Prefer diagrams that put branches, alternatives or parallel paths beside each other. A reviewer checks symmetry without being asked, so a picture that makes an asymmetry visible has done a reviewer's work for them.
+- The caption is what earns the diagram its place. If you cannot write a sentence saying what the picture shows that your text does not, omit the diagram.
+- Ground what you can. A "code" node may carry a "filename" from the Files Changed list and "hunkIds" from the Changed Hunks list for that same file. A node that is not code — a database table, an external service, a person — must not carry a filename. Never invent a path or an id.
+- Keep labels short: node and group labels at most ${String(DIAGRAM_LIMITS.labelChars)} characters, edge labels at most ${String(DIAGRAM_LIMITS.edgeLabelChars)}, sequence message labels at most ${String(DIAGRAM_LIMITS.messageChars)}, captions at most ${String(DIAGRAM_LIMITS.captionChars)}. A label that has become a sentence belongs in the caption or the chapter description instead.
+- Prefer the smallest diagram that makes the point — 6 to 15 nodes is usually right. Larger is allowed when the structure genuinely needs it, but every node costs the reader something.
+- Sequence groups may nest one level deep (a loop containing an alt) and no further.
+- For "beforeAfter", draw a single graph and let the change marks split it: the before side is drawn from "unchanged" and "removed" nodes, the after side from "unchanged", "added" and "modified".
+- Use "overviewDiagram" only for the shape of the whole change and how the chapters relate to each other. Anything narrower belongs to the chapter it explains.
+- Draw only what the diff and the PR description support. Where the description explains a flow, a lifecycle, a rollout or a decision, that is the best material for a diagram — but do not invent structure you cannot see in either.
 - Output ONLY the <narrative_review> JSON tags — no other text.`;
 
 /** Trims the largest file patches first, keeping their head and tail. */
