@@ -63,6 +63,31 @@ describe('buildNarrativePrompt', () => {
     expect(system).not.toContain('${');
   });
 
+  it('does not both discourage and encourage diagrams', () => {
+    /*
+     * The first two runs against a 45-file PR each produced exactly one
+     * chapter diagram out of eleven, because the section opened with "usually
+     * absent" and said "most chapters should not have one", then contradicted
+     * itself twelve rules later with "do not ration them to one". The model
+     * settled the contradiction by rationing. Whatever the wording, the
+     * section must not carry both halves of that argument at once.
+     */
+    const { system } = buildNarrativePrompt(prData());
+    expect(system).not.toContain('usually absent');
+    expect(system).not.toContain('Most chapters should not have one');
+    expect(system).toContain('Do not ration diagrams to one per review');
+  });
+
+  it('gives every diagram kind a trigger to match against', () => {
+    // `beforeAfter` went unused across both real runs: it had no cue a model
+    // could match a chapter to, only a definition.
+    const { system } = buildNarrativePrompt(prData());
+    for (const kind of ['architecture', 'beforeAfter', 'state', 'sequence']) {
+      expect(system).toContain(`- "${kind}":`);
+    }
+    expect(system).toContain('previously X, now Y');
+  });
+
   it('substitutes a placeholder for an empty description', () => {
     const { user } = buildNarrativePrompt(prData({ body: '' }));
     expect(user).toContain('(no description)');
