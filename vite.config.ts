@@ -14,5 +14,5 @@ export default defineConfig({
   // (the editor itself loads from the CDN). Neither dynamic import is ever
   // awaited on the server. Everything else the SSR bundle needs stays
   // external and ships as a production dependency.
-  ssr: { noExternal: ['@tabler/icons-react', '@monaco-editor/react'] },
+  ssr: { noExternal: ['@tabler/icons-react', '@monaco-editor/react', '@dagrejs/dagre'] },
 });

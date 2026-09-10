@@ -79,7 +79,8 @@ src/
   jobs/                cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.ts
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access,
                        palette (token contrast maths incl. `-soft` tints as grounds, a line scan for
-                       page-ground colours on a tint, + the type scale and one-label rules)
+                       page-ground colours on a tint, + the type scale and one-label rules),
+                       diagram-colour (SVG attributes take token() only — no literal, no raw `var(--er-`, no colour word)
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
   web/
     root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary, middleware: [sessionMiddleware]
@@ -113,7 +114,13 @@ src/
                        lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                        inline-diff-chunk (+ .module.css; useFetcher → /api/github/file, snippets per hunk group,
                        lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme), review-banners, risk-score,
-                       use-narrative-keyboard), notifications/ (job-notifications: fetch-polls api/me/jobs/terminal with
+                       use-narrative-keyboard,
+                       diagram/ (SSR'd SVG: text-metrics (estimated widths — the server cannot measure a string),
+                       change-style (change → token; nodes are outlined, never filled), graph-layout (dagre, compound +
+                       multigraph; beforeAfter splits into two panels off the change marks), sequence-layout (hand-rolled
+                       columns × rows), graph-svg / sequence-svg (painters), diagram-figure (the `data-bleed` figure:
+                       1:1 with horizontal scroll, legend, caption), diagram-modal (full-screen viewBox pan/zoom),
+                       diagram.module.css)), notifications/ (job-notifications: fetch-polls api/me/jobs/terminal with
                        a 30 s overlap, toasts once per job id, suppressed on that job's pages, browser Notification when
                        hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
     stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
@@ -348,8 +355,8 @@ the container without breaking `npm run dev`, which is exactly how an earlier
 image came to build and not boot.
 
 The opposite trap applies to packages. `@tabler/icons-react`,
-`@monaco-editor/react`, `monaco-editor` and `@fontsource/*` are
-**devDependencies** bundled into `build/server` by `ssr.noExternal`, so the
+`@monaco-editor/react`, `monaco-editor`, `@dagrejs/dagre` and `@fontsource/*`
+are **devDependencies** bundled into `build/server` by `ssr.noExternal`, so the
 image never installs them. Importing one from a module that runs on the server
 at runtime, rather than through the bundle, fails only in the container.
 

@@ -10,11 +10,13 @@ import { z } from 'zod';
  * graphs, and `sequence` is its own thing because it genuinely is one.
  *
  * `beforeAfter` deliberately carries no explicit side field. A node's `change`
- * already says which column it belongs in — the before column draws
- * `unchanged` and `removed`, the after column draws `unchanged`, `added` and
- * `modified` — and a second field saying the same thing is a second field the
- * model can contradict. The cost is that a node moving between groups cannot
- * be drawn, since a node exists exactly once; that is rare enough to accept.
+ * already says which columns it belongs in — the before column draws what
+ * existed before (`unchanged`, `modified`, `removed`) and the after column
+ * draws what exists now (`unchanged`, `modified`, `added`), so a modified node
+ * appears in both, which is the truth of it: it was there, and it is
+ * different. A second field saying the same thing is a second field the model
+ * can contradict. The cost is that a node moving between groups cannot be
+ * drawn, since a node exists exactly once; that is rare enough to accept.
  *
  * A diagram here describes a *change*, not a system. That is what the `change`
  * marks on every node and edge are for: an unchanged architecture is what a

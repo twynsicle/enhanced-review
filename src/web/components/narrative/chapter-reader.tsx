@@ -181,7 +181,12 @@ export function ChapterReader({
             actions={<RerunButton jobId={jobId} />}
           />
         ) : (
-          <ChapterCard chapter={activeChapter} chapterIndex={activeIndex} {...refs} />
+          <ChapterCard
+            chapter={activeChapter}
+            chapterIndex={activeIndex}
+            onSelectFile={onSelectFile}
+            {...refs}
+          />
         )}
       </section>
     </div>
