@@ -17,6 +17,7 @@ const RECORD: ReviewJobRecord = {
     baseSha: 'b',
   },
   status: 'done',
+  scheduleId: null,
   headSha: 'h',
   startedAt: null,
   completedAt: null,

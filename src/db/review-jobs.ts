@@ -21,6 +21,8 @@ export interface ReviewJobRecord {
   cancelledAt: Date | null;
   errorMessage: string | null;
   riskScore: number | null;
+  /** The schedule that launched this job, or null for a manual submit. */
+  scheduleId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +48,7 @@ const jobSelect = {
   cancelledAt: true,
   errorMessage: true,
   riskScore: true,
+  scheduleId: true,
   createdAt: true,
   updatedAt: true,
   user: { select: { githubLogin: true } },
@@ -63,11 +66,19 @@ export interface CreateJobInput {
   /** A `ReviewTarget`; validated by the caller, stored verbatim. */
   target: Prisma.InputJsonValue;
   headSha: string;
+  /** Set by a scheduler tick so the job can say where it came from. */
+  scheduleId?: string | null;
 }
 
 export async function createJob(input: CreateJobInput): Promise<ReviewJobRecord> {
   const row = await prisma.reviewJob.create({
-    data: { userId: input.userId, target: input.target, headSha: input.headSha, status: 'pending' },
+    data: {
+      userId: input.userId,
+      target: input.target,
+      headSha: input.headSha,
+      scheduleId: input.scheduleId ?? null,
+      status: 'pending',
+    },
     select: jobSelect,
   });
   return toRecord(row);
