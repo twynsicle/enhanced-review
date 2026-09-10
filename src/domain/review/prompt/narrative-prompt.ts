@@ -133,6 +133,12 @@ A diagram is optional and usually absent. There are two places one may go: "over
   ]
 }
 
+Choosing a kind — reach for the one that answers the question a reviewer actually has:
+- "architecture": the map. What parts exist, how they connect, and where this PR attached to what was already there. Right when the change adds or rewires a component rather than only altering behaviour inside one. Use "groups" for layers or boundaries. Most nodes will be "unchanged", and that is the point: the few that are not are what a reviewer must look at.
+- "beforeAfter": one procedure, ordering or structure that the PR rearranged. Right when the question is "what is different now" — especially a step inserted into an existing sequence, or an order that changed. These are often four or five nodes, and small is fine.
+- "state": a lifecycle with named states and the transitions between them. Right when the PR introduces or changes a status column, a lease, a retry policy, or anything with a fixed vocabulary of states.
+- "sequence": what happens in what order between several participants, especially when one call can end several different ways. Right when ordering, timing or branching is the thing to check.
+
 Rules for diagrams:
 - A diagram here describes a CHANGE, not a system. Mark every node and edge with what this PR did to it. A diagram in which nothing is added, removed or modified is documentation rather than review, and should not be included at all.
 - Include one only when it shows something the prose cannot: a shape, an ordering, a branch, a cycle, a boundary being crossed. If a chapter is a list of small edits, omit the diagram. Most chapters should not have one.
@@ -142,8 +148,10 @@ Rules for diagrams:
 - Keep labels short: node and group labels at most ${String(DIAGRAM_LIMITS.labelChars)} characters, edge labels at most ${String(DIAGRAM_LIMITS.edgeLabelChars)}, sequence message labels at most ${String(DIAGRAM_LIMITS.messageChars)}, captions at most ${String(DIAGRAM_LIMITS.captionChars)}. A label that has become a sentence belongs in the caption or the chapter description instead.
 - Prefer the smallest diagram that makes the point — 6 to 15 nodes is usually right. Larger is allowed when the structure genuinely needs it, but every node costs the reader something.
 - Sequence groups may nest one level deep (a loop containing an alt) and no further.
+- In an "alt" group, the branch labels and the messages inside them must say what actually DIFFERS between the branches. Three branches that read the same defeat the reason for drawing them side by side: if one path retries with a backoff, one records a run and one returns immediately, that is what the labels have to show. A reviewer reads these against each other.
 - For "beforeAfter", draw a single graph and let the change marks split it: the before side is drawn from "unchanged" and "removed" nodes, the after side from "unchanged", "added" and "modified".
-- Use "overviewDiagram" only for the shape of the whole change and how the chapters relate to each other. Anything narrower belongs to the chapter it explains.
+- "overviewDiagram" is the map of the change, not your best picture. Its kind must be "architecture" or "beforeAfter". It answers "what is the shape of this pull request, and where does it touch the system", so its nodes should span the change rather than detail one part of it. A lifecycle, a single flow, or one subsystem's internals belongs to a chapter however good a picture it makes. If nothing at that altitude is worth drawing, omit "overviewDiagram" rather than promoting a narrower diagram into it.
+- A large pull request that moves structure around usually supports more than one diagram; a small one usually supports none. Do not ration them to one and do not give every chapter one.
 - Draw only what the diff and the PR description support. Where the description explains a flow, a lifecycle, a rollout or a decision, that is the best material for a diagram — but do not invent structure you cannot see in either.
 - Output ONLY the <narrative_review> JSON tags — no other text.`;
 
