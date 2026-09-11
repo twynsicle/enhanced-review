@@ -44,9 +44,6 @@ export interface ChapterReaderProps {
   review: NarrativeReview;
   target: ReviewTarget;
   pullMetadata: PullMetadata | null;
-  /** Refs the inline diffs compare: the target's base SHA and the reviewed head SHA. */
-  baseRef: string;
-  headRef: string;
   /** Active section when the URL names none (or an unknown one). */
   initialActiveId: string;
   jobId: string;
@@ -58,19 +55,17 @@ export interface ChapterReaderProps {
  * Two-column editorial reader: chapters + files on the left, the active
  * section on the right. Owns the keyboard bindings, the resizable sidebar
  * and the `?ch=` / `?file=` URL state (`?file=` wins when both are set; the
- * chapter is what comes back when the file view is closed).
+ * chapter is what comes back when the file view is closed). Inline diffs read
+ * their files from the `FileSource` the caller wraps it in.
  */
 export function ChapterReader({
   review,
   target,
   pullMetadata,
-  baseRef,
-  headRef,
   initialActiveId,
   jobId,
   jobAuthor,
 }: ChapterReaderProps) {
-  const refs = { owner: target.owner, repo: target.repo, baseRef, headRef };
   const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const sections = useMemo(() => readerSections(review), [review]);
@@ -169,12 +164,7 @@ export function ChapterReader({
 
       <section aria-live="polite" className={classes.main}>
         {activeFile ? (
-          <FileView
-            filename={activeFile}
-            chapters={review.chapters}
-            files={review.files}
-            {...refs}
-          />
+          <FileView filename={activeFile} chapters={review.chapters} files={review.files} />
         ) : activeId === RISK_SECTION_ID && review.riskAssessment ? (
           <RiskCard assessment={review.riskAssessment} />
         ) : !activeChapter ? (
@@ -191,7 +181,6 @@ export function ChapterReader({
             chapter={activeChapter}
             chapterIndex={activeIndex}
             onSelectFile={onSelectFile}
-            {...refs}
           />
         )}
       </section>

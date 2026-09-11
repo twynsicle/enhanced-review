@@ -1,15 +1,15 @@
 import { Box, Group, Skeleton, Text, UnstyledButton, useComputedColorScheme } from '@mantine/core';
 import type { editor, IDisposable } from 'monaco-editor';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useFetcher } from 'react-router';
 import type { FileAtRef, GithubError, GithubResult } from '@/domain/github/types';
+import type { FilePair } from '@/domain/review/bundle';
 import {
   buildInlineDiffSnippets,
   type InlineDiffSnippet,
 } from '@/domain/review/inline-diff-snippets';
 import { detectLanguage } from '@/domain/review/language-map';
 import type { DiffChunk } from '@/domain/review/narrative';
-import type { FileResponse } from '@/web/lib/github-api';
+import { useFilePair } from '@/web/components/narrative/file-source';
 import { useHydrated } from '@/web/lib/use-hydrated';
 import { token } from '@/web/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
@@ -42,10 +42,11 @@ const notFound = (side: GithubResult<FileAtRef>) => !side.ok && side.error.kind 
 
 /**
  * The state machine over the two sides: both `not-found` is an error
- * (the viewer lost the repo, or the SHAs are gone); one `not-found` is a
- * file added or deleted on that side, shown against empty content.
+ * (the viewer lost the repo, the SHAs are gone, or the bundle does not carry
+ * the file); one `not-found` is a file added or deleted on that side, shown
+ * against empty content.
  */
-function resolveFileState(body: FileResponse | undefined, filename: string): FetchState {
+function resolveFileState(body: FilePair | undefined, filename: string): FetchState {
   if (!body) return { kind: 'loading' };
   const { base, head } = body;
   if (notFound(base) && notFound(head)) return { kind: 'error', error: { kind: 'not-found' } };
@@ -82,7 +83,7 @@ function describeError(error: GithubError): string {
     case 'no-access':
       return "You don't have access to this repo on GitHub — the inline diff can't be loaded, but the review chapters are still readable.";
     case 'not-found':
-      return 'GitHub returned 404 for this file at both refs. The repo or commit may have been deleted.';
+      return "This file isn't available at either commit.";
     case 'too-large':
       return 'This file is too large to preview inline.';
     case 'rate-limited':
@@ -269,43 +270,15 @@ function SnippetEditor({
 }
 
 /**
- * One file's reviewer-selected hunks: both blobs come from `/api/github/file`
- * in one round trip, are sliced to the lines around each hunk group
- * (`buildInlineDiffSnippets`) and shown in one Monaco `DiffEditor` per group;
- * "Show full file" swaps in the whole pair. A rejected token never reaches
- * here — the loader redirects to `/relink` and the fetcher follows.
+ * One file's reviewer-selected hunks: both sides come from the surrounding
+ * `FileSource` (GitHub or an embedded bundle), are sliced to the lines around
+ * each hunk group (`buildInlineDiffSnippets`) and shown in one Monaco
+ * `DiffEditor` per group; "Show full file" swaps in the whole pair.
  */
-export function InlineDiffChunk({
-  chunk,
-  owner,
-  repo,
-  baseRef,
-  headRef,
-}: {
-  chunk: DiffChunk;
-  owner: string;
-  repo: string;
-  baseRef: string;
-  headRef: string;
-}) {
-  const fetcher = useFetcher<FileResponse>();
-  const load = fetcher.load;
-  const href = `/api/github/file?${new URLSearchParams({
-    owner,
-    repo,
-    path: chunk.filename,
-    base: baseRef,
-    head: headRef,
-  }).toString()}`;
-  useEffect(() => {
-    void load(href);
-  }, [load, href]);
-
+export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
+  const pair = useFilePair(chunk.filename);
   const [expanded, setExpanded] = useState(false);
-  const state = useMemo(
-    () => resolveFileState(fetcher.data, chunk.filename),
-    [fetcher.data, chunk.filename],
-  );
+  const state = useMemo(() => resolveFileState(pair, chunk.filename), [pair, chunk.filename]);
 
   const snippets = useMemo<InlineDiffSnippet[]>(() => {
     if (state.kind !== 'ok') return [];

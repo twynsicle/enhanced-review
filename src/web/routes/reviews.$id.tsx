@@ -11,6 +11,7 @@ import { readGithubToken } from '@/web/auth/cookies.server';
 import { AppError } from '@/web/components/app-error';
 import { JobNotFound } from '@/web/components/jobs/job-not-found';
 import { ChapterReader } from '@/web/components/narrative/chapter-reader';
+import { GithubFileSource } from '@/web/components/narrative/file-source';
 import { PageShell } from '@/web/components/page-shell';
 import { StalenessBanner, TruncationBanner } from '@/web/components/narrative/review-banners';
 import { parseFormData, parseParams, parseSearchParams } from '@/web/lib/parse.server';
@@ -103,17 +104,22 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {
       {loaderData.isStale && (
         <StalenessBanner jobId={job.id} commitsAhead={loaderData.commitsAhead} />
       )}
-      <ChapterReader
-        key={job.id}
-        review={review}
-        target={job.target}
-        pullMetadata={loaderData.pullMetadata}
+      <GithubFileSource
+        owner={job.target.owner}
+        repo={job.target.repo}
         baseRef={job.target.baseSha}
         headRef={job.headSha ?? ''}
-        initialActiveId={loaderData.initialActiveId}
-        jobId={job.id}
-        jobAuthor={job.githubLogin}
-      />
+      >
+        <ChapterReader
+          key={job.id}
+          review={review}
+          target={job.target}
+          pullMetadata={loaderData.pullMetadata}
+          initialActiveId={loaderData.initialActiveId}
+          jobId={job.id}
+          jobAuthor={job.githubLogin}
+        />
+      </GithubFileSource>
     </PageShell>
   );
 }

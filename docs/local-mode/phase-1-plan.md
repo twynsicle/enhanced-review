@@ -39,15 +39,21 @@ the GitHub route returns: `absent` becomes `not-found`, language comes from
 hold becomes `not-found` on both sides.
 
 **`FileSource`** (`src/web/components/narrative/file-source.tsx`): a context
-carrying a `useFilePair(path)` hook. The hook returns `{ base, head }`, or
-`undefined` while loading. The provider fixes it once, so the order of hook
-calls never changes between renders.
+holding which source is in use, read by one `useFilePair(path)` hook. The hook
+returns `{ base, head }`, or `undefined` while loading.
 
-- `GithubFileSource({ owner, repo, baseRef, headRef })`: today's
+- `GithubFileSource({ owner, repo, baseRef, headRef })`: the hook runs today's
   `useFetcher` + effect, moved out of `InlineDiffChunk` without changing
   behaviour.
-- `EmbeddedFileSource({ bundle })`: a synchronous `filePair` lookup, with no
-  hooks.
+- `EmbeddedFileSource({ bundle })`: every pair is precomputed once per
+  bundle, so the hook's answer is a stable lookup.
+
+_Deviation, found while building it:_ the first cut put a hook in the context
+itself. oxlint's React rules reject that ("Hooks must be the same function on
+every render"), and they reject a lazy cache mutated after render. The context
+now carries data. `useFilePair` always mounts a fetcher, which stays idle under
+an embedded source, so **the report needs a data router**: `createHashRouter`
+rather than a plain `HashRouter` (A5, Phase 2).
 
 `InlineDiffChunk` keeps `resolveFileState` and everything downstream of it.
 Only the source of the pair changes.
