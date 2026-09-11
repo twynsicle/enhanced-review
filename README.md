@@ -15,7 +15,8 @@ review and rebuilt for multiple users.
   layering rules, module conventions, and the traps that only show up in the
   container. The per-area detail it points to lives in
   [.claude/rules/](.claude/rules/).
-- **What is not built yet** — [docs/BACKLOG.md](docs/BACKLOG.md)
+- **What is not built yet** — the `Backlog` of the Linear team
+  [enhanced-reviews](https://linear.app/lemon-dev/team/ER/backlog)
 
 ## Tech stack
 
