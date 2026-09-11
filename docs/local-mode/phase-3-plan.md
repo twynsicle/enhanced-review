@@ -46,9 +46,13 @@ package other than the Agent SDK (A4). `config/host-env.ts` is fine: it reads
 
 ## Stage files
 
-One run folder: `./er-reviews/<slug>/<yyyymmdd-hhmmss>/`, where the slug is
-`pr-<n>`, `branch-<name>` or `staged`. `--from <stage>` reuses the newest
-folder for that slug and runs from that stage onwards.
+One run folder: `<repo root>/er-reviews/<slug>/<yyyymmdd-hhmmss>/`, where
+the slug is `pr-<n>`, `branch-<name>` or `staged` (a second run in the same
+second gets `-2`). `er-reviews/` holds a `.gitignore` of `*`, so it ignores
+itself and the reviewed repository needs no entry. (This repository lists
+`/er-reviews/` in its own `.gitignore` anyway, because Prettier reads only the
+root one.) `--from <stage>` reuses
+the newest folder for that slug and runs from that stage onwards.
 
 | Stage  | Reads                         | Writes                                                                                          |
 | ------ | ----------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -64,11 +68,17 @@ folder for that slug and runs from that stage onwards.
 - `meta: ReviewMeta`;
 - `files: ReviewFile[]`, every changed file, each skipped one carrying its
   reason (`generated`, `vendored`, `built-in` or `binary`);
-- `hunks: DiffHunk[]`, from the reviewed files only;
+- `renamedFrom`, the old path of each renamed or copied file;
+- `hunks: DiffHunk[]`, from the reviewed files only, numbered across the
+  change in file order (each file is diffed on its own, so user diff
+  settings cannot hide a hunk from the catalog);
 - `contents`, a record of `EmbeddedFile` for every reviewed file. It uses the
   bundle's own shape, so render copies it straight across. A rename's base
   side is read from its old path. Either side over 1 MB is `too-large`
-  (A10).
+  (A10);
+- `commits`, the subjects and bodies of the commits under review (none for
+  staged), for the prompt when there is no PR description;
+- `dirty`, the working-tree changes the review leaves out.
 
 The hunk files annotate each hunk with its id on the line above its `@@`
 header, so the agent can match the table to the text.
@@ -176,12 +186,12 @@ only when the run stage is in range (a real run from Phase 4, or `--stub`).
    working-directory notes, Files Changed, skipped files, Changed Hunks,
    where the hunk files are).
 6. **Stub run, parse, render, `--from`.** Stamp-based shell rebuild; open in
-   the browser. `.gitignore` gets `/er-reviews/`.
+   the browser.
 7. **PR worktree lifecycle** and the signal handlers.
 
 Map files are updated in the commit that needs them: `AGENTS.md` (layout,
-scripts, the new guardrail), a new `.claude/rules/cli.md` once the area has
-real detail (commit 6), and `.gitignore`.
+scripts, the new guardrail) and a new `.claude/rules/cli.md` once the area has
+real detail (commit 6).
 
 ## Verification
 

@@ -58,16 +58,16 @@ export const HOST_RUNNERS: Runners = { git: runGit, gh: runGh };
 
 export class Shell {
   readonly cwd: string;
-  readonly #runners: Runners;
+  readonly runners: Runners;
 
   constructor(cwd: string, runners: Runners = HOST_RUNNERS) {
     this.cwd = cwd;
-    this.#runners = runners;
+    this.runners = runners;
   }
 
   /** The same runners in another directory. */
   at(cwd: string): Shell {
-    return new Shell(cwd, this.#runners);
+    return new Shell(cwd, this.runners);
   }
 
   /** Runs git and returns its stdout; a non-zero exit throws. */
@@ -80,7 +80,7 @@ export class Shell {
   }
 
   tryGit(args: readonly string[], env?: Record<string, string>): Promise<GitRunResult> {
-    return this.#runners.git({ args, cwd: this.cwd, env });
+    return this.runners.git({ args, cwd: this.cwd, env });
   }
 
   /** Runs gh and returns its stdout; a non-zero exit, or no gh on PATH, throws. */
@@ -95,7 +95,7 @@ export class Shell {
   /** Like `gh`, but reports failure in the result; a missing gh is exit `null`. */
   async tryGh(args: readonly string[]): Promise<GitRunResult> {
     try {
-      return await this.#runners.gh({ args, cwd: this.cwd });
+      return await this.runners.gh({ args, cwd: this.cwd });
     } catch (error) {
       const message =
         (error as NodeJS.ErrnoException).code === 'ENOENT'

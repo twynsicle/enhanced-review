@@ -2,6 +2,7 @@ node_modules
 build
 .react-router
 screenshots
+er-reviews
 docs
 .env
 .env.*

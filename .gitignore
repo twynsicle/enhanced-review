@@ -30,3 +30,6 @@ npm-debug.log*
 
 # Prisma client output (npm run db:generate / postinstall)
 /src/db/generated/
+
+# er review runs (they ignore themselves; listed for Prettier, which reads only this file)
+/er-reviews/

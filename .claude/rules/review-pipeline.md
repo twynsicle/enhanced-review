@@ -32,7 +32,8 @@ src/domain/
                      the report's er-bundle element: injectBundle escapes every <, readEmbeddedBundle),
                      language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
     clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
-                     verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists)
+                     verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists; the *Details/parseChangedFiles variants keep a
+                     rename's old path and the binary flag, for the local CLI)
     prompt/          pure: ai-file-filter, diff-hunk-catalog (H0001… ids), narrative-prompt (system + user, truncation),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema),
                      parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own
