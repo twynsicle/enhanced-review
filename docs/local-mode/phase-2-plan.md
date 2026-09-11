@@ -13,10 +13,12 @@ local JSON file.
 **Entry** (`src/web/viewer/`, which sits in `web` for layering, so it may
 import React and the narrative components but nothing `.server`):
 
-- `index.html` is the page. Its head carries the same pre-paint colour-scheme
-  and layout-width scripts as `root.tsx`. Its body has
+- `index.html` is the page. Its body has
   `<script id="er-bundle" type="application/json"></script>`, the one
-  placeholder both the dev server and the render stage fill.
+  placeholder both the dev server and the render stage fill. It has no
+  pre-paint scripts: those exist in `root.tsx` for SSR, and the report renders
+  on the client only, where `MantineProvider` applies the stored scheme in a
+  layout effect before anything paints.
 - `main.tsx` does `createRoot`, then `MantineProvider` with the app's `theme`,
   `cssVariablesResolver` and `colorSchemeManager`, then
   `RouterProvider(createHashRouter([...]))`. `theme.css` is imported, so fonts
@@ -110,6 +112,14 @@ that break the report fail the gate. `tsconfig.json` includes the new config.
 3. **Bundle in HTML.** `bundle-html.ts` with tests, the placeholder, the dev
    hook with `ER_BUNDLE`, and the version-mismatch and invalid screens. The
    proof page's hard-coded bundle goes; the dev hook defaults to the sample.
+   - _Result:_ the full reader renders from the sample in `viewer:dev` and
+     from `file://`, including `#/?ch=` deep links, the too-large and missing
+     states, and the mismatch screen. The shell is now 1.63 MB, with dagre,
+     markdown and highlight.js inlined.
+   - Found in passing: snippets misalign by one line around insertion-only
+     and deletion-only hunks. This is shared reader code, so the hosted app
+     has it too. Filed as ER-14 and not fixed here; the sample shows it in
+     "Pausing and the due queue".
 4. **Report page.**
    - `viewer-page.tsx` with the slim header, `ChapterReader` +
      `EmbeddedFileSource`, and the document title from the review.

@@ -2,6 +2,8 @@ import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+import type { ReviewBundle } from './src/domain/review/bundle.ts';
+import { BUNDLE_PLACEHOLDER, injectBundle } from './src/domain/review/bundle-html.ts';
 
 const VIEWER_ROOT = fileURLToPath(new URL('./src/web/viewer', import.meta.url));
 const OUT_DIR = fileURLToPath(new URL('./build/viewer', import.meta.url));
@@ -32,8 +34,36 @@ function inlineIntoHtml(): Plugin {
       if (/(?:src|href)="\.\//.test(html)) {
         throw new Error('viewer build: the page still references a separate file');
       }
+      if (!html.includes(BUNDLE_PLACEHOLDER)) {
+        throw new Error('viewer build: the bundle placeholder did not survive the build');
+      }
       for (const entry of readdirSync(OUT_DIR)) rmSync(join(OUT_DIR, entry), { recursive: true });
       writeFileSync(join(OUT_DIR, 'viewer.html'), html);
+    },
+  };
+}
+
+/**
+ * `viewer:dev` only: fills the placeholder the way the render stage will,
+ * with the JSON file named by `ER_BUNDLE`, or the committed sample. The sample
+ * is loaded through the dev server so its `@/` imports resolve, and afresh on
+ * every page load, so editing it needs no restart.
+ */
+function devBundle(): Plugin {
+  return {
+    name: 'er-viewer-dev-bundle',
+    apply: 'serve',
+    transformIndexHtml: {
+      order: 'post',
+      async handler(html, { server }) {
+        const file = process.env.ER_BUNDLE;
+        if (file) return injectBundle(html, JSON.parse(readFileSync(file, 'utf8')) as ReviewBundle);
+        if (!server) throw new Error('viewer:dev: no dev server to load the sample through');
+        const sample = (await server.ssrLoadModule('/sample-bundle.ts')) as {
+          SAMPLE_BUNDLE: ReviewBundle;
+        };
+        return injectBundle(html, sample.SAMPLE_BUNDLE);
+      },
     },
   };
 }
@@ -47,13 +77,15 @@ export default defineConfig({
   base: './',
   publicDir: false,
   resolve: { tsconfigPaths: true },
-  plugins: [inlineIntoHtml()],
+  plugins: [devBundle(), inlineIntoHtml()],
   build: {
     outDir: OUT_DIR,
     emptyOutDir: true,
     assetsInlineLimit: Number.MAX_SAFE_INTEGER,
     cssCodeSplit: false,
     modulePreload: false,
+    // One chunk is the point; Vite's size warning assumes a code-split app.
+    chunkSizeWarningLimit: 10_000,
     rolldownOptions: { output: { codeSplitting: false } },
   },
 });

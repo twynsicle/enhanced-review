@@ -27,7 +27,8 @@ src/domain/
                      DIAGRAM_LIMITS, hasUniformChange), target.ts (ReviewTarget schema, describeTarget),
                      review-meta.ts (ReviewMeta: the reader's summary header; reviewMetaFromJob for hosted jobs),
                      bundle.ts (ReviewBundle: a review + meta + both sides of each file, for offline rendering;
-                     schemaVersion, no back-compat; parseBundle, filePair),
+                     schemaVersion, no back-compat; parseBundle, filePair), bundle-html.ts (the bundle as the text of
+                     the report's er-bundle element: injectBundle escapes every <, readEmbeddedBundle),
                      language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
     clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
                      verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists)

@@ -9,8 +9,10 @@ import type { DiffChunk, ResolvedDiffHunk } from '@/domain/review/narrative';
  * file the bundle does not carry. `npm run viewer:dev` renders it by default,
  * so a UI change never needs a Claude run.
  *
- * Hunk spans are written by hand against the contents below; the sample test
- * checks that every chunk's file is embedded except the deliberate gap.
+ * Hunk spans are written by hand against the contents below, the way the
+ * hunk catalog parses git's headers: a zero-length span starts at the line
+ * before the change, and git's line 0 becomes 1. The sample test checks that
+ * every chunk's file is embedded except the deliberate gap.
  */
 
 const lines = (...rows: string[]) => [...rows, ''].join('\n');
@@ -123,8 +125,8 @@ const H = {
   intervals: hunk('H0003', 2, [10, 1], [12, 8]),
   lookup: hunk('H0004', 3, [13, 1], [22, 1]),
   pausedGuard: hunk('H0005', 4, [16, 0], [26, 1]),
-  queue: hunk('H0006', 0, [0, 0], [1, 19]),
-  cron: hunk('H0007', 0, [1, 9], [0, 0]),
+  queue: hunk('H0006', 0, [1, 0], [1, 19]),
+  cron: hunk('H0007', 0, [1, 9], [1, 0]),
   schema: hunk('H0008', 0, [1, 4], [1, 2400]),
   docs: hunk('H0009', 0, [12, 3], [12, 9]),
 };
@@ -167,12 +169,12 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         {
           name: 'Pure functions',
           impact: 'lowers',
-          detail: '`isDue` and `collectDue` take a clock, so they are straightforward to test.',
+          detail: 'isDue and collectDue take a clock, so they are straightforward to test.',
         },
         {
           name: 'Stored schedules',
           impact: 'neutral',
-          detail: 'Existing rows need a `paused` value; the migration is not part of this diff.',
+          detail: 'Existing rows need a paused value; the migration is not part of this diff.',
         },
       ],
     },
@@ -239,7 +241,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
           {
             type: 'rationale',
             title: 'A table scales where a ternary does not',
-            text: '`INTERVALS` is typed `Record<Cadence, number>`, so adding a cadence without an interval is a type error.',
+            text: 'INTERVALS is typed as a record over every cadence, so adding a cadence without an interval is a type error.',
           },
           {
             type: 'highlight',
@@ -260,7 +262,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
           {
             type: 'context',
             title: 'Paused is checked first',
-            text: '`isDue` returns early for a paused schedule, so the clock is never read for it.',
+            text: 'isDue returns early for a paused schedule, so the clock is never read for it.',
           },
           {
             type: 'reference',
@@ -356,7 +358,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
           {
             type: 'context',
             title: 'Deleted, not flagged off',
-            text: 'Anything still importing `startNightlyReviews` now fails to build.',
+            text: 'Anything still importing startNightlyReviews now fails to build.',
           },
         ],
         diffChunks: [
