@@ -11,10 +11,12 @@ Successor to the `diffy` Electron proof of concept, narrowed to the narrative
 review and rebuilt for multiple users.
 
 - **Operating a running deployment** — [docs/OPERATIONS.md](docs/OPERATIONS.md)
-- **Working on the code** — [AGENTS.md](AGENTS.md) is the detailed map of the
-  tree: layering rules, module conventions, and the traps that only show up
-  in the container.
-- **What is not built yet** — [docs/BACKLOG.md](docs/BACKLOG.md)
+- **Working on the code** — [AGENTS.md](AGENTS.md) is the map of the tree:
+  layering rules, module conventions, and the traps that only show up in the
+  container. The per-area detail it points to lives in
+  [.claude/rules/](.claude/rules/).
+- **What is not built yet** — the `Backlog` of the Linear team
+  [enhanced-reviews](https://linear.app/lemon-dev/team/ER/backlog)
 
 ## Tech stack
 
@@ -227,9 +229,9 @@ and reviews live in this app with no write-back to the GitHub pull request.
 | `src/guardrails/` | Tests that read the repo and enforce its conventions              |
 | `prisma/`         | Schema and migrations                                             |
 
-`AGENTS.md` has the full tree, the layering rules the guardrails enforce, and
-the `*.server.ts` convention that keeps server-only code out of the browser
-bundle.
+`AGENTS.md` has the tree, the layering rules the guardrails enforce, and the
+`*.server.ts` convention that keeps server-only code out of the browser
+bundle; `.claude/rules/` holds the file-by-file detail for each area.
 
 ## Testing
 
