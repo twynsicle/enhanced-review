@@ -1,0 +1,391 @@
+import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/domain/review/bundle';
+import type { DiffChunk, ResolvedDiffHunk } from '@/domain/review/narrative';
+
+/**
+ * The report's committed sample: a small, made-up change to a made-up repo,
+ * shaped so one page exercises every state the reader has: an overview
+ * diagram, a risk assessment, a chapter diagram, Monaco diffs for a modified,
+ * an added and a removed file, a file too large to embed, and a chunk whose
+ * file the bundle does not carry. `npm run viewer:dev` renders it by default,
+ * so a UI change never needs a Claude run.
+ *
+ * Hunk spans are written by hand against the contents below; the sample test
+ * checks that every chunk's file is embedded except the deliberate gap.
+ */
+
+const lines = (...rows: string[]) => [...rows, ''].join('\n');
+
+const CADENCE_BASE = lines(
+  "import type { Clock } from './clock';",
+  '',
+  "export type Cadence = 'daily' | 'weekly';",
+  '',
+  'export interface Schedule {',
+  '  repo: string;',
+  '  cadence: Cadence;',
+  '}',
+  '',
+  'const DAY_MS = 24 * 60 * 60 * 1000;',
+  '',
+  'export function intervalMs(cadence: Cadence): number {',
+  "  return cadence === 'daily' ? DAY_MS : 7 * DAY_MS;",
+  '}',
+  '',
+  'export function isDue(schedule: Schedule, lastRun: number, clock: Clock): boolean {',
+  '  return clock.now() - lastRun >= intervalMs(schedule.cadence);',
+  '}',
+);
+
+const CADENCE_HEAD = lines(
+  "import type { Clock } from './clock';",
+  '',
+  "export type Cadence = 'hourly' | 'daily' | 'weekly';",
+  '',
+  'export interface Schedule {',
+  '  repo: string;',
+  '  cadence: Cadence;',
+  '  /** Paused schedules keep their cadence but never come due. */',
+  '  paused: boolean;',
+  '}',
+  '',
+  'const HOUR_MS = 60 * 60 * 1000;',
+  'const DAY_MS = 24 * HOUR_MS;',
+  '',
+  'const INTERVALS: Record<Cadence, number> = {',
+  '  hourly: HOUR_MS,',
+  '  daily: DAY_MS,',
+  '  weekly: 7 * DAY_MS,',
+  '};',
+  '',
+  'export function intervalMs(cadence: Cadence): number {',
+  '  return INTERVALS[cadence];',
+  '}',
+  '',
+  'export function isDue(schedule: Schedule, lastRun: number, clock: Clock): boolean {',
+  '  if (schedule.paused) return false;',
+  '  return clock.now() - lastRun >= intervalMs(schedule.cadence);',
+  '}',
+);
+
+const QUEUE_HEAD = lines(
+  "import { isDue, type Schedule } from './cadence';",
+  "import type { Clock } from './clock';",
+  '',
+  'export interface QueuedReview {',
+  '  repo: string;',
+  '  enqueuedAt: number;',
+  '}',
+  '',
+  '/** Collects every schedule that has come due, oldest run first. */',
+  'export function collectDue(',
+  '  schedules: readonly Schedule[],',
+  '  lastRuns: ReadonlyMap<string, number>,',
+  '  clock: Clock,',
+  '): QueuedReview[] {',
+  '  return schedules',
+  '    .filter((s) => isDue(s, lastRuns.get(s.repo) ?? 0, clock))',
+  '    .sort((a, b) => (lastRuns.get(a.repo) ?? 0) - (lastRuns.get(b.repo) ?? 0))',
+  '    .map((s) => ({ repo: s.repo, enqueuedAt: clock.now() }));',
+  '}',
+);
+
+const CRON_BASE = lines(
+  '// Superseded by src/scheduler: runs every review at 02:00 regardless of cadence.',
+  "import { schedule } from 'node-cron';",
+  "import { runAllReviews } from '../reviews/run-all';",
+  '',
+  'export function startNightlyReviews(): void {',
+  "  schedule('0 2 * * *', () => {",
+  '    void runAllReviews();',
+  '  });',
+  '}',
+);
+
+const SCHEMA_BASE = lines('{', '  "$id": "schedule.schema.json",', '  "type": "object"', '}');
+
+function hunk(
+  id: string,
+  fileOrder: number,
+  original: [number, number],
+  modified: [number, number],
+): ResolvedDiffHunk {
+  return {
+    id,
+    fileOrder,
+    original: { startLine: original[0], lineCount: original[1] },
+    modified: { startLine: modified[0], lineCount: modified[1] },
+  };
+}
+
+const H = {
+  cadenceType: hunk('H0001', 0, [3, 1], [3, 1]),
+  paused: hunk('H0002', 1, [7, 0], [8, 2]),
+  intervals: hunk('H0003', 2, [10, 1], [12, 8]),
+  lookup: hunk('H0004', 3, [13, 1], [22, 1]),
+  pausedGuard: hunk('H0005', 4, [16, 0], [26, 1]),
+  queue: hunk('H0006', 0, [0, 0], [1, 19]),
+  cron: hunk('H0007', 0, [1, 9], [0, 0]),
+  schema: hunk('H0008', 0, [1, 4], [1, 2400]),
+  docs: hunk('H0009', 0, [12, 3], [12, 9]),
+};
+
+const chunk = (filename: string, language: string, hunks: ResolvedDiffHunk[]): DiffChunk => ({
+  filename,
+  language,
+  hunks,
+});
+
+export const SAMPLE_BUNDLE: ReviewBundle = {
+  schemaVersion: BUNDLE_SCHEMA_VERSION,
+  generatedAt: '2026-09-11T09:00:00.000Z',
+  meta: {
+    repo: 'acme/widgets',
+    title: 'Add hourly and paused review schedules',
+    prNumber: 42,
+    baseRefName: 'main',
+    headRefName: 'feat/hourly-schedules',
+    authorLogin: 'sample-author',
+    description:
+      'Adds an hourly cadence and a `paused` flag to review schedules, and moves due-date maths into a table.\n\nThe nightly cron job is removed: the scheduler now owns every cadence.',
+    stats: null,
+  },
+  review: {
+    prTitle: 'Add hourly and paused review schedules',
+    overviewSummary:
+      'Scheduling moves from one nightly cron job to a **cadence table**. A schedule can now run hourly, daily or weekly, and can be paused without losing its cadence. A new queue collects whatever has come due, oldest first.\n\nThe cron job is deleted outright rather than kept behind a flag, so anything else that imported it breaks at build time rather than silently running twice.',
+    riskAssessment: {
+      score: 3,
+      summary: 'Moderate: every scheduled review now goes through new code.',
+      rationale:
+        'The due-date maths is small and easy to read, but it replaces the only scheduler the product had. A mistake here skips reviews quietly rather than failing loudly.',
+      factors: [
+        {
+          name: 'Replaces the only scheduler',
+          impact: 'raises',
+          detail: 'The nightly cron job is deleted in the same change that adds its replacement.',
+        },
+        {
+          name: 'Pure functions',
+          impact: 'lowers',
+          detail: '`isDue` and `collectDue` take a clock, so they are straightforward to test.',
+        },
+        {
+          name: 'Stored schedules',
+          impact: 'neutral',
+          detail: 'Existing rows need a `paused` value; the migration is not part of this diff.',
+        },
+      ],
+    },
+    files: [
+      { filename: 'src/scheduler/cadence.ts', status: 'modified', additions: 14, deletions: 3 },
+      { filename: 'src/scheduler/queue.ts', status: 'added', additions: 19, deletions: 0 },
+      { filename: 'src/legacy/cron.ts', status: 'removed', additions: 0, deletions: 9 },
+      {
+        filename: 'src/generated/schedule.schema.json',
+        status: 'modified',
+        additions: 2398,
+        deletions: 2,
+      },
+      { filename: 'docs/scheduling.md', status: 'modified', additions: 9, deletions: 3 },
+    ],
+    overviewDiagram: {
+      id: 'scheduling-shape',
+      kind: 'architecture',
+      title: 'Who decides when a review runs',
+      caption: 'The cadence table and the queue replace the nightly cron job.',
+      direction: 'right',
+      nodes: [
+        { id: 'schedules', label: 'stored schedules', kind: 'data', change: 'modified' },
+        {
+          id: 'cadence',
+          label: 'cadence table',
+          kind: 'code',
+          change: 'modified',
+          filename: 'src/scheduler/cadence.ts',
+          hunkIds: ['H0003', 'H0004'],
+        },
+        {
+          id: 'queue',
+          label: 'due queue',
+          kind: 'code',
+          change: 'added',
+          filename: 'src/scheduler/queue.ts',
+          hunkIds: ['H0006'],
+        },
+        {
+          id: 'cron',
+          label: 'nightly cron',
+          kind: 'code',
+          change: 'removed',
+          filename: 'src/legacy/cron.ts',
+          hunkIds: ['H0007'],
+        },
+        { id: 'runner', label: 'review runner', kind: 'code', change: 'unchanged' },
+      ],
+      edges: [
+        { from: 'schedules', to: 'cadence', change: 'unchanged' },
+        { from: 'cadence', to: 'queue', label: 'isDue', change: 'added' },
+        { from: 'queue', to: 'runner', change: 'added' },
+        { from: 'cron', to: 'runner', change: 'removed' },
+      ],
+    },
+    chapters: [
+      {
+        id: 'cadence-table',
+        title: 'Cadence becomes a table',
+        description:
+          'Due-date maths used to be a ternary between two cadences. It is now a lookup, which is what makes the third cadence a one-line change.',
+        insights: [
+          {
+            type: 'rationale',
+            title: 'A table scales where a ternary does not',
+            text: '`INTERVALS` is typed `Record<Cadence, number>`, so adding a cadence without an interval is a type error.',
+          },
+          {
+            type: 'highlight',
+            title: 'Check the hourly interval',
+            text: 'Hourly reviews on a busy repo run 24 times as often as before. Worth confirming the runner can take it.',
+          },
+        ],
+        diffChunks: [
+          chunk('src/scheduler/cadence.ts', 'typescript', [H.cadenceType, H.intervals, H.lookup]),
+        ],
+      },
+      {
+        id: 'pausing',
+        title: 'Pausing and the due queue',
+        description:
+          'A paused schedule keeps its cadence but never comes due. The new queue asks each schedule whether it is due and orders the answers.',
+        insights: [
+          {
+            type: 'context',
+            title: 'Paused is checked first',
+            text: '`isDue` returns early for a paused schedule, so the clock is never read for it.',
+          },
+          {
+            type: 'reference',
+            title: 'Never-run schedules sort first',
+            text: 'A repo with no last run counts as having run at time zero.',
+          },
+        ],
+        diffChunks: [
+          chunk('src/scheduler/cadence.ts', 'typescript', [H.paused, H.pausedGuard]),
+          chunk('src/scheduler/queue.ts', 'typescript', [H.queue]),
+        ],
+        diagram: {
+          id: 'due-check',
+          kind: 'sequence',
+          title: 'One pass of the due queue',
+          caption:
+            'collectDue asks each schedule in turn; a paused one answers without reading the clock.',
+          participants: [
+            {
+              id: 'queue',
+              label: 'collectDue',
+              kind: 'code',
+              change: 'added',
+              filename: 'src/scheduler/queue.ts',
+            },
+            {
+              id: 'cadence',
+              label: 'isDue',
+              kind: 'code',
+              change: 'modified',
+              filename: 'src/scheduler/cadence.ts',
+            },
+            { id: 'clock', label: 'Clock', kind: 'external', change: 'unchanged' },
+          ],
+          steps: [
+            {
+              type: 'message',
+              from: 'queue',
+              to: 'cadence',
+              label: 'isDue(schedule, lastRun)',
+              style: 'call',
+              change: 'added',
+            },
+            {
+              type: 'group',
+              style: 'alt',
+              branches: [
+                {
+                  label: 'paused',
+                  steps: [
+                    {
+                      type: 'message',
+                      from: 'cadence',
+                      to: 'queue',
+                      label: 'false',
+                      style: 'return',
+                      change: 'added',
+                    },
+                  ],
+                },
+                {
+                  label: 'active',
+                  steps: [
+                    {
+                      type: 'message',
+                      from: 'cadence',
+                      to: 'clock',
+                      label: 'now()',
+                      style: 'call',
+                      change: 'unchanged',
+                    },
+                    {
+                      type: 'message',
+                      from: 'cadence',
+                      to: 'queue',
+                      label: 'due?',
+                      style: 'return',
+                      change: 'unchanged',
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        id: 'clean-up',
+        title: 'The cron job goes',
+        description:
+          'The nightly job is deleted rather than disabled. The generated schema grows with the new field, and the docs change is described but was not captured.',
+        insights: [
+          {
+            type: 'context',
+            title: 'Deleted, not flagged off',
+            text: 'Anything still importing `startNightlyReviews` now fails to build.',
+          },
+        ],
+        diffChunks: [
+          chunk('src/legacy/cron.ts', 'typescript', [H.cron]),
+          chunk('src/generated/schedule.schema.json', 'json', [H.schema]),
+          chunk('docs/scheduling.md', 'markdown', [H.docs]),
+        ],
+      },
+    ],
+  },
+  files: {
+    'src/scheduler/cadence.ts': {
+      base: { kind: 'content', content: CADENCE_BASE },
+      head: { kind: 'content', content: CADENCE_HEAD },
+    },
+    'src/scheduler/queue.ts': {
+      base: { kind: 'absent' },
+      head: { kind: 'content', content: QUEUE_HEAD },
+    },
+    'src/legacy/cron.ts': {
+      base: { kind: 'content', content: CRON_BASE },
+      head: { kind: 'absent' },
+    },
+    'src/generated/schedule.schema.json': {
+      base: { kind: 'content', content: SCHEMA_BASE },
+      head: { kind: 'too-large' },
+    },
+  },
+};
+
+/** The one chunk file the sample leaves out on purpose, to show the missing-file state. */
+export const SAMPLE_MISSING_FILE = 'docs/scheduling.md';

@@ -36,7 +36,7 @@ import React and the narrative components but nothing `.server`):
 CLI can import it in Phase 3):
 
 - `injectBundle(html, bundle)` fills the placeholder. The JSON is escaped
-  (`<` becomes `<`), so a file containing `</script>` cannot break out.
+  (`<` becomes `\u003c`), so a file containing `</script>` cannot break out.
 - `readBundleText(doc)` is the inverse that the page uses.
 - Both are unit-tested, including a `</script>` round trip.
 
@@ -67,10 +67,9 @@ on reload, with no Claude run (D15).
   `STUB_REVIEW` has no diff chunks, so it cannot exercise Monaco, and it is
   server-only.
 - It covers:
-  - a summary with an overview diagram (reusing `web/test/diagram-fixtures`)
-    and a description;
+  - a summary with an overview diagram and a description;
   - a risk assessment;
-  - chapters with a diagram and Monaco chunks for a modified, an added and a
+  - chapters with a sequence diagram and Monaco chunks for a modified, an added and a
     removed file;
   - a `too-large` file;
   - one chunk whose file the bundle lacks (the both-sides error);
@@ -106,10 +105,11 @@ that break the report fail the gate. `tsconfig.json` includes the new config.
 
      The inlining moved out of `generateBundle` into `closeBundle`, after the
      write, because Rolldown's bundle object ignores `delete`.
-2. **Bundle in HTML.** `bundle-html.ts` with tests, the placeholder, the dev
+2. **Sample bundle** and its test. (Swapped with the bundle-in-HTML step so the
+   dev hook has a default to fall back on.)
+3. **Bundle in HTML.** `bundle-html.ts` with tests, the placeholder, the dev
    hook with `ER_BUNDLE`, and the version-mismatch and invalid screens. The
-   hard-coded bundle goes.
-3. **Sample bundle** and its test. `viewer:dev` defaults to it.
+   proof page's hard-coded bundle goes; the dev hook defaults to the sample.
 4. **Report page.**
    - `viewer-page.tsx` with the slim header, `ChapterReader` +
      `EmbeddedFileSource`, and the document title from the review.
