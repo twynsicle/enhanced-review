@@ -163,17 +163,18 @@ only when the run stage is in range (a real run from Phase 4, or `--stub`).
 2. **Targets.** `git.ts`, `targets.ts`, `platform.ts`. Tests use a temporary
    git repository with an origin remote for branch and staged mode, and
    canned `gh` JSON for PR mode.
-3. **Gather.** The run folder, the skip tier, changed files, the hunk catalog
+3. **Reader: skipped files.** The optional `skipped` reason on
+   `ReviewFile`, a marker in the sidebar, and a file view that says the file
+   was not reviewed and why. (Moved ahead of gather, whose `context.json`
+   uses the field.)
+4. **Gather.** The run folder, the skip tier, changed files, the hunk catalog
    and hunk files, embedded contents, `context.json` and the dirty-tree
    warning. Tests again use a temporary repository, including a rename, a
    binary file, a `linguist-generated` file and a file over 1 MB.
-4. **Prompt.** Export the existing instructions unchanged; add the local
+5. **Prompt.** Export the existing instructions unchanged; add the local
    delivery section (target, author, description or a pointer to `pr.md`,
    working-directory notes, Files Changed, skipped files, Changed Hunks,
    where the hunk files are).
-5. **Reader: skipped files.** The optional `skipped` reason on
-   `ReviewFile`, a marker in the sidebar, and a file view that says the file
-   was not reviewed and why.
 6. **Stub run, parse, render, `--from`.** Stamp-based shell rebuild; open in
    the browser. `.gitignore` gets `/er-reviews/`.
 7. **PR worktree lifecycle** and the signal handlers.

@@ -33,6 +33,13 @@ describe('the sample report bundle', () => {
     expect(overruns).toEqual([]);
   });
 
+  it('lists skipped files, which no chunk points at', () => {
+    const skipped = (SAMPLE_BUNDLE.review.files ?? []).filter((file) => file.skipped);
+    expect(skipped.length).toBeGreaterThan(0);
+    const cited = new Set(chunks.map((chunk) => chunk.filename));
+    expect(skipped.filter((file) => cited.has(file.filename))).toEqual([]);
+  });
+
   it('covers every file-side state the reader draws', () => {
     const kinds = Object.values(SAMPLE_BUNDLE.files).flatMap((f) => [f.base.kind, f.head.kind]);
     expect(new Set(kinds)).toEqual(new Set(['content', 'absent', 'too-large']));

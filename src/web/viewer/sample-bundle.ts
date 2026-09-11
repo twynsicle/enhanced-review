@@ -189,6 +189,20 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         deletions: 2,
       },
       { filename: 'docs/scheduling.md', status: 'modified', additions: 9, deletions: 3 },
+      {
+        filename: 'package-lock.json',
+        status: 'modified',
+        additions: 84,
+        deletions: 31,
+        skipped: 'built-in',
+      },
+      {
+        filename: 'docs/cadence-states.png',
+        status: 'added',
+        additions: 0,
+        deletions: 0,
+        skipped: 'binary',
+      },
     ],
     overviewDiagram: {
       id: 'scheduling-shape',

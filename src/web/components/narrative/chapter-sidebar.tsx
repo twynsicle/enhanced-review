@@ -1,4 +1,4 @@
-import { Box, Group, Stack, UnstyledButton } from '@mantine/core';
+import { Box, Group, Stack, UnstyledButton, VisuallyHidden } from '@mantine/core';
 import {
   RISK_SECTION_ID,
   type NarrativeChapter,
@@ -8,6 +8,7 @@ import {
 import { Caption } from '@/web/components/caption';
 import { RiskInlineLabel, RiskScoreBars } from '@/web/components/narrative/risk-score';
 import type { ReaderSection } from '@/web/components/narrative/sections';
+import { SKIP_REASON_LABEL } from '@/web/components/narrative/skipped-file';
 import classes from './chapter-sidebar.module.css';
 
 interface ChapterSidebarProps {
@@ -212,12 +213,15 @@ function FileTree({
         const active = file.filename === activeFile;
         const { dirname, basename } = splitFilename(file.filename);
         const showStats = file.additions > 0 || file.deletions > 0;
+        const skipped = file.skipped ? `Not reviewed: ${SKIP_REASON_LABEL[file.skipped]}` : null;
         return (
           <li key={file.filename}>
             <UnstyledButton
               className={classes.fileRow}
               aria-current={active ? 'true' : undefined}
               data-active={active || undefined}
+              data-skipped={skipped ? true : undefined}
+              title={skipped ?? undefined}
               onClick={() => onSelectFile(file.filename)}
             >
               <span className={classes.status} data-status={file.status}>
@@ -225,6 +229,7 @@ function FileTree({
               </span>
               <Box component="span" miw={0}>
                 <span className={classes.basename}>{basename}</span>
+                {skipped && <VisuallyHidden>{skipped}</VisuallyHidden>}
                 {dirname.length > 0 && <span className={classes.dirname}>{dirname}/</span>}
               </Box>
               {showStats ? (

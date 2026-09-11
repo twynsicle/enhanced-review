@@ -2,13 +2,14 @@ import { Group, Stack, Text, Title } from '@mantine/core';
 import type { DiffChunk, NarrativeChapter, ReviewFile } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
 import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
+import { SKIP_REASON_TEXT } from '@/web/components/narrative/skipped-file';
 import { token } from '@/web/theme/tokens';
 
 /**
  * File-only view: every chunk any chapter selected from one file, so the
  * reader sees the full diff context the reviewer chose independent of the
- * narrative order. A file listed in `files[]` with no chunk anywhere gets the
- * "no hunks" note instead.
+ * narrative order. A file listed in `files[]` with no chunk anywhere gets a
+ * note instead: why it was skipped, or that the reviewer chose no hunks.
  */
 export function FileView({
   filename,
@@ -113,8 +114,9 @@ export function FileView({
             background: `color-mix(in oklab, ${token('card')} 60%, transparent)`,
           }}
         >
-          The reviewer didn’t select any hunks for this file, so there’s no inline diff. The file
-          may still be listed because it changed — open it on GitHub to see the full diff.
+          {fileMeta?.skipped
+            ? SKIP_REASON_TEXT[fileMeta.skipped]
+            : 'The reviewer didn’t select any hunks for this file, so there’s no inline diff. It is listed because it changed.'}
         </Text>
       )}
     </Stack>

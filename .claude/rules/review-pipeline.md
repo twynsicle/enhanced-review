@@ -21,6 +21,7 @@ src/domain/
                      classifyGithubError, toResult), repos, pulls, branches (GraphQL), resolve-target (re-pin SHAs),
                      pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getCommitsAhead); types.ts shared
   review/            shared: narrative.ts (NarrativeReview Zod schema + types; chapter.diagram? + overviewDiagram?;
+                     ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
                      SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's two synthesised sections),
                      diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,

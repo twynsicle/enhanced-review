@@ -54,11 +54,21 @@ export const ReviewFileStatusSchema = z.enum([
 ]);
 export type ReviewFileStatus = z.infer<typeof ReviewFileStatusSchema>;
 
+/**
+ * Why a changed file was left out of the review: marked `linguist-generated`
+ * or `linguist-vendored` in `.gitattributes`, on the built-in list of
+ * lockfiles, bundles and snapshots (`prompt/ai-file-filter.ts`), or binary.
+ */
+export const ReviewFileSkipReasonSchema = z.enum(['generated', 'vendored', 'built-in', 'binary']);
+export type ReviewFileSkipReason = z.infer<typeof ReviewFileSkipReasonSchema>;
+
 export const ReviewFileSchema = z.object({
   filename: z.string(),
   status: ReviewFileStatusSchema,
   additions: z.number().int(),
   deletions: z.number().int(),
+  /** Set when the file changed but was not reviewed. */
+  skipped: ReviewFileSkipReasonSchema.optional(),
 });
 export type ReviewFile = z.infer<typeof ReviewFileSchema>;
 

@@ -44,9 +44,10 @@ src/web/
                      ?ch=/?file= state; takes review + ReviewMeta + an `actions` slot),
                      sections.ts (readerSections: the one ordered list of sections — summary, risk when there is an
                      assessment, then the chapters — that the sidebar renders and the keyboard walks),
-                     chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, and a row carrying
-                     a diagram is marked), chapter-card, summary-card (title/meta, overview diagram, AI overview,
-                     author's description collapsed last), risk-card, file-view, insight-callout,
+                     chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, a row carrying
+                     a diagram is marked, a skipped file is dimmed), chapter-card, summary-card (title/meta, overview
+                     diagram, AI overview, author's description collapsed last), risk-card, file-view (a file's chunks,
+                     or why it has none), skipped-file.ts (the copy for ReviewFile.skipped reasons), insight-callout,
                      article.module.css (the reading measure + the diff bleed lane),
                      lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group,
