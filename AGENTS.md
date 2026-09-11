@@ -57,12 +57,18 @@ src/
     github/            all *.server.ts on one @octokit/core instance per request: client (createOctokit, GithubAuthError,
                        classifyGithubError, toResult), repos, pulls, branches (GraphQL), resolve-target (re-pin SHAs),
                        pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getCommitsAhead); types.ts shared
-    review/            shared: narrative.ts (NarrativeReview Zod schema + types), target.ts (ReviewTarget schema, describeTarget),
+    review/            shared: narrative.ts (NarrativeReview Zod schema + types; chapter.diagram? + overviewDiagram?;
+                       SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's two synthesised sections),
+                       diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
+                       node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
+                       DIAGRAM_LIMITS, hasUniformChange), target.ts (ReviewTarget schema, describeTarget),
                        language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
       clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
                        verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists)
       prompt/          pure: ai-file-filter, diff-hunk-catalog (H0001… ids), narrative-prompt (system + user, truncation),
-                       parse-narrative (lenient sanitising, validated by NarrativeReviewSchema), types.ts (PrData)
+                       parse-narrative (lenient sanitising, validated by NarrativeReviewSchema),
+                       parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own
+                       so a bad picture cannot fail the review; grounding checked against the hunk catalog), types.ts (PrData)
       executor/        types.ts (ReviewExecutor, errors); stub-executor.server.ts (STUB_REVIEW in fragments);
                        claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist)
       run.server.ts    runJob(input, deps) → 'done' | 'skipped' | 'aborted' | 'errored'; defaultRunJobDeps(); formatJobError
@@ -74,7 +80,8 @@ src/
   jobs/                cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.ts
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only, prisma-access,
                        palette (token contrast maths incl. `-soft` tints as grounds, a line scan for
-                       page-ground colours on a tint, + the type scale and one-label rules)
+                       page-ground colours on a tint, + the type scale and one-label rules),
+                       diagram-colour (SVG attributes take token() only — no literal, no raw `var(--er-`, no colour word)
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
   web/
     root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary, middleware: [sessionMiddleware]
@@ -103,12 +110,22 @@ src/
                        what-now, rerun-button, job-not-found (404 page shared with the reader)), history/ (filter-chips,
                        empty-history), home/ (review-composer, target-combobox, recent-reviews, sparkline),
                        narrative/ (the reader: chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state),
-                       chapter-sidebar (+ .module.css), chapter-card, summary-card, file-view, insight-callout,
+                       sections.ts (readerSections: the one ordered list of sections — summary, risk when there is an
+                       assessment, then the chapters — that the sidebar renders and the keyboard walks),
+                       chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, and a row carrying
+                       a diagram is marked), chapter-card, summary-card (title/meta, overview diagram, AI overview,
+                       author's description collapsed last), risk-card, file-view, insight-callout,
                        article.module.css (the reading measure + the diff bleed lane),
                        lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                        inline-diff-chunk (+ .module.css; useFetcher → /api/github/file, snippets per hunk group,
                        lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme), review-banners, risk-score,
-                       use-narrative-keyboard), notifications/ (job-notifications: fetch-polls api/me/jobs/terminal with
+                       use-narrative-keyboard,
+                       diagram/ (SSR'd SVG: text-metrics (estimated widths — the server cannot measure a string),
+                       change-style (change → token; nodes are outlined, never filled), graph-layout (dagre, compound +
+                       multigraph; beforeAfter splits into two panels off the change marks), sequence-layout (hand-rolled
+                       columns × rows), graph-svg / sequence-svg (painters), diagram-figure (the `data-bleed` figure:
+                       1:1 with horizontal scroll, legend, caption), diagram-modal (full-screen viewBox pan/zoom),
+                       diagram.module.css)), notifications/ (job-notifications: fetch-polls api/me/jobs/terminal with
                        a 30 s overlap, toasts once per job id, suppressed on that job's pages, browser Notification when
                        hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
     stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
@@ -343,8 +360,8 @@ the container without breaking `npm run dev`, which is exactly how an earlier
 image came to build and not boot.
 
 The opposite trap applies to packages. `@tabler/icons-react`,
-`@monaco-editor/react`, `monaco-editor` and `@fontsource/*` are
-**devDependencies** bundled into `build/server` by `ssr.noExternal`, so the
+`@monaco-editor/react`, `monaco-editor`, `@dagrejs/dagre` and `@fontsource/*`
+are **devDependencies** bundled into `build/server` by `ssr.noExternal`, so the
 image never installs them. Importing one from a module that runs on the server
 at runtime, rather than through the bundle, fails only in the container.
 

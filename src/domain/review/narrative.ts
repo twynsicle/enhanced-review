@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DiagramSchema } from './diagram.ts';
 
 /**
  * The narrative review shape: what the executor produces, what
@@ -88,6 +89,12 @@ export const NarrativeChapterSchema = z.object({
   description: z.string().optional(),
   insights: z.array(InsightSchema),
   diffChunks: z.array(DiffChunkSchema),
+  /**
+   * At most one diagram per chapter. One, not many: a chapter that earns three
+   * pictures is a chapter that should have been split, and the reader is a
+   * narrative rather than a slide deck.
+   */
+  diagram: DiagramSchema.optional(),
 });
 export type NarrativeChapter = z.infer<typeof NarrativeChapterSchema>;
 
@@ -96,12 +103,21 @@ export const NarrativeReviewSchema = z.object({
   overviewSummary: z.string(),
   riskAssessment: ReviewRiskAssessmentSchema.optional(),
   files: z.array(ReviewFileSchema).optional(),
+  /**
+   * The one diagram that is not chapter-scoped: the shape of the whole change,
+   * and how the chapters relate to each other. Everything else belongs to the
+   * chapter it explains.
+   */
+  overviewDiagram: DiagramSchema.optional(),
   chapters: z.array(NarrativeChapterSchema),
 });
 export type NarrativeReview = z.infer<typeof NarrativeReviewSchema>;
 
 /**
- * Reserved id the reader uses for the synthesised summary section that
- * precedes the first chapter.
+ * Reserved ids for the reader's two synthesised sections, which precede the
+ * first chapter. They are not chapter ids and never come from the model —
+ * the double underscores keep them out of the space a generated id can
+ * occupy.
  */
 export const SUMMARY_SECTION_ID = '__summary__';
+export const RISK_SECTION_ID = '__risk__';

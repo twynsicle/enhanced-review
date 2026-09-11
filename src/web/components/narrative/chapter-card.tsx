@@ -3,6 +3,7 @@ import type { NarrativeChapter } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
 import classes from '@/web/components/narrative/article.module.css';
 import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
+import { DiagramFigure } from '@/web/components/narrative/diagram/diagram-figure';
 import { InsightCallout } from '@/web/components/narrative/insight-callout';
 import { LeadMarkdown } from '@/web/components/narrative/lead-markdown';
 import { DISPLAY_SIZE, token } from '@/web/theme/tokens';
@@ -53,6 +54,7 @@ export function ChapterCard({
   repo,
   baseRef,
   headRef,
+  onSelectFile,
 }: {
   chapter: NarrativeChapter;
   /** 1-based index for the eyebrow ("Chapter Two"). */
@@ -61,6 +63,8 @@ export function ChapterCard({
   repo: string;
   baseRef: string;
   headRef: string;
+  /** Threaded down so a grounded diagram node can open its file. */
+  onSelectFile?: (filename: string) => void;
 }) {
   const fileCount = chapter.diffChunks.length;
   const insightCount = chapter.insights.length;
@@ -91,6 +95,16 @@ export function ChapterCard({
 
       {chapter.description && chapter.description.trim().length > 0 && (
         <LeadMarkdown text={chapter.description} />
+      )}
+
+      {/*
+       * Orientation before detail: the diagram sits between the passage and
+       * the insights, because it answers "what shape is this" and the insights
+       * answer "what should I look at". It bleeds past the measure for the
+       * same reason a diff does.
+       */}
+      {chapter.diagram && (
+        <DiagramFigure diagram={chapter.diagram} {...(onSelectFile ? { onSelectFile } : {})} />
       )}
 
       {insightCount > 0 && (

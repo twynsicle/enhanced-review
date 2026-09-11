@@ -1,0 +1,96 @@
+/*
+ * A diagram is the third thing in the reader that reads better wide, after a
+ * diff and a code block, so it is a `data-bleed` block and takes the full
+ * column rather than the measure. That is what the narrow/wide toggle is for.
+ *
+ * It renders at 1:1 and never scales in the flow. Scaling to fit would put
+ * edge labels under the type scale's smallest step, and the whole reason the
+ * scale exists is that nothing gets to invent a seventh size. When a diagram
+ * is wider than the column it scrolls, exactly as a diff does; zoom lives in
+ * the expanded view, where the reader has asked to inspect it.
+ */
+.figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.frame {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--er-border);
+  border-radius: 10px;
+  background: var(--er-background);
+  padding: 4px;
+}
+
+.svg {
+  display: block;
+  font-family: var(--mantine-font-family);
+}
+
+/* A node that carries a filename opens it; one that does not is inert. */
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover rect {
+  stroke-width: 2.5;
+}
+
+.clickable:focus-visible {
+  outline: none;
+}
+
+.clickable:focus-visible rect {
+  stroke: var(--er-ring);
+  stroke-width: 2.5;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: center;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 14px;
+  height: 0;
+  border-top-width: 2px;
+  border-top-style: solid;
+}
+
+.modalFrame {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--er-background);
+  touch-action: none;
+}
+
+.modalSvg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  font-family: var(--mantine-font-family);
+  cursor: grab;
+}
+
+.modalSvg[data-panning='true'] {
+  cursor: grabbing;
+}

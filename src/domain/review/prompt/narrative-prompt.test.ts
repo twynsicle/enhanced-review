@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DIAGRAM_LIMITS } from '../diagram.ts';
 import { buildNarrativePrompt } from './narrative-prompt.ts';
 import type { PrData } from './types.ts';
 
@@ -49,6 +50,42 @@ describe('buildNarrativePrompt', () => {
     expect(user).toContain('Because widgets.');
     expect(system).toContain('<narrative_review>');
     expect(system).toContain('hunkIds');
+  });
+
+  it('states the diagram contract with the real limits, not a template hole', () => {
+    const { system } = buildNarrativePrompt(prData());
+    expect(system).toContain('"overviewDiagram"');
+    expect(system).toContain('architecture | state | beforeAfter | sequence');
+    expect(system).toContain('describes a CHANGE, not a system');
+    // The caps come from DIAGRAM_LIMITS so the prompt cannot drift from the
+    // schema that rejects what it asks for.
+    expect(system).toContain(`at most ${String(DIAGRAM_LIMITS.labelChars)} characters`);
+    expect(system).not.toContain('${');
+  });
+
+  it('does not both discourage and encourage diagrams', () => {
+    /*
+     * The first two runs against a 45-file PR each produced exactly one
+     * chapter diagram out of eleven, because the section opened with "usually
+     * absent" and said "most chapters should not have one", then contradicted
+     * itself twelve rules later with "do not ration them to one". The model
+     * settled the contradiction by rationing. Whatever the wording, the
+     * section must not carry both halves of that argument at once.
+     */
+    const { system } = buildNarrativePrompt(prData());
+    expect(system).not.toContain('usually absent');
+    expect(system).not.toContain('Most chapters should not have one');
+    expect(system).toContain('Do not ration diagrams to one per review');
+  });
+
+  it('gives every diagram kind a trigger to match against', () => {
+    // `beforeAfter` went unused across both real runs: it had no cue a model
+    // could match a chapter to, only a definition.
+    const { system } = buildNarrativePrompt(prData());
+    for (const kind of ['architecture', 'beforeAfter', 'state', 'sequence']) {
+      expect(system).toContain(`- "${kind}":`);
+    }
+    expect(system).toContain('previously X, now Y');
   });
 
   it('substitutes a placeholder for an empty description', () => {

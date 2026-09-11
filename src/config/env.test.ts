@@ -19,7 +19,7 @@ describe('parseEnv', () => {
       LOG_LEVEL: 'info',
       LOG_PRETTY: false,
       REVIEW_EXECUTOR: 'claude',
-      REVIEW_MODEL: 'claude-haiku-4-5',
+      REVIEW_MODEL: 'claude-sonnet-5',
       REVIEW_TIMEOUT_MIN: 15,
       MAX_JOBS_PER_USER: 1,
       LIVE_POLL_MS: 2000,
@@ -31,13 +31,15 @@ describe('parseEnv', () => {
     const env = parseEnv({
       ...REQUIRED,
       REVIEW_EXECUTOR: 'stub',
-      REVIEW_MODEL: 'claude-sonnet-5',
+      // Deliberately not the default, so this asserts the override rather
+      // than agreeing with it.
+      REVIEW_MODEL: 'claude-opus-5',
       REVIEW_TIMEOUT_MIN: '30',
       MAX_JOBS_PER_USER: '2',
       ANTHROPIC_API_KEY: 'sk-ant-test',
     });
     expect(env.REVIEW_EXECUTOR).toBe('stub');
-    expect(env.REVIEW_MODEL).toBe('claude-sonnet-5');
+    expect(env.REVIEW_MODEL).toBe('claude-opus-5');
     expect(env.REVIEW_TIMEOUT_MIN).toBe(30);
     expect(env.MAX_JOBS_PER_USER).toBe(2);
     expect(env.ANTHROPIC_API_KEY).toBe('sk-ant-test');

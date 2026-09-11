@@ -8,6 +8,17 @@ describe('extractChapterTitles', () => {
     expect(extractChapterTitles('')).toEqual({ titles: [], inProgressTitle: null });
   });
 
+  it('does not count a chapter diagram title as a chapter', () => {
+    // Same shape as the insight-title overcount this scanner was rewritten
+    // for: a diagram carries its own `title`, one level deeper than a
+    // chapter's, and must not appear in the checklist.
+    const buffer = `${PRE}{"id":"one","title":"Real Chapter","diagram":{"id":"d","title":"Not A Chapter","kind":"architecture","caption":"c","nodes":[{"id":"a","label":"A"}],"edges":[]},"insights":[],"diffChunks":[]}]`;
+    expect(extractChapterTitles(buffer)).toEqual({
+      titles: ['Real Chapter'],
+      inProgressTitle: null,
+    });
+  });
+
   it('returns empty when chapters key has not appeared yet', () => {
     expect(extractChapterTitles('<narrative_review>{"prTitle":"x","overviewSummary":"y"')).toEqual({
       titles: [],

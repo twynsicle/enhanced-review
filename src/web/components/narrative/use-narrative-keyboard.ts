@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { SUMMARY_SECTION_ID, type NarrativeChapter } from '@/domain/review/narrative';
+import type { ReaderSection } from '@/web/components/narrative/sections';
 
 const FOCUS_RETRY_FRAMES = 30;
 
@@ -36,43 +36,41 @@ function ownsSpace(target: EventTarget | null): boolean {
 
 /**
  * Keyboard navigation for the chapter reader. `onSelect` drives the URL
- * state a layer up. Bindings:
+ * state a layer up. Bindings walk `sections` — summary, risk, then the
+ * chapters — in the order the sidebar lists them:
  *
- *   - `→` / Space     → next chapter (or from the last chapter to the summary)
- *   - `←` / Shift+Spc → previous chapter (or from the summary to the last chapter)
- *   - `Home`          → first chapter
- *   - `End`           → summary
- *   - `1`–`9`         → chapter at that index
+ *   - `→` / Space     → next section
+ *   - `←` / Shift+Spc → previous section
+ *   - `Home`          → first section (the summary)
+ *   - `End`           → last section
+ *   - `1`–`9`         → chapter at that number
+ *
+ * Home and End used to mean "first chapter" and "the summary", which put the
+ * summary at both ends of the reader at once: first in the sidebar, last in
+ * the arrow cycle. They now agree with the list.
  *
  * The Space bindings step aside when focus is on a button, link or other
  * control that activates on Space; the arrow keys keep working from a focused
  * control, which is the point of having them.
  */
 export function useNarrativeKeyboard({
-  chapters,
+  sections,
   activeId,
   onSelect,
 }: {
-  chapters: readonly NarrativeChapter[];
+  sections: readonly ReaderSection[];
   activeId: string;
   onSelect: (id: string) => void;
 }): void {
   useEffect(() => {
-    const isSummary = activeId === SUMMARY_SECTION_ID;
-    const activeIndex = chapters.findIndex((ch) => ch.id === activeId);
+    const activeIndex = sections.findIndex((section) => section.id === activeId);
 
-    function goToChapter(e: KeyboardEvent, index: number): void {
-      if (index < 0 || index >= chapters.length) return;
-      const id = chapters[index].id;
+    function goTo(e: KeyboardEvent, index: number): void {
+      const section = sections[index];
+      if (!section) return;
       e.preventDefault();
-      onSelect(id);
-      focusHeading(id);
-    }
-
-    function goToSummary(e: KeyboardEvent): void {
-      e.preventDefault();
-      onSelect(SUMMARY_SECTION_ID);
-      focusHeading(SUMMARY_SECTION_ID);
+      onSelect(section.id);
+      focusHeading(section.id);
     }
 
     function handler(e: KeyboardEvent): void {
@@ -84,43 +82,37 @@ export function useNarrativeKeyboard({
       if (e.key === ' ' && ownsSpace(e.target)) return;
 
       if (e.key === 'ArrowRight' || (e.key === ' ' && !e.shiftKey)) {
-        if (isSummary) {
-          e.preventDefault();
-        } else if (activeIndex < chapters.length - 1) {
-          goToChapter(e, activeIndex + 1);
-        } else if (activeIndex === chapters.length - 1) {
-          goToSummary(e);
-        } else {
-          e.preventDefault();
-        }
+        /*
+         * Both ends are walls. The summary used to sit after the last chapter
+         * in this cycle while sitting first in the sidebar, which left `→`
+         * from the summary doing nothing at all — a dead key on the section
+         * the reader opens on.
+         */
+        if (activeIndex >= 0 && activeIndex < sections.length - 1) goTo(e, activeIndex + 1);
+        else e.preventDefault();
         return;
       }
 
       if (e.key === 'ArrowLeft' || (e.key === ' ' && e.shiftKey)) {
-        if (isSummary) {
-          if (chapters.length > 0) goToChapter(e, chapters.length - 1);
-          else e.preventDefault();
-        } else if (activeIndex > 0) {
-          goToChapter(e, activeIndex - 1);
-        } else {
-          e.preventDefault();
-        }
+        if (activeIndex > 0) goTo(e, activeIndex - 1);
+        else e.preventDefault();
         return;
       }
 
       if (e.key === 'Home') {
-        goToChapter(e, 0);
+        goTo(e, 0);
         return;
       }
 
       if (e.key === 'End') {
-        goToSummary(e);
+        goTo(e, sections.length - 1);
         return;
       }
 
       if (e.key >= '1' && e.key <= '9') {
-        const idx = Number.parseInt(e.key, 10) - 1;
-        if (idx < chapters.length) goToChapter(e, idx);
+        const wanted = Number.parseInt(e.key, 10);
+        const index = sections.findIndex((section) => section.chapterNumber === wanted);
+        if (index >= 0) goTo(e, index);
       }
     }
 
@@ -128,5 +120,5 @@ export function useNarrativeKeyboard({
     return () => {
       document.removeEventListener('keydown', handler);
     };
-  }, [chapters, activeId, onSelect]);
+  }, [sections, activeId, onSelect]);
 }

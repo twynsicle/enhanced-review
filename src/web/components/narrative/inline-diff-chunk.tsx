@@ -177,6 +177,25 @@ function SnippetEditor({
     () => () => {
       for (const disposable of disposables.current) disposable.dispose();
       disposables.current = [];
+      /*
+       * Tear down in the order Monaco requires: detach the models from the
+       * widget, then dispose them. @monaco-editor/react 4.7 does it the other
+       * way round — disposes both models, then the widget — and Monaco 0.55
+       * throws "TextModel got disposed before DiffEditorWidget model got
+       * reset" on every unmount. So the library is told to keep the models
+       * (`keepCurrent*Model` below) and this owns them instead.
+       *
+       * The ordering holds because React runs a deleted tree's effect
+       * cleanups parent first: this runs before the library's own cleanup,
+       * which then finds no model and disposes only the widget.
+       */
+      const diffEditor = editorRef.current;
+      editorRef.current = null;
+      if (!diffEditor) return;
+      const model = diffEditor.getModel();
+      diffEditor.setModel(null);
+      model?.original.dispose();
+      model?.modified.dispose();
     },
     [],
   );
@@ -234,6 +253,8 @@ function SnippetEditor({
             modifiedLanguage={language}
             originalModelPath={buildModelPath(chunkFilename, snippet.key, 'original')}
             modifiedModelPath={buildModelPath(chunkFilename, snippet.key, 'modified')}
+            keepCurrentOriginalModel
+            keepCurrentModifiedModel
             theme={scheme === 'dark' ? 'vs-dark' : 'vs'}
             onMount={onMount}
             loading={fallback}

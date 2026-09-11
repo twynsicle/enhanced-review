@@ -221,3 +221,21 @@
 .del {
   color: var(--er-del);
 }
+
+/*
+ * The diagram mark on a section row. It sits after the label rather than
+ * before it so the numbers and titles keep their two clean left edges, and it
+ * is `subtle` until the row is active: decoration, never text.
+ */
+.diagramMark {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1;
+  color: var(--er-subtle);
+}
+
+.item[data-active] .diagramMark {
+  color: var(--er-before);
+}

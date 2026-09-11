@@ -228,4 +228,45 @@ describe('parseNarrativeReview', () => {
     const result = parseNarrativeReview(text);
     expect(result.ok && result.data.prTitle).toBe('t');
   });
+
+  it('carries an overview diagram and a chapter diagram through', () => {
+    const diagram = {
+      kind: 'architecture',
+      title: 'Shape',
+      caption: 'Where the new limb attaches.',
+      nodes: [
+        { id: 'a', label: 'A', filename: 'src/a.ts', hunkIds: ['H0001'], change: 'modified' },
+        { id: 'b', label: 'B', change: 'added' },
+      ],
+      edges: [{ from: 'a', to: 'b', label: 'calls' }],
+    };
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 'Diagrams',
+        overviewSummary: 'Summary',
+        overviewDiagram: diagram,
+        chapters: [{ id: 'one', title: 'One', insights: [], diffChunks: [], diagram }],
+      }),
+      buildDiffHunkIndex(DIFF),
+    );
+
+    expect(result.ok && result.data.overviewDiagram?.id).toBe('overview-diagram');
+    expect(result.ok && result.data.chapters[0]?.diagram?.id).toBe('one-diagram');
+  });
+
+  it('drops a malformed diagram without failing the review', () => {
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 'Diagrams',
+        overviewSummary: 'Summary',
+        // No caption: the diagram goes, the review stays.
+        overviewDiagram: { kind: 'architecture', title: 'Shape', nodes: [], edges: [] },
+        chapters: [{ id: 'one', title: 'One', insights: [], diffChunks: [] }],
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.data.overviewDiagram).toBeUndefined();
+    expect(result.ok && result.data.chapters).toHaveLength(1);
+  });
 });

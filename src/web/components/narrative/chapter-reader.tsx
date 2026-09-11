@@ -1,6 +1,7 @@
 import { VisuallyHidden } from '@mantine/core';
 import {
   useCallback,
+  useMemo,
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -8,12 +9,18 @@ import {
 } from 'react';
 import { useSearchParams } from 'react-router';
 import type { PullMetadata } from '@/domain/github/types';
-import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/domain/review/narrative';
+import {
+  RISK_SECTION_ID,
+  SUMMARY_SECTION_ID,
+  type NarrativeReview,
+} from '@/domain/review/narrative';
 import type { ReviewTarget } from '@/domain/review/target';
 import { RerunButton } from '@/web/components/jobs/rerun-button';
 import { ChapterCard } from '@/web/components/narrative/chapter-card';
 import { ChapterSidebar } from '@/web/components/narrative/chapter-sidebar';
 import { FileView } from '@/web/components/narrative/file-view';
+import { RiskCard } from '@/web/components/narrative/risk-card';
+import { findSection, readerSections } from '@/web/components/narrative/sections';
 import { SummaryCard } from '@/web/components/narrative/summary-card';
 import { useNarrativeKeyboard } from '@/web/components/narrative/use-narrative-keyboard';
 import classes from './chapter-reader.module.css';
@@ -24,11 +31,6 @@ const MAX_SIDEBAR_WIDTH = 420;
 
 function clampSidebarWidth(width: number): number {
   return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, width));
-}
-
-function isKnownId(raw: string | null, chapters: NarrativeReview['chapters']): boolean {
-  if (raw === null || raw === SUMMARY_SECTION_ID) return true;
-  return chapters.some((ch) => ch.id === raw);
 }
 
 function fileExists(filename: string, review: NarrativeReview): boolean {
@@ -71,14 +73,15 @@ export function ChapterReader({
   const refs = { owner: target.owner, repo: target.repo, baseRef, headRef };
   const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const sections = useMemo(() => readerSections(review), [review]);
   const urlActive = searchParams.get('ch');
   const urlFile = searchParams.get('file');
   const activeFile = urlFile && fileExists(urlFile, review) ? urlFile : null;
   const activeId =
     activeFile === null
-      ? isKnownId(urlActive, review.chapters)
-        ? (urlActive ?? SUMMARY_SECTION_ID)
-        : initialActiveId
+      ? urlActive === null
+        ? SUMMARY_SECTION_ID
+        : (findSection(sections, urlActive)?.id ?? initialActiveId)
       : SUMMARY_SECTION_ID;
 
   const onSelect = useCallback(
@@ -102,7 +105,7 @@ export function ChapterReader({
     [searchParams, setSearchParams],
   );
 
-  useNarrativeKeyboard({ chapters: review.chapters, activeId, onSelect });
+  useNarrativeKeyboard({ sections, activeId, onSelect });
 
   const onResizePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -129,8 +132,7 @@ export function ChapterReader({
   }, []);
 
   const activeChapter = review.chapters.find((ch) => ch.id === activeId) ?? null;
-  const isSummary = activeId === SUMMARY_SECTION_ID;
-  const activeIndex = isSummary ? 0 : review.chapters.findIndex((ch) => ch.id === activeId) + 1;
+  const activeIndex = review.chapters.findIndex((ch) => ch.id === activeId) + 1;
 
   return (
     <div
@@ -139,6 +141,7 @@ export function ChapterReader({
     >
       <aside className={classes.aside}>
         <ChapterSidebar
+          sections={sections}
           chapters={review.chapters}
           files={review.files}
           activeId={activeId}
@@ -172,16 +175,24 @@ export function ChapterReader({
             files={review.files}
             {...refs}
           />
-        ) : isSummary || !activeChapter ? (
+        ) : activeId === RISK_SECTION_ID && review.riskAssessment ? (
+          <RiskCard assessment={review.riskAssessment} />
+        ) : !activeChapter ? (
           <SummaryCard
             review={review}
             target={target}
             pullMetadata={pullMetadata}
             byline={{ author: jobAuthor }}
             actions={<RerunButton jobId={jobId} />}
+            onSelectFile={onSelectFile}
           />
         ) : (
-          <ChapterCard chapter={activeChapter} chapterIndex={activeIndex} {...refs} />
+          <ChapterCard
+            chapter={activeChapter}
+            chapterIndex={activeIndex}
+            onSelectFile={onSelectFile}
+            {...refs}
+          />
         )}
       </section>
     </div>
