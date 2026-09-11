@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hostEnv } from '../config/host-env.ts';
@@ -48,6 +49,20 @@ export function runNpmScript(script: 'viewer:build', cwd: string): Promise<Scrip
       resolve({ exitCode, output: Buffer.concat(output).toString('utf8') });
     });
   });
+}
+
+/** Where PR worktrees go: the OS temp dir. */
+export function worktreeParent(): string {
+  return os.tmpdir();
+}
+
+/** A hooks path that holds no hooks, so git runs none. */
+export const NO_HOOKS_PATH = os.devNull;
+
+/** Whether `child` is `parent` or inside it; Windows paths compare case-insensitively. */
+export function isInside(parent: string, child: string): boolean {
+  const relative = path.relative(parent.toLowerCase(), child.toLowerCase());
+  return !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 
 /** Opens a file with its default application: for a report, the default browser. */

@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { BUNDLE_PLACEHOLDER } from '../domain/review/bundle-html.ts';
@@ -7,6 +8,11 @@ import { createTempRepo, type TempRepo } from '../test/git-repo.ts';
 import { Shell } from './git.ts';
 import { review, type ReviewDeps, type ReviewOptions } from './review.ts';
 import { RUNS_DIR } from './run-folder.ts';
+import { removeWorktreeSync } from './worktree.ts';
+import { runInterruptCleanups } from './interrupts.ts';
+import * as stubRun from './stub-run.ts';
+
+vi.mock('./stub-run.ts', { spy: true });
 
 vi.mock('./terminal.ts', () => ({
   line: vi.fn(),
@@ -40,8 +46,14 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   stub: true,
   from: null,
   open: true,
+  keepWorktree: false,
   ...overrides,
 });
+
+/** This process's worktrees for PR 7 in the temp dir. */
+function ourWorktrees(): string[] {
+  return readdirSync(tmpdir()).filter((name) => name.startsWith(`er-pr7-${String(process.pid)}-`));
+}
 
 function runFolders(): string[] {
   const dir = path.join(repo.work, RUNS_DIR, 'staged');
@@ -96,5 +108,70 @@ describe('er review', () => {
     await expect(review(options({ from: 'render' }), deps)).rejects.toThrow(
       'no earlier run for staged to resume; run without --from first',
     );
+  });
+
+  describe('a PR review', () => {
+    function openPull(): string {
+      repo.git('commit', '--quiet', '-m', 'the PR');
+      const head = repo.git('rev-parse', 'HEAD').trim();
+      repo.git('push', '--quiet', 'origin', 'HEAD:refs/pull/7/head');
+      repo.git('reset', '--quiet', '--hard', 'HEAD~1');
+      const pull = {
+        number: 7,
+        title: 'Change the app',
+        body: '',
+        author: { login: 'octo' },
+        baseRefName: 'main',
+        headRefName: 'feat/app',
+        headRefOid: head,
+        state: 'OPEN',
+      };
+      deps.shell = new Shell(repo.work, {
+        git: runGit,
+        gh: async () => ({ stdout: JSON.stringify(pull), stderr: '', exitCode: 0 }),
+      });
+      return head;
+    }
+
+    it('runs in a worktree of the PR head and removes it afterwards', async () => {
+      openPull();
+      await review(options({ request: { kind: 'pr', number: 7, base: null }, open: false }), deps);
+
+      expect(existsSync(path.join(repo.work, RUNS_DIR, 'pr-7'))).toBe(true);
+      expect(ourWorktrees()).toEqual([]);
+      expect(repo.git('worktree', 'list').trim().split('\n')).toHaveLength(1);
+    });
+
+    it('removes the worktree when interrupted mid-run', async () => {
+      openPull();
+      let during: string[] = [];
+      vi.mocked(stubRun.writeStubRun).mockImplementationOnce(async () => {
+        during = ourWorktrees();
+        // What the SIGINT handler does, short of exiting.
+        runInterruptCleanups();
+        throw new Error('interrupted');
+      });
+      await expect(
+        review(options({ request: { kind: 'pr', number: 7, base: null }, open: false }), deps),
+      ).rejects.toThrow('interrupted');
+
+      expect(during).toHaveLength(1);
+      expect(ourWorktrees()).toEqual([]);
+    });
+
+    it('keeps the worktree with --keep-worktree', async () => {
+      openPull();
+      await review(
+        options({
+          request: { kind: 'pr', number: 7, base: null },
+          open: false,
+          keepWorktree: true,
+        }),
+        deps,
+      );
+      const kept = ourWorktrees();
+      expect(kept).toHaveLength(1);
+      removeWorktreeSync({ path: path.join(tmpdir(), kept[0]!), repoRoot: repo.work });
+    });
   });
 });

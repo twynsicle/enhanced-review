@@ -15,9 +15,10 @@ packages. Output goes through `terminal.ts` (stdout/stderr, never `console`).
 
 ```
 src/cli/
-  er.ts            the bin (`npm link` puts it on PATH): parseArgs → review; usage errors reprint the usage
-  review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open;
-                   deps (Shell, render, open) injectable for the end-to-end test
+  er.ts            the bin (`npm link` puts it on PATH): parseArgs → review; usage errors reprint the usage;
+                   the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
+  review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
+                   --keep-worktree; deps (Shell, render, open) injectable for the end-to-end test
   targets.ts       resolveTarget: branch (against the open PR's base or origin's default, fetched first), pr (fetch
                    pull/<n>/head, merge-base with its base), staged (the index as a dangling commit on HEAD); --base;
                    locateTarget (repo root + slug only, for --from); TargetSchema
@@ -32,7 +33,12 @@ src/cli/
   parse.ts         raw.txt → the hosted lenient parser → review.json, files taken from context
   render.ts        the bundle into the viewer shell → review.html; viewerShell rebuilds build/viewer when stale
   viewer-stamp.ts  hash of the viewer's sources; the viewer build writes it, render compares it
-  platform.ts      everything OS-specific (Windows now, macOS later): the tool root, npm scripts, opening a file
+  worktree.ts      a PR's run happens in a detached worktree of its head in the temp dir (er-pr<n>-<pid>-<stamp>),
+                   added without hooks or LFS downloads, removed after the run or on interrupt; the sweep removes
+                   worktrees whose process is gone
+  interrupts.ts    the cleanup registry the signal handlers run (synchronous: the process exits straight after)
+  platform.ts      everything OS-specific (Windows now, macOS later): the tool root, npm scripts, the temp dir,
+                   path comparison, opening a file
   terminal.ts      stage lines, notes, warnings, errors
 ```
 

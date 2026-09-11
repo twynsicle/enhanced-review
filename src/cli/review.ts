@@ -3,6 +3,7 @@ import type { NarrativeReview } from '../domain/review/narrative.ts';
 import type { ReviewMeta } from '../domain/review/review-meta.ts';
 import { gather, readContext, type RunContext } from './context.ts';
 import { Shell } from './git.ts';
+import { onInterrupt } from './interrupts.ts';
 import { parseRun, readReview } from './parse.ts';
 import { openFile } from './platform.ts';
 import { writePrompt } from './prompt.ts';
@@ -11,6 +12,13 @@ import { createRunFolder, latestRunFolder, type RunFiles } from './run-folder.ts
 import { writeStubRun } from './stub-run.ts';
 import { locateTarget, resolveTarget, type Target, type TargetRequest } from './targets.ts';
 import { line, note, stage, warn } from './terminal.ts';
+import {
+  addWorktree,
+  removeWorktree,
+  removeWorktreeSync,
+  sweepStaleWorktrees,
+  type Worktree,
+} from './worktree.ts';
 
 /**
  * `er review`: resolve the target, then run the stages in order
@@ -32,6 +40,8 @@ export interface ReviewOptions {
   from: Exclude<Stage, 'gather'> | null;
   /** Open the report when it is written. */
   open: boolean;
+  /** Leave a PR review's worktree in place after the run. */
+  keepWorktree: boolean;
 }
 
 export interface ReviewDeps {
@@ -71,8 +81,21 @@ export async function review(
 
   if (runs('run')) {
     const started = performance.now();
-    const chapters = await writeStubRun(context, run);
-    stage('run', `stub review, ${plural(chapters, 'chapter')}`, performance.now() - started);
+    const repo = deps.shell.at(context.target.repoRoot);
+    const swept = await sweepStaleWorktrees(repo);
+    if (swept.length > 0)
+      note(`  removed ${plural(swept.length, 'worktree')} left by an earlier run`);
+    const worktree = await workingDirectory(context, repo, options.keepWorktree);
+    try {
+      const chapters = await writeStubRun(context, run);
+      stage(
+        'run',
+        `stub review, ${plural(chapters, 'chapter')}${worktree ? ', in a worktree of the PR' : ''}`,
+        performance.now() - started,
+      );
+    } finally {
+      await worktree?.close();
+    }
   }
 
   let parsed: NarrativeReview;
@@ -95,6 +118,36 @@ export async function review(
   note(`  ${run.html}`);
   if (options.open) deps.open(run.html);
   return 0;
+}
+
+/**
+ * The agent's working directory: for a PR, a worktree of its head, removed
+ * when the run ends or is interrupted; otherwise the repository itself.
+ */
+async function workingDirectory(
+  context: RunContext,
+  repo: Shell,
+  keep: boolean,
+): Promise<{ path: string; close: () => Promise<void> } | null> {
+  if (context.target.kind !== 'pr') return null;
+  const worktree: Worktree = await addWorktree(
+    repo,
+    context.meta.prNumber ?? 0,
+    context.target.headSha,
+    new Date(),
+  );
+  const unregister = keep ? () => undefined : onInterrupt(() => removeWorktreeSync(worktree));
+  return {
+    path: worktree.path,
+    close: async () => {
+      unregister();
+      if (keep) {
+        note(`  kept the worktree at ${worktree.path}; the next PR run removes it`);
+      } else {
+        await removeWorktree(repo, worktree);
+      }
+    },
+  };
 }
 
 async function startRun(

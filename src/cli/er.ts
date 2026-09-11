@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { toolVersion } from './platform.ts';
+import { runInterruptCleanups } from './interrupts.ts';
 import { RESUMABLE_STAGES, review, type ReviewOptions } from './review.ts';
 import type { TargetRequest } from './targets.ts';
 import { fail, line } from './terminal.ts';
@@ -21,6 +22,7 @@ Options:
   --stub               write a mechanical review instead of running a model
   --from <stage>       resume the newest run for this target at prompt, run, parse or render
   --no-open            write the report without opening it
+  --keep-worktree      leave a PR review's temporary worktree in place
   -h, --help           show this help
   -v, --version        show the version`;
 
@@ -52,6 +54,7 @@ async function main(argv: string[]): Promise<number> {
       stub: { type: 'boolean' },
       from: { type: 'string' },
       'no-open': { type: 'boolean' },
+      'keep-worktree': { type: 'boolean' },
     },
   });
   if (values.version) {
@@ -70,6 +73,7 @@ async function main(argv: string[]): Promise<number> {
     stub: values.stub ?? false,
     from: resumeStage(values.from),
     open: !values['no-open'],
+    keepWorktree: values['keep-worktree'] ?? false,
   });
 }
 
@@ -78,6 +82,19 @@ function resumeStage(from: string | undefined): ReviewOptions['from'] {
   const stage = RESUMABLE_STAGES.find((name) => name === from);
   if (!stage) throw new UsageError(`--from takes one of: ${RESUMABLE_STAGES.join(', ')}`);
   return stage;
+}
+
+// The only signal handlers in er: run what the stages registered (a PR
+// worktree's removal, say), then exit the way a shell expects.
+for (const [signal, code] of [
+  ['SIGINT', 130],
+  ['SIGTERM', 143],
+] as const) {
+  process.on(signal, () => {
+    runInterruptCleanups();
+    fail('interrupted');
+    process.exit(code);
+  });
 }
 
 try {

@@ -74,7 +74,7 @@ export class Shell {
   async git(args: readonly string[], env?: Record<string, string>): Promise<string> {
     const result = await this.tryGit(args, env);
     if (result.exitCode !== 0) {
-      throw new CommandError(`git ${args[0]}`, result.stderr, result.exitCode);
+      throw new CommandError(`git ${subcommand(args)}`, result.stderr, result.exitCode);
     }
     return result.stdout;
   }
@@ -104,4 +104,13 @@ export class Shell {
       return { stdout: '', stderr: message, exitCode: null };
     }
   }
+}
+
+/** The git subcommand, past any global options (`-c key=value`, `--literal-pathspecs`). */
+function subcommand(args: readonly string[]): string {
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i] === '-c') i += 1;
+    else if (!args[i]!.startsWith('-')) return args[i]!;
+  }
+  return args[0] ?? '';
 }
