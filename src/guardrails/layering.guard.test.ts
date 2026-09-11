@@ -17,6 +17,7 @@ import {
  *   domain → domain, db, common, config
  *   db     → db, common, config
  *   jobs   → jobs, domain, db, common, config
+ *   cli    → cli, domain, common, config   (and see cli-imports)
  *   common → common, config
  *   config → config
  *
@@ -38,6 +39,7 @@ const ALLOWED: Record<Exclude<Area, 'guardrails' | 'test'>, Area[]> = {
   domain: ['domain', 'db', 'common', 'config'],
   db: ['db', 'common', 'config'],
   jobs: ['jobs', 'domain', 'db', 'common', 'config'],
+  cli: ['cli', 'domain', 'common', 'config'],
   common: ['common', 'config'],
   config: ['config'],
 };

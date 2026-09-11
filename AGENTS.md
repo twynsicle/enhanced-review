@@ -16,9 +16,9 @@ before writing code against them; heed deprecation notices.
 
 ## Tech stack
 
-- Node 24 (Volta-pinned, `engines >=24`). The Express server and the jobs CLI
-  run TypeScript directly via Node's type stripping — no build step for
-  `server/` or `src/jobs/`.
+- Node 24 (Volta-pinned, `engines >=24`). The Express server, the jobs CLI
+  and the local `er` CLI run TypeScript directly via Node's type stripping —
+  no build step for `server/`, `src/jobs/` or `src/cli/`.
 - React Router 8 framework mode (SSR) on Vite 8; Express 5 via
   `@react-router/express` in `server/index.ts`. Single process: the review
   runner lives in-process, so never run under a forking manager.
@@ -60,8 +60,11 @@ src/
     review/            narrative + diagram schemas; clone/, prompt/, executor/; run.server.ts, the runner
     jobs/              registry, timeout, start/rerun/cancel/recover, boot, and the read side (jobs.server.ts)
   jobs/                cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.ts
+  cli/                 `er`, the local review CLI (docs/local-mode): the package `bin`, put on PATH by `npm link`;
+                       runs in the repo under review with no server config
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only,
-                       prisma-access, palette (token contrast, type scale, one label), diagram-colour (SVG takes token() only)
+                       prisma-access, palette (token contrast, type scale, one label), diagram-colour (SVG takes token() only),
+                       cli-imports (nothing `er` loads reaches env.ts, the logger, the db or a server package)
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
   web/                 the React Router app: root.tsx, entry.server.tsx, routes.ts (every file in routes/ must be listed),
                        routes/, auth/, components/, stores/ (Zustand, persisted), theme/, lib/, test/
@@ -78,8 +81,8 @@ docker-compose.yml     postgres:18-alpine on 127.0.0.1:5432 + `web` (the app as 
 
 Layering (enforced by `src/guardrails`): `web → domain, db, common,
 config`; `domain → db, common, config`; `db → common, config`;
-`jobs → domain, db, common, config`; `common → config`; `config` imports
-nothing from `src/`. Only `src/web/` and `server/` may import React or
+`jobs → domain, db, common, config`; `cli → domain, common, config`;
+`common → config`; `config` imports nothing from `src/`. Only `src/web/` and `server/` may import React or
 `react-router`. `db` and `config` are server-only; `domain` is **shared**
 between server and browser, and a domain module that imports `db`, `config`,
 the logger, a `node:` builtin, a server-only package (`@octokit/*`, the Claude
@@ -119,8 +122,8 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
 
 - Path alias `@/*` → `src/*` is used in `src/web/` (bundled by Vite).
   Everything Node may load natively — `server/`, `src/config`, `src/common`,
-  `src/db`, `src/domain`, `src/jobs` — uses relative imports with explicit
-  `.ts` extensions.
+  `src/db`, `src/domain`, `src/jobs`, `src/cli` — uses relative imports with
+  explicit `.ts` extensions.
 - Server-only modules use the React Router `*.server.ts` filename convention
   — `db`/`config` by location, `domain` and `web` by filename.
 - `process.env` is read only in `src/config`. Code that spawns a subprocess
