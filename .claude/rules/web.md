@@ -62,6 +62,9 @@ src/web/
                      diagram.module.css)), notifications/ (job-notifications: fetch-polls api/me/jobs/terminal with
                      a 30 s overlap, toasts once per job id, suppressed on that job's pages, browser Notification when
                      hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
+  viewer/            the local report (vite.viewer.config.ts, not the RR app): index.html + main.tsx, client-rendered on a
+                     hash data router; the build inlines JS, CSS and fonts into one file (`react-router build` wipes
+                     build/, so it builds second); Monaco still loads from the CDN
   stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
   theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours + FONT_SIZES/DISPLAY_SIZE/
                      CAPTION_TYPE, the type scale) → theme.ts (Mantine ramps, fontSizes, sans + mono),
