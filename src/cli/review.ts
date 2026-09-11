@@ -2,6 +2,7 @@ import { performance } from 'node:perf_hooks';
 import type { ReviewMeta } from '../domain/review/review-meta.ts';
 import { gather, type RunContext } from './context.ts';
 import { Shell } from './git.ts';
+import { writePrompt } from './prompt.ts';
 import { createRunFolder } from './run-folder.ts';
 import { resolveTarget, type Target, type TargetRequest } from './targets.ts';
 import { note, stage, warn } from './terminal.ts';
@@ -27,6 +28,10 @@ export async function review(options: ReviewOptions): Promise<number> {
   const context = await gather(target, meta, shell.at(target.repoRoot), run);
   if (context.dirty.length > 0) warn(dirtyWarning(context));
   stage('gather', describeGather(context), performance.now() - started);
+
+  started = performance.now();
+  const prompt = await writePrompt(context, run);
+  stage('prompt', `~${tokens(prompt)} tokens, plus the instructions`, performance.now() - started);
 
   note(`  ${run.folder}`);
   return 0;
@@ -56,6 +61,12 @@ function dirtyWarning(context: RunContext): string {
     `${plural(dirty.length, `${kind} change`)} not in this review, ` +
     `though the agent can see them on disk: ${shown}${more}`
   );
+}
+
+/** A rough count at four characters a token, the hosted prompt's own estimate. */
+function tokens(text: string): string {
+  const estimate = Math.round(text.length / 4);
+  return estimate < 1000 ? String(estimate) : `${(estimate / 1000).toFixed(1)}k`;
 }
 
 function plural(count: number, noun: string): string {

@@ -1,6 +1,7 @@
 import { DIAGRAM_LIMITS } from '../diagram.ts';
 import { isExcludedFromAI } from './ai-file-filter.ts';
-import { buildDiffHunkIndex, type DiffHunkIndex } from './diff-hunk-catalog.ts';
+import type { ReviewFile } from '../narrative.ts';
+import { buildDiffHunkIndex, type DiffHunk, type DiffHunkIndex } from './diff-hunk-catalog.ts';
 import type { PrData } from './types.ts';
 
 /**
@@ -21,7 +22,8 @@ export interface NarrativePromptResult {
   hunkIndex: DiffHunkIndex;
 }
 
-const SYSTEM_PROMPT = `You are a senior software engineer reviewing a pull request. Your job is to produce a structured narrative review that organizes the PR changes into logical chapters.
+/** The review instructions and output schema; the local CLI writes them out as `system.md`. */
+export const NARRATIVE_SYSTEM_PROMPT = `You are a senior software engineer reviewing a pull request. Your job is to produce a structured narrative review that organizes the PR changes into logical chapters.
 
 Output a JSON object wrapped in <narrative_review> tags. The JSON must conform to this schema:
 
@@ -202,6 +204,27 @@ function filterDiffPatches(diff: string, shouldExclude: (filename: string) => bo
     .join('');
 }
 
+/** The Files Changed list: status, counts, path. */
+export function formatFileList(files: readonly ReviewFile[]): string {
+  return files
+    .map(
+      (f) =>
+        `  ${f.status.padEnd(10)} +${String(f.additions)}/-${String(f.deletions)}  ${f.filename}`,
+    )
+    .join('\n');
+}
+
+/** The Changed Hunks list the model cites ids from. */
+export function formatHunkCatalog(hunks: readonly DiffHunk[]): string {
+  if (hunks.length === 0) return '  (No patch hunks were detected in the provided diff.)';
+  return hunks
+    .map(
+      (hunk) =>
+        `  ${hunk.id}  ${hunk.filename}  ${hunk.header}  original ${formatLineSpan(hunk.original.startLine, hunk.original.lineCount)}  modified ${formatLineSpan(hunk.modified.startLine, hunk.modified.lineCount)}`,
+    )
+    .join('\n');
+}
+
 function formatLineSpan(startLine: number, lineCount: number): string {
   if (lineCount === 0) return `L${String(startLine)} (+0)`;
   if (lineCount === 1) return `L${String(startLine)}`;
@@ -215,26 +238,13 @@ export function buildNarrativePrompt(
   const shouldExclude = (filename: string): boolean => isExcludedFromAI(filename, userPatterns);
   const filteredFiles = prData.files.filter((f) => !shouldExclude(f.filename));
 
-  const fileList = filteredFiles
-    .map(
-      (f) =>
-        `  ${f.status.padEnd(10)} +${String(f.additions)}/-${String(f.deletions)}  ${f.filename}`,
-    )
-    .join('\n');
+  const fileList = formatFileList(filteredFiles);
 
   const { result: diff, wasTruncated } = truncateDiff(
     filterDiffPatches(prData.diff, shouldExclude),
   );
   const hunkIndex = buildDiffHunkIndex(diff);
-  const hunkCatalog =
-    hunkIndex.hunks.length === 0
-      ? '  (No patch hunks were detected in the provided diff.)'
-      : hunkIndex.hunks
-          .map(
-            (hunk) =>
-              `  ${hunk.id}  ${hunk.filename}  ${hunk.header}  original ${formatLineSpan(hunk.original.startLine, hunk.original.lineCount)}  modified ${formatLineSpan(hunk.modified.startLine, hunk.modified.lineCount)}`,
-          )
-          .join('\n');
+  const hunkCatalog = formatHunkCatalog(hunkIndex.hunks);
 
   let user = `# Pull Request: ${prData.title}
 
@@ -262,5 +272,5 @@ ${diff}
       '\n\nNote: Some large file diffs were truncated. Focus your narrative on the available content.';
   }
 
-  return { system: SYSTEM_PROMPT, user, wasTruncated, hunkIndex };
+  return { system: NARRATIVE_SYSTEM_PROMPT, user, wasTruncated, hunkIndex };
 }
