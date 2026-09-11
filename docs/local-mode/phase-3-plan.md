@@ -16,12 +16,13 @@ report on a real change (D15).
 src/cli/
   er.ts          bin entry: parseArgs → review command; exit codes; the only
                  place that installs signal handlers
+  review.ts      the review command: target, then the stages in order
   terminal.ts    all output, written to process.stdout/stderr (no-console
                  bans only console.*): stage lines, warnings, errors
   platform.ts    everything OS-specific (D13): temp dir, opening a file in the
                  browser, the tool's own root
-  git.ts         git and gh runners for the CLI (git via the shared
-                 git-runner; gh with JSON output), plus small queries
+  git.ts         Shell: git (via the shared git-runner) and gh, bound to one
+                 directory; both runners injectable for tests
   targets.ts     resolve pr / branch / staged → Target {kind, slug, base, head,
                  meta, repoRoot}
   run-folder.ts  er-reviews/<slug>/<timestamp>/; latest-for-slug; paths of
@@ -80,12 +81,15 @@ instructions module and adjusts the wording for local targets.
 ## Targets (A2, A3)
 
 - **Default branch:** from `git symbolic-ref refs/remotes/origin/HEAD`,
-  falling back to `gh repo view`.
+  falling back to `gh repo view`. (This repo's own clone has no
+  `origin/HEAD`, so the fallback is the common path.)
 - **Fetch:** `git fetch origin <default>` runs first. If it fails (offline),
   the command warns and uses the local `origin/<default>`.
 - **Branch mode:** base is `merge-base HEAD origin/<default>` (or `--base`),
   head is `HEAD`. `gh pr view` for the current branch attaches the title,
-  body, number and author when a PR exists. Otherwise the title is the branch
+  body, number and author when an open PR exists, and its base branch then
+  replaces the default branch (a refinement of A3: a branch whose PR targets
+  `release` is reviewed against `release`). Otherwise the title is the branch
   name. A branch with no commits past its base is an error.
 - **PR mode:** `gh pr view <n>` gives the title, body, author, refs and
   `headRefOid`. Then `git fetch origin pull/<n>/head <base>`. Head is the

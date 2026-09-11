@@ -65,7 +65,8 @@ src/
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only,
                        prisma-access, palette (token contrast, type scale, one label), diagram-colour (SVG takes token() only),
                        cli-imports (nothing `er` loads reaches env.ts, the logger, the db or a server package)
-  test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
+  test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb),
+                       git-repo.ts (a throwaway repository with a bare origin, for tests that drive real git)
   web/                 the React Router app: root.tsx, entry.server.tsx, routes.ts (every file in routes/ must be listed),
                        routes/, auth/, components/, stores/ (Zustand, persisted), theme/, lib/, test/
 public/                Passage brand-mark PNG export (the SVG sits beside components/brand-mark.tsx), favicon.svg / favicon.ico,
