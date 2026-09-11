@@ -7,6 +7,10 @@ import { BUNDLE_PLACEHOLDER, injectBundle } from './src/domain/review/bundle-htm
 
 const VIEWER_ROOT = fileURLToPath(new URL('./src/web/viewer', import.meta.url));
 const OUT_DIR = fileURLToPath(new URL('./build/viewer', import.meta.url));
+// Its own dependency cache: sharing `node_modules/.vite` with the app's dev
+// server makes each re-optimise the other's deps, and the app starts answering
+// 504 "Outdated Optimize Dep" until it restarts.
+const CACHE_DIR = fileURLToPath(new URL('./node_modules/.vite-viewer', import.meta.url));
 
 const SCRIPT_TAG = /<script type="module" crossorigin src="\.\/([^"]+\.js)"><\/script>/g;
 const STYLE_TAG = /<link rel="stylesheet" crossorigin href="\.\/([^"]+\.css)">/g;
@@ -74,6 +78,7 @@ function devBundle(): Plugin {
 // handles TSX. Monaco still loads from the CDN at runtime.
 export default defineConfig({
   root: VIEWER_ROOT,
+  cacheDir: CACHE_DIR,
   base: './',
   publicDir: false,
   resolve: { tsconfigPaths: true },

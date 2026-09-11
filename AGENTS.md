@@ -65,7 +65,8 @@ src/
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
   web/                 the React Router app: root.tsx, entry.server.tsx, routes.ts (every file in routes/ must be listed),
                        routes/, auth/, components/, stores/ (Zustand, persisted), theme/, lib/, test/
-public/                Passage brand-mark.svg (+ PNG export), favicon.svg / favicon.ico, apple-touch-icon.png
+public/                Passage brand-mark PNG export (the SVG sits beside components/brand-mark.tsx), favicon.svg / favicon.ico,
+                       apple-touch-icon.png
 docs/OPERATIONS.md     runbook for a running deployment
 Dockerfile             node:24-alpine multi-stage; build stage runs prisma generate; runtime ships source + prod deps
 entrypoint.sh          the image's CMD: prisma migrate deploy → recover-jobs → exec node server/index.ts
@@ -147,21 +148,21 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
 
 ## Scripts
 
-| Script                                     | What                                                           |
-| ------------------------------------------ | -------------------------------------------------------------- |
-| `npm run dev`                              | Express + Vite dev server on `localhost:3000`                  |
-| `npm run build` / `npm start`              | `react-router build` / serve `build/` in production mode       |
-| `npm run viewer:dev` / `viewer:build`      | the local report: Vite dev server / single-file build          |
-| `npm run typecheck`                        | `react-router typegen && tsc --noEmit`                         |
-| `npm test` / `test:watch`                  | Vitest `unit` + `web` + `guardrails`                           |
-| `npm run test:integration`                 | Vitest `integration` (needs Postgres; skips when unreachable)  |
-| `npm run lint` / `format` / `format:check` | oxlint / Prettier                                              |
-| `npm run check`                            | **The gate**: typecheck + build + test + lint + format:check   |
-| `npm run check:all`                        | `check` + integration                                          |
-| `npm run db:migrate`                       | `prisma migrate dev && prisma generate` (local schema changes) |
-| `npm run db:deploy` / `db:reset`           | apply migrations (CI/containers) / drop + reapply + generate   |
-| `npm run db:generate` / `db:studio`        | regenerate client (also `postinstall`) / Prisma Studio         |
-| `npm run job -- <name> [args]`             | one-shot jobs, natively: `recover-jobs`                        |
+| Script                                     | What                                                                        |
+| ------------------------------------------ | --------------------------------------------------------------------------- |
+| `npm run dev`                              | Express + Vite dev server on `localhost:3000`                               |
+| `npm run build` / `npm start`              | `react-router build` / serve `build/` in production mode                    |
+| `npm run viewer:dev` / `viewer:build`      | the local report: Vite dev server / single-file build                       |
+| `npm run typecheck`                        | `react-router typegen && tsc --noEmit`                                      |
+| `npm test` / `test:watch`                  | Vitest `unit` + `web` + `guardrails`                                        |
+| `npm run test:integration`                 | Vitest `integration` (needs Postgres; skips when unreachable)               |
+| `npm run lint` / `format` / `format:check` | oxlint / Prettier                                                           |
+| `npm run check`                            | **The gate**: typecheck + build + viewer:build + test + lint + format:check |
+| `npm run check:all`                        | `check` + integration                                                       |
+| `npm run db:migrate`                       | `prisma migrate dev && prisma generate` (local schema changes)              |
+| `npm run db:deploy` / `db:reset`           | apply migrations (CI/containers) / drop + reapply + generate                |
+| `npm run db:generate` / `db:studio`        | regenerate client (also `postinstall`) / Prisma Studio                      |
+| `npm run job -- <name> [args]`             | one-shot jobs, natively: `recover-jobs`                                     |
 
 `docker compose up -d` starts Postgres alone for local dev; the app's own
 container is behind the `app` profile.

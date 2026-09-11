@@ -29,10 +29,11 @@ src/web/
                      auth.github.ts, auth.github.callback.ts, auth.logout.ts, health.ts.
   auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                      context (userContext/sessionContext), session-middleware, gate-middleware (requireUser, signOutHeaders)
-  components/        brand-mark, caption (the one uppercase label), page-shell (the one page width,
+  components/        brand-mark (+ brand-mark.svg, imported so the report inlines it), caption (the one uppercase label), page-shell (the one page width,
                      shared with the topbar), color-scheme-toggle,
                      app-error (generic error page, used by root + route boundaries);
-                     topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
+                     topbar/ (topbar: Topbar on TopbarFrame, which the local report's header reuses with
+                     StaticBrand; topbar-nav, user-menu, layout-width-toggle),
                      jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                      job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
                      what-now, rerun-button, job-not-found (404 page shared with the reader), review-banners (the
@@ -63,7 +64,8 @@ src/web/
                      a 30 s overlap, toasts once per job id, suppressed on that job's pages, browser Notification when
                      hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
   viewer/            the local report (vite.viewer.config.ts, not the RR app): index.html (the empty er-bundle element),
-                     main.tsx (client-rendered, hash data router), viewer-page (ChapterReader over EmbeddedFileSource),
+                     main.tsx (client-rendered, hash data router, stored width applied before render), viewer-page
+                     (a TopbarFrame with brand + width/scheme toggles, then ChapterReader over EmbeddedFileSource),
                      report-problem (missing / version-mismatch / invalid bundle), sample-bundle.ts (what viewer:dev
                      renders unless ER_BUNDLE names a JSON file); the build inlines JS, CSS and fonts into one file
                      (`react-router build` wipes build/, so it builds second); Monaco still loads from the CDN

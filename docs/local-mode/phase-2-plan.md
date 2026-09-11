@@ -1,7 +1,7 @@
 # Phase 2 — Report build target
 
 **Parent:** [00-overview.md](00-overview.md) (D2, D3, D11, D15, A5, A9, A11).
-**Status:** in progress.
+**Status:** done.
 
 This phase produces `build/viewer/viewer.html`: one file holding the reader,
 opened straight from disk. It renders an embedded `ReviewBundle` through the
@@ -30,9 +30,9 @@ import React and the narrative components but nothing `.server`):
   - a version mismatch: "This report was made by a different version of
     enhanced-review. Regenerate it.";
   - invalid or missing data: an error page with the Zod message.
-- The header has the brand mark, the review title and repo, the colour-scheme
-  toggle and the layout-width toggle, all existing components. It has no nav,
-  user menu or notifications.
+- The header is the app's `TopbarFrame` holding the brand mark, the
+  colour-scheme toggle and the layout-width toggle, all existing components.
+  It has no nav, user menu or notifications.
 
 **Bundle in HTML** (`src/domain/review/bundle-html.ts`, pure strings, so the
 CLI can import it in Phase 3):
@@ -123,6 +123,11 @@ that break the report fail the gate. `tsconfig.json` includes the new config.
 4. **Report page.**
    - `viewer-page.tsx` with the slim header, `ChapterReader` +
      `EmbeddedFileSource`, and the document title from the review.
+   - The header is the app's own: `Topbar`'s frame is split out as
+     `TopbarFrame`. The report fills it with a brand that is not a link and
+     "Local review" on the left, and the width and scheme toggles on the
+     right. It shows no title or repo, because the summary already carries
+     both.
    - `check` gains `viewer:build`.
    - Map files: `web.md` (the `viewer/` entry), `AGENTS.md` (scripts table,
      layout line for `vite.viewer.config.ts`), and `container.md` if anything
@@ -154,3 +159,36 @@ that break the report fail the gate. `tsconfig.json` includes the new config.
 - The reader region matches the hosted captures for the comparison bundle.
 - A bundle with a different `schemaVersion` shows the regenerate screen.
 - The shell size is recorded.
+
+## Result
+
+All exit criteria hold.
+
+- **Parity.** The reader grid was captured from the hosted app and from
+  `viewer.html` opened off disk, holding the hosted review's own loader data
+  and the same file contents. 8 of 10 pairs are pixel-identical, Monaco diffs
+  included. The two summary pairs differ only because the report has no
+  Re-run button. Without it the eyebrow row is the caption's 17.6 px instead
+  of the button's 32 px, so everything below sits 14.4 px higher. That is the
+  intended consequence of an empty `actions` slot.
+- **Hosted app unchanged.** It still hash-matches the Phase 1 `after`
+  captures after the `TopbarFrame` split and the brand-mark move.
+- **Navigation.** In Chrome from `file://`, these all work:
+  - arrow keys, `End` and number keys;
+  - back and forward;
+  - file clicks;
+  - reload on a `#/?file=` URL.
+- **Edge.** Headless Edge renders the sample's summary, risk, both diff
+  chapters and a file view from disk, in dark.
+- **Shell size.** `viewer.html` without review data is 1.63 MB. It inlines
+  React, Mantine, dagre, react-markdown, highlight.js and both variable
+  fonts. Monaco, which loads from jsDelivr, is not included.
+- **Found and fixed along the way:**
+  - `BrandMark` pointed at `/brand-mark.svg` in `public/`, which a file on
+    disk cannot reach. The SVG now sits beside the component and is imported,
+    so the report inlines it.
+  - `viewer:dev` shared Vite's dependency cache with the app's dev server.
+    Each one re-optimised the other's dependencies, and the app answered 504
+    until it restarted. The viewer now has its own `cacheDir`.
+- **Found, not fixed:** ER-14, the off-by-one snippet alignment around
+  zero-length hunks, in shared reader code.

@@ -29,7 +29,7 @@
     "test": "vitest run --project unit --project web --project guardrails",
     "test:watch": "vitest --project unit --project web --project guardrails",
     "test:integration": "vitest run --project integration",
-    "check": "npm run typecheck && npm run build && npm run test && npm run lint && npm run format:check",
+    "check": "npm run typecheck && npm run build && npm run viewer:build && npm run test && npm run lint && npm run format:check",
     "check:all": "npm run check && npm run test:integration"
   },
   "dependencies": {
