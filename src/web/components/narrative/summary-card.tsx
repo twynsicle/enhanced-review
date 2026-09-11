@@ -1,8 +1,7 @@
 import { Box, Collapse, Group, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { useState, type ReactNode } from 'react';
-import type { PullMetadata } from '@/domain/github/types';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/domain/review/narrative';
-import type { ReviewTarget } from '@/domain/review/target';
+import type { ReviewMeta } from '@/domain/review/review-meta';
 import { Caption } from '@/web/components/caption';
 import classes from '@/web/components/narrative/article.module.css';
 import { DiagramFigure } from '@/web/components/narrative/diagram/diagram-figure';
@@ -13,7 +12,7 @@ import { DISPLAY_SIZE } from '@/web/theme/tokens';
 
 /**
  * The synthesised summary section: title line, the overview diagram, the
- * reviewer's overview and, when GitHub answered, the author's own PR
+ * reviewer's overview and, when there is one, the author's own PR
  * description.
  *
  * The risk rating used to sit between the title and the overview, which made
@@ -21,44 +20,36 @@ import { DISPLAY_SIZE } from '@/web/theme/tokens';
  * and someone else's prose. Risk is its own section now, and what is left
  * here reads in one direction: what changed, shown, then said.
  *
- * `pullMetadata` is null when the viewer cannot reach GitHub; the card then
- * falls back to what the job already knows.
+ * Where the review came from arrives as one `ReviewMeta`, built by whoever
+ * hosts the reader: the hosted route from the job and GitHub, a local report
+ * from git. The card only decides what to show when a field is missing.
  */
 export function SummaryCard({
   review,
-  target,
-  pullMetadata,
-  byline,
+  meta,
   actions,
   onSelectFile,
 }: {
   review: NarrativeReview;
-  target: ReviewTarget;
-  pullMetadata: PullMetadata | null;
-  /** Job-level byline used when GitHub metadata is not available. */
-  byline: { author: string };
-  /** Header action (the rerun button). */
+  meta: ReviewMeta;
+  /** Header action (the hosted app's rerun button). */
   actions?: ReactNode;
   /** Threaded down so a grounded diagram node can open its file. */
   onSelectFile?: (filename: string) => void;
 }) {
-  const baseRef = pullMetadata?.baseRefName ?? (target.kind === 'branch' ? target.baseRef : null);
-  const headRef = pullMetadata?.headRefName ?? (target.kind === 'branch' ? target.ref : null);
-  const author = pullMetadata?.authorLogin ?? byline.author;
-  const title =
-    review.prTitle || pullMetadata?.title || (target.kind === 'pr' ? target.title : target.ref);
+  const { baseRefName: baseRef, headRefName: headRef, authorLogin: author, prNumber } = meta;
+  const title = review.prTitle || meta.title;
   const reviewedFiles = review.files ?? [];
-  const reviewedFileCount = reviewedFiles.length || pullMetadata?.changedFiles || 0;
+  const reviewedFileCount = reviewedFiles.length || meta.stats?.changedFiles || 0;
   const additions =
     reviewedFiles.length > 0
       ? reviewedFiles.reduce((sum, file) => sum + file.additions, 0)
-      : (pullMetadata?.additions ?? 0);
+      : (meta.stats?.additions ?? 0);
   const deletions =
     reviewedFiles.length > 0
       ? reviewedFiles.reduce((sum, file) => sum + file.deletions, 0)
-      : (pullMetadata?.deletions ?? 0);
+      : (meta.stats?.deletions ?? 0);
 
-  const prNumber = target.kind === 'pr' ? target.number : null;
   const dot = (
     <Text component="span" fz="inherit" aria-hidden>
       ·
@@ -93,7 +84,7 @@ export function SummaryCard({
          */}
         <Group gap={12} fz="sm" c="dimmed" style={{ rowGap: 4 }}>
           <Text component="span" ff="monospace" fz="inherit">
-            {target.owner}/{target.repo}
+            {meta.repo}
           </Text>
           {prNumber !== null && (
             <>
@@ -120,10 +111,14 @@ export function SummaryCard({
               </Group>
             </>
           )}
-          {dot}
-          <Text component="span" fz="inherit">
-            @{author}
-          </Text>
+          {author && (
+            <>
+              {dot}
+              <Text component="span" fz="inherit">
+                @{author}
+              </Text>
+            </>
+          )}
           {reviewedFileCount > 0 && (
             <>
               {dot}
@@ -159,7 +154,7 @@ export function SummaryCard({
         <LeadMarkdown text={review.overviewSummary} />
       </Stack>
 
-      {pullMetadata?.body && <AuthorDescription body={pullMetadata.body} />}
+      {meta.description && <AuthorDescription body={meta.description} />}
     </article>
   );
 }

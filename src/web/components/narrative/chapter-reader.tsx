@@ -4,18 +4,17 @@ import {
   useMemo,
   useState,
   type CSSProperties,
+  type ReactNode,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useSearchParams } from 'react-router';
-import type { PullMetadata } from '@/domain/github/types';
 import {
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
   type NarrativeReview,
 } from '@/domain/review/narrative';
-import type { ReviewTarget } from '@/domain/review/target';
-import { RerunButton } from '@/web/components/jobs/rerun-button';
+import type { ReviewMeta } from '@/domain/review/review-meta';
 import { ChapterCard } from '@/web/components/narrative/chapter-card';
 import { ChapterSidebar } from '@/web/components/narrative/chapter-sidebar';
 import { FileView } from '@/web/components/narrative/file-view';
@@ -42,13 +41,12 @@ function fileExists(filename: string, review: NarrativeReview): boolean {
 
 export interface ChapterReaderProps {
   review: NarrativeReview;
-  target: ReviewTarget;
-  pullMetadata: PullMetadata | null;
+  /** The summary header: repository, PR, refs, author, description. */
+  meta: ReviewMeta;
   /** Active section when the URL names none (or an unknown one). */
   initialActiveId: string;
-  jobId: string;
-  /** Byline for the summary header when GitHub metadata is unavailable. */
-  jobAuthor: string;
+  /** Summary-header actions (the hosted app's rerun button). */
+  actions?: ReactNode;
 }
 
 /**
@@ -58,14 +56,7 @@ export interface ChapterReaderProps {
  * chapter is what comes back when the file view is closed). Inline diffs read
  * their files from the `FileSource` the caller wraps it in.
  */
-export function ChapterReader({
-  review,
-  target,
-  pullMetadata,
-  initialActiveId,
-  jobId,
-  jobAuthor,
-}: ChapterReaderProps) {
+export function ChapterReader({ review, meta, initialActiveId, actions }: ChapterReaderProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const sections = useMemo(() => readerSections(review), [review]);
@@ -168,14 +159,7 @@ export function ChapterReader({
         ) : activeId === RISK_SECTION_ID && review.riskAssessment ? (
           <RiskCard assessment={review.riskAssessment} />
         ) : !activeChapter ? (
-          <SummaryCard
-            review={review}
-            target={target}
-            pullMetadata={pullMetadata}
-            byline={{ author: jobAuthor }}
-            actions={<RerunButton jobId={jobId} />}
-            onSelectFile={onSelectFile}
-          />
+          <SummaryCard review={review} meta={meta} actions={actions} onSelectFile={onSelectFile} />
         ) : (
           <ChapterCard
             chapter={activeChapter}

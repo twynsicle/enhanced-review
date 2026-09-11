@@ -7,13 +7,15 @@ import {
 import { z } from 'zod';
 import { getJob, getReview, toJobView } from '@/domain/jobs/jobs.server';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/domain/review/narrative';
+import { reviewMetaFromJob } from '@/domain/review/review-meta';
 import { readGithubToken } from '@/web/auth/cookies.server';
 import { AppError } from '@/web/components/app-error';
 import { JobNotFound } from '@/web/components/jobs/job-not-found';
+import { RerunButton } from '@/web/components/jobs/rerun-button';
+import { StalenessBanner, TruncationBanner } from '@/web/components/jobs/review-banners';
 import { ChapterReader } from '@/web/components/narrative/chapter-reader';
 import { GithubFileSource } from '@/web/components/narrative/file-source';
 import { PageShell } from '@/web/components/page-shell';
-import { StalenessBanner, TruncationBanner } from '@/web/components/narrative/review-banners';
 import { parseFormData, parseParams, parseSearchParams } from '@/web/lib/parse.server';
 import { rerunAction } from '@/web/lib/rerun-action.server';
 import { loadReviewMetadata } from '@/web/lib/review-metadata.server';
@@ -64,7 +66,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     job: toJobView(job),
     review: review.content,
     diffTruncated: review.diffTruncated,
-    pullMetadata: metadata.pullMetadata,
+    meta: reviewMetaFromJob(job.target, metadata.pullMetadata, job.githubLogin),
     isStale: metadata.currentHeadSha !== null && metadata.currentHeadSha !== headSha,
     commitsAhead: metadata.commitsAhead,
     initialActiveId: parseActiveId(ch, review.content.chapters),
@@ -113,11 +115,9 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {
         <ChapterReader
           key={job.id}
           review={review}
-          target={job.target}
-          pullMetadata={loaderData.pullMetadata}
+          meta={loaderData.meta}
           initialActiveId={loaderData.initialActiveId}
-          jobId={job.id}
-          jobAuthor={job.githubLogin}
+          actions={<RerunButton jobId={job.id} />}
         />
       </GithubFileSource>
     </PageShell>

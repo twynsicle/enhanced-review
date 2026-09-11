@@ -1,6 +1,6 @@
 # Phase 1 — Bundle contract + reader seams
 
-**Parent:** [00-overview.md](00-overview.md) (D2, D11, A6). **Status:** in progress.
+**Parent:** [00-overview.md](00-overview.md) (D2, D11, A6). **Status:** done.
 
 The reader has four ties to its environment: file reads, the PR header, the
 rerun button and URL state. This phase cuts the first three so the same
@@ -107,3 +107,20 @@ It used to say GitHub returned 404. Nothing else visible changes.
   `FileSource`.
 - No narrative component imports `ReviewTarget`, `PullMetadata`, or anything
   under `jobs/`.
+
+## Result
+
+All three exit criteria hold. `review-banners` moved from `narrative/` to
+`jobs/`, since it imports `RerunButton` and is hosted-only. Ten pairs were
+captured before and after. Two fresh `before` runs hash-identical, so the
+comparison is deterministic.
+
+- Risk, chapter 1 with Monaco diffs, and the file view are identical in light
+  and dark.
+- The both-404 chapter differs only by the intended message.
+- The summary differs by a horizontal shift of 1/64 px in the header meta
+  line, from the author onwards, and nothing is visible at 4× zoom. Cause:
+  the repo label used to be three text nodes (`{owner}/{repo}`), each shaped
+  separately. It is now one string (`meta.repo`), shaped as one run, which
+  kerns 0.016 px narrower. The markup is otherwise identical. It was accepted
+  as is.

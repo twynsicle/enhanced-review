@@ -1,18 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { NarrativeReview } from '@/domain/review/narrative';
-import type { ReviewTarget } from '@/domain/review/target';
+import type { ReviewMeta } from '@/domain/review/review-meta';
 import { REAL_ARCHITECTURE } from '@/web/test/diagram-fixtures';
 import { fireEvent, render, screen } from '@/web/test/render';
 import { SummaryCard } from './summary-card';
 
-const target: ReviewTarget = {
-  kind: 'pr',
-  owner: 'acme',
-  repo: 'widgets',
-  number: 7,
+const baseMeta: ReviewMeta = {
+  repo: 'acme/widgets',
   title: 'Add scheduled reviews',
-  headSha: 'a'.repeat(40),
-  baseSha: 'b'.repeat(40),
+  prNumber: 7,
+  baseRefName: null,
+  headRefName: null,
+  authorLogin: 'someone',
+  description: null,
+  stats: null,
 };
 
 function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
@@ -25,15 +26,8 @@ function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
   };
 }
 
-function renderCard(overrides: Partial<NarrativeReview> = {}, body?: string) {
-  return render(
-    <SummaryCard
-      review={review(overrides)}
-      target={target}
-      pullMetadata={body === undefined ? null : ({ body } as never)}
-      byline={{ author: 'someone' }}
-    />,
-  );
+function renderCard(overrides: Partial<NarrativeReview> = {}, meta: Partial<ReviewMeta> = {}) {
+  return render(<SummaryCard review={review(overrides)} meta={{ ...baseMeta, ...meta }} />);
 }
 
 describe('<SummaryCard />', () => {
@@ -65,7 +59,7 @@ describe('<SummaryCard />', () => {
   });
 
   it("keeps the author's description collapsed until asked", () => {
-    renderCard({}, 'Original PR body text.');
+    renderCard({}, { description: 'Original PR body text.' });
     const toggle = screen.getByRole('button', { name: /description/i });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(toggle);
@@ -73,8 +67,35 @@ describe('<SummaryCard />', () => {
     expect(screen.getByText('Original PR body text.')).toBeDefined();
   });
 
-  it('says nothing about a description GitHub did not answer for', () => {
+  it('says nothing about a description there is none of', () => {
     renderCard();
     expect(screen.queryByRole('button', { name: /description/i })).toBeNull();
+  });
+
+  it('shows the repository, PR number, refs and author from the meta', () => {
+    renderCard({}, { baseRefName: 'main', headRefName: 'feat/scheduler' });
+    expect(screen.getByText('acme/widgets')).toBeDefined();
+    expect(screen.getByText('PR #7')).toBeDefined();
+    expect(screen.getByText('feat/scheduler')).toBeDefined();
+    expect(screen.getByText('@someone')).toBeDefined();
+  });
+
+  it('leaves out what a local review of staged changes does not have', () => {
+    // No PR, no author login: the header shows only what it knows.
+    renderCard({}, { prNumber: null, authorLogin: null });
+    expect(screen.queryByText(/PR #/)).toBeNull();
+    expect(screen.queryByText(/^@/)).toBeNull();
+    expect(screen.getByText('acme/widgets')).toBeDefined();
+  });
+
+  it("uses the meta's title when the review has none", () => {
+    renderCard({ prTitle: '' }, { title: 'feat/scheduler' });
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('feat/scheduler');
+  });
+
+  it('falls back to the meta stats for a review with no files list', () => {
+    renderCard({ files: [] }, { stats: { changedFiles: 3, additions: 40, deletions: 2 } });
+    expect(screen.getByText('3 files')).toBeDefined();
+    expect(screen.getByText('+40')).toBeDefined();
   });
 });

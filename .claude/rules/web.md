@@ -17,7 +17,8 @@ src/web/
   routes/            _gated.tsx (layout: requireUser) → _shell.tsx (layout: Topbar + JobNotifications; loader {user, serverNow, polling})
                        → home.tsx (index: hero + ReviewComposer + Recent; action POST /?index → startReview), history.tsx (?status=),
                          jobs.$id.tsx (live view; loader job + chunks, 404 → own ErrorBoundary; action intent=cancel|rerun),
-                         reviews.$id.tsx (reader; loader: done job + review + GitHub fan-out via lib/review-metadata.server,
+                         reviews.$id.tsx (reader; loader: done job + review + GitHub fan-out via lib/review-metadata.server
+                         → reviewMetaFromJob; the reader is wrapped in GithubFileSource, rerun passed as its actions,
                          not done → /jobs/:id, ?ch=/?file= client-side via shouldRevalidate; action intent=rerun)
                      _gated (chrome-less) → relink.tsx, api.github.repos.ts, api.github.pulls.ts, api.github.branches.ts,
                        api.github.file.ts (both blobs of one file, base + head in parallel, for the inline diff)
@@ -34,9 +35,12 @@ src/web/
                      topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
                      jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                      job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
-                     what-now, rerun-button, job-not-found (404 page shared with the reader)), history/ (filter-chips,
+                     what-now, rerun-button, job-not-found (404 page shared with the reader), review-banners (the
+                     hosted reader's truncation + staleness banners)), history/ (filter-chips,
                      empty-history), home/ (review-composer, target-combobox, recent-reviews, sparkline),
-                     narrative/ (the reader: chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state),
+                     narrative/ (the reader, shared by the hosted route and the local report — nothing here may import
+                     jobs/, ReviewTarget or PullMetadata: chapter-reader (+ .module.css grid, resizable sidebar,
+                     ?ch=/?file= state; takes review + ReviewMeta + an `actions` slot),
                      sections.ts (readerSections: the one ordered list of sections — summary, risk when there is an
                      assessment, then the chapters — that the sidebar renders and the keyboard walks),
                      chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, and a row carrying
@@ -44,8 +48,11 @@ src/web/
                      author's description collapsed last), risk-card, file-view, insight-callout,
                      article.module.css (the reading measure + the diff bleed lane),
                      lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
-                     inline-diff-chunk (+ .module.css; useFetcher → /api/github/file, snippets per hunk group,
-                     lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme), review-banners, risk-score,
+                     inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group,
+                     lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme),
+                     file-source (where the diffs get files: GithubFileSource → /api/github/file fetcher,
+                     EmbeddedFileSource → a ReviewBundle; useFilePair always mounts a fetcher, so the reader needs a
+                     data router under either), risk-score,
                      use-narrative-keyboard,
                      diagram/ (SSR'd SVG: text-metrics (estimated widths — the server cannot measure a string),
                      change-style (change → token; nodes are outlined, never filled), graph-layout (dagre, compound +

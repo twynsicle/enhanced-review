@@ -101,7 +101,7 @@ describe('/reviews/:id loader', () => {
       job: { id: 'j1' },
       review: { prTitle: 'Feature' },
       diffTruncated: true,
-      pullMetadata: null,
+      meta: { authorLogin: 'alice', stats: null, description: null },
       isStale: false,
       commitsAhead: 0,
       initialActiveId: '__summary__',
@@ -133,7 +133,10 @@ describe('/reviews/:id loader', () => {
   it('renders without a GitHub token', async () => {
     cookies.readGithubToken.mockResolvedValue(null);
     const result = await load('http://localhost/reviews/j1');
-    expect(result.pullMetadata).toBeNull();
+    // No GitHub answer: the header falls back to the stored target.
+    expect(result.meta.stats).toBeNull();
+    expect(result.meta.description).toBeNull();
+    expect(result.meta.authorLogin).toBe('alice');
     expect(metadata.loadReviewMetadata).toHaveBeenCalledWith(
       expect.objectContaining({ token: null }),
     );
