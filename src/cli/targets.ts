@@ -84,6 +84,26 @@ export async function resolveTarget(
   }
 }
 
+/** Where a target's runs live, found without fetching or diffing: for `--from`. */
+export async function locateTarget(
+  request: TargetRequest,
+  cwd: Shell,
+): Promise<{ repoRoot: string; slug: string }> {
+  const repoRoot = await findRepoRoot(cwd);
+  const shell = cwd.at(repoRoot);
+  switch (request.kind) {
+    case 'pr':
+      return { repoRoot, slug: `pr-${String(request.number)}` };
+    case 'staged':
+      return { repoRoot, slug: 'staged' };
+    case 'branch': {
+      const name =
+        (await currentBranch(shell)) ?? (await revParse(shell, 'HEAD', 'commit')).slice(0, 7);
+      return { repoRoot, slug: `branch-${slugify(name)}` };
+    }
+  }
+}
+
 export async function findRepoRoot(shell: Shell): Promise<string> {
   const result = await shell.tryGit(['rev-parse', '--show-toplevel']);
   if (result.exitCode !== 0) throw new Error('not inside a git repository');

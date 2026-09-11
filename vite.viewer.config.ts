@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import type { ReviewBundle } from './src/domain/review/bundle.ts';
 import { BUNDLE_PLACEHOLDER, injectBundle } from './src/domain/review/bundle-html.ts';
+import { VIEWER_STAMP_FILE, viewerSourceStamp } from './src/cli/viewer-stamp.ts';
 
+const TOOL_ROOT = fileURLToPath(new URL('.', import.meta.url));
 const VIEWER_ROOT = fileURLToPath(new URL('./src/web/viewer', import.meta.url));
 const OUT_DIR = fileURLToPath(new URL('./build/viewer', import.meta.url));
 // Its own dependency cache: sharing `node_modules/.vite` with the app's dev
@@ -18,7 +20,8 @@ const STYLE_TAG = /<link rel="stylesheet" crossorigin href="\.\/([^"]+\.css)">/g
 /**
  * Folds the emitted JS and CSS into the page once the build is on disk, then
  * deletes everything but `viewer.html`, so the report opens from disk with
- * nothing beside it. Done after the write rather than in `generateBundle`
+ * nothing beside it but the source stamp the CLI checks for staleness
+ * (`src/cli/viewer-stamp.ts`). Done after the write rather than in `generateBundle`
  * because Rolldown's bundle object ignores `delete`. A `</script` inside the
  * code would end the inline tag early, so it is escaped the way every
  * single-file bundler does.
@@ -43,6 +46,7 @@ function inlineIntoHtml(): Plugin {
       }
       for (const entry of readdirSync(OUT_DIR)) rmSync(join(OUT_DIR, entry), { recursive: true });
       writeFileSync(join(OUT_DIR, 'viewer.html'), html);
+      writeFileSync(join(OUT_DIR, VIEWER_STAMP_FILE), viewerSourceStamp(TOOL_ROOT));
     },
   };
 }

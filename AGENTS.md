@@ -114,6 +114,8 @@ directly.
 - `container.md` — the compose `app` profile, CMD vs entrypoint, what the
   image ships. Loads for the Docker, compose and CI files, `package.json` and
   `server/**`.
+- `cli.md` — file-by-file map of `src/cli/` (`er review` and its stages).
+  Loads for `src/cli/**` and `vite.viewer.config.ts`.
 
 Skills in `.claude/skills/`, loaded when the task calls for them:
 

@@ -149,11 +149,16 @@ only when the run stage is in range (a real run from Phase 4, or `--stub`).
   the CLI finds from its own file location.
 - **Staleness:** a sidecar `build/viewer/viewer.stamp` holds a hash of the
   sources that feed the shell (`src/web`, `src/domain`,
-  `vite.viewer.config.ts`, `package-lock.json`). When the shell is missing or
-  the stamp differs (after a `git pull`), render runs `npm run viewer:build`
-  in the tool root first.
+  `vite.viewer.config.ts`, `tsconfig.json`, `package-lock.json`, tests left
+  out). The viewer build writes it, so a hand-run `npm run viewer:build`
+  leaves a fresh stamp too. When the shell is missing or the stamp differs
+  (after a `git pull`), render runs `npm run viewer:build` in the tool root
+  first.
 - **Output:** the bundle is `{ meta, review, files: context.contents }`,
-  injected with `injectBundle`.
+  injected with `injectBundle`, then opened with `explorer.exe` (the default
+  browser) unless `--no-open`.
+- **Without `--stub`**, until Phase 4, the command stops after the prompt
+  and says so; `--from run` requires `--stub`.
 
 ## Commits
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { toolVersion } from './platform.ts';
-import { review } from './review.ts';
+import { RESUMABLE_STAGES, review, type ReviewOptions } from './review.ts';
 import type { TargetRequest } from './targets.ts';
 import { fail, line } from './terminal.ts';
 
@@ -18,6 +18,9 @@ const USAGE = `Usage: er review [<pr-number> | --staged] [options]
 
 Options:
   --base <ref>         compare against <ref> instead (branch and PR reviews)
+  --stub               write a mechanical review instead of running a model
+  --from <stage>       resume the newest run for this target at prompt, run, parse or render
+  --no-open            write the report without opening it
   -h, --help           show this help
   -v, --version        show the version`;
 
@@ -46,6 +49,9 @@ async function main(argv: string[]): Promise<number> {
       version: { type: 'boolean', short: 'v' },
       staged: { type: 'boolean' },
       base: { type: 'string' },
+      stub: { type: 'boolean' },
+      from: { type: 'string' },
+      'no-open': { type: 'boolean' },
     },
   });
   if (values.version) {
@@ -58,7 +64,20 @@ async function main(argv: string[]): Promise<number> {
   }
   const [command, ...args] = positionals;
   if (command !== 'review') throw new UsageError(`unknown command: ${command!}`);
-  return review({ request: targetRequest(args, values), cwd: process.cwd() });
+  return review({
+    request: targetRequest(args, values),
+    cwd: process.cwd(),
+    stub: values.stub ?? false,
+    from: resumeStage(values.from),
+    open: !values['no-open'],
+  });
+}
+
+function resumeStage(from: string | undefined): ReviewOptions['from'] {
+  if (from === undefined) return null;
+  const stage = RESUMABLE_STAGES.find((name) => name === from);
+  if (!stage) throw new UsageError(`--from takes one of: ${RESUMABLE_STAGES.join(', ')}`);
+  return stage;
 }
 
 try {

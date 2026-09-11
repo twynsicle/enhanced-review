@@ -68,7 +68,7 @@ src/web/
                      main.tsx (client-rendered, hash data router, stored width applied before render), viewer-page
                      (a TopbarFrame with brand + width/scheme toggles, then ChapterReader over EmbeddedFileSource),
                      report-problem (missing / version-mismatch / invalid bundle), sample-bundle.ts (what viewer:dev
-                     renders unless ER_BUNDLE names a JSON file); the build inlines JS, CSS and fonts into one file
+                     renders unless ER_BUNDLE names a JSON file); the build inlines JS, CSS and fonts into one file and stamps its sources (viewer.stamp, which er checks)
                      (`react-router build` wipes build/, so it builds second); Monaco still loads from the CDN
   stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
   theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours + FONT_SIZES/DISPLAY_SIZE/
