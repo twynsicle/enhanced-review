@@ -13,7 +13,7 @@ import { DIAGRAM_TYPE, estimateTextWidth, widestLine, wrapLabel } from './text-m
  * produced.
  *
  * `beforeAfter` is laid out as two panels rather than one graph. There is no
- * side field on a node — a node's change mark already says which columns it
+ * side field on a node — a node's change mark already says which panels it
  * belongs in — so the before panel is drawn from the things that existed
  * before (`unchanged`, `modified`, `removed`) and the after panel from the
  * things that exist now (`unchanged`, `modified`, `added`). A modified node
@@ -280,6 +280,34 @@ export function layoutGraph(diagram: GraphDiagram): GraphLayout {
 
   const before = layoutPanel(diagram, inBefore, 'Before');
   const after = layoutPanel(diagram, inAfter, 'After');
+
+  /*
+   * The two panels stack across the flow, never along it. A flow that runs
+   * down makes each panel tall and narrow, so they sit side by side; a flow
+   * that runs right makes each one a wide strip, so they sit one above the
+   * other.
+   *
+   * Side by side always was the first version, and it held for the
+   * hand-written fixture because that flowed down. The first real
+   * `beforeAfter` flowed right, and its panels came out 2154px wide in a
+   * 731px frame: the reader saw "Before" and had to scroll a thousand pixels
+   * to find "After", which is the one comparison this kind exists to make.
+   * Stacked, the two strips share one scroll and each step sits directly
+   * above its counterpart.
+   */
+  if (diagram.direction === 'right') {
+    const afterTop = PANEL_TITLE_H + before.height + PANEL_GAP + PANEL_TITLE_H;
+    return {
+      width: Math.max(before.width, after.width),
+      height: afterTop + after.height,
+      uniform,
+      panels: [
+        { ...before, offsetX: 0, offsetY: PANEL_TITLE_H },
+        { ...after, offsetX: 0, offsetY: afterTop },
+      ],
+    };
+  }
+
   return {
     width: before.width + PANEL_GAP + after.width,
     height: PANEL_TITLE_H + Math.max(before.height, after.height),

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { isGraphDiagram, type GraphDiagram } from '@/domain/review/diagram';
-import { HAND_BEFORE_AFTER, REAL_ARCHITECTURE, REAL_STATE } from '@/web/test/diagram-fixtures';
+import {
+  HAND_BEFORE_AFTER,
+  REAL_ARCHITECTURE,
+  REAL_BEFORE_AFTER,
+  REAL_STATE,
+} from '@/web/test/diagram-fixtures';
 import { INITIAL_NODE_ID, layoutGraph } from './graph-layout';
 
 function asGraph(diagram: typeof REAL_ARCHITECTURE): GraphDiagram {
@@ -15,6 +20,7 @@ function panelIds(panel: { nodes: { id: string }[] } | undefined): Set<string> {
 const architecture = asGraph(REAL_ARCHITECTURE);
 const state = asGraph(REAL_STATE);
 const beforeAfter = asGraph(HAND_BEFORE_AFTER);
+const realBeforeAfter = asGraph(REAL_BEFORE_AFTER);
 
 describe('layoutGraph', () => {
   it('places every node inside the reported canvas', () => {
@@ -91,7 +97,7 @@ describe('layoutGraph (beforeAfter)', () => {
     expect(layout.panels.map((p) => p.title)).toEqual(['Before', 'After']);
   });
 
-  it('puts what existed before on the left and what exists now on the right', () => {
+  it('puts what existed before in the first panel and what exists now in the second', () => {
     const [before, after] = layoutGraph(beforeAfter).panels;
     // `removed` is only on the before side, `added` only on the after side,
     // and `modified` — which existed and is different — is on both.
@@ -105,8 +111,26 @@ describe('layoutGraph (beforeAfter)', () => {
     expect(after?.edges.every((e) => !e.key.includes('legacy'))).toBe(true);
   });
 
-  it('offsets the second panel clear of the first', () => {
-    const [before, after] = layoutGraph(beforeAfter).panels;
+  it('sets the panels side by side when the flow runs down', () => {
+    const layout = layoutGraph({ ...beforeAfter, direction: 'down' });
+    const [before, after] = layout.panels;
     expect(after?.offsetX ?? 0).toBeGreaterThanOrEqual(before?.width ?? 0);
+    expect(after?.offsetY).toBe(before?.offsetY);
+  });
+
+  it('stacks the panels when the flow runs right, as the real one does', () => {
+    /*
+     * Side by side was the only arrangement until the first real
+     * `beforeAfter`, which flowed right: two wide strips end to end came out
+     * 2154px across a 731px frame, and "After" began a thousand pixels past
+     * where the reader could see. Panels go across the flow, never along it.
+     */
+    const layout = layoutGraph(realBeforeAfter);
+    const [before, after] = layout.panels;
+    expect(after?.offsetX).toBe(0);
+    expect(after?.offsetY ?? 0).toBeGreaterThanOrEqual(
+      (before?.offsetY ?? 0) + (before?.height ?? 0),
+    );
+    expect(layout.width).toBe(Math.max(before?.width ?? 0, after?.width ?? 0));
   });
 });

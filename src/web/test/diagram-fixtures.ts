@@ -7,9 +7,12 @@ import type { Diagram } from '@/domain/review/diagram';
  * whole reason the fixture pull request exists is that a schema and a
  * renderer designed against imagined input meet real input badly.
  *
- * HAND_BEFORE_AFTER is the exception. No run has produced a beforeAfter
- * diagram yet, so its renderer is the one piece of this built against a shape
- * we invented; that is a known risk and Phase G is where it gets tested.
+ * HAND_BEFORE_AFTER is the exception, written before any run had produced a
+ * beforeAfter. It flows down, so it only ever exercised panels side by side.
+ * REAL_BEFORE_AFTER, the first one a model drew, flows right — and laid out
+ * the same way it came out 2154px wide, with "After" out of sight. Which is
+ * the argument of this file in one case: the invented shape passed, and the
+ * real one did not.
  */
 
 export const REAL_ARCHITECTURE: Diagram = {
@@ -360,5 +363,42 @@ export const HAND_BEFORE_AFTER: Diagram = {
     { from: 'arm', to: 'serve', change: 'added' },
     { from: 'recover', to: 'legacy', change: 'removed' },
     { from: 'legacy', to: 'serve', change: 'removed' },
+  ],
+} as Diagram;
+
+/** Chapter "Reusing the Review Path", run 3. Flows right; stacks its panels. */
+export const REAL_BEFORE_AFTER: Diagram = {
+  id: 'startreview-reuse',
+  kind: 'beforeAfter',
+  title: 'One launcher, two callers',
+  caption:
+    "The composer's manual submit and the scheduler tick both end at the same `startReview` and the same `review_jobs` row; only the tick and the `scheduleId` stamp are new.",
+  direction: 'right',
+  nodes: [
+    { id: 'composer', kind: 'actor', label: 'Composer submit', change: 'unchanged' },
+    {
+      id: 'tick',
+      kind: 'code',
+      label: 'Scheduler tick',
+      change: 'added',
+      filename: 'src/domain/schedules/tick.server.ts',
+      hunkIds: ['H0054'],
+    },
+    {
+      id: 'startReview',
+      kind: 'code',
+      label: 'startReview',
+      change: 'modified',
+      filename: 'src/domain/jobs/start-review.server.ts',
+      hunkIds: ['H0042', 'H0043', 'H0044', 'H0045'],
+    },
+    { id: 'reviewJob', kind: 'data', label: 'review_jobs row', change: 'modified' },
+    { id: 'runner', kind: 'code', label: 'runner / chunk stream / reader', change: 'unchanged' },
+  ],
+  edges: [
+    { from: 'composer', to: 'startReview', label: 'manual submit', change: 'unchanged' },
+    { from: 'tick', to: 'startReview', label: 'scheduled submit', change: 'added' },
+    { from: 'startReview', to: 'reviewJob', label: 'stamps schedule_id', change: 'modified' },
+    { from: 'reviewJob', to: 'runner', label: 'same path either way', change: 'unchanged' },
   ],
 } as Diagram;
