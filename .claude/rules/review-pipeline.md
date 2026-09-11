@@ -25,6 +25,9 @@ src/domain/
                      diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
                      DIAGRAM_LIMITS, hasUniformChange), target.ts (ReviewTarget schema, describeTarget),
+                     review-meta.ts (ReviewMeta: the reader's summary header; reviewMetaFromJob for hosted jobs),
+                     bundle.ts (ReviewBundle: a review + meta + both sides of each file, for offline rendering;
+                     schemaVersion, no back-compat; parseBundle, filePair),
                      language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
     clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
                      verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists)
