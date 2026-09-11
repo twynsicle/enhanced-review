@@ -31,7 +31,7 @@ const MARGIN = 14;
 const GROUP_PAD_TOP = 26;
 const GROUP_PAD = 16;
 const PANEL_GAP = 64;
-const PANEL_TITLE_H = 28;
+const PANEL_TITLE_H = 36;
 const INITIAL_DOT = 11;
 
 export const INITIAL_NODE_ID = '__initial__';
@@ -320,3 +320,9 @@ export function layoutGraph(diagram: GraphDiagram): GraphLayout {
 }
 
 export const PANEL_TITLE_HEIGHT = PANEL_TITLE_H;
+/**
+ * A panel's title starts where its nodes do. dagre pads every panel by
+ * MARGIN, so a title at the panel's own origin sat 14px left of the first
+ * node and 4px off the frame's border — tight, and lined up with nothing.
+ */
+export const PANEL_TITLE_INSET = MARGIN;

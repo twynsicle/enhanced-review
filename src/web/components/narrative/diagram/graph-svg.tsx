@@ -2,6 +2,7 @@ import { CAPTION_TYPE, token } from '@/web/theme/tokens';
 import { changeStyle } from './change-style';
 import {
   PANEL_TITLE_HEIGHT,
+  PANEL_TITLE_INSET,
   type GraphLayout,
   type LaidOutEdge,
   type LaidOutNode,
@@ -183,7 +184,7 @@ export function GraphSvg({
         >
           {panel.title !== undefined && (
             <text
-              x={0}
+              x={PANEL_TITLE_INSET}
               y={-PANEL_TITLE_HEIGHT / 2}
               dominantBaseline="central"
               fontSize={CAPTION_TYPE.size}
