@@ -1,0 +1,85 @@
+---
+paths:
+  - 'src/domain/**'
+  - 'src/jobs/**'
+  - 'src/db/review-jobs.ts'
+  - 'src/db/reviews.ts'
+  - 'src/db/review-chunks.ts'
+  - 'server/index.ts'
+---
+
+# `src/domain/` and how a review runs
+
+Loaded when you open a domain, jobs or review-repository file. `domain` is
+shared between server and browser; `*.server.ts` marks the server-only modules
+(the rule is in `AGENTS.md` under Layering).
+
+```
+src/domain/
+  auth/              github-profile.server.ts (GET /user, Zod), sign-in.server.ts (upsert user)
+  github/            all *.server.ts on one @octokit/core instance per request: client (createOctokit, GithubAuthError,
+                     classifyGithubError, toResult), repos, pulls, branches (GraphQL), resolve-target (re-pin SHAs),
+                     pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getCommitsAhead); types.ts shared
+  review/            shared: narrative.ts (NarrativeReview Zod schema + types; chapter.diagram? + overviewDiagram?;
+                     SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's two synthesised sections),
+                     diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
+                     node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
+                     DIAGRAM_LIMITS, hasUniformChange), target.ts (ReviewTarget schema, describeTarget),
+                     language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
+    clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
+                     verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists)
+    prompt/          pure: ai-file-filter, diff-hunk-catalog (H0001… ids), narrative-prompt (system + user, truncation),
+                     parse-narrative (lenient sanitising, validated by NarrativeReviewSchema),
+                     parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own
+                     so a bad picture cannot fail the review; grounding checked against the hunk catalog), types.ts (PrData)
+    executor/        types.ts (ReviewExecutor, errors); stub-executor.server.ts (STUB_REVIEW in fragments);
+                     claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist)
+    run.server.ts    runJob(input, deps) → 'done' | 'skipped' | 'aborted' | 'errored'; defaultRunJobDeps(); formatJobError
+  jobs/              all *.server.ts: registry (AbortControllers on globalThis[JOBS_REGISTRY_KEY]), timeout (armTimeout),
+                     start-review (startReview / rerunJob / launchJob), cancel-job, recover-jobs, boot (bootJobs, once per process),
+                     jobs (read side: parseJob/parseReview, getJob (non-UUID → null), listJobs, getReview, listChunksAfter,
+                     listRecentActivity, toJobView);
+                     shared: errors.ts (JobInFlightError, …), status.ts (JOB_STATUSES), job-view.ts (JobView, jobHref), activity.ts
+src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.ts
+```
+
+## How a review runs
+
+- **Create / rerun** (`domain/jobs/start-review.server.ts`): refuse when the
+  user already has `MAX_JOBS_PER_USER` jobs in flight (`JobInFlightError`),
+  re-pin the target's SHAs against GitHub with the caller's token
+  (`GithubAuthError` passes through for `/relink`; anything else is
+  `HeadShaResolutionError`), insert a `pending` row, then `launchJob`:
+  register an `AbortController`, arm the `REVIEW_TIMEOUT_MIN` timeout and
+  run `runJob` fire-and-forget. A rerun copies the source target, is owned by
+  the viewer and is pinned to the current head.
+- **Runner** (`domain/review/run.server.ts`): `markRunning` (conditional
+  `pending → running`; false means cancelled before start) → PR metadata →
+  init + shallow fetch of `pull/N/head` or the branch → verify the head SHA
+  still matches → fetch the base SHA → diff + changed files → executor. The
+  executor streams raw text; each fragment becomes a `review_chunks` row
+  (`seq` from 0, inserts fire-and-forget, drained before finalize).
+  `finalizeDone` writes the `reviews` row and `running → done` in one
+  transaction. Failures → `markErrored(formatJobError(err))`, clipped to 500
+  chars. Every side effect is injected (`RunJobDeps`) so the stub review runs
+  end to end from `run.integration.test.ts` against a local git repo.
+- **Abort reasons** say who already wrote the terminal status: `cancel`
+  (`cancel-job.server.ts` wrote `cancelled` before signalling), `timeout`
+  (`timeout.server.ts` wrote `error` first), `shutdown` (nobody — the runner
+  writes `error: interrupted: server shutting down`).
+- **Executors**: `REVIEW_EXECUTOR=stub` replays `STUB_REVIEW` in fragments
+  (local default, all tests); `claude` runs the Agent SDK in the clone with
+  read-only tools, the filesystem sandbox pinned to the clone,
+  `settingSources: []` (the reviewed repo's `.claude/` cannot register hooks),
+  `persistSession: false` and only `CLAUDE_ENV_KEYS` from the host env.
+- **Process lifecycle**: `entry.server.tsx` awaits `bootJobs()` once per
+  process, which flips orphaned `pending|running` rows to `error`
+  ("interrupted: server restarted"); `npm run job -- recover-jobs` does the
+  same by hand. `server/index.ts` handles SIGTERM/SIGINT: `abortAll('shutdown')`
+  on the registry (reached through `globalThis[JOBS_REGISTRY_KEY]`, since the
+  bootstrap sits outside Vite's module graph), `drain` for up to 5 s, then
+  close. `/api/health` reports `queueDepth`, `oldestPendingAgeSec`,
+  `errorsLast24h`.
+- **Reads** go through `domain/jobs/jobs.server.ts`, which parses the JSON
+  columns (`target` → `ReviewTargetSchema`, `content` →
+  `NarrativeReviewSchema`); repositories return them as `unknown`.
