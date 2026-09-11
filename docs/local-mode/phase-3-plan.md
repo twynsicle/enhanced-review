@@ -1,7 +1,7 @@
 # Phase 3 — CLI without Claude
 
 **Parent:** [00-overview.md](00-overview.md) (D4, D6–D10, D12, D13, A1–A5,
-A8, A10). **Status:** in progress.
+A8, A10). **Status:** done (see Result).
 
 This phase builds `er review`, run from inside the repository under review,
 for all three targets, through every stage except a real Claude run. A
@@ -135,13 +135,17 @@ the marker later too.
 The worktree is needed only for the agent's working directory, so it exists
 only when the run stage is in range (a real run from Phase 4, or `--stub`).
 
-- **Before gather**, stale ones are swept: `git worktree list --porcelain`
-  entries under the OS temp dir named `er-*` are force-removed, then
-  `git worktree prune`.
-- **Created with** `git worktree add --detach <tmp>/er-<n>-<stamp> <head>`.
+- **Named** `<tmp>/er-pr<n>-<pid>-<stamp>`. The pid is the owning `er`, so
+  a review running in another terminal keeps its worktree.
+- **At the start of the run stage**, stale ones are swept:
+  `git worktree list --porcelain` entries under the OS temp dir with that
+  name whose process is gone are force-removed, then `git worktree prune`.
+- **Created with** `git -c core.hooksPath=<null device> worktree add --detach`
+  and `GIT_LFS_SKIP_SMUDGE=1`: a post-checkout hook is the reviewed repo's
+  code, and the agent can review a diff from LFS pointers.
 - **Removed in** a `finally`, and from SIGINT/SIGTERM handlers that remove it
-  before exiting 130/143. `--keep-worktree` skips the removal and prints the
-  path.
+  synchronously before exiting 130/143. `--keep-worktree` skips the removal
+  and prints the path; the next run's sweep removes it.
 
 ## Render (A5)
 
@@ -214,3 +218,55 @@ real detail (commit 6).
   touching git.
 - Ctrl+C during a PR review leaves no `er-*` worktree in
   `git worktree list` and no folder in the temp dir.
+
+## Result
+
+All exit criteria hold except a manual Ctrl+C, which moves to Phase 4.
+
+- **Gate.** `npm run check` is green after every commit: 562 tests, 63 of
+  them the CLI's.
+- **Runs through the linked `er`**, in a fresh clone of this repository with
+  `origin/HEAD` set:
+  - `er review --stub` on this branch: 75 files, 121 hunks, a 2.3 MB report.
+  - `er review 3 --stub`: 45 files, 79 hunks, reviewed in a worktree that
+    lived about 300 ms. `git worktree list` showed only the clone afterwards,
+    and no `er-pr*` folder was left in the temp dir.
+  - `er review --staged --stub` with a new file and a README edit staged.
+    Run again with a further unstaged README edit and an untracked file, it
+    reviewed the same two hunks and listed both paths in the warning and in
+    the prompt's "Where You Are".
+  - `er review --from parse` after editing `raw.txt`: the report carried the
+    edited title. Resuming reads only the run folder; git is asked only for
+    the repo root (and, for a branch review, the branch name, to find the
+    folder).
+  - `--keep-worktree` kept the worktree and printed its path; the next run
+    swept it.
+
+  Each run wrote `context.json`, `prompt.md` and a report. The reports opened
+  in Edge (the default browser) from disk. Headless Edge screenshots show the
+  summary, the chapters, Monaco diffs and the skipped-file view. A staged file
+  containing `"</script>"` rendered intact.
+
+- **Ctrl+C, not exercised by hand.** A stub run's worktree lives for
+  milliseconds, and Windows cannot send SIGINT to another process. An
+  end-to-end test runs the interrupt cleanups in the middle of a PR run and
+  checks that the worktree and its registration are gone. A hook test proves
+  that `core.hooksPath` keeps the reviewed repo's post-checkout hook from
+  running; without the setting, the same hook runs. Phase 4's real run lasts
+  minutes, so it gets the manual check.
+- **Changes from the plan:**
+  - The reader change came before gather, because `context.json` uses the
+    field.
+  - Branch mode follows an open PR's base branch rather than the default
+    branch.
+  - The viewer build writes the stamp, so a hand-run `viewer:build` leaves it
+    fresh.
+  - The worktree exists only while the run stage is in range, not from
+    before gather.
+  - This repository's own `.gitignore` and `.dockerignore` list
+    `/er-reviews/`, because Prettier reads only the root `.gitignore`.
+  - The file view's no-hunks text changed for the hosted app too: it no
+    longer mentions GitHub.
+- **Found, not fixed:** a whole-file addition shows a red, empty original
+  line opposite the added lines (the base side is `''`). Added to ER-14,
+  whose `-0,0` case it is.

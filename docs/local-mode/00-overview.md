@@ -1,6 +1,6 @@
 # 00 — Local mode overview (plan of plans)
 
-**Status:** decisions locked 2026-09-11. Phases 1–2 done; Phase 3 next.
+**Status:** decisions locked 2026-09-11. Phases 1–3 done; Phase 4 next.
 **Branch:** `feat/er-13-local-review-cli`, cut from `main` (`639b79d`).
 **Issue:** [ER-13](https://linear.app/lemon-dev/issue/ER-13).
 **Audience:** the maintainer and any agent picking this up cold.
