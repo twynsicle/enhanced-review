@@ -105,6 +105,12 @@ export function DiagramModal({
           aria-label={`${title}. ${caption}`}
           style={{ background: token('background') }}
           onPointerDown={(event) => {
+            /*
+             * Pointer capture retargets the click that follows to the svg, so
+             * capturing on a grounded node swallowed the click that should
+             * have opened its file. A press on a node is a click, not a pan.
+             */
+            if (event.target instanceof Element && event.target.closest('[role="button"]')) return;
             event.currentTarget.setPointerCapture(event.pointerId);
             origin.current = { x: event.clientX, y: event.clientY, viewX: view.x, viewY: view.y };
             setPanning(true);
@@ -113,8 +119,16 @@ export function DiagramModal({
             const start = origin.current;
             if (!start) return;
             const rect = event.currentTarget.getBoundingClientRect();
-            // Pointer pixels are viewport pixels; convert to viewBox units.
-            const unitsPerPx = viewWidth / Math.max(1, rect.width);
+            /*
+             * Pointer pixels are viewport pixels; convert to viewBox units.
+             * `meet` scales by whichever axis is tighter, so a tall diagram in
+             * a wide frame is fitted by height, and dividing by width alone
+             * made it drag slower than the pointer.
+             */
+            const unitsPerPx = Math.max(
+              viewWidth / Math.max(1, rect.width),
+              viewHeight / Math.max(1, rect.height),
+            );
             setView((current) => ({
               ...current,
               x: start.viewX - (event.clientX - start.x) * unitsPerPx,
@@ -122,6 +136,10 @@ export function DiagramModal({
             }));
           }}
           onPointerUp={() => {
+            origin.current = null;
+            setPanning(false);
+          }}
+          onPointerCancel={() => {
             origin.current = null;
             setPanning(false);
           }}

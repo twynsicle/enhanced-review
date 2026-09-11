@@ -1,6 +1,7 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import type { Diagram } from '@/domain/review/diagram';
 import { REAL_ARCHITECTURE, REAL_SEQUENCE, REAL_STATE } from '@/web/test/diagram-fixtures';
 import { render } from '@/web/test/render';
 import { DiagramFigure } from './diagram-figure';
@@ -56,6 +57,72 @@ describe('DiagramFigure', () => {
     render(<DiagramFigure diagram={REAL_ARCHITECTURE} />);
     // Only the expand control.
     expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('lists a mark that only a line carries', () => {
+    // A rewiring between unchanged components is drawn in its edges alone.
+    const rewired: Diagram = {
+      ...REAL_ARCHITECTURE,
+      kind: 'architecture',
+      direction: 'down',
+      nodes: [
+        { id: 'a', label: 'A', kind: 'code', change: 'unchanged' },
+        { id: 'b', label: 'B', kind: 'code', change: 'unchanged' },
+      ],
+      edges: [
+        { from: 'a', to: 'b', change: 'removed' },
+        { from: 'b', to: 'a', change: 'added' },
+      ],
+    };
+    render(<DiagramFigure diagram={rewired} />);
+    expect(screen.getByText('added')).toBeInTheDocument();
+    expect(screen.getByText('removed')).toBeInTheDocument();
+  });
+
+  it('loses the picture, not the page, when a diagram cannot be laid out', () => {
+    const broken = { ...REAL_ARCHITECTURE, nodes: undefined } as unknown as Diagram;
+    const { container } = render(<DiagramFigure diagram={broken} />);
+    expect(container.querySelector('figure')).toBeNull();
+  });
+
+  it('opens a grounded node from the expanded view, and gets out of the way', async () => {
+    /*
+     * A browser retargets the click after a captured press to the capturing
+     * element, so the pan handler taking capture on a node swallowed the
+     * click. happy-dom does not retarget, so what is asserted is the cause:
+     * a press on a node must not take capture, and a press on the ground must.
+     */
+    const capture = vi.fn();
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, 'setPointerCapture');
+    Object.defineProperty(Element.prototype, 'setPointerCapture', {
+      value: capture,
+      configurable: true,
+    });
+    try {
+      const onSelectFile = vi.fn();
+      render(<DiagramFigure diagram={REAL_ARCHITECTURE} onSelectFile={onSelectFile} />);
+      await userEvent.click(screen.getByRole('button', { name: /expand diagram/i }));
+      const dialog = await screen.findByRole('dialog');
+
+      await userEvent.click(within(dialog).getByRole('img'));
+      expect(capture).toHaveBeenCalledTimes(1);
+
+      const node = within(dialog)
+        .getAllByRole('button')
+        .find((el) => el.tagName.toLowerCase() === 'g');
+      expect(node).toBeDefined();
+      await userEvent.click(node as Element);
+      expect(capture).toHaveBeenCalledTimes(1);
+      expect(onSelectFile).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+      // Closing it from a node leaves it free to open again.
+      await userEvent.click(screen.getByRole('button', { name: /expand diagram/i }));
+      expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    } finally {
+      if (original) Object.defineProperty(Element.prototype, 'setPointerCapture', original);
+      else Reflect.deleteProperty(Element.prototype, 'setPointerCapture');
+    }
   });
 
   it('renders a sequence diagram with its branch labels', () => {

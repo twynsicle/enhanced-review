@@ -232,6 +232,34 @@ export function isGraphDiagram(diagram: Diagram): diagram is GraphDiagram {
   return diagram.kind !== 'sequence';
 }
 
+function messageMarks(steps: readonly (SequenceStep | SequenceLeafGroup)[]): DiagramChange[] {
+  return steps.flatMap((step) =>
+    step.type === 'message'
+      ? [step.change]
+      : step.branches.flatMap((branch) => messageMarks(branch.steps)),
+  );
+}
+
+/**
+ * The change marks that say something: every box, and every line that carries
+ * a change of its own.
+ *
+ * Lines count because a change can live on a line alone — a rewiring between
+ * two unchanged components is drawn entirely in its edges, and reading only
+ * the boxes rendered it flat. An `unchanged` line does not count, because it
+ * is also the default: a model that marks every node of a new subsystem
+ * `added` and leaves its edges bare has not said the edges existed before.
+ */
+export function changeMarks(diagram: Diagram): DiagramChange[] {
+  const boxes = isGraphDiagram(diagram)
+    ? diagram.nodes.map((node) => node.change)
+    : diagram.participants.map((participant) => participant.change);
+  const lines = isGraphDiagram(diagram)
+    ? diagram.edges.map((edge) => edge.change)
+    : messageMarks(diagram.steps);
+  return [...boxes, ...lines.filter((mark) => mark !== 'unchanged')];
+}
+
 /**
  * True when everything in the diagram carries the same change class.
  *
@@ -241,9 +269,7 @@ export function isGraphDiagram(diagram: Diagram): diagram is GraphDiagram {
  * something when there is something to contrast it against.
  */
 export function hasUniformChange(diagram: Diagram): boolean {
-  const marks = isGraphDiagram(diagram)
-    ? diagram.nodes.map((node) => node.change)
-    : diagram.participants.map((participant) => participant.change);
+  const marks = changeMarks(diagram);
   const first = marks[0];
   if (first === undefined) return true;
   return marks.every((mark) => mark === first);

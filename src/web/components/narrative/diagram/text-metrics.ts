@@ -1,4 +1,4 @@
-import { FONT_SIZES } from '@/web/theme/tokens';
+import { CAPTION_TYPE, FONT_SIZES } from '@/web/theme/tokens';
 
 /**
  * Estimated text widths, because diagrams server-render.
@@ -92,6 +92,26 @@ export function wrapLabel(
     }
     return `${out.trimEnd()}…`;
   });
+}
+
+/**
+ * Width of a string drawn in the caption style: uppercase, at caption size,
+ * with its letter-spacing. Group labels are painted this way, and uppercase
+ * plus tracking is a good deal wider than the same word in body type.
+ */
+export function estimateCaptionWidth(text: string): number {
+  const size = px(CAPTION_TYPE.size);
+  const tracking = Number.parseFloat(CAPTION_TYPE.tracking) * size;
+  const upper = text.toUpperCase();
+  return estimateTextWidth(upper, size) + tracking * [...upper].length;
+}
+
+/** A caption-style label cut with an ellipsis to fit `maxWidth`, or unchanged if it fits. */
+export function fitCaption(text: string, maxWidth: number): string {
+  if (estimateCaptionWidth(text) <= maxWidth) return text;
+  let out = text;
+  while (out.length > 0 && estimateCaptionWidth(`${out}…`) > maxWidth) out = out.slice(0, -1);
+  return `${out.trimEnd()}…`;
 }
 
 /** The width a wrapped label actually occupies. */

@@ -1,6 +1,7 @@
 import { CAPTION_TYPE, token } from '@/web/theme/tokens';
 import { changeStyle } from './change-style';
 import {
+  GROUP_LABEL_INSET,
   PANEL_TITLE_HEIGHT,
   PANEL_TITLE_INSET,
   type GraphLayout,
@@ -208,7 +209,7 @@ export function GraphSvg({
                 strokeDasharray="3 4"
               />
               <text
-                x={group.x + 12}
+                x={group.x + GROUP_LABEL_INSET}
                 y={group.y + 13}
                 dominantBaseline="central"
                 fontSize={CAPTION_TYPE.size}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isGraphDiagram, type SequenceDiagram } from '@/domain/review/diagram';
 import { REAL_SEQUENCE } from '@/web/test/diagram-fixtures';
-import { layoutSequence } from './sequence-layout';
+import { layoutSequence, SELF_LABEL_OFFSET } from './sequence-layout';
 import { DIAGRAM_TYPE, estimateTextWidth, wrapLabel } from './text-metrics';
 
 if (isGraphDiagram(REAL_SEQUENCE)) throw new Error('fixture is not a sequence diagram');
@@ -58,6 +58,39 @@ describe('layoutSequence', () => {
     for (const group of layout.groups) {
       expect(group.y + group.height).toBeLessThanOrEqual(layout.height);
     }
+  });
+
+  it('widens the canvas for a self-call label on the last column, and wraps it', () => {
+    // A self-call's label hangs to the right of its lifeline. On the last
+    // participant that is past every head, and a canvas sized to the heads
+    // clipped it mid-word.
+    const selfCall: SequenceDiagram = {
+      ...sequence,
+      participants: [
+        { id: 'a', label: 'Caller', kind: 'code', change: 'unchanged' },
+        { id: 'b', label: 'Callee', kind: 'code', change: 'modified' },
+      ],
+      steps: [
+        { type: 'message', from: 'a', to: 'b', label: 'run', style: 'call', change: 'unchanged' },
+        {
+          type: 'message',
+          from: 'b',
+          to: 'b',
+          label: 'revalidates every cached entry against the upstream store',
+          style: 'call',
+          change: 'added',
+        },
+      ],
+    };
+    const layout = layoutSequence(selfCall);
+    const message = layout.messages.find((m) => m.selfCall);
+    if (!message) throw new Error('no self-call');
+    expect(message.lines.length).toBeGreaterThan(1);
+    const labelRight =
+      message.fromX +
+      SELF_LABEL_OFFSET +
+      Math.max(...message.lines.map((line) => estimateTextWidth(line, DIAGRAM_TYPE.edge.size)));
+    expect(labelRight).toBeLessThanOrEqual(layout.width);
   });
 });
 

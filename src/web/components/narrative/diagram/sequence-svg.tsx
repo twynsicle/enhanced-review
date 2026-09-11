@@ -1,6 +1,11 @@
 import { CAPTION_TYPE, token } from '@/web/theme/tokens';
 import { changeStyle } from './change-style';
-import type { LaidOutMessage, LaidOutParticipant, SequenceLayout } from './sequence-layout';
+import {
+  SELF_LABEL_OFFSET,
+  type LaidOutMessage,
+  type LaidOutParticipant,
+  type SequenceLayout,
+} from './sequence-layout';
 import { DIAGRAM_TYPE } from './text-metrics';
 import classes from './diagram.module.css';
 
@@ -101,15 +106,18 @@ function Message({ message, uniform }: { message: LaidOutMessage; uniform: boole
           d={`M${String(x + 6)},${String(bottom)} L${String(x + 6 + ARROW)},${String(bottom - 4)} L${String(x + 6 + ARROW)},${String(bottom + 4)} Z`}
           fill={stroke}
         />
-        <text
-          x={x + 38}
-          y={message.y}
-          dominantBaseline="central"
-          fontSize={size}
-          fill={token('muted-foreground')}
-        >
-          {message.label}
-        </text>
+        {message.lines.map((line, index) => (
+          <text
+            key={index}
+            x={x + SELF_LABEL_OFFSET}
+            y={message.y + (index - (message.lines.length - 1) / 2) * lineHeight}
+            dominantBaseline="central"
+            fontSize={size}
+            fill={token('muted-foreground')}
+          >
+            {line}
+          </text>
+        ))}
       </g>
     );
   }

@@ -5,7 +5,7 @@ import {
   type DiagramNodeKind,
   type GraphDiagram,
 } from '@/domain/review/diagram';
-import { DIAGRAM_TYPE, estimateTextWidth, widestLine, wrapLabel } from './text-metrics';
+import { DIAGRAM_TYPE, estimateTextWidth, fitCaption, widestLine, wrapLabel } from './text-metrics';
 
 /**
  * Turns a graph diagram into coordinates. Pure: no DOM, no measurement, so it
@@ -33,8 +33,21 @@ const GROUP_PAD = 16;
 const PANEL_GAP = 64;
 const PANEL_TITLE_H = 36;
 const INITIAL_DOT = 11;
+/** Where the painter starts a group's label inside its box. */
+export const GROUP_LABEL_INSET = 12;
 
 export const INITIAL_NODE_ID = '__initial__';
+
+/*
+ * dagre keeps groups and nodes in one namespace, and the schema does not:
+ * the model is free to name a group after its main component, `scheduler`
+ * around a node called `scheduler`. Handed to dagre as-is, that node becomes
+ * its own parent and layout throws — during render, taking the reader with
+ * it, and for every later visit because the review is stored. So a group is
+ * given to dagre under a key no model id can take. Doing it here rather than
+ * in the parser also covers the reviews already written.
+ */
+const groupKey = (id: string): string => `\u0000group:${id}`;
 
 export interface Point {
   x: number;
@@ -69,6 +82,7 @@ export interface LaidOutEdge {
 
 export interface LaidOutGroup {
   id: string;
+  /** Fitted to the box: ellipsised when the group is narrower than its name. */
   label: string;
   x: number;
   y: number;
@@ -128,7 +142,15 @@ function layoutPanel(
 ): Omit<GraphPanel, 'offsetX' | 'offsetY'> {
   const nodes = diagram.nodes.filter((node) => keep(node.change));
   const ids = new Set(nodes.map((node) => node.id));
-  const edges = diagram.edges.filter((edge) => ids.has(edge.from) && ids.has(edge.to));
+  /*
+   * An edge's own mark decides its side as well as its ends do. Filtering on
+   * the ends alone put a removed edge between two surviving nodes into After
+   * and an added one into Before — so a rerouted call showed both routes on
+   * both sides, and an order swap drew two identical panels.
+   */
+  const edges = diagram.edges.filter(
+    (edge) => keep(edge.change) && ids.has(edge.from) && ids.has(edge.to),
+  );
 
   const graph = new Graph({ compound: true, multigraph: true });
   graph.setGraph({
@@ -144,7 +166,7 @@ function layoutPanel(
   const usedGroups = new Set(nodes.map((node) => node.group).filter((id) => id !== undefined));
   for (const group of diagram.groups ?? []) {
     if (usedGroups.has(group.id)) {
-      graph.setNode(group.id, {
+      graph.setNode(groupKey(group.id), {
         label: group.label,
         paddingTop: GROUP_PAD_TOP,
         padding: GROUP_PAD,
@@ -158,7 +180,7 @@ function layoutPanel(
     boxes.set(node.id, box);
     graph.setNode(node.id, { width: box.width, height: box.height });
     if (node.group !== undefined && usedGroups.has(node.group)) {
-      graph.setParent(node.id, node.group);
+      graph.setParent(node.id, groupKey(node.group));
     }
   }
 
@@ -188,10 +210,17 @@ function layoutPanel(
   const laidOutGroups: LaidOutGroup[] = [];
   for (const group of diagram.groups ?? []) {
     if (!usedGroups.has(group.id)) continue;
-    const g = graph.node(group.id) as { x: number; y: number; width: number; height: number };
+    const g = graph.node(groupKey(group.id)) as {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
     laidOutGroups.push({
       id: group.id,
-      label: group.label,
+      // dagre sizes a group from its members, never from its name, so a long
+      // name on a one-node group would run past its own border.
+      label: fitCaption(group.label, g.width - GROUP_LABEL_INSET * 2),
       x: g.x - g.width / 2,
       y: g.y - g.height / 2,
       width: g.width,
@@ -280,6 +309,23 @@ export function layoutGraph(diagram: GraphDiagram): GraphLayout {
 
   const before = layoutPanel(diagram, inBefore, 'Before');
   const after = layoutPanel(diagram, inAfter, 'After');
+
+  /*
+   * A side with nothing on it is not drawn. When everything is new there was
+   * no Before, and dagre reports an empty graph as infinite in size — which
+   * came through as `width="NaN"` on the page. The schema asks for two nodes,
+   * so at least one side always has something on it.
+   */
+  const drawn = [before, after].filter((panel) => panel.nodes.length > 0);
+  if (drawn.length === 1) {
+    const only = drawn[0] as typeof before;
+    return {
+      width: only.width,
+      height: PANEL_TITLE_H + only.height,
+      uniform,
+      panels: [{ ...only, offsetX: 0, offsetY: PANEL_TITLE_H }],
+    };
+  }
 
   /*
    * The two panels stack across the flow, never along it. A flow that runs

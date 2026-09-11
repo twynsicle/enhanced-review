@@ -34,7 +34,10 @@ const BRANCH_LABEL_H = 18;
 const MARGIN = 14;
 const LIFELINE_TOP_GAP = 10;
 const LIFELINE_TAIL = 22;
-const SELF_CALL_W = 34;
+/** Where a self-call's label starts, right of its lifeline: clear of the loop. */
+export const SELF_LABEL_OFFSET = 38;
+/** A self-call's label sits beside the loop, not over a span, so it wraps to this. */
+const SELF_LABEL_W = 160;
 
 export interface LaidOutParticipant {
   id: string;
@@ -113,6 +116,12 @@ interface Cursor {
   messages: LaidOutMessage[];
   groups: LaidOutGroupBox[];
   counter: number;
+  /**
+   * The furthest right anything reaches. A self-call's label hangs off the
+   * right of its lifeline, past the last column's head when the call is on the
+   * last participant, and was clipped by a canvas sized to the heads alone.
+   */
+  right: number;
 }
 
 function walk(
@@ -127,8 +136,16 @@ function walk(
       const fromX = centers.get(step.from) ?? 0;
       const toX = centers.get(step.to) ?? 0;
       const selfCall = step.from === step.to;
-      const span = selfCall ? SELF_CALL_W : Math.abs(toX - fromX);
-      const lines = wrapLabel(step.label, Math.max(80, span - 12), DIAGRAM_TYPE.edge.size, 2);
+      const { size } = DIAGRAM_TYPE.edge;
+      const lines = selfCall
+        ? wrapLabel(step.label, SELF_LABEL_W, size, 2)
+        : wrapLabel(step.label, Math.max(80, Math.abs(toX - fromX) - 12), size, 2);
+      if (selfCall) {
+        cursor.right = Math.max(
+          cursor.right,
+          fromX + SELF_LABEL_OFFSET + Math.ceil(widestLine(lines, size)),
+        );
+      }
       cursor.counter += 1;
       cursor.messages.push({
         key: `m${String(cursor.counter)}`,
@@ -210,12 +227,18 @@ export function layoutSequence(diagram: SequenceDiagram): SequenceLayout {
 
   const contentWidth = x - COL_GAP - MARGIN;
   const lifelineTop = MARGIN + headHeight + LIFELINE_TOP_GAP;
-  const cursor: Cursor = { y: lifelineTop + 8, messages: [], groups: [], counter: 0 };
+  const cursor: Cursor = {
+    y: lifelineTop + 8,
+    messages: [],
+    groups: [],
+    counter: 0,
+    right: MARGIN + contentWidth,
+  };
   walk(diagram.steps, cursor, centers, 0, contentWidth);
 
   const lifelineBottom = cursor.y + LIFELINE_TAIL;
   return {
-    width: contentWidth + MARGIN * 2,
+    width: cursor.right + MARGIN,
     height: lifelineBottom + MARGIN,
     uniform: hasUniformChange(diagram),
     participants,

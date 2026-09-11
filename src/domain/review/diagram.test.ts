@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  changeMarks,
   DiagramSchema,
   DIAGRAM_LIMITS,
   hasUniformChange,
@@ -84,6 +85,75 @@ describe('hasUniformChange', () => {
       nodes: [
         { id: 'a', label: 'A', change: 'added' },
         { id: 'b', label: 'B', change: 'unchanged' },
+      ],
+    });
+    expect(hasUniformChange(diagram)).toBe(false);
+  });
+
+  it('is false when the change is only in the wiring', () => {
+    // Two unchanged components, rewired: every box agrees, the edges do not.
+    const diagram = parse({
+      ...GRAPH,
+      edges: [
+        { from: 'a', to: 'b', change: 'removed' },
+        { from: 'b', to: 'a', change: 'added' },
+      ],
+    });
+    expect(hasUniformChange(diagram)).toBe(false);
+    expect(new Set(changeMarks(diagram))).toEqual(new Set(['unchanged', 'removed', 'added']));
+  });
+
+  it('does not count a bare edge against a wholly new subsystem', () => {
+    // `unchanged` is the default, so an edge the model left unmarked says nothing.
+    const diagram = parse({
+      ...GRAPH,
+      nodes: [
+        { id: 'a', label: 'A', change: 'added' },
+        { id: 'b', label: 'B', change: 'added' },
+      ],
+      edges: [{ from: 'a', to: 'b' }],
+    });
+    expect(hasUniformChange(diagram)).toBe(true);
+  });
+
+  it('reads messages inside nested groups of a sequence', () => {
+    const diagram = parse({
+      kind: 'sequence',
+      id: 'tick',
+      title: 'One tick',
+      caption: 'The only new call is two groups deep.',
+      participants: [
+        { id: 'loop', label: 'Loop' },
+        { id: 'db', label: 'Schedules', kind: 'data' },
+      ],
+      steps: [
+        {
+          type: 'group',
+          style: 'loop',
+          branches: [
+            {
+              steps: [
+                {
+                  type: 'group',
+                  style: 'alt',
+                  branches: [
+                    {
+                      steps: [
+                        {
+                          type: 'message',
+                          from: 'loop',
+                          to: 'db',
+                          label: 'claim',
+                          change: 'added',
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
       ],
     });
     expect(hasUniformChange(diagram)).toBe(false);
