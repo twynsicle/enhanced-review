@@ -3,8 +3,9 @@
 Web-based AI code review. Sign in with GitHub, pick one of your repositories
 and a pull request or branch, and the server clones it, runs the Claude Agent
 SDK against the working tree, and streams back a chaptered narrative review —
-an overview, per-file chapters, insights, and inline diffs you can open beside
-the prose.
+an overview, a risk assessment, chapters that group the change by theme, with
+insights, diagrams of what changed, and inline diffs you can open beside the
+prose.
 
 Successor to the `diffy` Electron proof of concept, narrowed to the narrative
 review and rebuilt for multiple users.
@@ -13,6 +14,7 @@ review and rebuilt for multiple users.
 - **Working on the code** — [AGENTS.md](AGENTS.md) is the detailed map of the
   tree: layering rules, module conventions, and the traps that only show up
   in the container.
+- **What is not built yet** — [docs/BACKLOG.md](docs/BACKLOG.md)
 
 ## Tech stack
 
@@ -169,7 +171,8 @@ is the access control** — see
    transaction, so anything that observes `done` already sees the whole
    stream. Failures write `error` with a clipped message; cancellation and
    timeout each write their terminal status before signalling the runner.
-5. **Read.** `/reviews/:id` renders the stored narrative and fetches
+5. **Read.** `/reviews/:id` renders the stored narrative — a summary led by
+   an overview diagram, a risk section, then the chapters — and fetches
    view-time context from GitHub (PR header, reviewers, whether the head has
    moved since the review). Every section degrades on its own; with no token,
    nothing is fetched and the stored review still renders.
@@ -177,6 +180,23 @@ is the access control** — see
 Jobs run in-process, so a row left `pending` or `running` by a stopped process
 can never finish. The server clears those at boot, and
 `npm run job -- recover-jobs` does the same on demand.
+
+### Diagrams
+
+The model may attach a diagram to the review and to any chapter: an
+architecture map, a state machine, a before/after of one procedure, or a
+sequence. It does not write mermaid. It writes a small JSON schema
+(`src/domain/review/diagram.ts`) in which every node and edge says what the
+pull request did to it — added, removed, modified or unchanged — because a
+review diagram describes a change, not a system. A code node can point at a
+file and hunks from the diff, and the parser drops any path or hunk the diff
+does not contain, so a diagram can only link to code that is really there.
+An invalid diagram is dropped on its own and never fails the review.
+
+The reader lays diagrams out with dagre and draws them as SVG on the server,
+in the design system's tokens and type scale. They render at full size and
+scroll sideways rather than shrinking text, and every diagram opens in a
+full-screen view with pan and zoom.
 
 ### Executors
 
@@ -224,9 +244,9 @@ database rather than one holding a session you care about.
 
 ## Known gaps
 
-- **The `claude` executor has not been exercised against the real API** in
-  this codebase — neither on the host nor in the container. Everything up to
-  and including the executor boundary is covered by the stub; the SDK call
-  itself is not.
+- **The `claude` executor has only been exercised on the host**, against
+  this repository's own pull requests, and never in the container. Tests stop
+  at the executor boundary and use the stub, so the SDK call itself is
+  covered by nothing automated.
 - There is no retention policy. Chunks, jobs and reviews accumulate. See
   [Retention](docs/OPERATIONS.md#retention).
