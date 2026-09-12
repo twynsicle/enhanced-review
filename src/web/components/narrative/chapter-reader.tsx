@@ -143,20 +143,31 @@ export function ChapterReader({ review, meta, initialActiveId, actions }: Chapte
       let width = startWidth;
       /*
        * Painted straight onto the variable while the pointer is down, and
-       * committed to the store once on release: a width that is still moving
-       * has not earned a re-render of every editor in the article, nor a write
-       * to localStorage per frame.
+       * committed to the store once the gesture ends: a width that is still
+       * moving has not earned a re-render of every editor in the article, nor
+       * a write to localStorage per frame.
+       *
+       * `pointercancel` ends it the same way `pointerup` does, and is the case
+       * that costs something now that the commit happens once. A browser that
+       * takes a touch over for panning sends only the cancel, and a gesture
+       * that ended there would leave the column painted at a width nothing had
+       * stored — back to the old one on reload, and wrong in `aria-valuenow`
+       * meanwhile — with the move handler still live, so the column would go
+       * on following a pointer with no button down.
        */
       const onPointerMove = (moveEvent: PointerEvent): void => {
         width = clampSidebarWidth(startWidth + moveEvent.clientX - startX);
         applySidebarWidth(width);
       };
-      const onPointerUp = (): void => {
+      const onPointerEnd = (): void => {
         window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerEnd);
+        window.removeEventListener('pointercancel', onPointerEnd);
         setSidebarWidth(width);
       };
       window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp, { once: true });
+      window.addEventListener('pointerup', onPointerEnd);
+      window.addEventListener('pointercancel', onPointerEnd);
     },
     [sidebarWidth, setSidebarWidth],
   );

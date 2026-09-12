@@ -115,5 +115,7 @@ contrast guardrail has no opinion on them.
 The bands are painted far weaker than Monaco's own 20%. At that strength they
 swallow the word-level highlight that says _what_ in a line changed, and a file
 that is entirely new has nothing to read but the band. Finding a run is left to
-two harder marks instead: the line-number gutter, tinted well above the band,
-and a solid rail down the content's left edge.
+two harder marks instead, both of them on the gutter: it is tinted well above
+the band, and carries a solid rail down its inner edge. Both belong there rather
+than on the line because the gutter never scrolls sideways, and a mark that
+leaves the viewport on a wide diff is no mark at all.

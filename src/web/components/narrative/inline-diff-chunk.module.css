@@ -66,26 +66,37 @@
  * weight of a line in a modified hunk. Cancelling the second is what keeps one
  * added line the same colour as twenty.
  *
- * Whole-line decorations are the ones Monaco lays out as `left:0;width:100%`;
- * a real word-level range carries a pixel width, and is left alone. Matching on
- * the inline style is the only thing that tells the two apart — they are
- * emitted under the same class name.
+ * Matching on the inline style is the only thing that tells the two apart —
+ * they are emitted under the same class name. The mark is the offset, not the
+ * width: a whole-line decoration is laid out as `left:0;width:100%`, while a
+ * ranged one always writes a unit, `left:0px` included. `width:100%` alone is
+ * not enough, because a word-level range that runs past a soft wrap is given
+ * one too — so an unanchored match would blank the very highlight this rule
+ * exists to keep readable, on precisely the long lines that need it.
  */
-.editor :global(.cdr.char-insert[style*='width:100%']),
-.editor :global(.cdr.char-delete[style*='width:100%']) {
+.editor :global(.cdr.char-insert[style^='left:0;width:100%']),
+.editor :global(.cdr.char-delete[style^='left:0;width:100%']) {
   background-color: transparent;
 }
 
 /*
  * The rail that carries a run. With the band this weak the eye needs a hard
  * edge to find where a change starts and stops — especially down a long file
- * where the tint alone is close to the ground. It draws at the content's left
- * edge, against the gutter, so the two read as one marker.
+ * where the tint alone is close to the ground.
+ *
+ * Drawn on the gutter's own marker rather than the line's, which puts it at the
+ * content's left edge from the far side. The line decoration lives in the
+ * scrolling content, so a rail hung off it walks away the moment a wide diff is
+ * scrolled sideways; the margin only ever scrolls vertically. Matched without
+ * `.cmdr` so the stacked view is covered too: a deleted line there is a view
+ * zone with a margin node of its own, not a margin decoration. An inset shadow
+ * rather than a border because Monaco sizes that box at `width:100%`, which a
+ * border would push 2px past.
  */
-.editor :global(.cdr.line-insert) {
-  border-left: 2px solid var(--er-add);
+.editor :global(.gutter-insert) {
+  box-shadow: inset -2px 0 0 var(--er-add);
 }
 
-.editor :global(.cdr.line-delete) {
-  border-left: 2px solid var(--er-del);
+.editor :global(.gutter-delete) {
+  box-shadow: inset -2px 0 0 var(--er-del);
 }
