@@ -33,7 +33,8 @@ src/cli/
   claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl;
                    the reviewed repo's own settings (settingSources user/project/local), read-only tools, the
                    engineer's environment inherited by the subprocess; the SDK is imported only when a run happens
-  bash-gate.ts     which Bash commands a review may run: one read-only invocation, no shell syntax, no launcher flags
+  bash-gate.ts     which Bash commands a review may run: the line is split at | && ||, every part must be a known
+                   read-only invocation; no redirection (bar 2>/dev/null), substitution or launcher flags
   progress.ts      the live line during the run: elapsed time, the file being read, chapter titles picked out of the
                    answer as it streams; drawn only on a terminal
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks; no model
@@ -60,4 +61,7 @@ src/cli/
 - `Read`, `Glob` and `Grep` are pre-approved; `Bash` is deliberately left out
   of `allowedTools` so every command goes through `bash-gate.ts` in the
   `canUseTool` callback. A refused command comes back to the agent as a tool
-  result saying what it may run instead, not as a failed review.
+  result saying what it may run instead, not as a failed review — but it costs
+  a turn, so each refusal is a `denied` event in `events.jsonl` and the run
+  stage says how many there were. A gate that keeps refusing reasonable reads
+  is a bug in the gate.

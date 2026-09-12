@@ -69,6 +69,7 @@ describe('the model run', () => {
 
     await expect(runClaude(run, options, { query })).resolves.toEqual({
       characters: 39,
+      denied: 0,
       turns: 7,
       costUsd: 0.42,
       incomplete: null,
@@ -128,6 +129,33 @@ describe('the model run', () => {
       behavior: 'deny',
       message: expect.stringContaining('read-only'),
     });
+  });
+
+  it('records a refused command, so a gate that is too tight is visible', async () => {
+    // Asked mid-run, the way the SDK asks: the refusal has to reach
+    // events.jsonl while the run is still writing it.
+    const asking: QueryFn = ({ options: sdkOptions }) => {
+      const ask = (command: string) =>
+        sdkOptions.canUseTool!(
+          'Bash',
+          { command },
+          {
+            signal: AbortSignal.abort(),
+            toolUseID: 'tool-1',
+          },
+        );
+      return (async function* () {
+        await ask('git log --oneline');
+        await ask('rm -rf .');
+        yield text('a review');
+        yield result({ subtype: 'success', total_cost_usd: 0 });
+      })();
+    };
+
+    await expect(runClaude(run, options, { query: asking })).resolves.toMatchObject({ denied: 1 });
+    expect(events().filter((event) => event.type === 'denied')).toMatchObject([
+      { tool: 'Bash', detail: 'rm -rf .', reason: expect.stringContaining('read-only') },
+    ]);
   });
 
   it('keeps a partial answer and says how the run ended', async () => {

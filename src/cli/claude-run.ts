@@ -23,7 +23,12 @@ import type { RunFiles } from './run-folder.ts';
 
 /** The server's default, spelled out because the CLI may not read `env.ts` (A4). */
 export const DEFAULT_MODEL = 'claude-sonnet-5';
-/** A 60-file review needs more turns than the server's 30; set from measurement in commit 5. */
+/**
+ * Measured: an 88-file, 138-hunk review took 32 turns and 7m 36s, so both of
+ * these leave a change about twice that size room to finish. A review that
+ * runs out says so and keeps what it wrote, and `--max-turns` / `--timeout`
+ * raise them for the change that needs it.
+ */
 export const DEFAULT_MAX_TURNS = 60;
 export const DEFAULT_TIMEOUT_MINUTES = 15;
 
@@ -54,6 +59,8 @@ export interface ClaudeRunResult {
   characters: number;
   turns: number;
   costUsd: number | null;
+  /** Tool calls the gate turned away. Each one is an event in `events.jsonl`. */
+  denied: number;
   /** Set when the run ended on something other than a finished answer. */
   incomplete: string | null;
 }
@@ -83,12 +90,17 @@ export async function runClaude(
   };
 
   let characters = 0;
+  let denied = 0;
+  const onDeny = (tool: string, input: Record<string, unknown>, reason: string) => {
+    denied += 1;
+    event({ type: 'denied', tool, detail: describeInput(input), reason });
+  };
 
   try {
     const queryFn = deps.query ?? (await loadQuery());
     const outcome = await runSdkLoop(
       queryFn,
-      { prompt, options: sdkOptions(system, options, controller) },
+      { prompt, options: sdkOptions(system, options, controller, onDeny) },
       {
         onText: (text) => {
           raw.write(text);
@@ -125,6 +137,7 @@ export async function runClaude(
     }
     return {
       characters,
+      denied,
       turns: result?.turns ?? 0,
       costUsd: result?.costUsd ?? null,
       incomplete: incompleteReason(result),
@@ -151,6 +164,7 @@ function sdkOptions(
   system: string,
   options: ClaudeRunOptions,
   controller: AbortController,
+  onDeny: (tool: string, input: Record<string, unknown>, reason: string) => void,
 ): Options {
   return {
     cwd: options.cwd,
@@ -158,7 +172,11 @@ function sdkOptions(
     systemPrompt: system,
     tools: [...TOOLS],
     allowedTools: [...PRE_APPROVED],
-    canUseTool: (tool, input) => Promise.resolve(permission(tool, input)),
+    canUseTool: (tool, input) => {
+      const decision = permission(tool, input);
+      if (decision.behavior === 'deny') onDeny(tool, input, decision.message);
+      return Promise.resolve(decision);
+    },
     // The engineer's own settings and the reviewed repository's CLAUDE.md (D5).
     settingSources: ['user', 'project', 'local'],
     persistSession: false,
@@ -181,6 +199,11 @@ function permission(tool: string, input: Record<string, unknown>): Permission {
   return decision.allowed
     ? { behavior: 'allow', updatedInput: input }
     : { behavior: 'deny', message: decision.reason };
+}
+
+/** Enough of a refused call to recognise it in `events.jsonl`. */
+function describeInput(input: Record<string, unknown>): string {
+  return typeof input.command === 'string' ? input.command : JSON.stringify(input);
 }
 
 function activityLine(tool: string, detail: string): string {

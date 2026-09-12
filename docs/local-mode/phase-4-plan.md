@@ -1,7 +1,7 @@
 # Phase 4 — Prompt split and the real run
 
 **Parent:** [00-overview.md](00-overview.md) (D5, D7, D9, D12, D14, A4, A7,
-A8). **Status:** in progress.
+A8). **Status:** commits 1–5 landed (see Result).
 
 This phase makes `er review` run Claude. The stages either side of it are
 done: gather writes the change into a run folder, prompt writes `system.md`
@@ -64,9 +64,12 @@ engineer's own laptop.
 Nothing else may run. `Bash` is left out of `allowedTools`, so every command
 reaches a `canUseTool` callback that allows one only when all of this holds:
 
-- no shell metacharacter that chains, redirects or substitutes (`;`, `&`,
-  `|`, `<`, `>`, a backtick, `$(`, a newline);
-- the program is one of `git`, `rg`, `ls`, `cat`, `head`, `tail`, `wc`;
+- the line splits at `|`, `||` and `&&`, and **every** command in it has to
+  pass on its own; nothing else that could reach a second program survives
+  (`;`, a lone `&`, a subshell, a backtick, `$(`, `${`, a newline, or any
+  redirection but `2>/dev/null`);
+- the program is one of `cd`, `git`, `rg`, `grep`, `ls`, `cat`, `head`,
+  `tail`, `wc`;
 - for `git`, the subcommand is on a read-only list (`log`, `show`, `diff`,
   `blame`, `status`, `rev-parse`, `ls-files`, `ls-tree`, `cat-file`,
   `describe`, `shortlog`, `merge-base`, `name-rev`) and there is no `-c` or
@@ -78,7 +81,16 @@ A denial returns a message saying what the agent may run instead, which is a
 normal tool result rather than a failed review. The gate is a pure function
 with its own tests, including the commands it must refuse: `git push`,
 `git config user.email x`, `rm -rf .`, `cat x > y`, `git log; rm x`,
-`rg --pre sh .`.
+`rg --pre sh .`, `cd /tmp && rm -rf .`, `ls | xargs rm`.
+
+Splitting a chain rather than banning one was commit 5's correction: the
+first real review asked four Bash questions and every one of them was
+refused, because the model reaches for history the way a person does — from
+a directory it names itself, piped through `head` so the answer stays
+short. Each of those is still only reads, and a chain is no more dangerous
+than the worst command in it, which is exactly what the gate now measures.
+A refusal also costs a turn, so each one is a `denied` event in
+`events.jsonl` and the run stage says how many there were.
 
 ## Shared SDK loop (A7)
 
@@ -140,6 +152,11 @@ compares the assembled prompt against it afterwards.
 5. **Measurement and defaults.** Real runs on a specimen PR and one
    roughly 60-file PR; `maxTurns` default set from what they need; turns,
    time, cost and report size recorded here.
+   - **Result:** measured against this branch (below). The defaults stand at
+     60 turns and 15 minutes, both about double what the largest run needed.
+     The measurement also found the Bash gate refusing every command the
+     model asked, which is what changed the gate and added the `denied`
+     event.
 
 ## Verification
 
@@ -158,3 +175,47 @@ compares the assembled prompt against it afterwards.
 - `--from parse` on a truncated `raw.txt` still reports a useful error.
 - A real run's `events.jsonl` shows `Bash` used for history, and no denial of
   a command that should have been allowed.
+
+## Result
+
+**Status: commits 1–5 landed.** The verification that needs a real,
+paid run is marked below; everything else is done.
+
+The measurement is one review of this branch, run from the engineer's own
+terminal against `feat/er-13-local-review-cli` (`639b79d..22511ed`):
+
+|        |                                                                   |
+| ------ | ----------------------------------------------------------------- |
+| Change | 88 files, 138 hunks, ~8.7k tokens of prompt                       |
+| Run    | 32 turns, ~11.4k tokens of review, **$2.98**, **7m 36s**          |
+| Tools  | 27 `Read`, 4 `Bash` — all four `Bash` calls refused               |
+| Review | 12 chapters, 135 of 138 hunks cited, 6 chapter diagrams, risk 4/5 |
+| Report | `review.html`, 2.4 MB, rendered in 39 ms                          |
+
+What that says about the defaults: 60 turns and 15 minutes leave a change
+about twice this size room to finish, and a run that does hit either keeps
+what it wrote. The cost is worth stating plainly in the README — a large
+review is a few dollars of the engineer's own allowance.
+
+Two things the numbers settled, both fixed in commit 5:
+
+- **The gate was too tight.** Four Bash calls, four refusals, no successful
+  one. The model asked `cd "<repo>" && git diff <range> -- <paths> | head -150`
+  — a read, in the form a person would type. The gate now splits a chain and
+  checks each part, so that line is allowed and `ls | xargs rm` still is not,
+  and `LOCAL_WORKING_TREE` tells the model Bash already starts in the working
+  directory so the `cd` is unnecessary.
+- **Refusals were invisible.** `events.jsonl` recorded the attempt but not the
+  outcome, so a review could quietly lose turns to a gate nobody could see.
+  Each refusal is now a `denied` event, and the run stage prints how many.
+
+Verified: the assembled server prompt matches the fixture; the review's
+chapters cite catalog hunk ids and name no file outside the change
+(checked against `context.json`); `--from parse` and `--from run` resume
+from the run folder; the gate's four real commands are now allowed, and
+`npm run check` is green.
+
+**Still owed, and needing a paid run each:** a review of a specimen PR and
+of a roughly 60-file PR; a run that shows `Bash` actually used for history
+with no denials; and Phase 3's deferred Ctrl+C check, which a 7-minute run
+now makes easy to hit.

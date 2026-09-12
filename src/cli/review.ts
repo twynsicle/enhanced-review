@@ -120,6 +120,11 @@ export async function review(
         }
         if (result.incomplete !== null) warn(incompleteWarning(result));
         stage('run', `${describeRun(result)}${where}`, performance.now() - started);
+        // A refusal costs the model a turn, so it is worth knowing about even
+        // though the review still finished: the gate may be too tight.
+        if (result.denied > 0) {
+          note(`  ${plural(result.denied, 'command')} refused; see ${run.events}`);
+        }
       }
     } finally {
       await worktree?.close();
