@@ -104,10 +104,12 @@ export function DisplayMenu({ reader }: { reader: boolean }) {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const hydrated = useHydrated();
 
+  // Only the width binding subscribes — the other two rehydrate and are done —
+  // so its unsubscribe is the one thing here with a teardown to return.
   useEffect(() => {
     bindDiffView();
     bindDiffWrap();
-    bindLayoutWidth();
+    return bindLayoutWidth();
   }, []);
 
   // Matches the toggle it replaces: the stored scheme is only known in the
