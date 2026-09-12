@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["cross-env", "PORT=3001", "node", "server/index.ts"],
       "port": 3001
+    },
+    {
+      "name": "viewer",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "viewer:dev", "--", "--port", "5180", "--strictPort"],
+      "port": 5180
     }
   ]
 }

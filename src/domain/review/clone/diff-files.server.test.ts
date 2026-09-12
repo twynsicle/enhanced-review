@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listChangedFiles, mergeFileLists } from './diff-files.server.ts';
+import { listChangedFiles, mergeFileLists, parseChangedFiles } from './diff-files.server.ts';
 import type { GitRunner } from './git-runner.server.ts';
 
 /** `git diff --numstat -z` output: every field is NUL-terminated. */
@@ -87,6 +87,42 @@ describe('mergeFileLists', () => {
   it('ignores empty and malformed records', () => {
     expect(mergeFileLists('', '')).toEqual([]);
     expect(mergeFileLists(numstatZ('not-a-numstat'), nameStatusZ('M'))).toEqual([]);
+  });
+});
+
+describe('parseChangedFiles', () => {
+  it("keeps a rename's old path and marks binary files", () => {
+    expect(
+      parseChangedFiles(
+        numstatZ('4	3	', 'old.ts', 'new.ts', '-	-	logo.png', '0	0	empty.txt'),
+        nameStatusZ('R077', 'old.ts', 'new.ts', 'A', 'logo.png', 'A', 'empty.txt'),
+      ),
+    ).toEqual([
+      {
+        filename: 'new.ts',
+        status: 'renamed',
+        additions: 4,
+        deletions: 3,
+        previousFilename: 'old.ts',
+        binary: false,
+      },
+      {
+        filename: 'logo.png',
+        status: 'added',
+        additions: 0,
+        deletions: 0,
+        previousFilename: null,
+        binary: true,
+      },
+      {
+        filename: 'empty.txt',
+        status: 'added',
+        additions: 0,
+        deletions: 0,
+        previousFilename: null,
+        binary: false,
+      },
+    ]);
   });
 });
 

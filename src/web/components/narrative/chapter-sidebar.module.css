@@ -203,6 +203,11 @@
   color: var(--er-muted-foreground);
 }
 
+/* A file that changed but was not reviewed: listed, but quieter. */
+.fileRow[data-skipped] .basename {
+  color: var(--er-muted-foreground);
+}
+
 .stats {
   font-family: var(--mantine-font-family-monospace);
   font-size: var(--mantine-font-size-xs);

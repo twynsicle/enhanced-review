@@ -223,6 +223,33 @@ describe('<ChapterSidebar />', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  it('lists a skipped file quietly, with the reason for anyone who asks', () => {
+    render(
+      <ChapterSidebar
+        sections={sections}
+        chapters={chapters}
+        activeId={SUMMARY_SECTION_ID}
+        reviewTitle="t"
+        files={[
+          {
+            filename: 'package-lock.json',
+            status: 'modified',
+            additions: 40,
+            deletions: 2,
+            skipped: 'built-in',
+          },
+        ]}
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+
+    const row = screen.getByText('package-lock.json').closest('button')!;
+    expect(row.hasAttribute('data-skipped')).toBe(true);
+    expect(row.getAttribute('title')).toBe('Not reviewed: lockfile, bundle or snapshot');
+    expect(row.textContent).toContain('Not reviewed: lockfile, bundle or snapshot');
+  });
+
   it('marks the active file row with aria-current', () => {
     render(
       <ChapterSidebar

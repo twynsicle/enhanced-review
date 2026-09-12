@@ -17,7 +17,8 @@ src/web/
   routes/            _gated.tsx (layout: requireUser) → _shell.tsx (layout: Topbar + JobNotifications; loader {user, serverNow, polling})
                        → home.tsx (index: hero + ReviewComposer + Recent; action POST /?index → startReview), history.tsx (?status=),
                          jobs.$id.tsx (live view; loader job + chunks, 404 → own ErrorBoundary; action intent=cancel|rerun),
-                         reviews.$id.tsx (reader; loader: done job + review + GitHub fan-out via lib/review-metadata.server,
+                         reviews.$id.tsx (reader; loader: done job + review + GitHub fan-out via lib/review-metadata.server
+                         → reviewMetaFromJob; the reader is wrapped in GithubFileSource, rerun passed as its actions,
                          not done → /jobs/:id, ?ch=/?file= client-side via shouldRevalidate; action intent=rerun)
                      _gated (chrome-less) → relink.tsx, api.github.repos.ts, api.github.pulls.ts, api.github.branches.ts,
                        api.github.file.ts (both blobs of one file, base + head in parallel, for the inline diff)
@@ -28,24 +29,32 @@ src/web/
                      auth.github.ts, auth.github.callback.ts, auth.logout.ts, health.ts.
   auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                      context (userContext/sessionContext), session-middleware, gate-middleware (requireUser, signOutHeaders)
-  components/        brand-mark, caption (the one uppercase label), page-shell (the one page width,
+  components/        brand-mark (+ brand-mark.svg, imported so the report inlines it), caption (the one uppercase label), page-shell (the one page width,
                      shared with the topbar), color-scheme-toggle,
                      app-error (generic error page, used by root + route boundaries);
-                     topbar/ (topbar, topbar-nav, user-menu, layout-width-toggle),
+                     topbar/ (topbar: Topbar on TopbarFrame, which the local report's header reuses with
+                     StaticBrand; topbar-nav, user-menu, layout-width-toggle),
                      jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                      job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
-                     what-now, rerun-button, job-not-found (404 page shared with the reader)), history/ (filter-chips,
+                     what-now, rerun-button, job-not-found (404 page shared with the reader), review-banners (the
+                     hosted reader's truncation + staleness banners)), history/ (filter-chips,
                      empty-history), home/ (review-composer, target-combobox, recent-reviews, sparkline),
-                     narrative/ (the reader: chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state),
+                     narrative/ (the reader, shared by the hosted route and the local report — nothing here may import
+                     jobs/, ReviewTarget or PullMetadata: chapter-reader (+ .module.css grid, resizable sidebar,
+                     ?ch=/?file= state; takes review + ReviewMeta + an `actions` slot),
                      sections.ts (readerSections: the one ordered list of sections — summary, risk when there is an
                      assessment, then the chapters — that the sidebar renders and the keyboard walks),
-                     chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, and a row carrying
-                     a diagram is marked), chapter-card, summary-card (title/meta, overview diagram, AI overview,
-                     author's description collapsed last), risk-card, file-view, insight-callout,
+                     chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, a row carrying
+                     a diagram is marked, a skipped file is dimmed), chapter-card, summary-card (title/meta, overview
+                     diagram, AI overview, author's description collapsed last), risk-card, file-view (a file's chunks,
+                     or why it has none), skipped-file.ts (the copy for ReviewFile.skipped reasons), insight-callout,
                      article.module.css (the reading measure + the diff bleed lane),
                      lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
-                     inline-diff-chunk (+ .module.css; useFetcher → /api/github/file, snippets per hunk group,
-                     lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme), review-banners, risk-score,
+                     inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group,
+                     lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme),
+                     file-source (where the diffs get files: GithubFileSource → /api/github/file fetcher,
+                     EmbeddedFileSource → a ReviewBundle; useFilePair always mounts a fetcher, so the reader needs a
+                     data router under either), risk-score,
                      use-narrative-keyboard,
                      diagram/ (SSR'd SVG: text-metrics (estimated widths — the server cannot measure a string),
                      change-style (change → token; nodes are outlined, never filled), graph-layout (dagre, compound +
@@ -55,6 +64,12 @@ src/web/
                      diagram.module.css)), notifications/ (job-notifications: fetch-polls api/me/jobs/terminal with
                      a 30 s overlap, toasts once per job id, suppressed on that job's pages, browser Notification when
                      hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
+  viewer/            the local report (vite.viewer.config.ts, not the RR app): index.html (the empty er-bundle element),
+                     main.tsx (client-rendered, hash data router, stored width applied before render), viewer-page
+                     (a TopbarFrame with brand + width/scheme toggles, then ChapterReader over EmbeddedFileSource),
+                     report-problem (missing / version-mismatch / invalid bundle), sample-bundle.ts (what viewer:dev
+                     renders unless ER_BUNDLE names a JSON file); the build inlines JS, CSS and fonts into one file and stamps its sources (viewer.stamp, which er checks)
+                     (`react-router build` wipes build/, so it builds second); Monaco still loads from the CDN
   stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
   theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours + FONT_SIZES/DISPLAY_SIZE/
                      CAPTION_TYPE, the type scale) → theme.ts (Mantine ramps, fontSizes, sans + mono),

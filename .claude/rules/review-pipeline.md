@@ -21,19 +21,33 @@ src/domain/
                      classifyGithubError, toResult), repos, pulls, branches (GraphQL), resolve-target (re-pin SHAs),
                      pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getCommitsAhead); types.ts shared
   review/            shared: narrative.ts (NarrativeReview Zod schema + types; chapter.diagram? + overviewDiagram?;
+                     ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
                      SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's two synthesised sections),
                      diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
                      DIAGRAM_LIMITS, hasUniformChange), target.ts (ReviewTarget schema, describeTarget),
+                     review-meta.ts (ReviewMeta: the reader's summary header; reviewMetaFromJob for hosted jobs),
+                     bundle.ts (ReviewBundle: a review + meta + both sides of each file, for offline rendering;
+                     schemaVersion, no back-compat; parseBundle, filePair), bundle-html.ts (the bundle as the text of
+                     the report's er-bundle element: injectBundle escapes every <, readEmbeddedBundle),
                      language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
     clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
-                     verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists)
-    prompt/          pure: ai-file-filter, diff-hunk-catalog (H0001… ids), narrative-prompt (system + user, truncation),
-                     parse-narrative (lenient sanitising, validated by NarrativeReviewSchema),
+                     verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists; the *Details/parseChangedFiles variants keep a
+                     rename's old path and the binary flag, for the local CLI)
+    prompt/          pure: ai-file-filter, diff-hunk-catalog (H0001… ids), narrative-prompt (system + user, truncation; NARRATIVE_SYSTEM_PROMPT,
+                     formatFileList and formatHunkCatalog are shared with the local CLI's prompt),
+                     parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; a failed JSON.parse is
+                     retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string),
                      parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own
-                     so a bad picture cannot fail the review; grounding checked against the hunk catalog), types.ts (PrData)
+                     so a bad picture cannot fail the review; grounding checked against the hunk catalog), types.ts (PrData),
+                     instructions.ts (the review instructions and output schema, shared with the local CLI, plus one
+                     closing paragraph per path: SERVER_WORKING_TREE, LOCAL_WORKING_TREE; the assembled server prompt is
+                     pinned byte-for-byte by __fixtures__/server-prompt.txt)
     executor/        types.ts (ReviewExecutor, errors); stub-executor.server.ts (STUB_REVIEW in fragments);
-                     claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist)
+                     claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist);
+                     sdk-loop.server.ts (the message loop both this and the local CLI run on: text, tool uses and the
+                     result out — subtype, turns, cost and token usage, cost counted even when the run ran out of
+                     turns — nothing thrown: each caller decides what a failure means)
     run.server.ts    runJob(input, deps) → 'done' | 'skipped' | 'aborted' | 'errored'; defaultRunJobDeps(); formatJobError
   jobs/              all *.server.ts: registry (AbortControllers on globalThis[JOBS_REGISTRY_KEY]), timeout (armTimeout),
                      start-review (startReview / rerunJob / launchJob), cancel-job, recover-jobs, boot (bootJobs, once per process),

@@ -11,6 +11,14 @@ const STATUS_MAP: Record<string, ReviewFileStatus> = {
   U: 'modified',
 };
 
+/** A changed file with what the reader's list leaves out. */
+export interface ChangedFile extends ReviewFile {
+  /** The path a renamed or copied file came from; null otherwise. */
+  previousFilename: string | null;
+  /** numstat reports `-` counts: git sees no text lines to count. */
+  binary: boolean;
+}
+
 /** The changed files between two commits with per-file line counts. */
 export async function listChangedFiles(
   git: GitRunner,
@@ -19,6 +27,17 @@ export async function listChangedFiles(
   head: string,
   signal?: AbortSignal,
 ): Promise<ReviewFile[]> {
+  return (await listChangedFileDetails(git, cwd, base, head, signal)).map(toReviewFile);
+}
+
+/** `listChangedFiles`, keeping each rename's old path and whether the file is binary. */
+export async function listChangedFileDetails(
+  git: GitRunner,
+  cwd: string,
+  base: string,
+  head: string,
+  signal?: AbortSignal,
+): Promise<ChangedFile[]> {
   const numstat = await runGitOrThrow(git, 'diff --numstat', {
     args: ['diff', '--numstat', '-z', `${base}..${head}`],
     cwd,
@@ -29,7 +48,7 @@ export async function listChangedFiles(
     cwd,
     signal,
   });
-  return mergeFileLists(numstat.stdout, status.stdout);
+  return parseChangedFiles(numstat.stdout, status.stdout);
 }
 
 /**
@@ -42,7 +61,16 @@ export async function listChangedFiles(
  * bytes. Binary files show `-` counts and become 0/0.
  */
 export function mergeFileLists(numstatZ: string, nameStatusZ: string): ReviewFile[] {
-  const counts = new Map<string, { additions: number; deletions: number }>();
+  return parseChangedFiles(numstatZ, nameStatusZ).map(toReviewFile);
+}
+
+function toReviewFile({ filename, status, additions, deletions }: ChangedFile): ReviewFile {
+  return { filename, status, additions, deletions };
+}
+
+/** `mergeFileLists` with the old path of each rename or copy and the binary flag. */
+export function parseChangedFiles(numstatZ: string, nameStatusZ: string): ChangedFile[] {
+  const counts = new Map<string, { additions: number; deletions: number; binary: boolean }>();
   // `<add>\t<del>\t<path>\0`, or `<add>\t<del>\t\0<old>\0<new>\0` for a
   // rename/copy — the empty third field is the marker for the two that follow.
   const numFields = splitRecords(numstatZ);
@@ -56,11 +84,15 @@ export function mergeFileLists(numstatZ: string, nameStatusZ: string): ReviewFil
       filename = numFields[i + 2];
       i += 2;
     }
-    counts.set(filename, { additions: parseCount(parts[0]), deletions: parseCount(parts[1]) });
+    counts.set(filename, {
+      additions: parseCount(parts[0]),
+      deletions: parseCount(parts[1]),
+      binary: parts[0] === '-' && parts[1] === '-',
+    });
   }
 
   // `<status>\0<path>\0`, or `<status>\0<old>\0<new>\0` when the status is R/C.
-  const files: ReviewFile[] = [];
+  const files: ChangedFile[] = [];
   const statusFields = splitRecords(nameStatusZ);
   for (let i = 0; i < statusFields.length; i += 2) {
     const code = statusFields[i].charAt(0).toUpperCase();
@@ -68,9 +100,10 @@ export function mergeFileLists(numstatZ: string, nameStatusZ: string): ReviewFil
     const pathAt = renamed ? i + 2 : i + 1;
     if (pathAt >= statusFields.length) break;
     const filename = statusFields[pathAt];
+    const previousFilename = renamed ? statusFields[i + 1] : null;
     if (renamed) i += 1;
-    const c = counts.get(filename) ?? { additions: 0, deletions: 0 };
-    files.push({ filename, status: STATUS_MAP[code] ?? 'modified', ...c });
+    const c = counts.get(filename) ?? { additions: 0, deletions: 0, binary: false };
+    files.push({ filename, status: STATUS_MAP[code] ?? 'modified', previousFilename, ...c });
   }
   return files;
 }

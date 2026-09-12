@@ -72,7 +72,8 @@ export function resolveProjectImport(spec: string, fromFile: string): string | n
   return target.replace(/\.[cm]?[jt]sx?$/, '');
 }
 
-export type Area = 'web' | 'domain' | 'db' | 'jobs' | 'common' | 'config' | 'guardrails' | 'test';
+export type Area =
+  'web' | 'domain' | 'db' | 'jobs' | 'cli' | 'common' | 'config' | 'guardrails' | 'test';
 
 export function areaOf(relPath: string): Area | null {
   const match = /^src\/([^/]+)\//.exec(relPath);
@@ -83,6 +84,7 @@ export function areaOf(relPath: string): Area | null {
     area === 'domain' ||
     area === 'db' ||
     area === 'jobs' ||
+    area === 'cli' ||
     area === 'common' ||
     area === 'config' ||
     area === 'guardrails' ||

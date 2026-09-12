@@ -4,18 +4,17 @@ import {
   useMemo,
   useState,
   type CSSProperties,
+  type ReactNode,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useSearchParams } from 'react-router';
-import type { PullMetadata } from '@/domain/github/types';
 import {
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
   type NarrativeReview,
 } from '@/domain/review/narrative';
-import type { ReviewTarget } from '@/domain/review/target';
-import { RerunButton } from '@/web/components/jobs/rerun-button';
+import type { ReviewMeta } from '@/domain/review/review-meta';
 import { ChapterCard } from '@/web/components/narrative/chapter-card';
 import { ChapterSidebar } from '@/web/components/narrative/chapter-sidebar';
 import { FileView } from '@/web/components/narrative/file-view';
@@ -42,35 +41,22 @@ function fileExists(filename: string, review: NarrativeReview): boolean {
 
 export interface ChapterReaderProps {
   review: NarrativeReview;
-  target: ReviewTarget;
-  pullMetadata: PullMetadata | null;
-  /** Refs the inline diffs compare: the target's base SHA and the reviewed head SHA. */
-  baseRef: string;
-  headRef: string;
+  /** The summary header: repository, PR, refs, author, description. */
+  meta: ReviewMeta;
   /** Active section when the URL names none (or an unknown one). */
   initialActiveId: string;
-  jobId: string;
-  /** Byline for the summary header when GitHub metadata is unavailable. */
-  jobAuthor: string;
+  /** Summary-header actions (the hosted app's rerun button). */
+  actions?: ReactNode;
 }
 
 /**
  * Two-column editorial reader: chapters + files on the left, the active
  * section on the right. Owns the keyboard bindings, the resizable sidebar
  * and the `?ch=` / `?file=` URL state (`?file=` wins when both are set; the
- * chapter is what comes back when the file view is closed).
+ * chapter is what comes back when the file view is closed). Inline diffs read
+ * their files from the `FileSource` the caller wraps it in.
  */
-export function ChapterReader({
-  review,
-  target,
-  pullMetadata,
-  baseRef,
-  headRef,
-  initialActiveId,
-  jobId,
-  jobAuthor,
-}: ChapterReaderProps) {
-  const refs = { owner: target.owner, repo: target.repo, baseRef, headRef };
+export function ChapterReader({ review, meta, initialActiveId, actions }: ChapterReaderProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const sections = useMemo(() => readerSections(review), [review]);
@@ -169,29 +155,16 @@ export function ChapterReader({
 
       <section aria-live="polite" className={classes.main}>
         {activeFile ? (
-          <FileView
-            filename={activeFile}
-            chapters={review.chapters}
-            files={review.files}
-            {...refs}
-          />
+          <FileView filename={activeFile} chapters={review.chapters} files={review.files} />
         ) : activeId === RISK_SECTION_ID && review.riskAssessment ? (
           <RiskCard assessment={review.riskAssessment} />
         ) : !activeChapter ? (
-          <SummaryCard
-            review={review}
-            target={target}
-            pullMetadata={pullMetadata}
-            byline={{ author: jobAuthor }}
-            actions={<RerunButton jobId={jobId} />}
-            onSelectFile={onSelectFile}
-          />
+          <SummaryCard review={review} meta={meta} actions={actions} onSelectFile={onSelectFile} />
         ) : (
           <ChapterCard
             chapter={activeChapter}
             chapterIndex={activeIndex}
             onSelectFile={onSelectFile}
-            {...refs}
           />
         )}
       </section>

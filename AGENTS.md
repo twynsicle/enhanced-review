@@ -16,9 +16,9 @@ before writing code against them; heed deprecation notices.
 
 ## Tech stack
 
-- Node 24 (Volta-pinned, `engines >=24`). The Express server and the jobs CLI
-  run TypeScript directly via Node's type stripping — no build step for
-  `server/` or `src/jobs/`.
+- Node 24 (Volta-pinned, `engines >=24`). The Express server, the jobs CLI
+  and the local `er` CLI run TypeScript directly via Node's type stripping —
+  no build step for `server/`, `src/jobs/` or `src/cli/`.
 - React Router 8 framework mode (SSR) on Vite 8; Express 5 via
   `@react-router/express` in `server/index.ts`. Single process: the review
   runner lives in-process, so never run under a forking manager.
@@ -46,6 +46,7 @@ prisma/
   migrations/          0001_init (hand-added CHECK constraints), 0002_drop_allowed_users,
                        0003_drop_github_login_unique (logins are reusable; identity is github_id)
 prisma.config.ts       Prisma CLI config; loads .env, datasource url from DATABASE_URL
+vite.viewer.config.ts  the local report: src/web/viewer/ → one self-contained build/viewer/viewer.html
 src/
   common/              logger.ts (pino), time-ago.ts — imports only config from src/
   config/              env.ts — Zod-parsed process.env, the only process.env reader; load-env.ts — loads .env for native entry points;
@@ -59,12 +60,17 @@ src/
     review/            narrative + diagram schemas; clone/, prompt/, executor/; run.server.ts, the runner
     jobs/              registry, timeout, start/rerun/cancel/recover, boot, and the read side (jobs.server.ts)
   jobs/                cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.ts
+  cli/                 `er`, the local review CLI: the package `bin`, put on PATH by `npm link`;
+                       runs in the repo under review with no server config
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only,
-                       prisma-access, palette (token contrast, type scale, one label), diagram-colour (SVG takes token() only)
-  test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb)
+                       prisma-access, palette (token contrast, type scale, one label), diagram-colour (SVG takes token() only),
+                       cli-imports (nothing `er` loads reaches env.ts, the logger, the db or a server package)
+  test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb),
+                       git-repo.ts (a throwaway repository with a bare origin, for tests that drive real git)
   web/                 the React Router app: root.tsx, entry.server.tsx, routes.ts (every file in routes/ must be listed),
                        routes/, auth/, components/, stores/ (Zustand, persisted), theme/, lib/, test/
-public/                Passage brand-mark.svg (+ PNG export), favicon.svg / favicon.ico, apple-touch-icon.png
+public/                Passage brand-mark PNG export (the SVG sits beside components/brand-mark.tsx), favicon.svg / favicon.ico,
+                       apple-touch-icon.png
 docs/OPERATIONS.md     runbook for a running deployment
 Dockerfile             node:24-alpine multi-stage; build stage runs prisma generate; runtime ships source + prod deps
 entrypoint.sh          the image's CMD: prisma migrate deploy → recover-jobs → exec node server/index.ts
@@ -76,8 +82,8 @@ docker-compose.yml     postgres:18-alpine on 127.0.0.1:5432 + `web` (the app as 
 
 Layering (enforced by `src/guardrails`): `web → domain, db, common,
 config`; `domain → db, common, config`; `db → common, config`;
-`jobs → domain, db, common, config`; `common → config`; `config` imports
-nothing from `src/`. Only `src/web/` and `server/` may import React or
+`jobs → domain, db, common, config`; `cli → domain, common, config`;
+`common → config`; `config` imports nothing from `src/`. Only `src/web/` and `server/` may import React or
 `react-router`. `db` and `config` are server-only; `domain` is **shared**
 between server and browser, and a domain module that imports `db`, `config`,
 the logger, a `node:` builtin, a server-only package (`@octokit/*`, the Claude
@@ -108,6 +114,8 @@ directly.
 - `container.md` — the compose `app` profile, CMD vs entrypoint, what the
   image ships. Loads for the Docker, compose and CI files, `package.json` and
   `server/**`.
+- `cli.md` — file-by-file map of `src/cli/` (`er review` and its stages).
+  Loads for `src/cli/**` and `vite.viewer.config.ts`.
 
 Skills in `.claude/skills/`, loaded when the task calls for them:
 
@@ -117,8 +125,8 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
 
 - Path alias `@/*` → `src/*` is used in `src/web/` (bundled by Vite).
   Everything Node may load natively — `server/`, `src/config`, `src/common`,
-  `src/db`, `src/domain`, `src/jobs` — uses relative imports with explicit
-  `.ts` extensions.
+  `src/db`, `src/domain`, `src/jobs`, `src/cli` — uses relative imports with
+  explicit `.ts` extensions.
 - Server-only modules use the React Router `*.server.ts` filename convention
   — `db`/`config` by location, `domain` and `web` by filename.
 - `process.env` is read only in `src/config`. Code that spawns a subprocess
@@ -146,20 +154,21 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
 
 ## Scripts
 
-| Script                                     | What                                                           |
-| ------------------------------------------ | -------------------------------------------------------------- |
-| `npm run dev`                              | Express + Vite dev server on `localhost:3000`                  |
-| `npm run build` / `npm start`              | `react-router build` / serve `build/` in production mode       |
-| `npm run typecheck`                        | `react-router typegen && tsc --noEmit`                         |
-| `npm test` / `test:watch`                  | Vitest `unit` + `web` + `guardrails`                           |
-| `npm run test:integration`                 | Vitest `integration` (needs Postgres; skips when unreachable)  |
-| `npm run lint` / `format` / `format:check` | oxlint / Prettier                                              |
-| `npm run check`                            | **The gate**: typecheck + build + test + lint + format:check   |
-| `npm run check:all`                        | `check` + integration                                          |
-| `npm run db:migrate`                       | `prisma migrate dev && prisma generate` (local schema changes) |
-| `npm run db:deploy` / `db:reset`           | apply migrations (CI/containers) / drop + reapply + generate   |
-| `npm run db:generate` / `db:studio`        | regenerate client (also `postinstall`) / Prisma Studio         |
-| `npm run job -- <name> [args]`             | one-shot jobs, natively: `recover-jobs`                        |
+| Script                                     | What                                                                        |
+| ------------------------------------------ | --------------------------------------------------------------------------- |
+| `npm run dev`                              | Express + Vite dev server on `localhost:3000`                               |
+| `npm run build` / `npm start`              | `react-router build` / serve `build/` in production mode                    |
+| `npm run viewer:dev` / `viewer:build`      | the local report: Vite dev server / single-file build                       |
+| `npm run typecheck`                        | `react-router typegen && tsc --noEmit`                                      |
+| `npm test` / `test:watch`                  | Vitest `unit` + `web` + `guardrails`                                        |
+| `npm run test:integration`                 | Vitest `integration` (needs Postgres; skips when unreachable)               |
+| `npm run lint` / `format` / `format:check` | oxlint / Prettier                                                           |
+| `npm run check`                            | **The gate**: typecheck + build + viewer:build + test + lint + format:check |
+| `npm run check:all`                        | `check` + integration                                                       |
+| `npm run db:migrate`                       | `prisma migrate dev && prisma generate` (local schema changes)              |
+| `npm run db:deploy` / `db:reset`           | apply migrations (CI/containers) / drop + reapply + generate                |
+| `npm run db:generate` / `db:studio`        | regenerate client (also `postinstall`) / Prisma Studio                      |
+| `npm run job -- <name> [args]`             | one-shot jobs, natively: `recover-jobs`                                     |
 
 `docker compose up -d` starts Postgres alone for local dev; the app's own
 container is behind the `app` profile.

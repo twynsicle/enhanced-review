@@ -23,6 +23,7 @@
     "src/**/*",
     "server/**/*",
     "vite.config.ts",
+    "vite.viewer.config.ts",
     "react-router.config.ts",
     "vitest.config.ts",
     "prisma.config.ts",
