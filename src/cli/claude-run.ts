@@ -2,7 +2,11 @@ import { createWriteStream, type WriteStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
-import { runSdkLoop, type SdkQueryFn } from '../domain/review/executor/sdk-loop.server.ts';
+import {
+  runSdkLoop,
+  type SdkQueryFn,
+  type SdkUsage,
+} from '../domain/review/executor/sdk-loop.server.ts';
 import { reviewBashCommand } from './bash-gate.ts';
 import { onInterrupt } from './interrupts.ts';
 import type { RunFiles } from './run-folder.ts';
@@ -61,6 +65,8 @@ export interface ClaudeRunResult {
   costUsd: number | null;
   /** Tool calls the gate turned away. Each one is an event in `events.jsonl`. */
   denied: number;
+  /** What the run spent. `null` when it ended without a result. */
+  usage: SdkUsage | null;
   /** Set when the run ended on something other than a finished answer. */
   incomplete: string | null;
 }
@@ -125,6 +131,7 @@ export async function runClaude(
         isError: result.isError,
         turns: result.turns,
         costUsd: result.costUsd,
+        usage: result.usage,
       });
     }
     // The SDK ends an aborted run either by throwing or by simply stopping.
@@ -138,6 +145,7 @@ export async function runClaude(
     return {
       characters,
       denied,
+      usage: result?.usage ?? null,
       turns: result?.turns ?? 0,
       costUsd: result?.costUsd ?? null,
       incomplete: incompleteReason(result),

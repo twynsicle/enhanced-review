@@ -25,17 +25,53 @@ describe('the shared SDK loop', () => {
     const outcome = await runSdkLoop(
       yielding([
         assistant(text('<narrative_review>'), text('{}</narrative_review>')),
-        result({ subtype: 'success', is_error: false, total_cost_usd: 0.3, num_turns: 9 }),
+        result({
+          subtype: 'success',
+          is_error: false,
+          total_cost_usd: 0.3,
+          num_turns: 9,
+          modelUsage: {
+            'claude-sonnet-5': {
+              inputTokens: 1_000,
+              outputTokens: 200,
+              cacheReadInputTokens: 40_000,
+              cacheCreationInputTokens: 12_000,
+            },
+          },
+        }),
       ]),
       args(),
     );
 
     expect(outcome).toEqual({
       raw: '<narrative_review>{}</narrative_review>',
-      result: { subtype: 'success', isError: false, turns: 9, costUsd: 0.3 },
+      result: {
+        subtype: 'success',
+        isError: false,
+        turns: 9,
+        costUsd: 0.3,
+        usage: {
+          inputTokens: 1_000,
+          outputTokens: 200,
+          cacheReadTokens: 40_000,
+          cacheWriteTokens: 12_000,
+        },
+      },
       sdkError: null,
       callbackError: null,
     });
+  });
+
+  it('counts what a run that ran out of turns spent, because it spent it', async () => {
+    const outcome = await runSdkLoop(
+      yielding([
+        assistant(text('half an answer')),
+        result({ subtype: 'error_max_turns', is_error: true, total_cost_usd: 1.75, num_turns: 30 }),
+      ]),
+      args(),
+    );
+
+    expect(outcome.result).toMatchObject({ subtype: 'error_max_turns', costUsd: 1.75 });
   });
 
   it('reports tool uses with what they name, and system messages by subtype', async () => {

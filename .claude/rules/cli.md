@@ -30,7 +30,8 @@ src/cli/
                    across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
                    one annotated hunk file per reviewed file; pr.md
   prompt.ts        system.md (the shared instructions + LOCAL_WORKING_TREE) + prompt.md (the local delivery section)
-  claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl;
+  claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl
+                   (tool uses, refusals, and a result event carrying turns, cost and the token usage);
                    the reviewed repo's own settings (settingSources user/project/local), read-only tools, the
                    engineer's environment inherited by the subprocess; the SDK is imported only when a run happens
   bash-gate.ts     which Bash commands a review may run: the line is split at | && ||, every part must be a known
@@ -56,7 +57,10 @@ src/cli/
 - Tests drive real git against `src/test/git-repo.ts` (a throwaway repository
   with a bare origin) and hand gh canned JSON through `Shell`'s runners.
 - The model run is the only stage that costs anything, and the only one that
-  needs the network. `--stub` replaces it; `--from parse` skips it entirely,
+  needs the network. It pays for its whole context on every turn, so the
+  stage line reports the tokens that went in and what share of them was read
+  from cache — that share, not the size of the prompt, is what explains a
+  bill. `--stub` replaces it; `--from parse` skips it entirely,
   which is how a report is rebuilt from a `raw.txt` that is already there.
 - `Read`, `Glob` and `Grep` are pre-approved; `Bash` is deliberately left out
   of `allowedTools` so every command goes through `bash-gate.ts` in the

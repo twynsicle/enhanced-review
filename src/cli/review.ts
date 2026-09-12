@@ -223,7 +223,21 @@ export function describeTarget(target: Target, meta: ReviewMeta): string {
 /** What the model cost and how hard it worked, for the stage line. */
 function describeRun(result: ClaudeRunResult): string {
   const cost = result.costUsd === null ? '' : `, $${result.costUsd.toFixed(2)}`;
-  return `${plural(result.turns, 'turn')}, ~${approxTokens(result.characters)} tokens of review${cost}`;
+  return `${plural(result.turns, 'turn')}, ~${approxTokens(result.characters)} tokens of review${cost}${describeUsage(result.usage)}`;
+}
+
+/**
+ * An agentic run pays for its context on every turn, so what it cost is
+ * mostly a question of how much of that context was read from cache rather
+ * than sent again. The share is the one number that explains the bill.
+ */
+function describeUsage(usage: ClaudeRunResult['usage']): string {
+  if (usage === null) return '';
+  const sent = usage.inputTokens + usage.cacheWriteTokens;
+  const total = sent + usage.cacheReadTokens;
+  if (total === 0) return '';
+  const cached = Math.round((usage.cacheReadTokens / total) * 100);
+  return ` (${approxCount(total)} tokens in, ${String(cached)}% cached)`;
 }
 
 function incompleteWarning(result: ClaudeRunResult): string {
@@ -256,8 +270,14 @@ function tokens(text: string): string {
 }
 
 function approxTokens(characters: number): string {
-  const estimate = Math.round(characters / 4);
-  return estimate < 1000 ? String(estimate) : `${(estimate / 1000).toFixed(1)}k`;
+  return approxCount(Math.round(characters / 4));
+}
+
+/** A whole run's input runs to millions, so this counts that high. */
+function approxCount(value: number): string {
+  if (value < 1000) return String(value);
+  if (value < 1_000_000) return `${(value / 1000).toFixed(1)}k`;
+  return `${(value / 1_000_000).toFixed(1)}M`;
 }
 
 function megabytes(bytes: number): string {

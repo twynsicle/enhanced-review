@@ -45,7 +45,8 @@ src/domain/
     executor/        types.ts (ReviewExecutor, errors); stub-executor.server.ts (STUB_REVIEW in fragments);
                      claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist);
                      sdk-loop.server.ts (the message loop both this and the local CLI run on: text, tool uses and the
-                     result out, nothing thrown — each caller decides what a failure means)
+                     result out — subtype, turns, cost and token usage, cost counted even when the run ran out of
+                     turns — nothing thrown: each caller decides what a failure means)
     run.server.ts    runJob(input, deps) → 'done' | 'skipped' | 'aborted' | 'errored'; defaultRunJobDeps(); formatJobError
   jobs/              all *.server.ts: registry (AbortControllers on globalThis[JOBS_REGISTRY_KEY]), timeout (armTimeout),
                      start-review (startReview / rerunJob / launchJob), cancel-job, recover-jobs, boot (bootJobs, once per process),

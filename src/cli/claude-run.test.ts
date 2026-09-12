@@ -70,6 +70,7 @@ describe('the model run', () => {
     await expect(runClaude(run, options, { query })).resolves.toEqual({
       characters: 39,
       denied: 0,
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
       turns: 7,
       costUsd: 0.42,
       incomplete: null,

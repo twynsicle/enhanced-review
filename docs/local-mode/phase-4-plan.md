@@ -192,6 +192,18 @@ terminal against `feat/er-13-local-review-cli` (`639b79d..22511ed`):
 | Review | 12 chapters, 135 of 138 hunks cited, 6 chapter diagrams, risk 4/5 |
 | Report | `review.html`, 2.4 MB, rendered in 39 ms                          |
 
+Where that money went is arithmetic, not mystery: the system prompt and
+`prompt.md` are ~12k tokens, the 27 `Read` calls added ~40k more, and an
+agentic run pays for its whole context on **every** turn — so 32 turns of a
+context growing to ~67k tokens is on the order of 1.2M input tokens. Whether
+that was mostly cache reads or mostly fresh input decides whether a review
+costs cents or dollars, and this run could not say, because the loop kept
+only `total_cost_usd`. It now keeps `modelUsage` as well: the result event
+records input, output and cache tokens, and the run stage prints the tokens
+that went in and the share of them served from cache. The next real run
+answers the question. (The same change makes a run that hits `--max-turns`
+report its cost instead of `null`; it spent the money either way.)
+
 What that says about the defaults: 60 turns and 15 minutes leave a change
 about twice this size room to finish, and a run that does hit either keeps
 what it wrote. The cost is worth stating plainly in the README — a large
@@ -215,7 +227,8 @@ chapters cite catalog hunk ids and name no file outside the change
 from the run folder; the gate's four real commands are now allowed, and
 `npm run check` is green.
 
-**Still owed, and needing a paid run each:** a review of a specimen PR and
+**Still owed, and needing a paid run each:** a reading of the cache share on
+the next run, which decides whether cost work is needed at all; a review of a specimen PR and
 of a roughly 60-file PR; a run that shows `Bash` actually used for history
 with no denials; and Phase 3's deferred Ctrl+C check, which a 7-minute run
 now makes easy to hit.

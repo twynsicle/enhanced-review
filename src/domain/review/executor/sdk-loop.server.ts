@@ -1,4 +1,4 @@
-import type { Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { ModelUsage, Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 /**
  * The Agent SDK message loop, shared by the server's executor and the local
@@ -22,7 +22,40 @@ export interface SdkRunResult {
   /** A result can be `success` and still carry an error, such as a failed sign-in. */
   isError: boolean;
   turns: number;
+  /** Every result carries this, including a run that ran out of turns. */
   costUsd: number | null;
+  usage: SdkUsage;
+}
+
+/**
+ * What the run spent, totalled over every model it used. An agentic run pays
+ * for its whole context on each turn, so `inputTokens` climbs far past the
+ * size of the prompt, and how much of it was read from cache rather than sent
+ * again is the difference between a cheap review and an expensive one.
+ */
+export interface SdkUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
+const NO_USAGE: SdkUsage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheReadTokens: 0,
+  cacheWriteTokens: 0,
+};
+
+function totalUsage(byModel: Record<string, ModelUsage> | undefined): SdkUsage {
+  const total = { ...NO_USAGE };
+  for (const model of Object.values(byModel ?? {})) {
+    total.inputTokens += model.inputTokens;
+    total.outputTokens += model.outputTokens;
+    total.cacheReadTokens += model.cacheReadInputTokens;
+    total.cacheWriteTokens += model.cacheCreationInputTokens;
+  }
+  return total;
 }
 
 export interface SdkLoopCallbacks {
@@ -76,7 +109,9 @@ export async function runSdkLoop(
           subtype: message.subtype,
           isError: message.is_error === true,
           turns: message.num_turns,
-          costUsd: message.subtype === 'success' ? message.total_cost_usd : null,
+          // A run that ran out of turns still charged for the ones it took.
+          costUsd: message.total_cost_usd,
+          usage: totalUsage(message.modelUsage),
         };
       } else if (message.type === 'system') {
         callbacks.onSystem?.(message.subtype);
