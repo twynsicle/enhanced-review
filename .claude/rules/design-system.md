@@ -28,8 +28,8 @@ reader growing twelve font sizes and nine near-identical label styles:
 caption — sits in a single column capped at `--er-measure` (42rem) via
 `narrative/article.module.css`, so they share one right edge. Only a diff or a
 code block opts out, with `data-bleed`, and spans the rest of the column: those
-are the only things here that read better wide, and they are what the
-wide-layout toggle is for. Do not give a prose block its own `max-width` — that
+are the only things here that read better wide, and they are what the width
+toggle is for. Do not give a prose block its own `max-width` — that
 is what had text wrapping near the middle of a much wider card, lined up with
 nothing.
 
@@ -41,16 +41,37 @@ real review, stacking cost 131px on six risk factors and _saved_ 96px on the
 insights, because a full-measure card wraps to fewer lines and a two-up grid
 equalises its rows to the tallest cell.
 
-**One page width.** Every page inside the shell renders through
-`components/page-shell.tsx`, which is also where the topbar's inner bar gets
-its `maw` and `px`, so the header lines up with the page beneath it and the
-narrow/wide toggle moves both. Widening the shell is not the same as widening
-the text: prose keeps its own measure in `ch`, and a page whose content gains
-nothing from the extra room (the job timeline) caps itself and stays
-left-aligned so the left edge never jumps between pages. Do not reintroduce a
-per-route `Container size={...}` — that is what made the toggle look broken
-everywhere outside the reader. `PageShell` pads the bottom more than the top
-(`SHELL_PB`): a page that ends flush with its last element reads as cut off.
+**Two page widths, and the reader gets the choice.** Every page inside the
+shell renders through `components/page-shell.tsx`, which is also where the
+topbar's inner bar gets its `maw` and `px`, so the header lines up with the page
+beneath it and moves with it. Which width a page takes is a `ShellWidth`:
+
+- `reader` follows `--review-max-width`, the topbar toggle's `full` (the
+  window) ⇄ `wide` (110rem). The reader is the only page that earns it: a
+  side-by-side diff splits its column in two, so every pixel it is given is
+  worth having, and at the old 92rem default a reviewer scrolled sideways more
+  than they read.
+- `page`, the default, is a fixed `PAGE_MAX_WIDTH` (92rem). A composer field or
+  a history row stretched across a 3400px monitor is worse, not better.
+
+A page declares itself the reader through the route `handle` in
+`lib/reader-route.ts`, which is also what tells the topbar to offer the width
+and diff-view toggles at all — a control that visibly does nothing is worse than
+no control. The same principle runs one level deeper: below
+`SIDE_BY_SIDE_MIN_WIDTH` the column cannot carry two panes, so the diff toggle
+shows the stacked state and disables rather than claiming a view the page is not
+in. `chapter-reader.tsx` measures that column once and `selectSpaceLimited`
+derives it, so the icon, the disabled state and the editors' `renderSideBySide`
+all come off one number and cannot disagree. The measurement lives in its own
+un-persisted store beside the preference — it arrives once per frame while the
+sidebar is dragged, and only a preference belongs in storage. Widening the shell
+is still not the same as widening the text: prose keeps its own measure in `ch`,
+and a page whose content gains nothing from the extra room (the job timeline)
+caps itself and stays left-aligned so the left edge never jumps between pages.
+Do not reintroduce a per-route
+`Container size={...}` — that is what made the toggle look broken everywhere
+outside the reader. `PageShell` pads the bottom more than the top (`SHELL_PB`):
+a page that ends flush with its last element reads as cut off.
 
 Two text families: sans for everything, mono for identifiers, paths, SHAs and
 code. There is no display serif.

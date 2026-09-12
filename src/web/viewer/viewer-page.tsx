@@ -5,6 +5,7 @@ import { ChapterReader } from '@/web/components/narrative/chapter-reader';
 import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
 import { ColorSchemeToggle } from '@/web/components/color-scheme-toggle';
 import { PageShell } from '@/web/components/page-shell';
+import { DiffViewToggle } from '@/web/components/topbar/diff-view-toggle';
 import { LayoutWidthToggle } from '@/web/components/topbar/layout-width-toggle';
 import { StaticBrand, TopbarFrame } from '@/web/components/topbar/topbar';
 import { ReportProblem } from './report-problem';
@@ -13,6 +14,7 @@ import { ReportProblem } from './report-problem';
 function ReportTopbar() {
   return (
     <TopbarFrame
+      width="reader"
       start={
         <>
           <StaticBrand />
@@ -23,6 +25,7 @@ function ReportTopbar() {
       }
       end={
         <>
+          <DiffViewToggle />
           <LayoutWidthToggle />
           <ColorSchemeToggle />
         </>
@@ -52,6 +55,7 @@ export function ViewerPage({ result }: { result: EmbeddedBundleResult }) {
       <ReportTopbar />
       <PageShell
         py={32}
+        width="reader"
         style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: '100%' }}
       >
         <title>{`${bundle.review.prTitle || bundle.meta.title} · enhanced-review`}</title>

@@ -1,14 +1,20 @@
 import { create } from 'zustand';
-import { persist, type PersistStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
+import { rawPreferenceStorage } from '@/web/stores/raw-preference';
 import { LAYOUT_WIDTHS } from '@/web/theme/tokens';
 
 /**
- * Narrow ⇄ wide page width. Persisted under the same
- * `er-layout` key and raw `narrow | wide` value the old app used, so the
- * pre-paint script in `root.tsx` can read it without parsing JSON. The store
- * skips automatic hydration: the server and the hydrating render both see
- * `narrow`, and `bindLayoutWidth()` (called once from the toggle) rehydrates
- * after mount and keeps `--review-max-width` on `<html>` in sync.
+ * The reader's width: the whole window ⇄ 110rem. Persisted under the
+ * `er-layout` key as the raw value, not JSON, so the pre-paint script in
+ * `root.tsx` can read it without a parser. The store skips automatic
+ * hydration: the server and the hydrating render both see the `full` default,
+ * and `bindLayoutWidth()` (called once from the toggle) rehydrates after mount
+ * and keeps `--review-max-width` on `<html>` in sync.
+ *
+ * The two stops used to be `narrow | wide`, and the migration rides on the raw
+ * value: a stored `wide` still names 110rem, and a stored `narrow` no longer
+ * matches anything and falls through to `full`, which is where a reader who
+ * had chosen the old default wants to be.
  */
 export type LayoutWidth = keyof typeof LAYOUT_WIDTHS;
 
@@ -19,36 +25,16 @@ interface LayoutWidthState {
   toggle: () => void;
 }
 
-const rawStorage: PersistStorage<Pick<LayoutWidthState, 'width'>> = {
-  getItem: (name) => {
-    try {
-      const stored = window.localStorage.getItem(name);
-      return { state: { width: stored === 'wide' ? 'wide' : 'narrow' } };
-    } catch {
-      return null;
-    }
-  },
-  setItem: (name, value) => {
-    try {
-      window.localStorage.setItem(name, value.state.width);
-    } catch {
-      /* private mode / quota: the preference just does not stick */
-    }
-  },
-  removeItem: (name) => {
-    try {
-      window.localStorage.removeItem(name);
-    } catch {
-      /* ignore */
-    }
-  },
-};
+const rawStorage = rawPreferenceStorage<Pick<LayoutWidthState, 'width'>>(
+  (stored) => ({ width: stored === 'wide' ? 'wide' : 'full' }),
+  (state) => state.width,
+);
 
 export const useLayoutWidth = create<LayoutWidthState>()(
   persist(
     (set) => ({
-      width: 'narrow',
-      toggle: () => set((state) => ({ width: state.width === 'wide' ? 'narrow' : 'wide' })),
+      width: 'full',
+      toggle: () => set((state) => ({ width: state.width === 'wide' ? 'full' : 'wide' })),
     }),
     {
       name: LAYOUT_WIDTH_KEY,
