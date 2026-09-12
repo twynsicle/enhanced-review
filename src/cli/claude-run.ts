@@ -19,13 +19,14 @@ import type { RunFiles } from './run-folder.ts';
  * `events.jsonl`.
  *
  * The engineer's own environment is what authenticates: the SDK subprocess
- * inherits it, and this CLI reads none of it itself (A4). The reviewed
- * repository's own Claude configuration loads as it would in a normal
- * session (D5), which is why `settingSources` is not empty here as it is on
- * the server.
+ * inherits it, and this CLI reads none of it itself — it has to run on a
+ * laptop with none of the server's configuration. The reviewed repository's
+ * own Claude configuration loads as it would in a normal session, which is
+ * why `settingSources` is not empty here as it is on the server, where the
+ * repo under review is someone else's code and must not register hooks.
  */
 
-/** The server's default, spelled out because the CLI may not read `env.ts` (A4). */
+/** Spelled out rather than read from `env.ts`, which the CLI must not import. */
 export const DEFAULT_MODEL = 'claude-sonnet-5';
 /**
  * Measured: an 88-file, 138-hunk review took 32 turns and 7m 36s, so both of
@@ -185,7 +186,7 @@ function sdkOptions(
       if (decision.behavior === 'deny') onDeny(tool, input, decision.message);
       return Promise.resolve(decision);
     },
-    // The engineer's own settings and the reviewed repository's CLAUDE.md (D5).
+    // The engineer's own settings, and the reviewed repository's CLAUDE.md.
     settingSources: ['user', 'project', 'local'],
     persistSession: false,
     abortController: controller,

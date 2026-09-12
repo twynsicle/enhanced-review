@@ -8,11 +8,12 @@
  * read is refused with a message telling the agent what it may run instead.
  *
  * The rule is that every command in the line must be a read. A pipeline and
- * a `cd … && …` prefix are how the model actually asks for history (phase 4
- * result), so they are split apart and each part is checked on its own: the
- * line is allowed only if all of them are known read-only invocations, with
- * no syntax that could start something unlisted, and no argument that turns
- * a listed program into a launcher for one.
+ * a `cd … && …` prefix are how the model actually asks for history — an
+ * earlier gate banned both outright and refused all four commands the first
+ * real review tried — so they are split apart and each part is checked on its
+ * own: the line is allowed only if all of them are known read-only
+ * invocations, with no syntax that could start something unlisted, and no
+ * argument that turns a listed program into a launcher for one.
  */
 
 /** Characters that could start a command this gate never sees. */
