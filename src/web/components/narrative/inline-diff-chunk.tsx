@@ -11,6 +11,7 @@ import { detectLanguage } from '@/domain/review/language-map';
 import type { DiffChunk } from '@/domain/review/narrative';
 import { useFilePair } from '@/web/components/narrative/file-source';
 import { useHydrated } from '@/web/lib/use-hydrated';
+import { useDiffView, type DiffView } from '@/web/stores/diff-view';
 import { token } from '@/web/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
 
@@ -110,7 +111,20 @@ function buildModelPath(filename: string, key: string, side: 'original' | 'modif
   return `file:///__inline__/${side}/${encodeURIComponent(key)}/${encodedPath}`;
 }
 
-function applyLineNumbers(
+/**
+ * The per-side line numbers for a snippet, and then a relayout.
+ *
+ * The relayout is the point as much as the numbers are. Both the gutter width
+ * and — when the split/unified view flips — the inner editors' heights are
+ * stale until the widget is told to lay out again, and `automaticLayout` never
+ * catches the second one: the container it watches is sized from the measured
+ * content, so it has not changed when the content inside it has. Left alone
+ * after a flip, the modified editor keeps its side-by-side height while its
+ * content grows by the deleted lines, and those last lines end up below a
+ * viewport with no way to reach them — the vertical scrollbar is hidden and
+ * the wheel is detached.
+ */
+function applySnippetLayout(
   diffEditor: editor.IStandaloneDiffEditor,
   snippet: InlineDiffSnippet,
   expanded: boolean,
@@ -131,17 +145,29 @@ function SnippetEditor({
   language,
   snippet,
   expanded,
+  view,
 }: {
   chunkFilename: string;
   language: string;
   snippet: InlineDiffSnippet;
   expanded: boolean;
+  view: DiffView;
 }) {
   const hydrated = useHydrated();
   const scheme = useComputedColorScheme('dark');
   const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const disposables = useRef<IDisposable[]>([]);
+  /*
+   * `measure` below is frozen at mount but has to know the current view, and
+   * it has to know it early: the editor library applies the new options from
+   * its own effect, which — being a child's — runs before this component's,
+   * and the content-size event that fires there is what triggers the measure.
+   * Mirroring during render is what puts the fresh value in front of it;
+   * updating in an effect leaves every flip measured against the old view.
+   */
+  const viewRef = useRef(view);
+  viewRef.current = view;
 
   const onMount = useCallback(
     (diffEditor: editor.IStandaloneDiffEditor) => {
@@ -149,8 +175,16 @@ function SnippetEditor({
       const original = diffEditor.getOriginalEditor();
       const modified = diffEditor.getModifiedEditor();
       const measure = (): void => {
+        /*
+         * Only the modified editor is on screen in the unified view, and it
+         * holds the whole diff — the original is collapsed to its gutter but
+         * still reports a content height a line or so taller than what is
+         * drawn, so taking the max of both sides there pads every stacked diff
+         * with dead space. Side by side, both are visible and the taller one
+         * sets the height.
+         */
         const contentHeight = Math.max(
-          original.getContentHeight(),
+          viewRef.current === 'split' ? original.getContentHeight() : 0,
           modified.getContentHeight(),
           MIN_EDITOR_HEIGHT - EDITOR_HEIGHT_PADDING,
         );
@@ -161,7 +195,7 @@ function SnippetEditor({
         modified.onDidContentSizeChange(measure),
         diffEditor.onDidUpdateDiff(measure),
       ];
-      applyLineNumbers(diffEditor, snippet, expanded);
+      applySnippetLayout(diffEditor, snippet, expanded);
       measure();
     },
     // The mount-time snippet/expanded are right for the first paint; later
@@ -170,9 +204,11 @@ function SnippetEditor({
     [],
   );
 
+  // `view` belongs here for the relayout, not for the line numbers — see
+  // `applySnippetLayout`.
   useEffect(() => {
-    if (editorRef.current) applyLineNumbers(editorRef.current, snippet, expanded);
-  }, [snippet, expanded]);
+    if (editorRef.current) applySnippetLayout(editorRef.current, snippet, expanded);
+  }, [snippet, expanded, view]);
 
   useEffect(
     () => () => {
@@ -210,13 +246,22 @@ function SnippetEditor({
     center.querySelector<HTMLElement>('a[role="button"]')?.click();
   }, []);
 
-  // Memoised so the library only re-applies options when `expanded` flips;
-  // a fresh object each render would reset the per-side line numbers set by
-  // `applyLineNumbers` on every height measurement.
+  // Memoised so the library only re-applies options when `expanded` or the
+  // view flips; a fresh object each render would reset the per-side line
+  // numbers set by `applyLineNumbers` on every height measurement.
   const options = useMemo<editor.IDiffEditorConstructionOptions>(
     () => ({
       readOnly: true,
-      renderSideBySide: true,
+      renderSideBySide: view === 'split',
+      /*
+       * Monaco's own fallback to the inline view below this width is left on
+       * for `split`: two panes of code in less than 900px is not a diff anyone
+       * can read, so collapsing is the right answer even when the reader has
+       * asked for side by side. Their choice still governs everywhere it can
+       * be honoured.
+       */
+      useInlineViewWhenSpaceIsLimited: true,
+      renderSideBySideInlineBreakpoint: 900,
       minimap: { enabled: false },
       renderOverviewRuler: false,
       overviewRulerLanes: 0,
@@ -238,7 +283,7 @@ function SnippetEditor({
       glyphMargin: false,
       lineDecorationsWidth: 8,
     }),
-    [expanded],
+    [expanded, view],
   );
 
   const fallback = <Skeleton height={MIN_EDITOR_HEIGHT} radius={0} />;
@@ -277,6 +322,7 @@ function SnippetEditor({
  */
 export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
   const pair = useFilePair(chunk.filename);
+  const view = useDiffView((s) => s.view);
   const [expanded, setExpanded] = useState(false);
   const state = useMemo(() => resolveFileState(pair, chunk.filename), [pair, chunk.filename]);
 
@@ -377,6 +423,7 @@ export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
             language={language}
             snippet={snippet}
             expanded={expanded}
+            view={view}
           />
         ))}
     </Box>

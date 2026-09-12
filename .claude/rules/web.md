@@ -29,11 +29,12 @@ src/web/
                      auth.github.ts, auth.github.callback.ts, auth.logout.ts, health.ts.
   auth/              *.server.ts: cookies, session (createSessionStorage + rolling), authenticator (remix-auth),
                      context (userContext/sessionContext), session-middleware, gate-middleware (requireUser, signOutHeaders)
-  components/        brand-mark (+ brand-mark.svg, imported so the report inlines it), caption (the one uppercase label), page-shell (the one page width,
-                     shared with the topbar), color-scheme-toggle,
+  components/        brand-mark (+ brand-mark.svg, imported so the report inlines it), caption (the one uppercase label), page-shell (the two page
+                     widths — `reader` follows the toggle, `page` is fixed — shared with the topbar), color-scheme-toggle,
                      app-error (generic error page, used by root + route boundaries);
                      topbar/ (topbar: Topbar on TopbarFrame, which the local report's header reuses with
-                     StaticBrand; topbar-nav, user-menu, layout-width-toggle),
+                     StaticBrand; topbar-nav, user-menu, and the reader-only pair layout-width-toggle + diff-view-toggle,
+                     shown only where useIsReader() is true),
                      jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                      job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
                      what-now, rerun-button, job-not-found (404 page shared with the reader), review-banners (the
@@ -66,11 +67,13 @@ src/web/
                      hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
   viewer/            the local report (vite.viewer.config.ts, not the RR app): index.html (the empty er-bundle element),
                      main.tsx (client-rendered, hash data router, stored width applied before render), viewer-page
-                     (a TopbarFrame with brand + width/scheme toggles, then ChapterReader over EmbeddedFileSource),
+                     (a TopbarFrame with brand + diff-view/width/scheme toggles, then ChapterReader over EmbeddedFileSource),
                      report-problem (missing / version-mismatch / invalid bundle), sample-bundle.ts (what viewer:dev
                      renders unless ER_BUNDLE names a JSON file); the build inlines JS, CSS and fonts into one file and stamps its sources (viewer.stamp, which er checks)
                      (`react-router build` wipes build/, so it builds second); Monaco still loads from the CDN
-  stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth), last-target.ts (`er:last-target`, per user)
+  stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth: full ⇄ wide), diff-view.ts (`er-diff-view`,
+                     bindDiffView: split ⇄ unified, read by inline-diff-chunk), both on raw-preference.ts (one word, not JSON, so the
+                     pre-paint script can read it); last-target.ts (`er:last-target`, per user)
   theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours + FONT_SIZES/DISPLAY_SIZE/
                      CAPTION_TYPE, the type scale) → theme.ts (Mantine ramps, fontSizes, sans + mono),
                      css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules)
@@ -80,7 +83,8 @@ src/web/
                      intent=rerun handler),
                      review-metadata.server.ts (reader's view-time GitHub fan-out: PR header or branch head,
                      staleness compare; every section degrades on its own, no token → nothing fetched),
-                     action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts
+                     action-error.ts (ActionError + actionError()), use-polling.ts, use-hydrated.ts,
+                     reader-route.ts (READER_HANDLE / useIsReader: how the topbar learns the page below it is the reader)
   test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper
 ```
 

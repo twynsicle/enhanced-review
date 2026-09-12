@@ -17,6 +17,7 @@ import { ChapterReader } from '@/web/components/narrative/chapter-reader';
 import { GithubFileSource } from '@/web/components/narrative/file-source';
 import { PageShell } from '@/web/components/page-shell';
 import { parseFormData, parseParams, parseSearchParams } from '@/web/lib/parse.server';
+import { READER_HANDLE } from '@/web/lib/reader-route';
 import { rerunAction } from '@/web/lib/rerun-action.server';
 import { loadReviewMetadata } from '@/web/lib/review-metadata.server';
 import type { Route } from './+types/reviews.$id';
@@ -24,6 +25,10 @@ import type { Route } from './+types/reviews.$id';
 const ParamsSchema = z.object({ id: z.string().min(1) });
 const SearchSchema = z.object({ ch: z.string().optional(), file: z.string().optional() });
 const IntentSchema = z.object({ intent: z.literal('rerun') });
+
+// The one page that takes the whole window and offers the reader's display
+// preferences; the topbar reads this through `useIsReader`.
+export const handle = READER_HANDLE;
 
 export const meta: Route.MetaFunction = ({ loaderData }) => [
   {
@@ -100,6 +105,7 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {
   return (
     <PageShell
       py={32}
+      width="reader"
       style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: '100%' }}
     >
       {loaderData.diffTruncated && <TruncationBanner />}

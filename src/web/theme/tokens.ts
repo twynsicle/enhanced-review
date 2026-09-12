@@ -233,8 +233,26 @@ export function token(name: TokenName): string {
   return `var(${tokenVar(name)})`;
 }
 
-/** Page max-width values behind the topbar narrow/wide toggle (`er-layout`). */
-export const LAYOUT_WIDTHS = { narrow: '92rem', wide: '110rem' } as const;
+/**
+ * Page max-width values behind the reader's width toggle (`er-layout`).
+ *
+ * Both stops are for the reader, because the reader is the only page whose
+ * content — a side-by-side Monaco diff — gets better the more room it has.
+ * `full` is deliberately uncapped rather than a large `rem` ceiling: the
+ * reading measure is what keeps prose readable, so there is nothing left for a
+ * ceiling to protect, and a diff is never worse for being wider.
+ *
+ * Every other page uses `PAGE_MAX_WIDTH` and ignores the toggle.
+ */
+export const LAYOUT_WIDTHS = { wide: '110rem', full: '100%' } as const;
+
+/**
+ * The width of a page that is not the reader: the composer, the history list,
+ * the job timeline. One fixed value, not a stop on the toggle — a 3400px form
+ * field or list row is worse, not better, so those pages have no stake in the
+ * choice the toggle offers.
+ */
+export const PAGE_MAX_WIDTH = '92rem';
 
 /**
  * Corner radius scale. The base radius is 0.75rem, with sm/md/lg/xl derived

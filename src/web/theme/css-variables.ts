@@ -44,7 +44,7 @@ function schemeVariables(tokens: TokenMap, hljs: HljsTokenMap): Record<string, s
 
 export const cssVariablesResolver: CSSVariablesResolver = () => ({
   variables: {
-    '--review-max-width': LAYOUT_WIDTHS.narrow,
+    '--review-max-width': LAYOUT_WIDTHS.full,
   },
   light: schemeVariables(lightTokens, hljsLightTokens),
   dark: schemeVariables(darkTokens, hljsDarkTokens),

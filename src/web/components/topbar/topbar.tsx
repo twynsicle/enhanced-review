@@ -2,9 +2,11 @@ import { Box, Group, Text } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { BrandMark } from '@/web/components/brand-mark';
-import { SHELL_MAX_WIDTH, SHELL_PX } from '@/web/components/page-shell';
+import { shellMaxWidth, SHELL_PX, type ShellWidth } from '@/web/components/page-shell';
 import { ColorSchemeToggle } from '@/web/components/color-scheme-toggle';
+import { useIsReader } from '@/web/lib/reader-route';
 import { token } from '@/web/theme/tokens';
+import { DiffViewToggle } from './diff-view-toggle';
 import { LayoutWidthToggle } from './layout-width-toggle';
 import { TopbarNav } from './topbar-nav';
 import { UserMenu, type TopbarUser } from './user-menu';
@@ -31,11 +33,20 @@ const BRAND_STYLE = {
 
 /**
  * Sticky, translucent header bar. Its inner bar takes its width and gutter
- * from `PageShell`, so the header always lines up with the page beneath it and
- * the wide-layout toggle moves both. The app's `Topbar` and the local
- * report's header fill its two sides.
+ * from `PageShell`, so the header always lines up with the page beneath it —
+ * which means it has to be told which of the two page widths that page took,
+ * and over the reader it follows the width toggle along with it. The app's
+ * `Topbar` and the local report's header fill its two sides.
  */
-export function TopbarFrame({ start, end }: { start: ReactNode; end: ReactNode }) {
+export function TopbarFrame({
+  start,
+  end,
+  width = 'page',
+}: {
+  start: ReactNode;
+  end: ReactNode;
+  width?: ShellWidth;
+}) {
   return (
     <Box
       component="header"
@@ -51,7 +62,7 @@ export function TopbarFrame({ start, end }: { start: ReactNode; end: ReactNode }
     >
       <Group
         h={56}
-        maw={SHELL_MAX_WIDTH}
+        maw={shellMaxWidth(width)}
         mx="auto"
         px={SHELL_PX}
         justify="space-between"
@@ -69,10 +80,16 @@ export function TopbarFrame({ start, end }: { start: ReactNode; end: ReactNode }
   );
 }
 
-/** The header shared by every page inside the app shell. */
+/**
+ * The header shared by every page inside the app shell. The reader's display
+ * preferences are offered only on the reader, where they do something; every
+ * other page is a fixed width and has no use for either.
+ */
 export function Topbar({ user }: { user: TopbarUser | null }) {
+  const reader = useIsReader();
   return (
     <TopbarFrame
+      width={reader ? 'reader' : 'page'}
       start={
         <>
           <Box component={Link} to="/" aria-label="Enhanced Review — home" style={BRAND_STYLE}>
@@ -83,7 +100,12 @@ export function Topbar({ user }: { user: TopbarUser | null }) {
       }
       end={
         <>
-          <LayoutWidthToggle />
+          {reader && (
+            <>
+              <DiffViewToggle />
+              <LayoutWidthToggle />
+            </>
+          )}
           <ColorSchemeToggle />
           {user ? <UserMenu user={user} /> : null}
         </>

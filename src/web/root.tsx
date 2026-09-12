@@ -11,7 +11,8 @@ import { sessionMiddleware } from '@/web/auth/session-middleware.server';
 import { LAYOUT_WIDTH_KEY } from '@/web/stores/layout-width';
 import type { Route } from './+types/root';
 
-// Applies the stored wide layout before first paint, the way
+// The reader fills the window by default, so the only stored width worth
+// applying before first paint is the narrower `wide` stop — the way
 // ColorSchemeScript does for the colour scheme. The store itself rehydrates
 // after mount so SSR markup never depends on localStorage.
 const LAYOUT_WIDTH_SCRIPT = `(function(){try{if(localStorage.getItem(${JSON.stringify(LAYOUT_WIDTH_KEY)})==='wide'){document.documentElement.style.setProperty('--review-max-width',${JSON.stringify(LAYOUT_WIDTHS.wide)})}}catch(e){}})();`;
