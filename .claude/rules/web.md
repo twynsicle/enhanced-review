@@ -33,8 +33,8 @@ src/web/
                      widths — `reader` follows the toggle, `page` is fixed — shared with the topbar), color-scheme-toggle,
                      app-error (generic error page, used by root + route boundaries);
                      topbar/ (topbar: Topbar on TopbarFrame, which the local report's header reuses with
-                     StaticBrand; topbar-nav, user-menu, and the reader-only pair layout-width-toggle + diff-view-toggle,
-                     shown only where useIsReader() is true),
+                     StaticBrand; topbar-nav, user-menu, and the reader-only trio layout-width-toggle +
+                     diff-view-toggle + diff-wrap-toggle, shown only where useIsReader() is true),
                      jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                      job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
                      what-now, rerun-button, job-not-found (404 page shared with the reader), review-banners (the
@@ -52,7 +52,9 @@ src/web/
                      article.module.css (the reading measure + the diff bleed lane),
                      lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group,
-                     lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme),
+                     lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme; the wrap preference
+                     goes to the live widget as diffWordWrap, never through its construction options, so a flip
+                     reflows in place instead of remounting),
                      file-source (where the diffs get files: GithubFileSource → /api/github/file fetcher,
                      EmbeddedFileSource → a ReviewBundle; useFilePair always mounts a fetcher, so the reader needs a
                      data router under either), risk-score,
@@ -67,13 +69,15 @@ src/web/
                      hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
   viewer/            the local report (vite.viewer.config.ts, not the RR app): index.html (the empty er-bundle element),
                      main.tsx (client-rendered, hash data router, stored width applied before render), viewer-page
-                     (a TopbarFrame with brand + diff-view/width/scheme toggles, then ChapterReader over EmbeddedFileSource),
+                     (a TopbarFrame with brand + diff-view/wrap/width/scheme toggles, then ChapterReader over
+                     EmbeddedFileSource),
                      report-problem (missing / version-mismatch / invalid bundle), sample-bundle.ts (what viewer:dev
                      renders unless ER_BUNDLE names a JSON file); the build inlines JS, CSS and fonts into one file and stamps its sources (viewer.stamp, which er checks)
                      (`react-router build` wipes build/, so it builds second); Monaco still loads from the CDN
   stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth: full ⇄ wide), diff-view.ts (`er-diff-view`,
-                     bindDiffView: split ⇄ unified), both on raw-preference.ts (one word, not JSON, so the pre-paint
-                     script can read it); last-target.ts (`er:last-target`, per user).
+                     bindDiffView: split ⇄ unified), diff-wrap.ts (`er-diff-wrap`, bindDiffWrap: off ⇄ on, spelled the
+                     way Monaco spells diffWordWrap), all three on raw-preference.ts (one word, not JSON, so the
+                     pre-paint script can read it); last-target.ts (`er:last-target`, per user).
                      diff-view.ts also holds useReaderColumn, the only store here that is never persisted: the column
                      width chapter-reader measures, with selectSpaceLimited over it — under SIDE_BY_SIDE_MIN_WIDTH the
                      toggle disables and inline-diff-chunk forces unified. A per-frame measurement is kept off the

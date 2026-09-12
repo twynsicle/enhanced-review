@@ -7,6 +7,7 @@ import { ColorSchemeToggle } from '@/web/components/color-scheme-toggle';
 import { useIsReader } from '@/web/lib/reader-route';
 import { token } from '@/web/theme/tokens';
 import { DiffViewToggle } from './diff-view-toggle';
+import { DiffWrapToggle } from './diff-wrap-toggle';
 import { LayoutWidthToggle } from './layout-width-toggle';
 import { TopbarNav } from './topbar-nav';
 import { UserMenu, type TopbarUser } from './user-menu';
@@ -103,6 +104,7 @@ export function Topbar({ user }: { user: TopbarUser | null }) {
           {reader && (
             <>
               <DiffViewToggle />
+              <DiffWrapToggle />
               <LayoutWidthToggle />
             </>
           )}

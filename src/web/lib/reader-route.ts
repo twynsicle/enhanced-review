@@ -7,9 +7,9 @@ import { useMatches } from 'react-router';
  * The topbar renders in the shell layout, above the outlet, so the page cannot
  * pass it anything — and two things hang off the answer. The header has to take
  * the same width as the page it sits over, and the reader's display
- * preferences (page width, split or unified diffs) should only be offered where
- * they do something: on a composer or a history list they are a control that
- * visibly does nothing.
+ * preferences (page width, split or unified diffs, wrapped or overflowing long
+ * lines) should only be offered where they do something: on a composer or a
+ * history list they are a control that visibly does nothing.
  *
  * A route with no handle is an ordinary fixed-width page, which is the right
  * default — a new page has to ask for the reader's treatment.

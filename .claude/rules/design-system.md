@@ -55,9 +55,9 @@ beneath it and moves with it. Which width a page takes is a `ShellWidth`:
   a history row stretched across a 3400px monitor is worse, not better.
 
 A page declares itself the reader through the route `handle` in
-`lib/reader-route.ts`, which is also what tells the topbar to offer the width
-and diff-view toggles at all — a control that visibly does nothing is worse than
-no control. The same principle runs one level deeper: below
+`lib/reader-route.ts`, which is also what tells the topbar to offer the width,
+diff-view and wrap toggles at all — a control that visibly does nothing is worse
+than no control. The same principle runs one level deeper: below
 `SIDE_BY_SIDE_MIN_WIDTH` the column cannot carry two panes, so the diff toggle
 shows the stacked state and disables rather than claiming a view the page is not
 in. `chapter-reader.tsx` measures that column once and `selectSpaceLimited`

@@ -6,6 +6,7 @@ import { Topbar } from './topbar';
 
 const WIDTH_LABEL = /layout$/;
 const DIFF_LABEL = /diffs/i;
+const WRAP_LABEL = /long lines$/;
 
 /** The topbar over a page that does or does not declare itself the reader. */
 function renderOver(handle: unknown) {
@@ -24,11 +25,13 @@ describe('Topbar', () => {
     renderOver(READER_HANDLE);
     expect(screen.getByRole('button', { name: WIDTH_LABEL })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: DIFF_LABEL })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: WRAP_LABEL })).toBeInTheDocument();
   });
 
   it('withholds them from a page that is a fixed width, where they would do nothing', () => {
     renderOver(undefined);
     expect(screen.queryByRole('button', { name: WIDTH_LABEL })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: DIFF_LABEL })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: WRAP_LABEL })).not.toBeInTheDocument();
   });
 });

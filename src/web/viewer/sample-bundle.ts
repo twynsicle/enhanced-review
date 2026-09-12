@@ -5,9 +5,10 @@ import type { DiffChunk, ResolvedDiffHunk } from '@/domain/review/narrative';
  * The report's committed sample: a small, made-up change to a made-up repo,
  * shaped so one page exercises every state the reader has: an overview
  * diagram, a risk assessment, a chapter diagram, Monaco diffs for a modified,
- * an added and a removed file, a file too large to embed, and a chunk whose
- * file the bundle does not carry. `npm run viewer:dev` renders it by default,
- * so a UI change never needs a Claude run.
+ * an added and a removed file, a file too large to embed, a line far too long
+ * for its column, and a chunk whose file the bundle does not carry.
+ * `npm run viewer:dev` renders it by default, so a UI change never needs a
+ * Claude run.
  *
  * Hunk spans are written by hand against the contents below, the way the
  * hunk catalog parses git's headers: a zero-length span starts at the line
@@ -64,7 +65,7 @@ const CADENCE_HEAD = lines(
   '}',
   '',
   'export function isDue(schedule: Schedule, lastRun: number, clock: Clock): boolean {',
-  '  if (schedule.paused) return false;',
+  '  if (schedule.paused) return false; // a paused schedule keeps its cadence and its last-run stamp, so resuming one never has to recompute anything',
   '  return clock.now() - lastRun >= intervalMs(schedule.cadence);',
   '}',
 );

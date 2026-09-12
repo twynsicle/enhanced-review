@@ -18,6 +18,7 @@ import {
   useReaderColumn,
   type DiffView,
 } from '@/web/stores/diff-view';
+import { useDiffWrap, type DiffWrap } from '@/web/stores/diff-wrap';
 import { token } from '@/web/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
 
@@ -33,6 +34,15 @@ const DiffEditor = lazy(() =>
 const CONTEXT_LINES = 5;
 const MIN_EDITOR_HEIGHT = 60;
 const EDITOR_HEIGHT_PADDING = 12;
+/**
+ * How long the measured column has to hold still before the editors are laid
+ * out against it. The width arrives about once an animation frame for as long
+ * as the sidebar handle is dragged or the window edge held, and a relayout
+ * reflows every line of every editor on the page — so this is the trailing edge
+ * of a drag, not a frame of it. Long enough to coalesce a drag, short enough
+ * that a reader who lets go does not watch the diff catch up.
+ */
+const COLUMN_SETTLE_MS = 120;
 
 interface FileData {
   original: string;
@@ -146,18 +156,54 @@ function applySnippetLayout(
   diffEditor.layout();
 }
 
+/**
+ * Soft wrapping, set on the live widget rather than through its construction
+ * options: those are re-applied wholesale when the object changes, which would
+ * undo the per-side line numbers `applySnippetLayout` just set.
+ *
+ * `diffWordWrap` is the lever for both sides. Monaco hands it to each inner
+ * editor as `wordWrapOverride1`, which outranks that editor's own `wordWrap`
+ * unless it is left at `inherit`, so setting `wordWrap` beside it would decide
+ * nothing. It reaches the modified editor under either render mode, and that is
+ * the one that matters: stacked, the original editor is force-unwrapped, but
+ * the deleted lines a reader sees there are not drawn by it — they are view
+ * zones inside the modified editor, and their line breaks are computed by the
+ * modified editor's own view model, so they wrap by the setting that has
+ * already arrived.
+ */
+function applyWordWrap(diffEditor: editor.IStandaloneDiffEditor, wrap: DiffWrap): void {
+  diffEditor.updateOptions({ diffWordWrap: wrap });
+  /*
+   * `wordWrapOverride2` outranks the `wordWrapOverride1` that `diffWordWrap`
+   * sets, and Monaco pins it to `off` on the original editor every time it
+   * computes that side's options while rendering inline — including at
+   * construction, where the widget measures a container the browser has not
+   * laid out yet and takes the resulting zero width for a column too narrow to
+   * carry two panes. Settling into side by side rewrites override 1 and leaves
+   * override 2 pinned, so without this the original pane never wraps, however
+   * often `diffWordWrap` is re-applied.
+   */
+  diffEditor.getOriginalEditor().updateOptions({ wordWrapOverride2: 'inherit' });
+  // Wrapping changes the inner editors' heights without changing the container
+  // `automaticLayout` watches — the same blind spot `applySnippetLayout` ends
+  // on, and the same fix.
+  diffEditor.layout();
+}
+
 function SnippetEditor({
   chunkFilename,
   language,
   snippet,
   expanded,
   view,
+  wrap,
 }: {
   chunkFilename: string;
   language: string;
   snippet: InlineDiffSnippet;
   expanded: boolean;
   view: DiffView;
+  wrap: DiffWrap;
 }) {
   const hydrated = useHydrated();
   const scheme = useComputedColorScheme('dark');
@@ -174,6 +220,15 @@ function SnippetEditor({
    */
   const viewRef = useRef(view);
   viewRef.current = view;
+  /*
+   * Mirrored during render too, because `onMount` is frozen at mount but runs
+   * whenever the lazy Monaco chunk finally arrives — potentially several
+   * renders later. Reading the captured value there would apply whatever the
+   * preference was when this component first rendered, and the effect below,
+   * having already run against the current one, would never correct it.
+   */
+  const wrapRef = useRef(wrap);
+  wrapRef.current = wrap;
 
   const onMount = useCallback(
     (diffEditor: editor.IStandaloneDiffEditor) => {
@@ -201,6 +256,7 @@ function SnippetEditor({
         modified.onDidContentSizeChange(measure),
         diffEditor.onDidUpdateDiff(measure),
       ];
+      applyWordWrap(diffEditor, wrapRef.current);
       applySnippetLayout(diffEditor, snippet, expanded);
       measure();
     },
@@ -215,6 +271,38 @@ function SnippetEditor({
   useEffect(() => {
     if (editorRef.current) applySnippetLayout(editorRef.current, snippet, expanded);
   }, [snippet, expanded, view]);
+
+  // `view` belongs here because Monaco re-pins the original editor's
+  // `wordWrapOverride2` on every pass through the stacked view.
+  useEffect(() => {
+    if (editorRef.current) applyWordWrap(editorRef.current, wrap);
+  }, [wrap, view]);
+
+  /*
+   * The column the reader gives this diff is the one width `automaticLayout`
+   * cannot see — the blind spot `applySnippetLayout` describes — and nothing
+   * else here notices it: a window resize that does not cross
+   * `SIDE_BY_SIDE_MIN_WIDTH` changes no snippet, no flag and no preference.
+   * Unwrapped that only left a stale horizontal scrollbar; wrapped, the wrap
+   * column is stale too, so lines break at a width the pane no longer has and
+   * the overflow is clipped rather than scrollable.
+   *
+   * Subscribed to rather than read as state: the width arrives once a frame for
+   * as long as a drag lasts, and a hook would put every editor on the page
+   * through a render for each of them.
+   */
+  useEffect(() => {
+    let settled: number | undefined;
+    const unsubscribe = useReaderColumn.subscribe((state, previous) => {
+      if (state.columnWidth === previous.columnWidth || state.columnWidth === null) return;
+      window.clearTimeout(settled);
+      settled = window.setTimeout(() => editorRef.current?.layout(), COLUMN_SETTLE_MS);
+    });
+    return () => {
+      window.clearTimeout(settled);
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(
     () => () => {
@@ -334,6 +422,7 @@ function SnippetEditor({
 export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
   const pair = useFilePair(chunk.filename);
   const stored = useDiffView((s) => s.view);
+  const wrap = useDiffWrap((s) => s.wrap);
   const spaceLimited = useReaderColumn(selectSpaceLimited);
   // Too narrow for two panes is not a preference the column can honour.
   const view: DiffView = spaceLimited ? 'unified' : stored;
@@ -438,6 +527,7 @@ export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
             snippet={snippet}
             expanded={expanded}
             view={view}
+            wrap={wrap}
           />
         ))}
     </Box>
