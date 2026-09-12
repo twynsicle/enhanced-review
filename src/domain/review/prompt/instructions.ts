@@ -1,11 +1,11 @@
 import { DIAGRAM_LIMITS } from '../diagram.ts';
 
 /**
- * What the model is asked to do, shared by every path that asks it
- * (docs/local-mode D14). The instructions and the output schema are the same
- * wherever a review runs; only the closing paragraph differs, because the
- * server hands the agent a fresh clone and the diff, while `er` hands it the
- * engineer's own repository and a folder of hunk files.
+ * What the model is asked to do, shared by every path that asks it. The
+ * instructions and the output schema are the same wherever a review runs;
+ * only the closing paragraph differs, because the server hands the agent a
+ * fresh clone and the diff, while `er` hands it the engineer's own repository
+ * and a folder of hunk files.
  *
  * The server's assembled prompt is pinned by a fixture test: changing the
  * text below changes what every hosted review is asked, and that must be a

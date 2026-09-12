@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * A hash of everything the report viewer is built from (docs/local-mode A5).
+ * A hash of everything the report viewer is built from.
  * The viewer build writes it beside `viewer.html`; the render stage compares
  * it with the sources in the tool's clone and rebuilds when they differ, so a
  * `git pull` of this tool never renders with a stale viewer. Tests are left

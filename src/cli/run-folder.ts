@@ -2,7 +2,7 @@ import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 /**
- * Where a run keeps its stage files (docs/local-mode D9, D12):
+ * Where a run keeps its stage files:
  * `<repo root>/er-reviews/<slug>/<yyyymmdd-hhmmss>/`. The `er-reviews`
  * folder ignores itself, so it never shows up in the repository's status and
  * the reviewed repository needs no `.gitignore` entry.

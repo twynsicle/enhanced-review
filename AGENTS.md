@@ -60,7 +60,7 @@ src/
     review/            narrative + diagram schemas; clone/, prompt/, executor/; run.server.ts, the runner
     jobs/              registry, timeout, start/rerun/cancel/recover, boot, and the read side (jobs.server.ts)
   jobs/                cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.ts
-  cli/                 `er`, the local review CLI (docs/local-mode): the package `bin`, put on PATH by `npm link`;
+  cli/                 `er`, the local review CLI: the package `bin`, put on PATH by `npm link`;
                        runs in the repo under review with no server config
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only,
                        prisma-access, palette (token contrast, type scale, one label), diagram-colour (SVG takes token() only),

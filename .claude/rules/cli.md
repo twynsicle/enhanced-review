@@ -8,7 +8,7 @@ paths:
 
 Loaded when you open a CLI file. `er review` runs inside the repository under
 review and writes a self-contained `review.html` that renders the same reader
-as the hosted app (docs/local-mode). It runs on an engineer's laptop with none
+as the hosted app. It runs on an engineer's laptop with none
 of the server's configuration, so the `cli-imports` guardrail keeps its whole
 import graph clear of `env.ts`, the logger, the db layer and server-only
 packages. Output goes through `terminal.ts` (stdout/stderr, never `console`).
@@ -69,3 +69,43 @@ src/cli/
   a turn, so each refusal is a `denied` event in `events.jsonl` and the run
   stage says how many there were. A gate that keeps refusing reasonable reads
   is a bug in the gate.
+
+## Why it is built this way
+
+The plan that produced `er` was deleted when it was finished, as planned. What
+it decided, kept here because changing any of it is a decision to re-make and
+not an accident to fix:
+
+- **Local mode is the primary product** until roughly early 2027, because the
+  organisation cannot install a GitHub App. The hosted app is parked: it stays
+  green in CI and shares the reader, the prompt and the parser, but it gets no
+  new features while this is the way the tool is used.
+- **There is never a second reader.** The report renders
+  `src/web/components/narrative/` — the same components the hosted app serves.
+  A change to the reader has to work for both, which is what `FileSource` and
+  the bundle contract are for.
+- **One self-contained `review.html`**, everything inlined, opened from disk.
+  Chromium only; Firefox is out of scope.
+- **The prompt is agentic, not inline.** It carries the file list and a compact
+  hunk table, and the hunks themselves are files on disk the agent opens. This
+  is the opposite of the hosted path, which pastes the diff in, and it is why
+  the local run gets `Bash` and a working directory it can explore.
+- **A PR review runs in a throwaway worktree** of the PR's head, so the
+  engineer's checkout is never touched and never has to be clean. Branch and
+  staged reviews run where the engineer already is, and warn about edits that
+  are not part of the review.
+- **The model runs as the engineer**, headless through the Agent SDK, with
+  their own credentials and the reviewed repository's own Claude config. `er`
+  reads no credential itself; a sign-in problem is theirs to fix in their own
+  terminal.
+- **Five stages, each resumable**, because the model run is the only one that
+  costs money: `gather → prompt → run → parse → render`. Nothing should ever
+  have to be paid for twice.
+- **Local and hosted reviews never meet.** No import, no upload, no hosting a
+  report anywhere.
+- **Windows only, so far.** `platform.ts` is the single seam every OS
+  difference goes through; macOS is its own piece of work and the organisation
+  runs it, so that seam is the first place to look.
+
+Also deliberately absent, and not oversights: user-configurable exclusions,
+distribution as a Claude Code plugin or skill, and reviewing unstaged changes.

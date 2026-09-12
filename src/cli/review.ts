@@ -23,10 +23,10 @@ import {
 } from './worktree.ts';
 
 /**
- * `er review`: resolve the target, then run the stages in order
- * (docs/local-mode D10), each printing one line when it finishes. `--from`
- * picks up the newest run folder for the same target and starts at a later
- * stage, reading what the earlier ones left on disk.
+ * `er review`: resolve the target, then run the stages in order, each
+ * printing one line when it finishes. `--from` picks up the newest run folder
+ * for the same target and starts at a later stage, reading what the earlier
+ * ones left on disk.
  */
 export const STAGES = ['gather', 'prompt', 'run', 'parse', 'render'] as const;
 export type Stage = (typeof STAGES)[number];

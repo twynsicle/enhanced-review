@@ -76,10 +76,10 @@ function devBundle(): Plugin {
   };
 }
 
-// The local report: the narrative reader as one self-contained HTML file
-// (docs/local-mode, D3). No React Router framework plugin — this is a plain
-// client-rendered page on a hash data router — and Vite's built-in transform
-// handles TSX. Monaco still loads from the CDN at runtime.
+// The local report: the narrative reader as one self-contained HTML file.
+// No React Router framework plugin — this is a plain client-rendered page on
+// a hash data router — and Vite's built-in transform handles TSX. Monaco
+// still loads from the CDN at runtime.
 export default defineConfig({
   root: VIEWER_ROOT,
   cacheDir: CACHE_DIR,

@@ -12,7 +12,7 @@ import {
 } from './helpers';
 
 /**
- * Guardrail — the local CLI (`src/cli`, docs/local-mode A4) runs on an
+ * Guardrail — the local CLI (`src/cli`) runs on an
  * engineer's laptop with none of the server's configuration. Anything it
  * loads that reaches `src/config/env.ts` throws at import (the server's
  * required secrets are missing), the logger imports env, and the database

@@ -4,7 +4,7 @@ import type { ReviewMeta } from '../domain/review/review-meta.ts';
 import type { Shell } from './git.ts';
 
 /**
- * What `er review` reviews, pinned to two commits (docs/local-mode A2, A3):
+ * What `er review` reviews, pinned to two commits:
  *
  * - **branch** — HEAD against its merge-base with the base branch: the open
  *   PR's base when the branch has one, otherwise origin's default branch,

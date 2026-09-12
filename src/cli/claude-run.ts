@@ -12,11 +12,11 @@ import { onInterrupt } from './interrupts.ts';
 import type { RunFiles } from './run-folder.ts';
 
 /**
- * The run stage (docs/local-mode D5, D9): the Agent SDK, in the review's
- * working directory, with the prompt stage's `system.md` and `prompt.md` as
- * its input. Everything the model says lands in `raw.txt` as it arrives, so
- * an interrupted run still leaves something for `--from parse`, and every
- * SDK message is summarised in `events.jsonl`.
+ * The run stage: the Agent SDK, in the review's working directory, with the
+ * prompt stage's `system.md` and `prompt.md` as its input. Everything the
+ * model says lands in `raw.txt` as it arrives, so an interrupted run still
+ * leaves something for `--from parse`, and every SDK message is summarised in
+ * `events.jsonl`.
  *
  * The engineer's own environment is what authenticates: the SDK subprocess
  * inherits it, and this CLI reads none of it itself (A4). The reviewed

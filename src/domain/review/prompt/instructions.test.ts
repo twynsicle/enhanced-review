@@ -11,7 +11,7 @@ import type { PrData } from './types.ts';
 
 /**
  * The fixture holds the hosted review's assembled prompt as it was before the
- * instructions moved into their own module (docs/local-mode D14). Local mode
+ * instructions moved into their own module. Local mode
  * must not change what the hosted app asks the model, so this compares the
  * whole thing, system and user, against that recording. A deliberate change
  * to the prompt regenerates the fixture in the same commit.

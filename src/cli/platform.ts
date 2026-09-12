@@ -7,7 +7,7 @@ import { hostEnv } from '../config/host-env.ts';
 
 /**
  * Everything that differs by operating system lives here, so the macOS work
- * (docs/local-mode D13) has one file to change: where the tool itself is,
+ * has one file to change: where the tool itself is,
  * how it runs its own npm scripts, where temporary worktrees go, and how a
  * report is opened.
  */

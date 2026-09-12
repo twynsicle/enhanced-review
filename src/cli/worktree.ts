@@ -6,9 +6,9 @@ import { isInside, NO_HOOKS_PATH, worktreeParent } from './platform.ts';
 import { runStamp } from './run-folder.ts';
 
 /**
- * A PR review's working directory (docs/local-mode A1): a detached worktree
- * of the PR head in the OS temp dir, so the agent reads the PR as it is
- * without touching the engineer's checkout. It lives only for the run stage.
+ * A PR review's working directory: a detached worktree of the PR head in the
+ * OS temp dir, so the agent reads the PR as it is without touching the
+ * engineer's checkout. It lives only for the run stage.
  *
  * The name carries the owning process id, so the sweep at the start of a run
  * removes only worktrees whose `er` is gone — a review running in another

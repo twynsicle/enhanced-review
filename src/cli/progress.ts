@@ -1,7 +1,7 @@
 import { clearStatus, status } from './terminal.ts';
 
 /**
- * What the terminal shows while the model works (docs/local-mode D12): how
+ * What the terminal shows while the model works: how
  * long it has been going, and either the file it is reading or the chapter
  * it is writing. A review takes minutes, so a still screen is the difference
  * between "working" and "hung".

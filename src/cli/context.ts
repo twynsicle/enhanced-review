@@ -59,7 +59,7 @@ export const RunContextSchema = z.object({
   contents: z.record(z.string(), EmbeddedFileSchema),
   /** The commits under review, oldest first; none for a staged review. */
   commits: z.array(CommitSchema),
-  /** Working-tree changes that are not part of the review (docs/local-mode A1). */
+  /** Working-tree changes that are not part of the review. */
   dirty: z.array(z.string()),
 });
 export type RunContext = z.infer<typeof RunContextSchema>;

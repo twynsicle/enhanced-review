@@ -10,7 +10,7 @@ import { cssVariablesResolver } from '@/web/theme/css-variables';
 import { theme } from '@/web/theme/theme';
 import { ViewerPage } from './viewer-page';
 
-// Entry point of the local report (docs/local-mode, A5). Client-rendered
+// Entry point of the local report. Client-rendered
 // only, so there is no hydration and no pre-paint script: MantineProvider
 // applies the stored scheme in a layout effect, and the stored page width is
 // applied here, before the first render. The hash data router gives the

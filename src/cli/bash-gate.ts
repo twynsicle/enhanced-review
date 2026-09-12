@@ -1,5 +1,5 @@
 /**
- * What the local agent may run with `Bash` (docs/local-mode phase 4).
+ * What the local agent may run with `Bash`.
  *
  * A local review reads the engineer's own repository, so it gets history —
  * `git log`, `git blame`, `git show` — on top of the hosted Read/Glob/Grep.

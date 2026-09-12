@@ -2,7 +2,7 @@ import type { ModelUsage, Options, SDKMessage } from '@anthropic-ai/claude-agent
 
 /**
  * The Agent SDK message loop, shared by the server's executor and the local
- * `er` CLI (docs/local-mode A7). It knows how to read a stream of SDK
+ * `er` CLI. It knows how to read a stream of SDK
  * messages and nothing else: no logging, no configuration, no policy about
  * what a failure means. Each caller supplies the options and decides what to
  * do with the outcome, because the two want different things — the server

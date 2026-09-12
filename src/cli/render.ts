@@ -12,8 +12,7 @@ import { VIEWER_STAMP_FILE, viewerSourceStamp } from './viewer-stamp.ts';
 
 /**
  * The render stage: the review, its header and both sides of every reviewed
- * file, packed into the viewer shell as one self-contained `review.html`
- * (docs/local-mode A5).
+ * file, packed into the viewer shell as one self-contained `review.html`.
  */
 export interface RenderDeps {
   /** The built viewer page, placeholder and all. */

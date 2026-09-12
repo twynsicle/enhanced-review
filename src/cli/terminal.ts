@@ -36,7 +36,7 @@ export function fail(text: string): void {
 
 /**
  * The live line a long stage keeps updating in place: the model run's
- * elapsed time and what the agent is doing (docs/local-mode D12). It exists
+ * elapsed time and what the agent is doing. It exists
  * only on a terminal — piped or redirected output gets the stage lines and
  * nothing else, so a log never fills with half-drawn lines.
  */

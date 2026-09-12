@@ -4,7 +4,7 @@ import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
 
 /**
- * `--stub`: the run stage without a model (docs/local-mode D15). It writes
+ * `--stub`: the run stage without a model. It writes
  * `raw.txt` in the shape the model answers in, one chapter per reviewed file
  * citing every one of its hunks, so parse and render run on a real change
  * for free. The prose says plainly that nothing read the code.
