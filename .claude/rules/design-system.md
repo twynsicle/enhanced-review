@@ -100,3 +100,20 @@ values — a mint that reads on a dark card cannot also read on white, which is
 how the previous palette came to fail light mode. When changing a colour, run
 `npm test` and let the guardrail do the arithmetic. Disabled controls are
 exempt (WCAG 1.4.3) and the guardrail does not look at them.
+
+## The diff's colours
+
+Monaco paints its own diff bands, and it is told which colours to use by
+`narrative/inline-diff-chunk.module.css` setting its `--vscode-diffEditor-*`
+variables to `add` and `del`. The theme service emits those onto a bare
+`.monaco-editor, .monaco-diff-editor`, so any two-class selector outranks it —
+which is why this is CSS rather than a registered `defineTheme`, and why it
+needs nothing on a scheme flip. Changing `add` or `del` therefore restyles every
+diff in the reader as well as the `+N −N` counts; neither carries text, so the
+contrast guardrail has no opinion on them.
+
+The bands are painted far weaker than Monaco's own 20%. At that strength they
+swallow the word-level highlight that says _what_ in a line changed, and a file
+that is entirely new has nothing to read but the band. The signal that a run is
+long lives in the line-number gutter instead, which is tinted harder than the
+band.

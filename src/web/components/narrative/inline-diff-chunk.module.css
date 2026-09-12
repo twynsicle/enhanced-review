@@ -24,3 +24,68 @@
 .editor :global(.view-line) {
   padding-left: 4px;
 }
+
+/*
+ * The diff's own colours, in the palette's `add`/`del` rather than Monaco's
+ * olive-and-red, and far fainter than Monaco paints them.
+ *
+ * Set as Monaco's own CSS variables instead of through `defineTheme` because
+ * the theme service emits them onto a bare `.monaco-editor, .monaco-diff-editor`,
+ * which any two-class selector outranks — so these ride over whichever built-in
+ * theme is mounted and survive a scheme flip untouched, where a custom theme
+ * would have to be registered twice and re-selected on every flip. The values
+ * mix against `transparent`, so one set serves both schemes: `--er-add` and
+ * `--er-del` already differ per scheme.
+ *
+ * The band is weak on purpose. Monaco's 20% drowns the word-level highlight
+ * that says *what* in the line changed, and on a file that is entirely new
+ * there is nothing to read but the band.
+ */
+.editor :global(.monaco-editor),
+.editor :global(.monaco-diff-editor) {
+  --vscode-diffEditor-insertedLineBackground: color-mix(in oklab, var(--er-add) 7%, transparent);
+  --vscode-diffEditor-removedLineBackground: color-mix(in oklab, var(--er-del) 7%, transparent);
+  --vscode-diffEditor-insertedTextBackground: color-mix(in oklab, var(--er-add) 24%, transparent);
+  --vscode-diffEditor-removedTextBackground: color-mix(in oklab, var(--er-del) 22%, transparent);
+  --vscode-diffEditorGutter-insertedLineBackground: color-mix(
+    in oklab,
+    var(--er-add) 20%,
+    transparent
+  );
+  --vscode-diffEditorGutter-removedLineBackground: color-mix(
+    in oklab,
+    var(--er-del) 20%,
+    transparent
+  );
+}
+
+/*
+ * A line with nothing opposite it — a new file, or any run of purely added or
+ * purely deleted lines — is given both its line decoration and a *whole-line*
+ * word-level one, so Monaco paints it twice and it lands at nearly double the
+ * weight of a line in a modified hunk. Cancelling the second is what keeps one
+ * added line the same colour as twenty.
+ *
+ * Whole-line decorations are the ones Monaco lays out as `left:0;width:100%`;
+ * a real word-level range carries a pixel width, and is left alone. Matching on
+ * the inline style is the only thing that tells the two apart — they are
+ * emitted under the same class name.
+ */
+.editor :global(.cdr.char-insert[style*='width:100%']),
+.editor :global(.cdr.char-delete[style*='width:100%']) {
+  background-color: transparent;
+}
+
+/*
+ * The rail that carries a run. With the band this weak the eye needs a hard
+ * edge to find where a change starts and stops — especially down a long file
+ * where the tint alone is close to the ground. It draws at the content's left
+ * edge, against the gutter, so the two read as one marker.
+ */
+.editor :global(.cdr.line-insert) {
+  border-left: 2px solid var(--er-add);
+}
+
+.editor :global(.cdr.line-delete) {
+  border-left: 2px solid var(--er-del);
+}
