@@ -1,7 +1,8 @@
 import { createWriteStream, type WriteStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
-import type { Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { Options } from '@anthropic-ai/claude-agent-sdk';
+import { runSdkLoop, type SdkQueryFn } from '../domain/review/executor/sdk-loop.server.ts';
 import { reviewBashCommand } from './bash-gate.ts';
 import { onInterrupt } from './interrupts.ts';
 import type { RunFiles } from './run-folder.ts';
@@ -30,7 +31,7 @@ export const DEFAULT_TIMEOUT_MINUTES = 15;
 const TOOLS = ['Read', 'Glob', 'Grep', 'Bash'] as const;
 const PRE_APPROVED = ['Read', 'Glob', 'Grep'] as const;
 
-export type QueryFn = (args: { prompt: string; options: Options }) => AsyncIterable<SDKMessage>;
+export type QueryFn = SdkQueryFn;
 
 export interface ClaudeRunOptions {
   /** The agent's working directory: a PR's worktree, or the repository. */
@@ -80,61 +81,67 @@ export async function runClaude(
   };
 
   let characters = 0;
-  let turns = 0;
-  let costUsd: number | null = null;
-  let incomplete: string | null = null;
 
   try {
     const queryFn = deps.query ?? (await loadQuery());
-    for await (const message of queryFn({
-      prompt,
-      options: sdkOptions(system, options, controller),
-    })) {
-      if (message.type === 'assistant') {
-        for (const block of assistantBlocks(message)) {
-          if (block.kind === 'text') {
-            raw.write(block.text);
-            characters += block.text.length;
-          } else {
-            event({ type: 'tool', tool: block.tool, detail: block.detail });
-            deps.onActivity?.(activityLine(block.tool, block.detail));
-          }
-        }
-      } else if (message.type === 'result') {
-        turns = message.num_turns;
-        costUsd = message.subtype === 'success' ? message.total_cost_usd : null;
-        // `is_error` can be set on an otherwise successful result: a run that
-        // could not sign in ends that way, with the refusal as its only text.
-        if (message.subtype !== 'success') incomplete = message.subtype;
-        else if (message.is_error) incomplete = 'error';
-        event({
-          type: 'result',
-          subtype: message.subtype,
-          isError: message.is_error,
-          turns,
-          costUsd,
-        });
-      } else if (message.type === 'system') {
-        event({ type: 'system', subtype: message.subtype });
-      }
+    const outcome = await runSdkLoop(
+      queryFn,
+      { prompt, options: sdkOptions(system, options, controller) },
+      {
+        onText: (text) => {
+          raw.write(text);
+          characters += text.length;
+        },
+        onToolUse: (tool, detail) => {
+          event({ type: 'tool', tool, detail });
+          deps.onActivity?.(activityLine(tool, detail));
+        },
+        onSystem: (subtype) => {
+          event({ type: 'system', subtype });
+        },
+      },
+    );
+
+    const { result } = outcome;
+    if (result) {
+      event({
+        type: 'result',
+        subtype: result.subtype,
+        isError: result.isError,
+        turns: result.turns,
+        costUsd: result.costUsd,
+      });
     }
-  } catch (error) {
+    // The SDK ends an aborted run either by throwing or by simply stopping.
     if (controller.signal.aborted) throw stoppedEarly(options, characters, run);
-    throw withSigninHint(error);
+    if (outcome.sdkError) throw withSigninHint(outcome.sdkError);
+    if (characters === 0) {
+      throw new Error(
+        `the model wrote nothing${result === null ? '' : ` (${result.subtype})`}; see ${run.events}`,
+      );
+    }
+    return {
+      characters,
+      turns: result?.turns ?? 0,
+      costUsd: result?.costUsd ?? null,
+      incomplete: incompleteReason(result),
+    };
   } finally {
     clearTimeout(timer);
     unregister();
     await Promise.all([closeStream(raw), closeStream(events)]);
   }
+}
 
-  // The SDK can stop iterating on an abort without throwing.
-  if (controller.signal.aborted) throw stoppedEarly(options, characters, run);
-  if (characters === 0) {
-    throw new Error(
-      `the model wrote nothing${incomplete === null ? '' : ` (${incomplete})`}; see ${run.events}`,
-    );
-  }
-  return { characters, turns, costUsd, incomplete };
+/**
+ * Why a run counts as unfinished. A result can say `success` and still carry
+ * an error — a run that could not sign in ends that way, with the refusal as
+ * its only text.
+ */
+function incompleteReason(result: { subtype: string; isError: boolean } | null): string | null {
+  if (result === null) return 'no result';
+  if (result.subtype !== 'success') return result.subtype;
+  return result.isError ? 'error' : null;
 }
 
 function sdkOptions(
@@ -171,36 +178,6 @@ function permission(tool: string, input: Record<string, unknown>): Permission {
   return decision.allowed
     ? { behavior: 'allow', updatedInput: input }
     : { behavior: 'deny', message: decision.reason };
-}
-
-type AssistantBlock =
-  { kind: 'text'; text: string } | { kind: 'tool'; tool: string; detail: string };
-
-function assistantBlocks(message: SDKMessage & { type: 'assistant' }): AssistantBlock[] {
-  const content: unknown = message.message.content;
-  if (!Array.isArray(content)) return [];
-  const blocks: AssistantBlock[] = [];
-  for (const block of content) {
-    if (typeof block !== 'object' || block === null || !('type' in block)) continue;
-    if (block.type === 'text' && 'text' in block && typeof block.text === 'string') {
-      blocks.push({ kind: 'text', text: block.text });
-    } else if (block.type === 'tool_use' && 'name' in block && typeof block.name === 'string') {
-      blocks.push({ kind: 'tool', tool: block.name, detail: toolDetail(block) });
-    }
-  }
-  return blocks;
-}
-
-/** What a tool use is about: the path, the pattern or the command. */
-function toolDetail(block: object): string {
-  const input: unknown = 'input' in block ? block.input : undefined;
-  if (typeof input !== 'object' || input === null) return '';
-  const fields = input as Record<string, unknown>;
-  for (const key of ['file_path', 'path', 'pattern', 'command']) {
-    const value = fields[key];
-    if (typeof value === 'string' && value !== '') return value;
-  }
-  return '';
 }
 
 function activityLine(tool: string, detail: string): string {

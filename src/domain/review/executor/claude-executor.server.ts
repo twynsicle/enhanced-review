@@ -3,6 +3,7 @@ import { logger } from '../../../common/logger.ts';
 import { pickHostEnv } from '../../../config/host-env.ts';
 import { buildNarrativePrompt } from '../prompt/narrative-prompt.ts';
 import { parseNarrativeReview } from '../prompt/parse-narrative.ts';
+import { runSdkLoop } from './sdk-loop.server.ts';
 import {
   abortError,
   ExecutorParseError,
@@ -55,17 +56,6 @@ export interface ClaudeExecutorDeps {
   env?: Record<string, string>;
 }
 
-function isTextBlock(block: unknown): block is { type: 'text'; text: string } {
-  return (
-    typeof block === 'object' &&
-    block !== null &&
-    'type' in block &&
-    block.type === 'text' &&
-    'text' in block &&
-    typeof block.text === 'string'
-  );
-}
-
 export class ClaudeExecutor implements ReviewExecutor {
   readonly name = 'claude';
   readonly #deps: ClaudeExecutorDeps;
@@ -111,48 +101,23 @@ export class ClaudeExecutor implements ReviewExecutor {
       env,
     };
 
-    let raw = '';
-    let chunkError: Error | null = null;
-    let resultError: string | null = null;
+    const outcome = await runSdkLoop(queryFn, { prompt: user, options }, { onText: input.onChunk });
+    const raw = outcome.raw;
+    const resultError =
+      outcome.result && outcome.result.subtype !== 'success'
+        ? `claude SDK result subtype=${outcome.result.subtype}`
+        : null;
 
-    try {
-      for await (const message of queryFn({ prompt: user, options })) {
-        if (chunkError) break;
-        if (message.type === 'assistant') {
-          const content: unknown = message.message.content;
-          if (!Array.isArray(content)) continue;
-          for (const block of content) {
-            if (!isTextBlock(block)) continue;
-            raw += block.text;
-            if (!input.onChunk) continue;
-            try {
-              input.onChunk(block.text);
-            } catch (err) {
-              chunkError = err instanceof Error ? err : new Error(String(err));
-              abortController.abort();
-              break;
-            }
-          }
-        } else if (message.type === 'result' && message.subtype !== 'success') {
-          resultError = `claude SDK result subtype=${message.subtype}`;
-        }
-      }
-    } catch (err) {
-      if (chunkError) throw chunkError;
+    if (outcome.callbackError) throw outcome.callbackError;
+    if (outcome.sdkError) {
+      const err = outcome.sdkError;
       if (input.signal.aborted) {
         log.info({ err }, 'claude executor aborted by signal');
         throw abortError('claude executor aborted');
       }
       log.error({ err }, 'claude SDK error');
-      throw new ExecutorProcessError(
-        err instanceof Error ? err.message : String(err),
-        '',
-        null,
-        raw,
-      );
+      throw new ExecutorProcessError(err.message, '', null, raw);
     }
-
-    if (chunkError) throw chunkError;
     // The SDK may stop iterating on abort without throwing; report the abort,
     // not a confusing parse failure.
     if (input.signal.aborted) throw abortError('claude executor aborted');
