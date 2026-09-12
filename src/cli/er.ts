@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
+import { DEFAULT_MAX_TURNS, DEFAULT_MODEL, DEFAULT_TIMEOUT_MINUTES } from './claude-run.ts';
 import { toolVersion } from './platform.ts';
 import { runInterruptCleanups } from './interrupts.ts';
 import { RESUMABLE_STAGES, review, type ReviewOptions } from './review.ts';
@@ -19,6 +20,9 @@ const USAGE = `Usage: er review [<pr-number> | --staged] [options]
 
 Options:
   --base <ref>         compare against <ref> instead (branch and PR reviews)
+  --model <name>       review with <name> (default: ${DEFAULT_MODEL})
+  --max-turns <n>      let the model take at most <n> turns (default: ${String(DEFAULT_MAX_TURNS)})
+  --timeout <minutes>  give up on the model run after <minutes> (default: ${String(DEFAULT_TIMEOUT_MINUTES)})
   --stub               write a mechanical review instead of running a model
   --from <stage>       resume the newest run for this target at prompt, run, parse or render
   --no-open            write the report without opening it
@@ -51,6 +55,9 @@ async function main(argv: string[]): Promise<number> {
       version: { type: 'boolean', short: 'v' },
       staged: { type: 'boolean' },
       base: { type: 'string' },
+      model: { type: 'string' },
+      'max-turns': { type: 'string' },
+      timeout: { type: 'string' },
       stub: { type: 'boolean' },
       from: { type: 'string' },
       'no-open': { type: 'boolean' },
@@ -71,10 +78,23 @@ async function main(argv: string[]): Promise<number> {
     request: targetRequest(args, values),
     cwd: process.cwd(),
     stub: values.stub ?? false,
+    model: values.model ?? DEFAULT_MODEL,
+    maxTurns: positiveNumber(values['max-turns'], '--max-turns', DEFAULT_MAX_TURNS),
+    timeoutMs: positiveNumber(values.timeout, '--timeout', DEFAULT_TIMEOUT_MINUTES) * 60_000,
     from: resumeStage(values.from),
     open: !values['no-open'],
     keepWorktree: values['keep-worktree'] ?? false,
   });
+}
+
+/** A flag that must be a number greater than zero; minutes or turns. */
+function positiveNumber(value: string | undefined, flag: string, fallback: number): number {
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new UsageError(`${flag} takes a number greater than zero, not ${value}`);
+  }
+  return parsed;
 }
 
 function resumeStage(from: string | undefined): ReviewOptions['from'] {

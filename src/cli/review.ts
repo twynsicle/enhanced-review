@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import type { NarrativeReview } from '../domain/review/narrative.ts';
 import type { ReviewMeta } from '../domain/review/review-meta.ts';
+import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
 import { gather, readContext, type RunContext } from './context.ts';
 import { Shell } from './git.ts';
 import { onInterrupt } from './interrupts.ts';
@@ -11,7 +12,7 @@ import { HOST_RENDER_DEPS, renderRun, type RenderDeps } from './render.ts';
 import { createRunFolder, latestRunFolder, type RunFiles } from './run-folder.ts';
 import { writeStubRun } from './stub-run.ts';
 import { locateTarget, resolveTarget, type Target, type TargetRequest } from './targets.ts';
-import { line, note, stage, warn } from './terminal.ts';
+import { note, stage, warn } from './terminal.ts';
 import {
   addWorktree,
   removeWorktree,
@@ -37,6 +38,9 @@ export interface ReviewOptions {
   cwd: string;
   /** Write a mechanical review instead of running a model. */
   stub: boolean;
+  model: string;
+  maxTurns: number;
+  timeoutMs: number;
   from: Exclude<Stage, 'gather'> | null;
   /** Open the report when it is written. */
   open: boolean;
@@ -48,16 +52,19 @@ export interface ReviewDeps {
   shell: Shell;
   render: RenderDeps;
   open: (file: string) => void;
+  claude: ClaudeRunDeps;
 }
 
 export async function review(
   options: ReviewOptions,
-  deps: ReviewDeps = { shell: new Shell(options.cwd), render: HOST_RENDER_DEPS, open: openFile },
+  deps: ReviewDeps = {
+    shell: new Shell(options.cwd),
+    render: HOST_RENDER_DEPS,
+    open: openFile,
+    claude: {},
+  },
 ): Promise<number> {
   const runs = (name: Stage) => STAGES.indexOf(name) >= STAGES.indexOf(options.from ?? 'gather');
-  if (options.from === 'run' && !options.stub) {
-    throw new Error('--from run needs --stub: there is no model run yet');
-  }
 
   const { run, context } = options.from
     ? await resume(options.request, options.from, deps.shell)
@@ -73,12 +80,6 @@ export async function review(
     );
   }
 
-  if (!options.stub && runs('run')) {
-    note(`  ${run.folder}`);
-    line('No model run yet: pass --stub for a mechanical review and its report.');
-    return 0;
-  }
-
   if (runs('run')) {
     const started = performance.now();
     const repo = deps.shell.at(context.target.repoRoot);
@@ -86,13 +87,29 @@ export async function review(
     if (swept.length > 0)
       note(`  removed ${plural(swept.length, 'worktree')} left by an earlier run`);
     const worktree = await workingDirectory(context, repo, options.keepWorktree);
+    const where = worktree ? ', in a worktree of the PR' : '';
     try {
-      const chapters = await writeStubRun(context, run);
-      stage(
-        'run',
-        `stub review, ${plural(chapters, 'chapter')}${worktree ? ', in a worktree of the PR' : ''}`,
-        performance.now() - started,
-      );
+      if (options.stub) {
+        const chapters = await writeStubRun(context, run);
+        stage(
+          'run',
+          `stub review, ${plural(chapters, 'chapter')}${where}`,
+          performance.now() - started,
+        );
+      } else {
+        const result = await runClaude(
+          run,
+          {
+            cwd: worktree?.path ?? context.target.repoRoot,
+            model: options.model,
+            maxTurns: options.maxTurns,
+            timeoutMs: options.timeoutMs,
+          },
+          { ...deps.claude, onActivity: deps.claude.onActivity ?? ((line) => note(`  ${line}`)) },
+        );
+        if (result.incomplete !== null) warn(incompleteWarning(result));
+        stage('run', `${describeRun(result)}${where}`, performance.now() - started);
+      }
     } finally {
       await worktree?.close();
     }
@@ -187,6 +204,19 @@ export function describeTarget(target: Target, meta: ReviewMeta): string {
   return `${meta.repo} ${what} (${range})`;
 }
 
+/** What the model cost and how hard it worked, for the stage line. */
+function describeRun(result: ClaudeRunResult): string {
+  const cost = result.costUsd === null ? '' : `, $${result.costUsd.toFixed(2)}`;
+  return `${plural(result.turns, 'turn')}, ~${approxTokens(result.characters)} tokens of review${cost}`;
+}
+
+function incompleteWarning(result: ClaudeRunResult): string {
+  return (
+    `the model stopped early (${result.incomplete ?? 'unknown'}); the review may be partial. ` +
+    'Raise --max-turns, or edit raw.txt and use --from parse.'
+  );
+}
+
 function describeGather(context: RunContext): string {
   const skipped = context.files.filter((file) => file.skipped).length;
   const files = plural(context.files.length, 'file');
@@ -206,7 +236,11 @@ function dirtyWarning(context: RunContext): string {
 
 /** A rough count at four characters a token, the hosted prompt's own estimate. */
 function tokens(text: string): string {
-  const estimate = Math.round(text.length / 4);
+  return approxTokens(text.length);
+}
+
+function approxTokens(characters: number): string {
+  const estimate = Math.round(characters / 4);
   return estimate < 1000 ? String(estimate) : `${(estimate / 1000).toFixed(1)}k`;
 }
 

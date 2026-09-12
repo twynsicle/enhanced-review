@@ -18,7 +18,8 @@ src/cli/
   er.ts            the bin (`npm link` puts it on PATH): parseArgs → review; usage errors reprint the usage;
                    the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
-                   --keep-worktree; deps (Shell, render, open) injectable for the end-to-end test
+                   --keep-worktree, --model, --max-turns, --timeout; deps (Shell, render, open, query) injectable
+                   for the end-to-end test
   targets.ts       resolveTarget: branch (against the open PR's base or origin's default, fetched first), pr (fetch
                    pull/<n>/head, merge-base with its base), staged (the index as a dangling commit on HEAD); --base;
                    locateTarget (repo root + slug only, for --from); TargetSchema
@@ -29,6 +30,10 @@ src/cli/
                    across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
                    one annotated hunk file per reviewed file; pr.md
   prompt.ts        system.md (the hosted instructions, unchanged) + prompt.md (the local delivery section)
+  claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl;
+                   the reviewed repo's own settings (settingSources user/project/local), read-only tools, the
+                   engineer's environment inherited by the subprocess; the SDK is imported only when a run happens
+  bash-gate.ts     which Bash commands a review may run: one read-only invocation, no shell syntax, no launcher flags
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks; no model
   parse.ts         raw.txt → the hosted lenient parser → review.json, files taken from context
   render.ts        the bundle into the viewer shell → review.html; viewerShell rebuilds build/viewer when stale
@@ -47,5 +52,10 @@ src/cli/
   network or the diff.
 - Tests drive real git against `src/test/git-repo.ts` (a throwaway repository
   with a bare origin) and hand gh canned JSON through `Shell`'s runners.
-- Until the Claude run lands, `er review` without `--stub` stops after the
-  prompt.
+- The model run is the only stage that costs anything, and the only one that
+  needs the network. `--stub` replaces it; `--from parse` skips it entirely,
+  which is how a report is rebuilt from a `raw.txt` that is already there.
+- `Read`, `Glob` and `Grep` are pre-approved; `Bash` is deliberately left out
+  of `allowedTools` so every command goes through `bash-gate.ts` in the
+  `canUseTool` callback. A refused command comes back to the agent as a tool
+  result saying what it may run instead, not as a failed review.

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { BUNDLE_PLACEHOLDER } from '../domain/review/bundle-html.ts';
 import { runGit } from '../domain/review/clone/git-runner.server.ts';
 import { createTempRepo, type TempRepo } from '../test/git-repo.ts';
+import type { QueryFn } from './claude-run.ts';
 import { Shell } from './git.ts';
 import { review, type ReviewDeps, type ReviewOptions } from './review.ts';
 import { RUNS_DIR } from './run-folder.ts';
@@ -34,6 +35,7 @@ beforeEach(() => {
     }),
     render: { viewerShell: async () => `<html>${BUNDLE_PLACEHOLDER}</html>` },
     open: vi.fn<(file: string) => void>(),
+    claude: {},
   };
   repo.write('src/app.ts', 'export const app = 2;\n');
   repo.git('add', 'src/app.ts');
@@ -44,11 +46,36 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   request: { kind: 'staged' },
   cwd: repo.work,
   stub: true,
+  model: 'test-model',
+  maxTurns: 5,
+  timeoutMs: 60_000,
   from: null,
   open: true,
   keepWorktree: false,
   ...overrides,
 });
+
+const MODEL_REVIEW = `<narrative_review>
+{
+  "prTitle": "The staged change",
+  "overviewSummary": "One chapter, written by the model in this test.",
+  "chapters": [
+    {
+      "id": "app",
+      "title": "App",
+      "description": "src/app.ts changed.",
+      "insights": [{ "type": "context", "title": "From the test model", "text": "Not a real run." }],
+      "diffChunks": []
+    }
+  ]
+}
+</narrative_review>`;
+
+const assistantText = (text: string) =>
+  ({ type: 'assistant', message: { content: [{ type: 'text', text }] } }) as never;
+
+const runResult = () =>
+  ({ type: 'result', subtype: 'success', num_turns: 4, total_cost_usd: 0.05 }) as never;
 
 /** This process's worktrees for PR 7 in the temp dir. */
 function ourWorktrees(): string[] {
@@ -78,12 +105,24 @@ describe('er review', () => {
     expect(deps.open).toHaveBeenCalledWith(path.join(run, 'review.html'));
   });
 
-  it('stops after the prompt without --stub', async () => {
-    await review(options({ stub: false }), deps);
+  it('runs the model without --stub, in the repository, and reports what it wrote', async () => {
+    let cwd = '';
+    const query: QueryFn = ({ options: sdkOptions }) => {
+      cwd = sdkOptions.cwd ?? '';
+      return (async function* () {
+        yield assistantText(MODEL_REVIEW);
+        yield runResult();
+      })();
+    };
+
+    await expect(review(options({ stub: false }), { ...deps, claude: { query } })).resolves.toBe(0);
+
     const run = path.join(repo.work, RUNS_DIR, 'staged', runFolders()[0]!);
-    expect(existsSync(path.join(run, 'prompt.md'))).toBe(true);
-    expect(existsSync(path.join(run, 'raw.txt'))).toBe(false);
-    expect(deps.open).not.toHaveBeenCalled();
+    expect(cwd).toBe(repo.work);
+    expect(readFileSync(path.join(run, 'raw.txt'), 'utf8')).toBe(MODEL_REVIEW);
+    expect(readFileSync(path.join(run, 'events.jsonl'), 'utf8')).toContain('"subtype":"success"');
+    expect(readFileSync(path.join(run, 'review.json'), 'utf8')).toContain('The staged change');
+    expect(deps.open).toHaveBeenCalledWith(path.join(run, 'review.html'));
   });
 
   it('resumes the newest run from parse without starting another', async () => {
