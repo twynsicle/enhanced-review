@@ -33,8 +33,10 @@ export const meta: Route.MetaFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    // Dark is the default scheme (A3). ColorSchemeScript swaps in the stored
-    // `er-theme` value before first paint, exactly as the old init script did.
+    // Dark is the default scheme, so the server can commit to an attribute
+    // rather than guess. ColorSchemeScript swaps in the stored `er-theme`
+    // value before first paint, which is what keeps a light reader from
+    // seeing a dark frame on the way in.
     <html lang="en" {...mantineHtmlProps} data-mantine-color-scheme="dark">
       <head>
         <meta charSet="utf-8" />

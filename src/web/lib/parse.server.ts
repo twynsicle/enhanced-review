@@ -2,12 +2,13 @@ import { data } from 'react-router';
 import type { z } from 'zod';
 
 /**
- * Zod at the route boundary (overview §4, guardrail A4(e)). Each helper
- * parses one kind of request input and, on failure, throws a 400 `data()`
- * response that React Router hands to the nearest ErrorBoundary.
+ * Zod at the route boundary: each helper parses one kind of request input
+ * and, on failure, throws a 400 `data()` response that React Router hands to
+ * the nearest ErrorBoundary.
  *
  * Route modules import these instead of calling `schema.parse` inline so the
- * error shape is uniform and the guardrail can recognise validated routes.
+ * error shape is uniform, and so that the `zod-boundaries` guardrail can tell
+ * a validated route from an unvalidated one by its imports alone.
  */
 export interface BadRequestBody {
   error: 'bad_request';

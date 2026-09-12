@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { importSpecifiers, isTestFile, listFiles, readSource, report } from './helpers';
 
 /**
- * Guardrail A4(f) — `*.server.ts` modules never end up in a client bundle.
+ * Guardrail — `*.server.ts` modules never end up in a client bundle.
  * They may be imported only from other `.server` modules, route modules,
  * `root.tsx` / `entry.server.tsx`, `server/`, `src/jobs/`, non-web areas
  * (which are server-only by construction) and tests.

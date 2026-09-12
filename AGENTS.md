@@ -64,7 +64,8 @@ src/
                        runs in the repo under review with no server config
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only,
                        prisma-access, palette (token contrast, type scale, one label), diagram-colour (SVG takes token() only),
-                       cli-imports (nothing `er` loads reaches env.ts, the logger, the db or a server package)
+                       cli-imports (nothing `er` loads reaches env.ts, the logger, the db or a server package),
+                       comment-paths (a repo path named in a comment still exists — see Comments)
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb),
                        git-repo.ts (a throwaway repository with a bare origin, for tests that drive real git)
   web/                 the React Router app: root.tsx, entry.server.tsx, routes.ts (every file in routes/ must be listed),
@@ -151,6 +152,28 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
   top-level `src/` area imported at runtime, or a runtime import of one of
   those packages, breaks the container but not `npm run dev`. Detail in
   `.claude/rules/container.md`.
+
+## Comments
+
+- A comment explains **why**, never what. If the code already says what it
+  does, the comment is noise the next reader has to check against it.
+- A comment **stands alone**. It is read cold, by someone with no access to a
+  plan, a ticket or the conversation that produced it. A reference may add
+  colour; it must never be where the reason lives.
+- **Never cite a transient document.** Plans here are written just-in-time and
+  deleted when the work lands, so a decision id, a phase number or a section
+  mark is dead the day it is written, and nothing notices. The `comment-paths`
+  guardrail sees one shape of this, the plan cited as a path
+  (`docs/plans/phase-2.md`); a bare `A4(b)` or `overview §4` is on you alone.
+- **Don't narrate the change.** "Moved here from X", "now does Y instead":
+  `git log` carries that, and a year later the comment describes a diff nobody
+  can see. Comments describe the code as it stands.
+- **Prefer none.** A comment earns its place by recording what the code cannot
+  say for itself — a constraint, a trap, a rejected alternative, a non-obvious
+  ordering, a why-not.
+- **Terse**: a line or two. A block that argues rather than points is the
+  exception and may run longer — the module-level doc comment laying out a
+  subsystem's shape, a rejected alternative, the reasoning behind a layout.
 
 ## Scripts
 

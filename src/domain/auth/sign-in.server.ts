@@ -17,7 +17,7 @@ export function toSessionUser(row: UserRow): SessionUser {
 /**
  * Completes a sign-in for a freshly exchanged GitHub access token: resolve the
  * GitHub identity, create-or-refresh the user row. The token itself is not
- * stored anywhere here — the caller puts it in the HttpOnly cookie (D3).
+ * stored anywhere here — the caller puts it in the HttpOnly cookie.
  */
 export async function signInWithGithubToken(
   accessToken: string,

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { importSpecifiers, isTestFile, listFiles, readSource, report } from './helpers';
 
 /**
- * Guardrail A4(e) — every loader/action that reads request input (route
+ * Guardrail — every loader/action that reads request input (route
  * params, search params, form data, JSON body) validates it with Zod, either
  * directly or through the `@/web/lib/parse.server` helpers.
  */
