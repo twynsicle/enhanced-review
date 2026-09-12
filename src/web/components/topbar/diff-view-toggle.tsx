@@ -8,8 +8,11 @@ import { bindDiffView, useDiffView } from '@/web/stores/diff-view';
  * stacked. Sits beside the width toggle because the two are usually turned
  * together: two panes of code want the whole window, one column does not.
  *
- * Rehydrated here on mount for the same reason the width toggle is, and the
- * icon likewise names the action rather than the state.
+ * Rehydrated here on mount for the same reason the width toggle is. The icon
+ * names the current state, unlike the scheme toggle next to it, which names
+ * the action: which way the page is lit needs no icon to say so, whereas the
+ * diffs are often scrolled out of sight, and then the icon is the only thing
+ * left saying how they are set.
  */
 export function DiffViewToggle() {
   const view = useDiffView((s) => s.view);
@@ -27,7 +30,7 @@ export function DiffViewToggle() {
       title={label}
       onClick={toggle}
     >
-      {split ? <IconLayoutRows size={18} /> : <IconLayoutColumns size={18} />}
+      {split ? <IconLayoutColumns size={18} /> : <IconLayoutRows size={18} />}
     </ActionIcon>
   );
 }
