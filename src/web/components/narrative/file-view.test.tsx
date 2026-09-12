@@ -1,11 +1,61 @@
-import { describe, expect, it } from 'vitest';
-import type { NarrativeChapter } from '@/domain/review/narrative';
+import { createRoutesStub } from 'react-router';
+import { describe, expect, it, vi } from 'vitest';
+import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/domain/review/bundle';
+import type { NarrativeChapter, ResolvedDiffHunk, ReviewFile } from '@/domain/review/narrative';
+import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
 import { render, screen } from '@/web/test/render';
 import { FileView } from './file-view';
+
+vi.mock('@monaco-editor/react', () => ({
+  DiffEditor: () => <div data-testid="diff-editor" />,
+}));
 
 const chapters: NarrativeChapter[] = [
   { id: 'ch1', title: 'Shape of the change', insights: [], diffChunks: [] },
 ];
+
+const hunk = (id: string, fileOrder: number): ResolvedDiffHunk => ({
+  id,
+  fileOrder,
+  original: { startLine: fileOrder, lineCount: 1 },
+  modified: { startLine: fileOrder, lineCount: 1 },
+});
+
+/** The view inside an embedded source carrying both sides of the one fixture file. */
+function renderWithSource(files: ReviewFile[], cited: NarrativeChapter[]) {
+  const bundle: ReviewBundle = {
+    schemaVersion: BUNDLE_SCHEMA_VERSION,
+    generatedAt: '2026-09-11T10:00:00.000Z',
+    meta: {
+      repo: 'a/r',
+      title: 't',
+      prNumber: null,
+      baseRefName: null,
+      headRefName: null,
+      authorLogin: null,
+      description: null,
+      stats: null,
+    },
+    review: { prTitle: 't', overviewSummary: '', chapters: cited, files },
+    files: {
+      'src/app.ts': {
+        base: { kind: 'content', content: 'a\nb\nc\n' },
+        head: { kind: 'content', content: 'a\nB\nC\n' },
+      },
+    },
+  };
+  const Stub = createRoutesStub([
+    {
+      path: '/',
+      Component: () => (
+        <EmbeddedFileSource bundle={bundle}>
+          <FileView filename="src/app.ts" chapters={cited} files={files} />
+        </EmbeddedFileSource>
+      ),
+    },
+  ]);
+  return render(<Stub initialEntries={['/']} />);
+}
 
 describe('FileView without hunks', () => {
   it('says why a skipped file was not reviewed', () => {
@@ -27,7 +77,7 @@ describe('FileView without hunks', () => {
     expect(screen.getByText(/marked linguist-generated in .gitattributes/)).toBeDefined();
   });
 
-  it('says the reviewer chose no hunks for a reviewed file', () => {
+  it('says the reviewer chose no hunks for a file from a review without a catalog', () => {
     render(
       <FileView
         filename="src/app.ts"
@@ -36,5 +86,56 @@ describe('FileView without hunks', () => {
       />,
     );
     expect(screen.getByText(/didn’t select any hunks for this file/)).toBeDefined();
+  });
+
+  it('says there was no text diff for a file whose catalog is empty', () => {
+    render(
+      <FileView
+        filename="src/app.ts"
+        chapters={chapters}
+        files={[
+          { filename: 'src/app.ts', status: 'modified', additions: 0, deletions: 0, hunks: [] },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/changed without a text diff to show/)).toBeDefined();
+  });
+});
+
+describe('FileView with hunks the chapters left out', () => {
+  const files: ReviewFile[] = [
+    {
+      filename: 'src/app.ts',
+      status: 'modified',
+      additions: 2,
+      deletions: 2,
+      hunks: [hunk('H0001', 1), hunk('H0002', 2)],
+    },
+  ];
+
+  it('shows the uncited hunks under their own label, after the cited ones', () => {
+    const cited: NarrativeChapter[] = [
+      {
+        id: 'ch1',
+        title: 'Shape of the change',
+        insights: [],
+        diffChunks: [{ filename: 'src/app.ts', language: 'typescript', hunks: [hunk('H0001', 1)] }],
+      },
+    ];
+    renderWithSource(files, cited);
+
+    expect(screen.getByText(/Discussed in/).textContent).toContain('(1 of 2 hunks)');
+    const leftover = screen.getByRole('region', { name: 'Hunks not discussed in any chapter' });
+    expect(leftover.textContent).toContain('Not discussed in any chapter');
+    // Two figures: the chapter's chunk and the leftover one.
+    expect(screen.getAllByRole('figure', { name: 'Diff for src/app.ts' })).toHaveLength(2);
+  });
+
+  it('shows a file no chapter cites as one diff, and says so in the header', () => {
+    renderWithSource(files, chapters);
+
+    expect(screen.getByText('Not discussed in any chapter')).toBeDefined();
+    expect(screen.getAllByRole('figure', { name: 'Diff for src/app.ts' })).toHaveLength(1);
+    expect(screen.queryByText(/didn’t select any hunks/)).toBeNull();
   });
 });

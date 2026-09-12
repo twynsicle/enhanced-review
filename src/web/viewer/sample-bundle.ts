@@ -106,6 +106,13 @@ const CRON_BASE = lines(
 
 const SCHEMA_BASE = lines('{', '  "$id": "schedule.schema.json",', '  "type": "object"', '}');
 
+const INDEX_BASE = lines("export { isDue, type Schedule } from './cadence';");
+
+const INDEX_HEAD = lines(
+  "export { isDue, type Cadence, type Schedule } from './cadence';",
+  "export { collectDue, type QueuedReview } from './queue';",
+);
+
 function hunk(
   id: string,
   fileOrder: number,
@@ -130,6 +137,22 @@ const H = {
   cron: hunk('H0007', 0, [1, 9], [1, 0]),
   schema: hunk('H0008', 0, [1, 4], [1, 2400]),
   docs: hunk('H0009', 0, [12, 3], [12, 9]),
+  index: hunk('H0010', 0, [1, 1], [1, 2]),
+};
+
+/**
+ * Every file's share of the hunk catalog, as the parse stage attaches it.
+ * Two hunks are cited by no chapter on purpose — the paused guard, so
+ * `cadence.ts` is discussed only in part, and the whole of `index.ts` — to
+ * give the report its "Not discussed" section and the sidebar its marks.
+ */
+const CATALOG: Record<string, ResolvedDiffHunk[]> = {
+  'src/scheduler/cadence.ts': [H.cadenceType, H.paused, H.intervals, H.lookup, H.pausedGuard],
+  'src/scheduler/queue.ts': [H.queue],
+  'src/scheduler/index.ts': [H.index],
+  'src/legacy/cron.ts': [H.cron],
+  'src/generated/schedule.schema.json': [H.schema],
+  'docs/scheduling.md': [H.docs],
 };
 
 const chunk = (filename: string, language: string, hunks: ResolvedDiffHunk[]): DiffChunk => ({
@@ -180,16 +203,48 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
       ],
     },
     files: [
-      { filename: 'src/scheduler/cadence.ts', status: 'modified', additions: 14, deletions: 3 },
-      { filename: 'src/scheduler/queue.ts', status: 'added', additions: 19, deletions: 0 },
-      { filename: 'src/legacy/cron.ts', status: 'removed', additions: 0, deletions: 9 },
+      {
+        filename: 'src/scheduler/cadence.ts',
+        status: 'modified',
+        additions: 14,
+        deletions: 3,
+        hunks: CATALOG['src/scheduler/cadence.ts'],
+      },
+      {
+        filename: 'src/scheduler/queue.ts',
+        status: 'added',
+        additions: 19,
+        deletions: 0,
+        hunks: CATALOG['src/scheduler/queue.ts'],
+      },
+      {
+        filename: 'src/scheduler/index.ts',
+        status: 'modified',
+        additions: 2,
+        deletions: 1,
+        hunks: CATALOG['src/scheduler/index.ts'],
+      },
+      {
+        filename: 'src/legacy/cron.ts',
+        status: 'removed',
+        additions: 0,
+        deletions: 9,
+        hunks: CATALOG['src/legacy/cron.ts'],
+      },
       {
         filename: 'src/generated/schedule.schema.json',
         status: 'modified',
         additions: 2398,
         deletions: 2,
+        hunks: CATALOG['src/generated/schedule.schema.json'],
       },
-      { filename: 'docs/scheduling.md', status: 'modified', additions: 9, deletions: 3 },
+      {
+        filename: 'docs/scheduling.md',
+        status: 'modified',
+        additions: 9,
+        deletions: 3,
+        hunks: CATALOG['docs/scheduling.md'],
+      },
       {
         filename: 'package-lock.json',
         status: 'modified',
@@ -286,7 +341,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
           },
         ],
         diffChunks: [
-          chunk('src/scheduler/cadence.ts', 'typescript', [H.paused, H.pausedGuard]),
+          chunk('src/scheduler/cadence.ts', 'typescript', [H.paused]),
           chunk('src/scheduler/queue.ts', 'typescript', [H.queue]),
         ],
         diagram: {
@@ -392,6 +447,10 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
     'src/scheduler/queue.ts': {
       base: { kind: 'absent' },
       head: { kind: 'content', content: QUEUE_HEAD },
+    },
+    'src/scheduler/index.ts': {
+      base: { kind: 'content', content: INDEX_BASE },
+      head: { kind: 'content', content: INDEX_HEAD },
     },
     'src/legacy/cron.ts': {
       base: { kind: 'content', content: CRON_BASE },

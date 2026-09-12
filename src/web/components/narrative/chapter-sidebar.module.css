@@ -279,6 +279,25 @@
   color: var(--er-muted-foreground);
 }
 
+.trailing {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/*
+ * The coverage mark: an empty circle for a file no chapter discusses, a half
+ * one for a file discussed in part. It sits with the stats, on the row's
+ * right edge, so the name keeps its clean left edge and its ellipsis. It is
+ * `muted-foreground` rather than `subtle` because it carries meaning a
+ * sighted reader is meant to notice; the row's hidden text spells it out.
+ */
+.coverageMark {
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1;
+  color: var(--er-muted-foreground);
+}
+
 .stats {
   font-family: var(--mantine-font-family-monospace);
   font-size: var(--mantine-font-size-xs);

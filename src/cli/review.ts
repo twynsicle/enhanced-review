@@ -1,4 +1,5 @@
 import { performance } from 'node:perf_hooks';
+import { reviewCoverage, type ReviewCoverage } from '../domain/review/coverage.ts';
 import type { NarrativeReview } from '../domain/review/narrative.ts';
 import type { ReviewMeta } from '../domain/review/review-meta.ts';
 import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
@@ -135,12 +136,18 @@ export async function review(
   if (runs('parse')) {
     const started = performance.now();
     parsed = await parseRun(context, run);
-    const cited = parsed.chapters.flatMap((c) => c.diffChunks.flatMap((d) => d.hunks)).length;
+    const coverage = reviewCoverage(parsed);
     stage(
       'parse',
-      `${plural(parsed.chapters.length, 'chapter')}, ${plural(cited, 'hunk')} cited`,
+      `${plural(parsed.chapters.length, 'chapter')}, ${describeCoverage(coverage)}`,
       performance.now() - started,
     );
+    // Not an error: the report carries the leftovers under "Not discussed".
+    // But a run that skipped a third of the change is worth knowing about
+    // before the report is opened, not after the chapters run out.
+    if (coverage.undiscussed.length > 0 || coverage.partly.length > 0) {
+      warn(coverageWarning(coverage));
+    }
   } else {
     parsed = await readReview(run);
   }
@@ -245,6 +252,23 @@ function incompleteWarning(result: ClaudeRunResult): string {
     `the model stopped early (${result.incomplete ?? 'unknown'}); the review may be partial. ` +
     'Raise --max-turns, or edit raw.txt and use --from parse.'
   );
+}
+
+function describeCoverage(coverage: ReviewCoverage): string {
+  if (coverage.total === 0) return 'no hunks to cite';
+  return `${String(coverage.cited)} of ${plural(coverage.total, 'hunk')} cited`;
+}
+
+export function coverageWarning({ undiscussed, partly }: ReviewCoverage): string {
+  const parts = [
+    undiscussed.length > 0
+      ? `${plural(undiscussed.length, 'file')} not discussed in any chapter`
+      : null,
+    partly.length > 0
+      ? `${plural(partly.length, 'file')} ${undiscussed.length > 0 ? 'more ' : ''}only in part`
+      : null,
+  ].filter((part) => part !== null);
+  return `${parts.join(', and ')}; the report shows their hunks under "Not discussed"`;
 }
 
 function describeGather(context: RunContext): string {

@@ -9,9 +9,11 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useSearchParams } from 'react-router';
+import { reviewCoverage } from '@/domain/review/coverage';
 import {
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
+  UNDISCUSSED_SECTION_ID,
   type NarrativeReview,
 } from '@/domain/review/narrative';
 import type { ReviewMeta } from '@/domain/review/review-meta';
@@ -21,6 +23,7 @@ import { FileView } from '@/web/components/narrative/file-view';
 import { RiskCard } from '@/web/components/narrative/risk-card';
 import { findSection, readerSections } from '@/web/components/narrative/sections';
 import { SummaryCard } from '@/web/components/narrative/summary-card';
+import { UndiscussedCard } from '@/web/components/narrative/undiscussed-card';
 import { useNarrativeKeyboard } from '@/web/components/narrative/use-narrative-keyboard';
 import { useReaderColumn } from '@/web/stores/diff-view';
 import {
@@ -101,7 +104,8 @@ export function ChapterReader({ review, meta, initialActiveId, actions }: Chapte
   useEffect(() => bindSidebarWidth(), []);
   const mainRef = useRef<HTMLElement | null>(null);
   useReportedColumnWidth(mainRef);
-  const sections = useMemo(() => readerSections(review), [review]);
+  const coverage = useMemo(() => reviewCoverage(review), [review]);
+  const sections = useMemo(() => readerSections(review, coverage), [review, coverage]);
   const urlActive = searchParams.get('ch');
   const urlFile = searchParams.get('file');
   const activeFile = urlFile && fileExists(urlFile, review) ? urlFile : null;
@@ -192,6 +196,7 @@ export function ChapterReader({ review, meta, initialActiveId, actions }: Chapte
           sections={sections}
           chapters={review.chapters}
           files={review.files}
+          coverage={coverage}
           activeId={activeId}
           activeFile={activeFile}
           reviewTitle={review.prTitle}
@@ -220,6 +225,8 @@ export function ChapterReader({ review, meta, initialActiveId, actions }: Chapte
           <FileView filename={activeFile} chapters={review.chapters} files={review.files} />
         ) : activeId === RISK_SECTION_ID && review.riskAssessment ? (
           <RiskCard assessment={review.riskAssessment} />
+        ) : activeId === UNDISCUSSED_SECTION_ID && coverage.uncitedChunks.length > 0 ? (
+          <UndiscussedCard coverage={coverage} chapters={review.chapters} />
         ) : !activeChapter ? (
           <SummaryCard review={review} meta={meta} actions={actions} onSelectFile={onSelectFile} />
         ) : (

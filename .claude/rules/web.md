@@ -47,16 +47,23 @@ src/web/
                      jobs/, ReviewTarget or PullMetadata: chapter-reader (+ .module.css grid, resizable sidebar,
                      ?ch=/?file= state; takes review + ReviewMeta + an `actions` slot),
                      sections.ts (readerSections: the one ordered list of sections — summary, risk when there is an
-                     assessment, then the chapters — that the sidebar renders and the keyboard walks),
+                     assessment, the chapters, then "Not discussed" when a chapter left a hunk uncited — that the
+                     sidebar renders and the keyboard walks),
+                     undiscussed-card (the backstop section: every uncited hunk, file by file, through the inline
+                     diff; built from domain/review/coverage.ts, which chapter-reader computes once for it, the
+                     sidebar and the sections),
                      chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, a row carrying
-                     a diagram is marked, a skipped file is dimmed; its Files header carries the flat ⇄ tree toggle
+                     a diagram is marked, a skipped file is dimmed, a file the chapters left out carries ○ (none of
+                     its hunks cited) or ◐ (some) beside its stats with the reason in its title and hidden text;
+                     its Files header carries the flat ⇄ tree toggle
                      for the changed-file list, one shared row component under both views, the tree drawn as nested
                      lists with aria-expanded on the directory buttons — a disclosure list, not an ARIA tree, since
                      there is no roving tabindex — and the fold state in component state),
                      file-tree.ts (pure, no rendering: ReviewFile[] → the directory tree, single-child directory
                      chains collapsed into one row), chapter-card, summary-card (title/meta, overview
                      diagram, AI overview, author's description collapsed last), risk-card, file-view (a file's chunks,
-                     or why it has none), skipped-file.ts (the copy for ReviewFile.skipped reasons), insight-callout,
+                     then its uncited hunks under their own label, or why it has none), skipped-file.ts (the copy for
+                     ReviewFile.skipped reasons), insight-callout,
                      article.module.css (the reading measure + the diff bleed lane),
                      lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group,

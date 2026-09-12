@@ -16,6 +16,7 @@ import {
   HeadShaMismatchError,
 } from './clone/clone-runner.server.ts';
 import { listChangedFiles } from './clone/diff-files.server.ts';
+import { reviewCoverage, withFileHunks } from './coverage.ts';
 import {
   GitCommandError,
   runGit,
@@ -239,7 +240,10 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ
     // `done` has already seen the full stream.
     await Promise.allSettled(inFlight);
 
-    const content: NarrativeReview = { ...result.review, files };
+    const content: NarrativeReview = {
+      ...result.review,
+      files: result.hunks ? withFileHunks(files, result.hunks) : files,
+    };
     const finalized = await store.finalizeDone(jobId, {
       content,
       diffTruncated: result.wasTruncated,
@@ -249,7 +253,18 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ
       log.warn('job was no longer running at finalize; review discarded');
       return (outcome = 'skipped');
     }
-    log.info({ files: files.length, chunks: seq }, 'job done');
+    const coverage = reviewCoverage(content);
+    log.info(
+      {
+        files: files.length,
+        chunks: seq,
+        hunks: coverage.total,
+        hunksCited: coverage.cited,
+        filesUndiscussed: coverage.undiscussed.length,
+        filesPartlyDiscussed: coverage.partly.length,
+      },
+      'job done',
+    );
     return (outcome = 'done');
   } catch (err) {
     if (signal.aborted) return 'aborted';

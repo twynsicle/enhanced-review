@@ -22,7 +22,13 @@ src/domain/
                      pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getCommitsAhead); types.ts shared
   review/            shared: narrative.ts (NarrativeReview Zod schema + types; chapter.diagram? + overviewDiagram?;
                      ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
-                     SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's two synthesised sections),
+                     ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
+                     reviewable and not only what was cited; SUMMARY_SECTION_ID / RISK_SECTION_ID /
+                     UNDISCUSSED_SECTION_ID, the reader's synthesised sections),
+                     coverage.ts (the backstop for the instruction that the model cite every hunk: withFileHunks
+                     attaches the catalog at parse time, reviewCoverage subtracts what the chapters cite — per hunk,
+                     reported per file as undiscussed / partly, plus one DiffChunk per file of the leftovers; a file
+                     without a catalog reports nothing),
                      diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
                      DIAGRAM_LIMITS, hasUniformChange), target.ts (ReviewTarget schema, describeTarget),
@@ -43,7 +49,8 @@ src/domain/
                      instructions.ts (the review instructions and output schema, shared with the local CLI, plus one
                      closing paragraph per path: SERVER_WORKING_TREE, LOCAL_WORKING_TREE; the assembled server prompt is
                      pinned byte-for-byte by __fixtures__/server-prompt.txt)
-    executor/        types.ts (ReviewExecutor, errors); stub-executor.server.ts (STUB_REVIEW in fragments);
+    executor/        types.ts (ReviewExecutor, errors; the output's optional `hunks` is the prompt's catalog, which
+                     the runner attaches to `files[]` — the stub has none); stub-executor.server.ts (STUB_REVIEW in fragments);
                      claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist);
                      sdk-loop.server.ts (the message loop both this and the local CLI run on: text, tool uses and the
                      result out — subtype, turns, cost and token usage, cost counted even when the run ran out of
@@ -74,8 +81,9 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t
   executor streams raw text; each fragment becomes a `review_chunks` row
   (`seq` from 0, inserts fire-and-forget, drained before finalize).
   `finalizeDone` writes the `reviews` row and `running → done` in one
-  transaction. Failures → `markErrored(formatJobError(err))`, clipped to 500
-  chars. Every side effect is injected (`RunJobDeps`) so the stub review runs
+  transaction, the changed files carrying their hunks when the executor
+  returned a catalog; the `job done` log line reports the hunk coverage.
+  Failures → `markErrored(formatJobError(err))`, clipped to 500 chars. Every side effect is injected (`RunJobDeps`) so the stub review runs
   end to end from `run.integration.test.ts` against a local git repo.
 - **Abort reasons** say who already wrote the terminal status: `cancel`
   (`cancel-job.server.ts` wrote `cancelled` before signalling), `timeout`

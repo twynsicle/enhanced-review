@@ -125,6 +125,6 @@ export class ClaudeExecutor implements ReviewExecutor {
       if (resultError) throw new ExecutorProcessError(resultError, '', null, raw);
       throw new ExecutorParseError(parsed.error, raw);
     }
-    return { review: parsed.data, wasTruncated, rawText: raw };
+    return { review: parsed.data, wasTruncated, rawText: raw, hunks: hunkIndex.hunks };
   }
 }

@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
+import type { FileCoverage, ReviewCoverage } from '@/domain/review/coverage';
 import {
   RISK_SECTION_ID,
   type NarrativeChapter,
@@ -38,6 +39,8 @@ interface ChapterSidebarProps {
   onSelectFile: (filename: string) => void;
   reviewTitle: string;
   files?: readonly ReviewFile[];
+  /** Which files the chapters left out, wholly or in part; see `coverage.ts`. */
+  coverage?: ReviewCoverage;
   riskAssessment?: ReviewRiskAssessment;
 }
 
@@ -58,6 +61,7 @@ export function ChapterSidebar({
   onSelect,
   onSelectFile,
   files,
+  coverage,
   riskAssessment,
 }: ChapterSidebarProps) {
   // Held by identity, not for the sort alone: the tree below is memoised on
@@ -103,7 +107,12 @@ export function ChapterSidebar({
       {reviewFiles.length > 0 && (
         <section className={classes.files}>
           <FilesHeader files={reviewFiles} />
-          <FileList files={reviewFiles} activeFile={activeFile} onSelectFile={onSelectFile} />
+          <FileList
+            files={reviewFiles}
+            coverage={coverage?.byFile}
+            activeFile={activeFile}
+            onSelectFile={onSelectFile}
+          />
         </section>
       )}
     </nav>
@@ -129,7 +138,11 @@ function SidebarItem({
         onClick={() => onSelect(section.id)}
       >
         <span className={classes.index}>
-          {chapterNumber === null ? '00' : chapterNumber.toString().padStart(2, '0')}
+          {chapterNumber !== null
+            ? chapterNumber.toString().padStart(2, '0')
+            : section.kind === 'undiscussed'
+              ? '—'
+              : '00'}
         </span>
         <span className={classes.label}>{section.label}</span>
         {/*
@@ -254,22 +267,36 @@ function indentStyle(depth: number): CSSProperties {
   return { '--file-depth': depth } as CSSProperties;
 }
 
+/** A file's row-level coverage note, or null when every hunk of it is in a chapter. */
+function coverageNote(coverage: FileCoverage | undefined): string | null {
+  if (!coverage || coverage.uncited.length === 0) return null;
+  if (coverage.cited === 0) return 'Not discussed in any chapter';
+  return `Partly discussed: ${String(coverage.cited)} of ${String(coverage.total)} hunks are in a chapter`;
+}
+
 /**
  * One file, in either view. Both draw the same row — status letter, name,
- * stats, skipped state, active wash, and a click that opens the file — because
- * the two views differ over grouping and nothing else, and a reader who flips
- * between them should see the same rows move rather than different rows
- * appear. The directory is the one thing that does differ: in the tree it is
- * already overhead, spelled once on the row the file hangs under.
+ * stats, skipped state, coverage mark, active wash, and a click that opens
+ * the file — because the two views differ over grouping and nothing else, and
+ * a reader who flips between them should see the same rows move rather than
+ * different rows appear. The directory is the one thing that does differ: in
+ * the tree it is already overhead, spelled once on the row the file hangs
+ * under.
+ *
+ * A file the chapters left out is marked, not dimmed: dimming is what a
+ * skipped file gets, and it says "not worth your time", which is the opposite
+ * of what an undiscussed change is.
  */
 function FileRow({
   file,
+  coverage,
   active,
   depth,
   showDirname,
   onSelectFile,
 }: {
   file: ReviewFile;
+  coverage: FileCoverage | undefined;
   active: boolean;
   depth: number;
   showDirname: boolean;
@@ -278,6 +305,8 @@ function FileRow({
   const { dirname, basename } = splitFilename(file.filename);
   const showStats = file.additions > 0 || file.deletions > 0;
   const skipped = file.skipped ? `Not reviewed: ${SKIP_REASON_LABEL[file.skipped]}` : null;
+  const undiscussed = skipped ? null : coverageNote(coverage);
+  const note = skipped ?? undiscussed;
   return (
     <UnstyledButton
       className={classes.fileRow}
@@ -285,7 +314,7 @@ function FileRow({
       aria-current={active ? 'true' : undefined}
       data-active={active || undefined}
       data-skipped={skipped ? true : undefined}
-      title={skipped ?? undefined}
+      title={note ?? undefined}
       onClick={() => onSelectFile(file.filename)}
     >
       <span className={classes.status} data-status={file.status}>
@@ -293,20 +322,28 @@ function FileRow({
       </span>
       <Box component="span" miw={0}>
         <span className={classes.basename}>{basename}</span>
-        {skipped && <VisuallyHidden>{skipped}</VisuallyHidden>}
+        {note && <VisuallyHidden>{note}</VisuallyHidden>}
         {showDirname && dirname.length > 0 && <span className={classes.dirname}>{dirname}/</span>}
       </Box>
-      {showStats ? (
-        <Stats additions={file.additions} deletions={file.deletions} />
-      ) : (
-        <span aria-hidden />
-      )}
+      <span className={classes.trailing}>
+        {undiscussed && (
+          <span
+            aria-hidden
+            className={classes.coverageMark}
+            data-partly={coverage && coverage.cited > 0 ? true : undefined}
+          >
+            {coverage && coverage.cited > 0 ? '◐' : '○'}
+          </span>
+        )}
+        {showStats && <Stats additions={file.additions} deletions={file.deletions} />}
+      </span>
     </UnstyledButton>
   );
 }
 
 interface FileListProps {
   files: readonly ReviewFile[];
+  coverage: ReadonlyMap<string, FileCoverage> | undefined;
   activeFile: string | null;
   onSelectFile: (filename: string) => void;
 }
@@ -316,13 +353,14 @@ function FileList(props: FileListProps) {
   return view === 'tree' ? <FileTreeList {...props} /> : <FlatFileList {...props} />;
 }
 
-function FlatFileList({ files, activeFile, onSelectFile }: FileListProps) {
+function FlatFileList({ files, coverage, activeFile, onSelectFile }: FileListProps) {
   return (
     <ul className={classes.fileList} aria-label="Changed files">
       {files.map((file) => (
         <li key={file.filename}>
           <FileRow
             file={file}
+            coverage={coverage?.get(file.filename)}
             active={file.filename === activeFile}
             depth={0}
             showDirname
@@ -339,6 +377,7 @@ interface TreeContext {
   /** Paths the reader has folded. Collapsed rather than expanded, so a tree arrives open. */
   collapsed: ReadonlySet<string>;
   onToggle: (path: string) => void;
+  coverage: ReadonlyMap<string, FileCoverage> | undefined;
   activeFile: string | null;
   onSelectFile: (filename: string) => void;
 }
@@ -361,7 +400,7 @@ interface TreeContext {
  * lands, and that button is named by its own contents — the folded path, not
  * the subtree under it.
  */
-function FileTreeList({ files, activeFile, onSelectFile }: FileListProps) {
+function FileTreeList({ files, coverage, activeFile, onSelectFile }: FileListProps) {
   const nodes = useMemo(() => buildFileTree(files), [files]);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set<string>());
   const onToggle = useCallback((path: string) => {
@@ -374,7 +413,7 @@ function FileTreeList({ files, activeFile, onSelectFile }: FileListProps) {
 
   return (
     <ul className={classes.fileList} aria-label="Changed files">
-      {treeItems(nodes, 0, { collapsed, onToggle, activeFile, onSelectFile })}
+      {treeItems(nodes, 0, { collapsed, onToggle, coverage, activeFile, onSelectFile })}
     </ul>
   );
 }
@@ -389,6 +428,7 @@ function treeItems(
       <li key={`file:${node.file.filename}`}>
         <FileRow
           file={node.file}
+          coverage={context.coverage?.get(node.file.filename)}
           active={node.file.filename === context.activeFile}
           depth={depth}
           showDirname={false}

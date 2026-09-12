@@ -39,7 +39,9 @@ src/cli/
   progress.ts      the live line during the run: elapsed time, the file being read, chapter titles picked out of the
                    answer as it streams; drawn only on a terminal
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks; no model
-  parse.ts         raw.txt → the hosted lenient parser → review.json, files taken from context
+  parse.ts         raw.txt → the hosted lenient parser → review.json, files taken from context, each carrying its
+                   share of the hunk catalog; the parse stage line counts the hunks cited and warns about the
+                   files the chapters left out (the report shows them under "Not discussed")
   render.ts        the bundle into the viewer shell → review.html; viewerShell rebuilds build/viewer when stale
   viewer-stamp.ts  hash of the viewer's sources; the viewer build writes it, render compares it
   worktree.ts      a PR's run happens in a detached worktree of its head in the temp dir (er-pr<n>-<pid>-<stamp>),

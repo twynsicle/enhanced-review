@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
+  UNDISCUSSED_SECTION_ID,
   type NarrativeReview,
 } from '@/domain/review/narrative';
 import { HAND_BEFORE_AFTER, REAL_ARCHITECTURE } from '@/web/test/diagram-fixtures';
@@ -49,6 +50,49 @@ describe('readerSections', () => {
       review({ riskAssessment: { score: 1, summary: 'Minimal', rationale: '', factors: [] } }),
     );
     expect(sections.map((section) => section.chapterNumber)).toEqual([null, null, 1, 2]);
+  });
+
+  it('ends with "Not discussed" only when a chapter left a hunk uncited', () => {
+    const hunk = {
+      id: 'H0001',
+      fileOrder: 1,
+      original: { startLine: 1, lineCount: 1 },
+      modified: { startLine: 1, lineCount: 1 },
+    };
+    const files = [
+      {
+        filename: 'src/a.ts',
+        status: 'modified' as const,
+        additions: 1,
+        deletions: 1,
+        hunks: [hunk],
+      },
+    ];
+
+    const leftOut = readerSections(review({ files }));
+    expect(leftOut.at(-1)).toMatchObject({
+      id: UNDISCUSSED_SECTION_ID,
+      kind: 'undiscussed',
+      label: 'Not discussed',
+      chapterNumber: null,
+    });
+
+    const cited = readerSections(
+      review({
+        files,
+        chapters: [
+          {
+            id: 'ch1',
+            title: 'One',
+            insights: [],
+            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunks: [hunk] }],
+          },
+        ],
+      }),
+    );
+    expect(cited.some((section) => section.kind === 'undiscussed')).toBe(false);
+    // No catalog at all: an older review, which has nothing to report.
+    expect(readerSections(review()).some((section) => section.kind === 'undiscussed')).toBe(false);
   });
 
   it('reports which sections carry a diagram', () => {

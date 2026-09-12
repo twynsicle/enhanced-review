@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { reviewCoverage } from '@/domain/review/coverage';
 import {
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
+  UNDISCUSSED_SECTION_ID,
   type NarrativeChapter,
   type ReviewFile,
   type ReviewRiskAssessment,
@@ -55,6 +57,13 @@ const withRisk: ReaderSection[] = [
 ];
 
 const noop = () => {};
+
+const hunk = (id: string, fileOrder: number) => ({
+  id,
+  fileOrder,
+  original: { startLine: fileOrder * 10, lineCount: 1 },
+  modified: { startLine: fileOrder * 10, lineCount: 2 },
+});
 
 describe('<ChapterSidebar />', () => {
   it('renders summary plus each chapter title', () => {
@@ -250,6 +259,93 @@ describe('<ChapterSidebar />', () => {
     expect(row.hasAttribute('data-skipped')).toBe(true);
     expect(row.getAttribute('title')).toBe('Not reviewed: lockfile, bundle or snapshot');
     expect(row.textContent).toContain('Not reviewed: lockfile, bundle or snapshot');
+  });
+
+  it('marks the files the chapters left out, wholly or in part, and says so for anyone who asks', () => {
+    const files: ReviewFile[] = [
+      {
+        filename: 'src/app/page.tsx',
+        status: 'modified',
+        additions: 3,
+        deletions: 1,
+        hunks: [hunk('H0001', 1), hunk('H0002', 2)],
+      },
+      {
+        filename: 'src/routes.ts',
+        status: 'modified',
+        additions: 1,
+        deletions: 0,
+        hunks: [hunk('H0003', 1)],
+      },
+      {
+        filename: 'src/done.ts',
+        status: 'modified',
+        additions: 1,
+        deletions: 0,
+        hunks: [hunk('H0004', 1)],
+      },
+    ];
+    const cited: NarrativeChapter[] = [
+      {
+        id: 'ch1',
+        title: 'Shape of the change',
+        insights: [],
+        diffChunks: [
+          { filename: 'src/app/page.tsx', language: 'typescript', hunks: [hunk('H0001', 1)] },
+          { filename: 'src/done.ts', language: 'typescript', hunks: [hunk('H0004', 1)] },
+        ],
+      },
+    ];
+    const coverage = reviewCoverage({ prTitle: 't', overviewSummary: '', files, chapters: cited });
+    render(
+      <ChapterSidebar
+        sections={sections}
+        chapters={cited}
+        files={files}
+        coverage={coverage}
+        activeId={SUMMARY_SECTION_ID}
+        reviewTitle="t"
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+
+    const undiscussed = screen.getByText('routes.ts').closest('button')!;
+    expect(undiscussed.getAttribute('title')).toBe('Not discussed in any chapter');
+    expect(undiscussed.textContent).toContain('○');
+
+    const partly = screen.getByText('page.tsx').closest('button')!;
+    expect(partly.getAttribute('title')).toBe('Partly discussed: 1 of 2 hunks are in a chapter');
+    expect(partly.textContent).toContain('◐');
+
+    // A file every hunk of which is in a chapter carries nothing extra.
+    const done = screen.getByText('done.ts').closest('button')!;
+    expect(done.hasAttribute('title')).toBe(false);
+    expect(done.textContent).not.toMatch(/[○◐]/);
+  });
+
+  it('gives the "Not discussed" section a dash where a chapter has its number', () => {
+    render(
+      <ChapterSidebar
+        sections={[
+          ...sections,
+          {
+            id: UNDISCUSSED_SECTION_ID,
+            kind: 'undiscussed',
+            label: 'Not discussed',
+            chapterNumber: null,
+            hasDiagram: false,
+          },
+        ]}
+        chapters={chapters}
+        activeId={SUMMARY_SECTION_ID}
+        reviewTitle="t"
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+    const row = screen.getByText('Not discussed').closest('button')!;
+    expect(row.textContent).toMatch(/^—/);
   });
 
   it('marks the active file row with aria-current', () => {

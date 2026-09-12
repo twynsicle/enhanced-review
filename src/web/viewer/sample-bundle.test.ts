@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { filePair, parseBundle } from '@/domain/review/bundle';
+import { reviewCoverage } from '@/domain/review/coverage';
 import { SAMPLE_BUNDLE, SAMPLE_MISSING_FILE } from './sample-bundle';
 
-const chunks = SAMPLE_BUNDLE.review.chapters.flatMap((chapter) => chapter.diffChunks);
+const coverage = reviewCoverage(SAMPLE_BUNDLE.review);
+/** Every chunk the reader draws: the chapters' own, and the leftovers under "Not discussed". */
+const chunks = [
+  ...SAMPLE_BUNDLE.review.chapters.flatMap((chapter) => chapter.diffChunks),
+  ...coverage.uncitedChunks,
+];
 
 /**
  * A word found on the first line each hunk points at, and nowhere else near it.
@@ -20,6 +26,7 @@ const HUNK_ANCHORS: Record<string, string> = {
   H0006: 'import { isDue',
   H0007: 'Superseded by src/scheduler',
   H0008: '{',
+  H0010: 'export { isDue, type Cadence',
 };
 
 describe('the sample report bundle', () => {
@@ -80,6 +87,13 @@ describe('the sample report bundle', () => {
     expect(skipped.length).toBeGreaterThan(0);
     const cited = new Set(chunks.map((chunk) => chunk.filename));
     expect(skipped.filter((file) => cited.has(file.filename))).toEqual([]);
+  });
+
+  it('leaves one file undiscussed and one discussed in part, so the report shows the backstop', () => {
+    expect(coverage.undiscussed.map((c) => c.file.filename)).toEqual(['src/scheduler/index.ts']);
+    expect(coverage.partly.map((c) => [c.file.filename, c.cited, c.total])).toEqual([
+      ['src/scheduler/cadence.ts', 4, 5],
+    ]);
   });
 
   it('covers every file-side state the reader draws', () => {

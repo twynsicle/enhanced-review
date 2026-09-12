@@ -69,6 +69,13 @@ export const ReviewFileSchema = z.object({
   deletions: z.number().int(),
   /** Set when the file changed but was not reviewed. */
   skipped: ReviewFileSkipReasonSchema.optional(),
+  /**
+   * Every hunk of this file the model was given to cite, so the review
+   * records what was reviewable and not only what the chapters chose —
+   * `coverage.ts` finds the difference. Absent on skipped files and on
+   * reviews stored before the catalog travelled with the file.
+   */
+  hunks: z.array(ResolvedDiffHunkSchema).optional(),
 });
 export type ReviewFile = z.infer<typeof ReviewFileSchema>;
 
@@ -124,10 +131,11 @@ export const NarrativeReviewSchema = z.object({
 export type NarrativeReview = z.infer<typeof NarrativeReviewSchema>;
 
 /**
- * Reserved ids for the reader's two synthesised sections, which precede the
- * first chapter. They are not chapter ids and never come from the model —
- * the double underscores keep them out of the space a generated id can
- * occupy.
+ * Reserved ids for the reader's synthesised sections: two that precede the
+ * first chapter, and one that follows the last when the chapters left hunks
+ * uncited. They are not chapter ids and never come from the model — the
+ * double underscores keep them out of the space a generated id can occupy.
  */
 export const SUMMARY_SECTION_ID = '__summary__';
 export const RISK_SECTION_ID = '__risk__';
+export const UNDISCUSSED_SECTION_ID = '__undiscussed__';

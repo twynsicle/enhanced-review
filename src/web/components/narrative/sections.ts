@@ -1,6 +1,8 @@
+import { reviewCoverage, type ReviewCoverage } from '@/domain/review/coverage';
 import {
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
+  UNDISCUSSED_SECTION_ID,
   type NarrativeReview,
 } from '@/domain/review/narrative';
 
@@ -15,7 +17,7 @@ import {
  * since the summary sat first in the sidebar but last in the arrow-key cycle.
  * One ordered list, derived here, is what both consume instead.
  */
-export type SectionKind = 'summary' | 'risk' | 'chapter';
+export type SectionKind = 'summary' | 'risk' | 'chapter' | 'undiscussed';
 
 export interface ReaderSection {
   id: string;
@@ -28,7 +30,10 @@ export interface ReaderSection {
   hasDiagram: boolean;
 }
 
-export function readerSections(review: NarrativeReview): ReaderSection[] {
+export function readerSections(
+  review: NarrativeReview,
+  coverage: ReviewCoverage = reviewCoverage(review),
+): ReaderSection[] {
   const sections: ReaderSection[] = [
     {
       id: SUMMARY_SECTION_ID,
@@ -59,6 +64,18 @@ export function readerSections(review: NarrativeReview): ReaderSection[] {
       hasDiagram: chapter.diagram !== undefined,
     });
   });
+
+  // Last, and only when there is something to show: the hunks no chapter
+  // cites. Reading to the end of the list is then reading the whole change.
+  if (coverage.uncitedChunks.length > 0) {
+    sections.push({
+      id: UNDISCUSSED_SECTION_ID,
+      kind: 'undiscussed',
+      label: 'Not discussed',
+      chapterNumber: null,
+      hasDiagram: false,
+    });
+  }
 
   return sections;
 }

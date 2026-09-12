@@ -1,4 +1,5 @@
 import { Group, Stack, Text, Title } from '@mantine/core';
+import { citedHunkIds, fileCoverage, uncitedChunk } from '@/domain/review/coverage';
 import type { DiffChunk, NarrativeChapter, ReviewFile } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
 import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
@@ -8,8 +9,10 @@ import { token } from '@/web/theme/tokens';
 /**
  * File-only view: every chunk any chapter selected from one file, so the
  * reader sees the full diff context the reviewer chose independent of the
- * narrative order. A file listed in `files[]` with no chunk anywhere gets a
- * note instead: why it was skipped, or that the reviewer chose no hunks.
+ * narrative order — and, after those, whatever hunks of the file no chapter
+ * cited, under their own label, so the file view is the whole file's change.
+ * A file listed in `files[]` with nothing to show gets a note instead: why it
+ * was skipped, or that there was no text diff.
  */
 export function FileView({
   filename,
@@ -28,6 +31,8 @@ export function FileView({
   }
 
   const fileMeta = files?.find((f) => f.filename === filename) ?? null;
+  const coverage = fileMeta ? fileCoverage(fileMeta, citedHunkIds(chapters)) : null;
+  const leftover = coverage ? uncitedChunk(coverage) : null;
   const slash = filename.lastIndexOf('/');
   const basename = slash === -1 ? filename : filename.slice(slash + 1);
   const dirname = slash === -1 ? '' : filename.slice(0, slash);
@@ -90,19 +95,40 @@ export function FileView({
                     </Text>
                   </span>
                 ))}
+                {leftover && coverage && (
+                  <>
+                    {' '}
+                    ({coverage.cited} of {coverage.total} hunks)
+                  </>
+                )}
               </span>
+            </>
+          )}
+          {chunks.length === 0 && leftover && (
+            <>
+              {dot}
+              <span>Not discussed in any chapter</span>
             </>
           )}
         </Group>
       </Stack>
 
-      {chunks.length > 0 ? (
+      {chunks.length > 0 && (
         <Stack component="section" gap={20}>
           {chunks.map(({ chunk }, i) => (
             <InlineDiffChunk key={`${chunk.filename}-${i}`} chunk={chunk} />
           ))}
         </Stack>
-      ) : (
+      )}
+
+      {leftover && (
+        <Stack component="section" gap={12} aria-label="Hunks not discussed in any chapter">
+          {chunks.length > 0 && <Caption>Not discussed in any chapter</Caption>}
+          <InlineDiffChunk chunk={leftover} />
+        </Stack>
+      )}
+
+      {chunks.length === 0 && !leftover && (
         <Text
           px={16}
           py={20}
@@ -114,11 +140,22 @@ export function FileView({
             background: `color-mix(in oklab, ${token('card')} 60%, transparent)`,
           }}
         >
-          {fileMeta?.skipped
-            ? SKIP_REASON_TEXT[fileMeta.skipped]
-            : 'The reviewer didn’t select any hunks for this file, so there’s no inline diff. It is listed because it changed.'}
+          {emptyNote(fileMeta)}
         </Text>
       )}
     </Stack>
   );
+}
+
+/**
+ * Why there is no diff to show. A file with a catalog and nothing in it had
+ * no text change — a mode flip, say — and the reviewer is not to blame for
+ * that; a file with no catalog comes from an older review, where whether the
+ * reviewer chose hunks is all that can be said.
+ */
+function emptyNote(fileMeta: ReviewFile | null): string {
+  if (fileMeta?.skipped) return SKIP_REASON_TEXT[fileMeta.skipped];
+  if (fileMeta?.hunks)
+    return 'This file changed without a text diff to show. It is listed because it changed.';
+  return 'The reviewer didn’t select any hunks for this file, so there’s no inline diff. It is listed because it changed.';
 }

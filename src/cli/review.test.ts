@@ -7,11 +7,12 @@ import { runGit } from '../domain/review/clone/git-runner.server.ts';
 import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import type { QueryFn } from './claude-run.ts';
 import { Shell } from './git.ts';
-import { review, type ReviewDeps, type ReviewOptions } from './review.ts';
+import { coverageWarning, review, type ReviewDeps, type ReviewOptions } from './review.ts';
 import { RUNS_DIR } from './run-folder.ts';
 import { removeWorktreeSync } from './worktree.ts';
 import { runInterruptCleanups } from './interrupts.ts';
 import * as stubRun from './stub-run.ts';
+import * as terminal from './terminal.ts';
 
 // Real git, many spawns per test — see GIT_TEST_TIMEOUT.
 vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
@@ -92,6 +93,39 @@ function runFolders(): string[] {
   return existsSync(dir) ? readdirSync(dir) : [];
 }
 
+const coveredFile = (name: string, cited: number, total: number) => ({
+  file: { filename: name, status: 'modified' as const, additions: 1, deletions: 0 },
+  cited,
+  total,
+  uncited: [],
+});
+
+describe('coverageWarning', () => {
+  const warning = (undiscussed: number, partly: number) =>
+    coverageWarning({
+      total: 0,
+      cited: 0,
+      undiscussed: Array.from({ length: undiscussed }, (_, i) =>
+        coveredFile(`u${String(i)}`, 0, 1),
+      ),
+      partly: Array.from({ length: partly }, (_, i) => coveredFile(`p${String(i)}`, 1, 2)),
+      byFile: new Map(),
+      uncitedChunks: [],
+    });
+
+  it('reads as one sentence whichever of the two it has to say', () => {
+    expect(warning(13, 2)).toBe(
+      '13 files not discussed in any chapter, and 2 files more only in part; the report shows their hunks under "Not discussed"',
+    );
+    expect(warning(1, 0)).toBe(
+      '1 file not discussed in any chapter; the report shows their hunks under "Not discussed"',
+    );
+    expect(warning(0, 1)).toBe(
+      '1 file only in part; the report shows their hunks under "Not discussed"',
+    );
+  });
+});
+
 describe('er review', () => {
   it('runs every stage with --stub and opens the report', async () => {
     await expect(review(options(), deps)).resolves.toBe(0);
@@ -128,6 +162,40 @@ describe('er review', () => {
     expect(readFileSync(path.join(run, 'events.jsonl'), 'utf8')).toContain('"subtype":"success"');
     expect(readFileSync(path.join(run, 'review.json'), 'utf8')).toContain('The staged change');
     expect(deps.open).toHaveBeenCalledWith(path.join(run, 'review.html'));
+  });
+
+  it('counts the hunks the model cited, and warns about the files it left out', async () => {
+    // MODEL_REVIEW cites nothing, so the one changed file goes undiscussed.
+    const query: QueryFn = () =>
+      (async function* () {
+        yield assistantText(MODEL_REVIEW);
+        yield runResult();
+      })();
+    await review(options({ stub: false, open: false }), { ...deps, claude: { query } });
+
+    expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
+      'parse',
+      '1 chapter, 0 of 1 hunk cited',
+      expect.any(Number),
+    );
+    expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith(
+      '1 file not discussed in any chapter; the report shows their hunks under "Not discussed"',
+    );
+
+    // The stub cites every hunk, so the same change passes without a word.
+    vi.mocked(terminal.warn).mockClear();
+    await review(options({ open: false }), deps);
+    expect(vi.mocked(terminal.stage)).toHaveBeenLastCalledWith(
+      'render',
+      expect.any(String),
+      expect.any(Number),
+    );
+    expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
+      'parse',
+      '1 chapter, 1 of 1 hunk cited',
+      expect.any(Number),
+    );
+    expect(vi.mocked(terminal.warn)).not.toHaveBeenCalled();
   });
 
   it('resumes the newest run from parse without starting another', async () => {
