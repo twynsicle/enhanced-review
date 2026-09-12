@@ -1,14 +1,26 @@
 /*
  * The Monaco container: clipped to the measured content height with the
- * scheme's code background behind the editor while it loads, and the
- * "N hidden lines" centre text made a click target (the rule reaches into
- * Monaco's own DOM, which no prop can express).
+ * scheme's code background behind the editor while it loads. The rules below
+ * it reach into Monaco's own DOM, which no prop can express.
  */
 .editor {
   overflow: hidden;
   background: var(--er-hljs-bg);
 }
 
+/* The "N hidden lines" centre text, made a click target. */
 .editor :global(.diff-hidden-lines .center) {
   cursor: pointer;
+}
+
+/*
+ * The code's inset from the gutter. Monaco starts the first character at the
+ * exact pixel the gutter ends, and its one lever for that space,
+ * `lineDecorationsWidth`, is painted with the gutter background — so widening
+ * it moves the line number inward rather than the code outward. Indenting the
+ * line itself is what separates them; the whole-line diff colour is a separate
+ * overlay and stays flush to the gutter, so the band does not gain a notch.
+ */
+.editor :global(.view-line) {
+  padding-left: 4px;
 }

@@ -128,7 +128,7 @@ function buildModelPath(filename: string, key: string, side: 'original' | 'modif
 }
 
 /**
- * The per-side line numbers for a snippet, and then a relayout.
+ * The per-side gutter for a snippet, and then a relayout.
  *
  * The relayout is the point as much as the numbers are. Both the gutter width
  * and — when the split/unified view flips — the inner editors' heights are
@@ -148,6 +148,14 @@ function applySnippetLayout(
   diffEditor.getOriginalEditor().updateOptions({
     lineNumbers: expanded ? 'on' : makeOffsetLineNumbers(snippet.originalStartLine),
     lineNumbersMinChars: 3,
+    /*
+     * Monaco turns the left side's glyph margin on whenever it renders side by
+     * side, to house a fold-unchanged control this reader never shows, and it
+     * does so while computing that side's options — so the construction option
+     * cannot refuse it and the pane carries an empty strip the right pane does
+     * not. Set here because this runs again on a view flip, when it is re-pinned.
+     */
+    glyphMargin: false,
   });
   diffEditor.getModifiedEditor().updateOptions({
     lineNumbers: expanded ? 'on' : makeOffsetLineNumbers(snippet.modifiedStartLine),
@@ -380,7 +388,17 @@ function SnippetEditor({
           },
       folding: false,
       glyphMargin: false,
-      lineDecorationsWidth: 8,
+      /*
+       * No +/- markers. They draw into `lineDecorationsWidth` as an 11px
+       * codicon, so a gutter narrow enough to read well clips them, and the row
+       * colour already carries added against removed.
+       *
+       * That width is trailing space inside the gutter, painted with it, so it
+       * sets how far the line number sits from the gutter's edge and nothing
+       * else — the code's own inset is in this component's stylesheet.
+       */
+      renderIndicators: false,
+      lineDecorationsWidth: 6,
     }),
     [expanded, view],
   );
