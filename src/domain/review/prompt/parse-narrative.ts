@@ -147,6 +147,63 @@ function sanitizeChapter(raw: Rec, index: number, hunkIndex: DiffHunkIndex | und
   };
 }
 
+/** A real backslash, kept out of the source the way `terminal.ts` does it. */
+const BACKSLASH = String.fromCharCode(92);
+
+/**
+ * The one repair worth making to the model's JSON: a quote inside a string
+ * that it forgot to escape (`a "no hunks" message`). On a long answer that is
+ * the commonest way the JSON goes wrong, and it used to throw away a whole
+ * review, so a failed parse gets one more attempt with those quotes escaped.
+ *
+ * Valid JSON passes through unchanged, because this only rewrites a quote
+ * that is *not* followed by the punctuation a string may legally end with.
+ * That is also the limit of it: a literal quote sitting directly before a
+ * comma (`he said "hi", then left`) still reads as the end of the string.
+ */
+export function escapeStrayQuotes(json: string): string {
+  const out: string[] = [];
+  let inString = false;
+
+  for (let i = 0; i < json.length; i += 1) {
+    const char = json[i]!;
+    if (!inString) {
+      if (char === '"') inString = true;
+      out.push(char);
+      continue;
+    }
+    if (char === BACKSLASH) {
+      // An escape sequence: whatever follows it belongs to the string.
+      out.push(char, json[i + 1] ?? '');
+      i += 1;
+      continue;
+    }
+    if (char === '"') {
+      if (endsString(json, i + 1)) inString = false;
+      else out.push(BACKSLASH);
+    }
+    out.push(char);
+  }
+  return out.join('');
+}
+
+/** Whether a string ends here: the next thing is punctuation JSON allows after one. */
+function endsString(json: string, from: number): boolean {
+  for (let i = from; i < json.length; i += 1) {
+    const char = json[i]!;
+    if (
+      char === ' ' ||
+      char === String.fromCharCode(10) ||
+      char === String.fromCharCode(13) ||
+      char === String.fromCharCode(9)
+    ) {
+      continue;
+    }
+    return char === ',' || char === ':' || char === '}' || char === ']';
+  }
+  return true;
+}
+
 export function parseNarrativeReview(text: string, hunkIndex?: DiffHunkIndex): ParseResult {
   const startTag = '<narrative_review>';
   const endTag = '</narrative_review>';
@@ -158,11 +215,16 @@ export function parseNarrativeReview(text: string, hunkIndex?: DiffHunkIndex): P
     return { ok: false, error: 'Response did not contain expected <narrative_review> tags' };
   }
 
+  const body = text.slice(startIdx + startTag.length, endIdx).trim();
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text.slice(startIdx + startTag.length, endIdx).trim());
+    parsed = JSON.parse(body);
   } catch {
-    return { ok: false, error: 'Failed to parse narrative review JSON from response' };
+    try {
+      parsed = JSON.parse(escapeStrayQuotes(body));
+    } catch {
+      return { ok: false, error: 'Failed to parse narrative review JSON from response' };
+    }
   }
 
   if (

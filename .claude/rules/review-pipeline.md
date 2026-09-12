@@ -36,7 +36,8 @@ src/domain/
                      rename's old path and the binary flag, for the local CLI)
     prompt/          pure: ai-file-filter, diff-hunk-catalog (H0001… ids), narrative-prompt (system + user, truncation; NARRATIVE_SYSTEM_PROMPT,
                      formatFileList and formatHunkCatalog are shared with the local CLI's prompt),
-                     parse-narrative (lenient sanitising, validated by NarrativeReviewSchema),
+                     parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; a failed JSON.parse is
+                     retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string),
                      parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own
                      so a bad picture cannot fail the review; grounding checked against the hunk catalog), types.ts (PrData),
                      instructions.ts (the review instructions and output schema, shared with the local CLI, plus one

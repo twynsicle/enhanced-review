@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildDiffHunkIndex } from './diff-hunk-catalog.ts';
-import { parseNarrativeReview } from './parse-narrative.ts';
+import { escapeStrayQuotes, parseNarrativeReview } from './parse-narrative.ts';
 
 function wrap(payload: unknown): string {
   return `Sure, here you go:\n<narrative_review>${JSON.stringify(payload)}</narrative_review>\nDone.`;
@@ -268,5 +268,40 @@ describe('parseNarrativeReview', () => {
     expect(result.ok).toBe(true);
     expect(result.ok && result.data.overviewDiagram).toBeUndefined();
     expect(result.ok && result.data.chapters).toHaveLength(1);
+  });
+});
+
+/** One double quote, built rather than escaped, so it survives any tooling. */
+const DQ = String.fromCharCode(34);
+
+describe('a quote the model forgot to escape', () => {
+  // What a real review sent, and what it used to cost: one unescaped pair
+  // inside a 37 KB answer, and the whole run thrown away.
+  const STRAY = `{ "prTitle": "T", "overviewSummary": "a ${DQ}no hunks${DQ} message", "chapters": [] }`;
+
+  it('is escaped, so the review survives', () => {
+    const result = parseNarrativeReview(`<narrative_review>${STRAY}</narrative_review>`);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.data.overviewSummary).toBe(`a ${DQ}no hunks${DQ} message`);
+  });
+
+  it('leaves valid JSON exactly as it was', () => {
+    const valid = JSON.stringify({
+      prTitle: 'T',
+      overviewSummary: `escaped ${DQ}quotes${DQ}, a brace } and a comma, inside`,
+      chapters: [{ id: 'a', title: 'A', insights: [], diffChunks: [] }],
+    });
+
+    expect(escapeStrayQuotes(valid)).toBe(valid);
+  });
+
+  it('still fails cleanly on what it cannot repair', () => {
+    // A stray quote directly before a comma reads as the end of the string.
+    const beyond = `{ "prTitle": "T", "overviewSummary": "he said ${DQ}hi${DQ}, then left", "chapters": [] }`;
+    const result = parseNarrativeReview(`<narrative_review>${beyond}</narrative_review>`);
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toContain('Failed to parse');
   });
 });

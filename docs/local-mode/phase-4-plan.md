@@ -227,8 +227,15 @@ chapters cite catalog hunk ids and name no file outside the change
 from the run folder; the gate's four real commands are now allowed, and
 `npm run check` is green.
 
-**Still owed, and needing a paid run each:** a reading of the cache share on
-the next run, which decides whether cost work is needed at all; a review of a specimen PR and
+A second real run (27 turns, $1.87, 1.1M tokens in, **93% cached**) settled
+the cost question: caching is working, so the bill is what an agentic review
+of 88 files genuinely costs, not waste. It also failed to parse — the model
+wrote `a "no hunks" message` inside a JSON string without escaping the
+quotes, and two missing backslashes threw away the whole answer. The lenient
+parser now retries a failed parse with those quotes escaped, which recovered
+that run through `--from parse` and fixes the hosted path as well.
+
+**Still owed, and needing a paid run each:** a review of a specimen PR and
 of a roughly 60-file PR; a run that shows `Bash` actually used for history
 with no denials; and Phase 3's deferred Ctrl+C check, which a 7-minute run
 now makes easy to hit.
