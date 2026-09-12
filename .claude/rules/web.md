@@ -46,7 +46,12 @@ src/web/
                      sections.ts (readerSections: the one ordered list of sections — summary, risk when there is an
                      assessment, then the chapters — that the sidebar renders and the keyboard walks),
                      chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, a row carrying
-                     a diagram is marked, a skipped file is dimmed), chapter-card, summary-card (title/meta, overview
+                     a diagram is marked, a skipped file is dimmed; its Files header carries the flat ⇄ tree toggle
+                     for the changed-file list, one shared row component under both views, the tree drawn as nested
+                     lists with aria-expanded on the directory buttons — a disclosure list, not an ARIA tree, since
+                     there is no roving tabindex — and the fold state in component state),
+                     file-tree.ts (pure, no rendering: ReviewFile[] → the directory tree, single-child directory
+                     chains collapsed into one row), chapter-card, summary-card (title/meta, overview
                      diagram, AI overview, author's description collapsed last), risk-card, file-view (a file's chunks,
                      or why it has none), skipped-file.ts (the copy for ReviewFile.skipped reasons), insight-callout,
                      article.module.css (the reading measure + the diff bleed lane),
@@ -76,8 +81,9 @@ src/web/
                      (`react-router build` wipes build/, so it builds second); Monaco still loads from the CDN
   stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth: full ⇄ wide), diff-view.ts (`er-diff-view`,
                      bindDiffView: split ⇄ unified), diff-wrap.ts (`er-diff-wrap`, bindDiffWrap: off ⇄ on, spelled the
-                     way Monaco spells diffWordWrap), all three on raw-preference.ts (one word, not JSON, so the
-                     pre-paint script can read it); last-target.ts (`er:last-target`, per user).
+                     way Monaco spells diffWordWrap), file-list-view.ts (`er-file-list`, bindFileListView: flat ⇄ tree;
+                     bound from the sidebar's own toggle, not the topbar's), all four on raw-preference.ts (one word,
+                     not JSON, so the pre-paint script can read it); last-target.ts (`er:last-target`, per user).
                      diff-view.ts also holds useReaderColumn, the only store here that is never persisted: the column
                      width chapter-reader measures, with selectSpaceLimited over it — under SIDE_BY_SIDE_MIN_WIDTH the
                      toggle disables and inline-diff-chunk forces unified. A per-frame measurement is kept off the
