@@ -1,7 +1,9 @@
 import { VisuallyHidden } from '@mantine/core';
 import {
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -22,6 +24,7 @@ import { RiskCard } from '@/web/components/narrative/risk-card';
 import { findSection, readerSections } from '@/web/components/narrative/sections';
 import { SummaryCard } from '@/web/components/narrative/summary-card';
 import { useNarrativeKeyboard } from '@/web/components/narrative/use-narrative-keyboard';
+import { useDiffView } from '@/web/stores/diff-view';
 import classes from './chapter-reader.module.css';
 
 const DEFAULT_SIDEBAR_WIDTH = 256;
@@ -30,6 +33,33 @@ const MAX_SIDEBAR_WIDTH = 420;
 
 function clampSidebarWidth(width: number): number {
   return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, width));
+}
+
+/**
+ * Publish the article column's width for as long as the reader is on screen.
+ *
+ * A `data-bleed` diff spans this column exactly, so this element's width is the
+ * width every Monaco editor gets, and it is the one number that decides whether
+ * a side-by-side diff fits. Measuring here rather than in the diffs themselves
+ * means the answer holds on a section that happens to have no diff in it, and
+ * that one observer covers however many the section does have. It is cleared on
+ * unmount, so a page without a reader leaves the preference alone.
+ */
+function useReportedColumnWidth(ref: React.RefObject<HTMLElement | null>): void {
+  const setColumnWidth = useDiffView((s) => s.setColumnWidth);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setColumnWidth(entry.contentRect.width);
+    });
+    observer.observe(element);
+    setColumnWidth(element.getBoundingClientRect().width);
+    return () => {
+      observer.disconnect();
+      setColumnWidth(null);
+    };
+  }, [ref, setColumnWidth]);
 }
 
 function fileExists(filename: string, review: NarrativeReview): boolean {
@@ -59,6 +89,8 @@ export interface ChapterReaderProps {
 export function ChapterReader({ review, meta, initialActiveId, actions }: ChapterReaderProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const mainRef = useRef<HTMLElement | null>(null);
+  useReportedColumnWidth(mainRef);
   const sections = useMemo(() => readerSections(review), [review]);
   const urlActive = searchParams.get('ch');
   const urlFile = searchParams.get('file');
@@ -153,7 +185,7 @@ export function ChapterReader({ review, meta, initialActiveId, actions }: Chapte
         </button>
       </aside>
 
-      <section aria-live="polite" className={classes.main}>
+      <section aria-live="polite" className={classes.main} ref={mainRef}>
         {activeFile ? (
           <FileView filename={activeFile} chapters={review.chapters} files={review.files} />
         ) : activeId === RISK_SECTION_ID && review.riskAssessment ? (

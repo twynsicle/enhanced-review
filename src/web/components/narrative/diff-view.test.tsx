@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/domain/review/bundle';
 import type { DiffChunk } from '@/domain/review/narrative';
 import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
-import { useDiffView } from '@/web/stores/diff-view';
+import { DiffViewToggle } from '@/web/components/topbar/diff-view-toggle';
+import { selectSpaceLimited, SIDE_BY_SIDE_MIN_WIDTH, useDiffView } from '@/web/stores/diff-view';
 import { render, screen, waitFor } from '@/web/test/render';
 import { InlineDiffChunk } from './inline-diff-chunk';
 
@@ -72,7 +73,7 @@ describe('diff view preference', () => {
   beforeEach(() => {
     lastOptions.current = null;
     window.localStorage.clear();
-    useDiffView.setState({ view: 'split' });
+    useDiffView.setState({ view: 'split', columnWidth: null });
   });
 
   it('sets the two revisions side by side by default', async () => {
@@ -86,14 +87,53 @@ describe('diff view preference', () => {
     expect(lastOptions.current?.renderSideBySide).toBe(false);
   });
 
+  it('stacks them whatever the preference once the column is too narrow', async () => {
+    useDiffView.setState({ view: 'split', columnWidth: SIDE_BY_SIDE_MIN_WIDTH - 1 });
+    await renderDiff();
+    expect(lastOptions.current?.renderSideBySide).toBe(false);
+  });
+
   /*
-   * Two panes of code in less than 900px is not a diff anyone can read, so the
-   * editor's own collapse to the stacked view stays switched on even when the
-   * reader has asked for side by side.
+   * The reader's own measurement has already forced the stacked view above;
+   * the editor's identical rule is the backstop for a diff mounted somewhere
+   * that measures nothing, and the two share a threshold so they cannot part
+   * company.
    */
-  it('leaves the editor free to collapse a side-by-side diff in a narrow window', async () => {
+  it('leaves the editor its own collapse, on the same threshold', async () => {
     await renderDiff();
     expect(lastOptions.current?.useInlineViewWhenSpaceIsLimited).toBe(true);
-    expect(lastOptions.current?.renderSideBySideInlineBreakpoint).toBe(900);
+    expect(lastOptions.current?.renderSideBySideInlineBreakpoint).toBe(SIDE_BY_SIDE_MIN_WIDTH);
+  });
+});
+
+describe('the toggle in a column too narrow for two panes', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useDiffView.setState({ view: 'split', columnWidth: null });
+  });
+
+  it('reads as stacked and stops offering a choice that would do nothing', () => {
+    useDiffView.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH - 1 });
+    render(<DiffViewToggle />);
+    const button = screen.getByRole('button');
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleName(/too narrow/i);
+  });
+
+  it('offers it again as soon as there is room, with the preference intact', () => {
+    useDiffView.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH });
+    render(<DiffViewToggle />);
+    const button = screen.getByRole('button');
+    expect(button).toBeEnabled();
+    expect(button).toHaveAccessibleName('Stack diffs into one column');
+    expect(useDiffView.getState().view).toBe('split');
+  });
+
+  it('leaves the preference alone while it cannot be honoured', () => {
+    useDiffView.setState({ view: 'unified', columnWidth: null });
+    expect(selectSpaceLimited(useDiffView.getState())).toBe(false);
+    useDiffView.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH - 1 });
+    expect(selectSpaceLimited(useDiffView.getState())).toBe(true);
+    expect(useDiffView.getState().view).toBe('unified');
   });
 });

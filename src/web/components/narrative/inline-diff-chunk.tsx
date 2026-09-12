@@ -11,7 +11,12 @@ import { detectLanguage } from '@/domain/review/language-map';
 import type { DiffChunk } from '@/domain/review/narrative';
 import { useFilePair } from '@/web/components/narrative/file-source';
 import { useHydrated } from '@/web/lib/use-hydrated';
-import { useDiffView, type DiffView } from '@/web/stores/diff-view';
+import {
+  selectSpaceLimited,
+  SIDE_BY_SIDE_MIN_WIDTH,
+  useDiffView,
+  type DiffView,
+} from '@/web/stores/diff-view';
 import { token } from '@/web/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
 
@@ -254,14 +259,13 @@ function SnippetEditor({
       readOnly: true,
       renderSideBySide: view === 'split',
       /*
-       * Monaco's own fallback to the inline view below this width is left on
-       * for `split`: two panes of code in less than 900px is not a diff anyone
-       * can read, so collapsing is the right answer even when the reader has
-       * asked for side by side. Their choice still governs everywhere it can
-       * be honoured.
+       * The reader's own measurement has already forced `view` to unified in a
+       * column this narrow, so this agrees rather than decides — it is the
+       * backstop for a diff mounted somewhere that measures nothing, and it
+       * reads the same threshold so the two can never part company.
        */
       useInlineViewWhenSpaceIsLimited: true,
-      renderSideBySideInlineBreakpoint: 900,
+      renderSideBySideInlineBreakpoint: SIDE_BY_SIDE_MIN_WIDTH,
       minimap: { enabled: false },
       renderOverviewRuler: false,
       overviewRulerLanes: 0,
@@ -322,7 +326,10 @@ function SnippetEditor({
  */
 export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
   const pair = useFilePair(chunk.filename);
-  const view = useDiffView((s) => s.view);
+  const stored = useDiffView((s) => s.view);
+  const spaceLimited = useDiffView(selectSpaceLimited);
+  // Too narrow for two panes is not a preference the column can honour.
+  const view: DiffView = spaceLimited ? 'unified' : stored;
   const [expanded, setExpanded] = useState(false);
   const state = useMemo(() => resolveFileState(pair, chunk.filename), [pair, chunk.filename]);
 

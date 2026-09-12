@@ -21,10 +21,37 @@ export type DiffView = 'split' | 'unified';
 
 export const DIFF_VIEW_KEY = 'er-diff-view';
 
+/**
+ * The narrowest column worth setting two revisions side by side in. Below it
+ * the panes are too thin to read a line of code in either, so the diff is
+ * stacked whatever the reader has chosen — and the choice stops being offered
+ * rather than silently doing nothing.
+ *
+ * It is not a rare case: a 1248px window with the sidebar open leaves the
+ * column at 881px, so an ordinary laptop is already under it.
+ */
+export const SIDE_BY_SIDE_MIN_WIDTH = 900;
+
 interface DiffViewState {
   view: DiffView;
+  /**
+   * The reader's article column, measured — the width every diff in it gets.
+   * `null` until something measures it, which is the honest answer before the
+   * reader mounts and the one that leaves the preference usable.
+   */
+  columnWidth: number | null;
   toggle: () => void;
+  setColumnWidth: (width: number | null) => void;
 }
+
+/**
+ * Whether the column is too narrow to honour `split`. One measurement answers
+ * it for the toggle's icon, the toggle's disabled state and the editors'
+ * `renderSideBySide` alike, so those three cannot disagree about what is on
+ * screen — which they would if each decided for itself.
+ */
+export const selectSpaceLimited = (state: DiffViewState): boolean =>
+  state.columnWidth !== null && state.columnWidth < SIDE_BY_SIDE_MIN_WIDTH;
 
 const rawStorage = rawPreferenceStorage<Pick<DiffViewState, 'view'>>(
   (stored) => ({ view: stored === 'unified' ? 'unified' : 'split' }),
@@ -35,7 +62,9 @@ export const useDiffView = create<DiffViewState>()(
   persist(
     (set) => ({
       view: 'split',
+      columnWidth: null,
       toggle: () => set((state) => ({ view: state.view === 'split' ? 'unified' : 'split' })),
+      setColumnWidth: (columnWidth) => set({ columnWidth }),
     }),
     {
       name: DIFF_VIEW_KEY,
