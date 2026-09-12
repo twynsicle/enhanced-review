@@ -114,4 +114,45 @@ describe('buildNarrativePrompt', () => {
     expect(result.user).toContain('Note: Some large file diffs were truncated.');
     expect(result.user.length).toBeLessThan(big.length);
   });
+
+  it('numbers hunks over the untruncated diff and catalogues only what survives', () => {
+    // A patch whose middle is trimmed away keeps the ids of the hunks either
+    // side of the cut: numbering after truncation would renumber the tail, and
+    // the ids stored on the review would then mean something else to the
+    // coverage backstop than they did to the model.
+    const hunks = 200;
+    const body = Array.from({ length: hunks }, (_, h) =>
+      [
+        `@@ -${String(h * 60 + 1)},60 +${String(h * 60 + 1)},60 @@`,
+        ...Array.from(
+          { length: 60 },
+          (__, i) => `+hunk ${String(h)} line ${String(i)} ${'x'.repeat(40)}`,
+        ),
+      ].join('\n'),
+    ).join('\n');
+    const diff = [
+      'diff --git a/src/big.ts b/src/big.ts',
+      '--- a/src/big.ts',
+      '+++ b/src/big.ts',
+      body,
+    ].join('\n');
+
+    const result = buildNarrativePrompt(
+      prData({
+        files: [{ filename: 'src/big.ts', status: 'modified', additions: 12_000, deletions: 0 }],
+        diff,
+      }),
+    );
+
+    expect(result.wasTruncated).toBe(true);
+    expect(result.hunkIndex.hunks).toHaveLength(hunks);
+    expect(result.hunkIndex.hunks.at(-1)?.id).toBe('H0200');
+    const catalog = result.user.slice(
+      result.user.indexOf('## Changed Hunks'),
+      result.user.indexOf('## Full Diff'),
+    );
+    expect(catalog).toContain('H0001');
+    expect(catalog).toContain('H0200');
+    expect(catalog).not.toContain('H0100');
+  });
 });

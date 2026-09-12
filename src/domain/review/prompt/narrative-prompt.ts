@@ -9,6 +9,14 @@ import type { PrData } from './types.ts';
  * filtered (lockfiles etc.), truncated per file above a token budget, and
  * indexed into hunk ids the model must cite; the returned `hunkIndex` lets
  * `parseNarrativeReview` resolve those ids back to line spans.
+ *
+ * The index is numbered over the whole filtered diff, before truncation, and
+ * the catalog in the prompt lists only the hunks the truncated diff still
+ * shows. Numbering after truncation instead would renumber every hunk that
+ * follows a trimmed one, so the ids stored on the review would mean something
+ * different from the ids the coverage backstop measures against; listing the
+ * whole catalog instead would grow the prompt without bound on exactly the
+ * changes truncation exists to contain.
  */
 const MAX_DIFF_TOKENS = 80_000;
 const CHARS_PER_TOKEN = 4;
@@ -78,6 +86,19 @@ export function formatFileList(files: readonly ReviewFile[]): string {
     .join('\n');
 }
 
+/**
+ * The subset of the catalog a truncated diff still carries. Matched on the
+ * file's name and the hunk's own header rather than on position: truncation
+ * drops lines from the middle of a patch, so the hunks after it keep their
+ * headers but no longer their place in the file.
+ */
+function hunksShownIn(diff: string, hunks: readonly DiffHunk[]): DiffHunk[] {
+  const shown = new Set(buildDiffHunkIndex(diff).hunks.map(hunkKey));
+  return hunks.filter((hunk) => shown.has(hunkKey(hunk)));
+}
+
+const hunkKey = (hunk: DiffHunk) => `${hunk.filename}\u0000${hunk.header}`;
+
 /** The Changed Hunks list the model cites ids from. */
 export function formatHunkCatalog(hunks: readonly DiffHunk[]): string {
   if (hunks.length === 0) return '  (No patch hunks were detected in the provided diff.)';
@@ -104,11 +125,12 @@ export function buildNarrativePrompt(
 
   const fileList = formatFileList(filteredFiles);
 
-  const { result: diff, wasTruncated } = truncateDiff(
-    filterDiffPatches(prData.diff, shouldExclude),
+  const filtered = filterDiffPatches(prData.diff, shouldExclude);
+  const hunkIndex = buildDiffHunkIndex(filtered);
+  const { result: diff, wasTruncated } = truncateDiff(filtered);
+  const hunkCatalog = formatHunkCatalog(
+    wasTruncated ? hunksShownIn(diff, hunkIndex.hunks) : hunkIndex.hunks,
   );
-  const hunkIndex = buildDiffHunkIndex(diff);
-  const hunkCatalog = formatHunkCatalog(hunkIndex.hunks);
 
   let user = `# Pull Request: ${prData.title}
 

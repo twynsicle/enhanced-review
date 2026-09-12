@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fileCoverage, reviewCoverage, uncitedChunk, withFileHunks } from './coverage.ts';
+import { describeCoverageGap, fileCoverage, reviewCoverage, withFileHunks } from './coverage.ts';
 import type { NarrativeReview, ResolvedDiffHunk, ReviewFile } from './narrative.ts';
 import type { DiffHunk } from './prompt/diff-hunk-catalog.ts';
 
@@ -73,17 +73,17 @@ describe('withFileHunks', () => {
 });
 
 describe('reviewCoverage', () => {
-  it('counts hunks, not files, and sorts a file into undiscussed or partly', () => {
+  it('counts hunks, not files, and lists every file with leftovers by name', () => {
     const coverage = reviewCoverage(
       review({ 'src/a.ts': ['H0001', 'H0003'], 'src/b.ts': ['H0004'] }),
     );
     expect(coverage.total).toBe(5);
     expect(coverage.cited).toBe(3);
-    expect(coverage.undiscussed.map((c) => c.file.filename)).toEqual(['docs/c.md']);
-    expect(coverage.partly.map((c) => [c.file.filename, c.cited, c.total])).toEqual([
+    expect(coverage.uncited.map((c) => [c.file.filename, c.cited, c.total])).toEqual([
+      ['docs/c.md', 0, 1],
       ['src/a.ts', 2, 3],
     ]);
-    // A file with nothing to cite is neither: there was nothing to leave out.
+    // A file with nothing to cite is not listed: there was nothing to leave out.
     expect(coverage.byFile.get('src/mode-only.sh')).toMatchObject({ cited: 0, total: 0 });
     expect(coverage.byFile.has('yarn.lock')).toBe(false);
   });
@@ -91,7 +91,7 @@ describe('reviewCoverage', () => {
   it('turns the uncited hunks into one chunk per file, by filename, with a detected language', () => {
     const coverage = reviewCoverage(review({ 'src/a.ts': ['H0002'] }));
     expect(
-      coverage.uncitedChunks.map((chunk) => [
+      coverage.uncited.map(({ chunk }) => [
         chunk.filename,
         chunk.language,
         chunk.hunks.map((hunk) => hunk.id),
@@ -111,19 +111,13 @@ describe('reviewCoverage', () => {
         'docs/c.md': ['H0005'],
       }),
     );
-    expect(coverage).toMatchObject({
-      total: 5,
-      cited: 5,
-      undiscussed: [],
-      partly: [],
-      uncitedChunks: [],
-    });
+    expect(coverage).toMatchObject({ total: 5, cited: 5, uncited: [] });
   });
 
   it('reports nothing for a review stored without a catalog', () => {
     // An older review's files carry no hunks: silence, not "everything is uncited".
     const coverage = reviewCoverage({ ...review({}), files: FILES });
-    expect(coverage).toMatchObject({ total: 0, cited: 0, undiscussed: [], partly: [] });
+    expect(coverage).toMatchObject({ total: 0, cited: 0, uncited: [] });
     expect(coverage.byFile.size).toBe(0);
     expect(fileCoverage(FILES[0]!, new Set())).toBeNull();
   });
@@ -162,9 +156,29 @@ describe('reviewCoverage', () => {
   });
 });
 
-describe('uncitedChunk', () => {
+describe('FileCoverage.chunk', () => {
   it('is null once a file is fully discussed', () => {
     const coverage = fileCoverage(withFileHunks(FILES, HUNKS)[1]!, new Set(['H0004']));
-    expect(coverage && uncitedChunk(coverage)).toBeNull();
+    expect(coverage?.chunk).toBeNull();
+  });
+});
+
+describe('describeCoverageGap', () => {
+  it('names both halves of the gap, or only the half there is', () => {
+    expect(describeCoverageGap(reviewCoverage(review({ 'src/a.ts': ['H0001'] })))).toBe(
+      '2 files not discussed in any chapter, and 1 file discussed only in part',
+    );
+    expect(
+      describeCoverageGap(
+        reviewCoverage(review({ 'src/a.ts': ['H0001', 'H0002', 'H0003'], 'docs/c.md': ['H0005'] })),
+      ),
+    ).toBe('1 file not discussed in any chapter');
+    expect(
+      describeCoverageGap(
+        reviewCoverage(
+          review({ 'src/a.ts': ['H0001'], 'src/b.ts': ['H0004'], 'docs/c.md': ['H0005'] }),
+        ),
+      ),
+    ).toBe('1 file discussed only in part');
   });
 });

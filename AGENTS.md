@@ -48,7 +48,7 @@ prisma/
 prisma.config.ts       Prisma CLI config; loads .env, datasource url from DATABASE_URL
 vite.viewer.config.ts  the local report: src/web/viewer/ → one self-contained build/viewer/viewer.html
 src/
-  common/              logger.ts (pino), time-ago.ts — imports only config from src/
+  common/              logger.ts (pino), time-ago.ts, plural.ts — imports only config from src/
   config/              env.ts — Zod-parsed process.env, the only process.env reader; load-env.ts — loads .env for native entry points;
                        host-env.ts — hostEnv()/pickHostEnv() for code that spawns subprocesses
   db/                  client.ts (PrismaClient singleton, pingDb), users.ts, sessions.ts,

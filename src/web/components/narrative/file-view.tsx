@@ -1,5 +1,5 @@
 import { Group, Stack, Text, Title } from '@mantine/core';
-import { citedHunkIds, fileCoverage, uncitedChunk } from '@/domain/review/coverage';
+import { chaptersCiting, type FileCoverage } from '@/domain/review/coverage';
 import type { DiffChunk, NarrativeChapter, ReviewFile } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
 import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
@@ -12,27 +12,33 @@ import { token } from '@/web/theme/tokens';
  * narrative order — and, after those, whatever hunks of the file no chapter
  * cited, under their own label, so the file view is the whole file's change.
  * A file listed in `files[]` with nothing to show gets a note instead: why it
- * was skipped, or that there was no text diff.
+ * was skipped, or why there is no diff.
+ *
+ * `coverage` is the reader's, computed once over the whole review rather than
+ * recomputed per file here: the two could disagree, and the sidebar's mark
+ * and this header would then be counting different things.
  */
 export function FileView({
   filename,
   chapters,
   files,
+  coverage,
 }: {
   filename: string;
   chapters: readonly NarrativeChapter[];
   files?: readonly ReviewFile[];
+  coverage?: FileCoverage | undefined;
 }) {
-  const chunks: { chunk: DiffChunk; chapter: NarrativeChapter }[] = [];
+  const chunks: DiffChunk[] = [];
   for (const chapter of chapters) {
     for (const chunk of chapter.diffChunks) {
-      if (chunk.filename === filename) chunks.push({ chunk, chapter });
+      if (chunk.filename === filename) chunks.push(chunk);
     }
   }
+  const discussedIn = chaptersCiting(filename, chapters);
 
   const fileMeta = files?.find((f) => f.filename === filename) ?? null;
-  const coverage = fileMeta ? fileCoverage(fileMeta, citedHunkIds(chapters)) : null;
-  const leftover = coverage ? uncitedChunk(coverage) : null;
+  const leftover = coverage?.chunk ?? null;
   const slash = filename.lastIndexOf('/');
   const basename = slash === -1 ? filename : filename.slice(slash + 1);
   const dirname = slash === -1 ? '' : filename.slice(0, slash);
@@ -82,16 +88,16 @@ export function FileView({
               </span>
             </>
           )}
-          {chunks.length > 0 && (
+          {discussedIn.length > 0 && (
             <>
               {dot}
               <span>
                 Discussed in{' '}
-                {chunks.map((c, i) => (
-                  <span key={c.chapter.id}>
+                {discussedIn.map((chapter, i) => (
+                  <span key={chapter.id}>
                     {i > 0 && ', '}
                     <Text component="span" fz="inherit" c={token('foreground')}>
-                      {c.chapter.title}
+                      {chapter.title}
                     </Text>
                   </span>
                 ))}
@@ -115,7 +121,7 @@ export function FileView({
 
       {chunks.length > 0 && (
         <Stack component="section" gap={20}>
-          {chunks.map(({ chunk }, i) => (
+          {chunks.map((chunk, i) => (
             <InlineDiffChunk key={`${chunk.filename}-${i}`} chunk={chunk} />
           ))}
         </Stack>
@@ -148,14 +154,19 @@ export function FileView({
 }
 
 /**
- * Why there is no diff to show. A file with a catalog and nothing in it had
- * no text change — a mode flip, say — and the reviewer is not to blame for
- * that; a file with no catalog comes from an older review, where whether the
- * reviewer chose hunks is all that can be said.
+ * Why there is no diff to show. The counts decide between the two ways a
+ * catalogued file can arrive with an empty catalog: no text changed at all —
+ * a mode flip, a rename — or the diff the reviewer was given did not carry
+ * this file's patch. Claiming "no text diff" over a file with a line count
+ * beside it on the same page is the one thing this must not do. A file with
+ * no catalog comes from an older review, where whether the reviewer chose
+ * hunks is all that can be said.
  */
 function emptyNote(fileMeta: ReviewFile | null): string {
   if (fileMeta?.skipped) return SKIP_REASON_TEXT[fileMeta.skipped];
-  if (fileMeta?.hunks)
-    return 'This file changed without a text diff to show. It is listed because it changed.';
-  return 'The reviewer didn’t select any hunks for this file, so there’s no inline diff. It is listed because it changed.';
+  if (!fileMeta?.hunks)
+    return 'The reviewer didn’t select any hunks for this file, so there’s no inline diff. It is listed because it changed.';
+  if (fileMeta.additions + fileMeta.deletions > 0)
+    return 'This file’s patch wasn’t among the hunks the reviewer was given, so there’s no inline diff. It is listed because it changed.';
+  return 'This file changed without a text diff to show. It is listed because it changed.';
 }

@@ -26,8 +26,10 @@ src/domain/
                      reviewable and not only what was cited; SUMMARY_SECTION_ID / RISK_SECTION_ID /
                      UNDISCUSSED_SECTION_ID, the reader's synthesised sections),
                      coverage.ts (the backstop for the instruction that the model cite every hunk: withFileHunks
-                     attaches the catalog at parse time, reviewCoverage subtracts what the chapters cite — per hunk,
-                     reported per file as undiscussed / partly, plus one DiffChunk per file of the leftovers; a file
+                     attaches the catalog to the files — the local CLI at parse, the hosted runner at finalize;
+                     reviewCoverage subtracts what the chapters cite, per hunk, and returns `uncited`, one
+                     FileCoverage per file with leftovers (its own DiffChunk on it), plus byFile, chaptersCiting
+                     and describeCoverageGap, the one sentence the CLI and the reader's card share; a file
                      without a catalog reports nothing),
                      diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
@@ -40,7 +42,10 @@ src/domain/
     clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
                      verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists; the *Details/parseChangedFiles variants keep a
                      rename's old path and the binary flag, for the local CLI)
-    prompt/          pure: ai-file-filter, diff-hunk-catalog (H0001… ids), narrative-prompt (system + user, truncation; NARRATIVE_SYSTEM_PROMPT,
+    prompt/          pure: ai-file-filter (isExcludedFromAI + promptSkipReason, the ReviewFileSkipReason the hosted
+                     runner stamps on a filtered file), diff-hunk-catalog (H0001… ids), narrative-prompt (system + user;
+                     hunk ids are numbered over the whole filtered diff and the catalog lists only what survives
+                     truncation, so ids mean the same thing to the coverage backstop; NARRATIVE_SYSTEM_PROMPT,
                      formatFileList and formatHunkCatalog are shared with the local CLI's prompt),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; a failed JSON.parse is
                      retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string),
@@ -82,7 +87,8 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t
   (`seq` from 0, inserts fire-and-forget, drained before finalize).
   `finalizeDone` writes the `reviews` row and `running → done` in one
   transaction, the changed files carrying their hunks when the executor
-  returned a catalog; the `job done` log line reports the hunk coverage.
+  returned a catalog and `skipped` when the prompt's own filter left them out;
+  the `job done` log line reports the hunk coverage.
   Failures → `markErrored(formatJobError(err))`, clipped to 500 chars. Every side effect is injected (`RunJobDeps`) so the stub review runs
   end to end from `run.integration.test.ts` against a local git repo.
 - **Abort reasons** say who already wrote the terminal status: `cancel`

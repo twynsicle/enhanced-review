@@ -1,3 +1,4 @@
+import { plural } from '../../common/plural.ts';
 import { detectLanguage } from './language-map.ts';
 import type {
   DiffChunk,
@@ -30,20 +31,25 @@ export interface FileCoverage {
   total: number;
   /** The hunks no chapter cites, in file order. */
   uncited: ResolvedDiffHunk[];
+  /** Those hunks as a chunk the inline diff can render; null when there are none. */
+  chunk: DiffChunk | null;
 }
+
+/** A file with leftovers: the one shape the reader's backstop section draws. */
+export type UncitedFile = FileCoverage & { chunk: DiffChunk };
 
 export interface ReviewCoverage {
   /** Hunks across every reviewed file that carries a catalog. */
   total: number;
   cited: number;
-  /** Files with hunks, none of them cited. */
-  undiscussed: FileCoverage[];
-  /** Files with some hunks cited and some not. */
-  partly: FileCoverage[];
+  /**
+   * The files with hunks left over, by filename. One list rather than an
+   * undiscussed/partly pair: the two differ only by `cited === 0`, and every
+   * consumer that wanted both had to rejoin them to draw one section.
+   */
+  uncited: UncitedFile[];
   /** Coverage by filename, for every file with a catalog. */
   byFile: ReadonlyMap<string, FileCoverage>;
-  /** One chunk per file with uncited hunks, by filename: the backstop section's content. */
-  uncitedChunks: DiffChunk[];
 }
 
 /**
@@ -82,31 +88,38 @@ export function citedHunkIds(chapters: readonly NarrativeChapter[]): Set<string>
   return ids;
 }
 
+/** The chapters whose diffChunks name this file, in narrative order. */
+export function chaptersCiting(
+  filename: string,
+  chapters: readonly NarrativeChapter[],
+): NarrativeChapter[] {
+  return chapters.filter((chapter) =>
+    chapter.diffChunks.some((chunk) => chunk.filename === filename),
+  );
+}
+
 /** Null when the file carries no catalog, so an older review reports nothing rather than everything. */
 export function fileCoverage(file: ReviewFile, cited: ReadonlySet<string>): FileCoverage | null {
   if (!file.hunks) return null;
   const uncited = file.hunks
     .filter((hunk) => !cited.has(hunk.id))
     .toSorted((a, b) => a.fileOrder - b.fileOrder);
-  return { file, cited: file.hunks.length - uncited.length, total: file.hunks.length, uncited };
-}
-
-/** The uncited hunks as a chunk the inline diff can render, or null when there are none. */
-export function uncitedChunk(coverage: FileCoverage): DiffChunk | null {
-  if (coverage.uncited.length === 0) return null;
   return {
-    filename: coverage.file.filename,
-    language: detectLanguage(coverage.file.filename),
-    hunks: coverage.uncited,
+    file,
+    cited: file.hunks.length - uncited.length,
+    total: file.hunks.length,
+    uncited,
+    chunk:
+      uncited.length === 0
+        ? null
+        : { filename: file.filename, language: detectLanguage(file.filename), hunks: uncited },
   };
 }
 
 export function reviewCoverage(review: NarrativeReview): ReviewCoverage {
   const cited = citedHunkIds(review.chapters);
   const byFile = new Map<string, FileCoverage>();
-  const undiscussed: FileCoverage[] = [];
-  const partly: FileCoverage[] = [];
-  const uncitedChunks: DiffChunk[] = [];
+  const uncited: UncitedFile[] = [];
   let total = 0;
   let citedCount = 0;
 
@@ -117,11 +130,24 @@ export function reviewCoverage(review: NarrativeReview): ReviewCoverage {
     byFile.set(file.filename, coverage);
     total += coverage.total;
     citedCount += coverage.cited;
-    const chunk = uncitedChunk(coverage);
-    if (!chunk) continue;
-    (coverage.cited === 0 ? undiscussed : partly).push(coverage);
-    uncitedChunks.push(chunk);
+    if (coverage.chunk !== null) uncited.push({ ...coverage, chunk: coverage.chunk });
   }
 
-  return { total, cited: citedCount, undiscussed, partly, byFile, uncitedChunks };
+  return { total, cited: citedCount, uncited, byFile };
+}
+
+/**
+ * The gap in one clause, for the CLI's warning and the reader's card: the
+ * two said the same thing in different words, and a reader who ran both saw
+ * two different counts of the same shortfall.
+ */
+export function describeCoverageGap(coverage: ReviewCoverage): string {
+  const none = coverage.uncited.filter((file) => file.cited === 0).length;
+  const some = coverage.uncited.length - none;
+  return [
+    none > 0 ? `${plural(none, 'file')} not discussed in any chapter` : null,
+    some > 0 ? `${plural(some, 'file')} discussed only in part` : null,
+  ]
+    .filter((part) => part !== null)
+    .join(', and ');
 }

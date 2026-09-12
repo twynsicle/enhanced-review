@@ -1,3 +1,4 @@
+import { plural } from '@/common/plural';
 import type { JobStatus } from '@/domain/jobs/status';
 import type { ChapterTitleSnapshot } from '@/domain/review/partial-narrative-parse';
 import type { ReviewTarget } from '@/domain/review/target';
@@ -109,7 +110,7 @@ function writingStateFor(status: JobStatus, chunkCount: number): PhaseState {
 }
 
 function writingPhaseDetail(state: PhaseState, chunkCount: number, titleCount: number): string {
-  const chapters = `${String(titleCount)} chapter${titleCount === 1 ? '' : 's'}`;
+  const chapters = plural(titleCount, 'chapter');
   switch (state) {
     case 'pending':
       return 'Pending — starts when reading settles.';

@@ -7,7 +7,7 @@ const coverage = reviewCoverage(SAMPLE_BUNDLE.review);
 /** Every chunk the reader draws: the chapters' own, and the leftovers under "Not discussed". */
 const chunks = [
   ...SAMPLE_BUNDLE.review.chapters.flatMap((chapter) => chapter.diffChunks),
-  ...coverage.uncitedChunks,
+  ...coverage.uncited.map((file) => file.chunk),
 ];
 
 /**
@@ -90,9 +90,9 @@ describe('the sample report bundle', () => {
   });
 
   it('leaves one file undiscussed and one discussed in part, so the report shows the backstop', () => {
-    expect(coverage.undiscussed.map((c) => c.file.filename)).toEqual(['src/scheduler/index.ts']);
-    expect(coverage.partly.map((c) => [c.file.filename, c.cited, c.total])).toEqual([
+    expect(coverage.uncited.map((c) => [c.file.filename, c.cited, c.total])).toEqual([
       ['src/scheduler/cadence.ts', 4, 5],
+      ['src/scheduler/index.ts', 0, 1],
     ]);
   });
 

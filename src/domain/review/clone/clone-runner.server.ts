@@ -116,7 +116,10 @@ export async function cloneAndDiff(
 
   const diff = await runGitOrThrow(git, 'diff', {
     ...common,
-    args: ['diff', `${input.baseSha}..${actualHead}`],
+    // `core.quotePath=false` or a non-ASCII path prints as "src/caf\303\251.ts",
+    // which the hunk catalog's `diff --git a/… b/…` pattern does not match: its
+    // hunks would be filed under whichever file came before it.
+    args: ['-c', 'core.quotePath=false', 'diff', `${input.baseSha}..${actualHead}`],
   });
 
   return { cloneDir, diff: diff.stdout };

@@ -1,3 +1,5 @@
+import type { ReviewFileSkipReason } from '../narrative.ts';
+
 /**
  * Files that never reach the model: lockfiles, minified bundles, source maps
  * and snapshots. They still count in the Files Changed list the reader shows.
@@ -38,6 +40,24 @@ export function isExcludedFromAI(filename: string, userPatterns?: readonly strin
     }
   }
   return false;
+}
+
+/**
+ * Why the prompt leaves a changed file out, from the file alone, or null when
+ * it reaches the model. The reader needs this recorded on the file: without
+ * it a filtered file looks like one the model simply chose not to discuss,
+ * and the file view claims it changed without a text diff.
+ *
+ * The local CLI layers the repository's own `.gitattributes` between these
+ * two — `generated` and `vendored` need a `git check-attr` at the head, which
+ * the hosted path does not run.
+ */
+export function promptSkipReason(
+  file: { filename: string; binary: boolean },
+  userPatterns?: readonly string[],
+): ReviewFileSkipReason | null {
+  if (isExcludedFromAI(file.filename, userPatterns)) return 'built-in';
+  return file.binary ? 'binary' : null;
 }
 
 /** The same rules as globs, for tools that take deny patterns. */

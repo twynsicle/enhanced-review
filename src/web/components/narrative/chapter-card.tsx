@@ -1,4 +1,5 @@
 import { Group, Stack, Text, Title } from '@mantine/core';
+import { plural } from '@/common/plural';
 import type { NarrativeChapter } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
 import classes from '@/web/components/narrative/article.module.css';
@@ -6,6 +7,7 @@ import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
 import { DiagramFigure } from '@/web/components/narrative/diagram/diagram-figure';
 import { InsightCallout } from '@/web/components/narrative/insight-callout';
 import { LeadMarkdown } from '@/web/components/narrative/lead-markdown';
+import { sectionCardId, sectionHeadingId } from '@/web/components/narrative/sections';
 import { DISPLAY_SIZE, token } from '@/web/theme/tokens';
 
 const ORDINALS = [
@@ -63,14 +65,14 @@ export function ChapterCard({
   return (
     <article
       className={classes.article}
-      id={`chapter-${chapter.id}`}
-      aria-labelledby={`chapter-heading-${chapter.id}`}
+      id={sectionCardId(chapter.id)}
+      aria-labelledby={sectionHeadingId(chapter.id)}
     >
       <Stack component="header" gap={12}>
         <Caption tone="before">{chapterEyebrow(chapterIndex)}</Caption>
         <Title
           order={1}
-          id={`chapter-heading-${chapter.id}`}
+          id={sectionHeadingId(chapter.id)}
           tabIndex={-1}
           fz={DISPLAY_SIZE}
           fw={600}
@@ -80,8 +82,7 @@ export function ChapterCard({
           {chapter.title}
         </Title>
         <Text fz="sm" c="dimmed">
-          {fileCount} file{fileCount === 1 ? '' : 's'} touched · {insightCount} insight
-          {insightCount === 1 ? '' : 's'}
+          {plural(fileCount, 'file')} touched · {plural(insightCount, 'insight')}
         </Text>
       </Stack>
 

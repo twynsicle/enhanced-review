@@ -1,4 +1,5 @@
 import { writeFile } from 'node:fs/promises';
+import { plural } from '../common/plural.ts';
 import { detectLanguage } from '../domain/review/language-map.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
@@ -30,7 +31,7 @@ export function stubReview({ meta, files, hunks }: RunContext) {
       return {
         id: `file-${String(index + 1)}`,
         title: file.filename.split('/').at(-1)!,
-        description: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${String(ids.length)} hunk${ids.length === 1 ? '' : 's'}.`,
+        description: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${plural(ids.length, 'hunk')}.`,
         insights: [
           {
             type: 'context',

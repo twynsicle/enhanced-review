@@ -1,5 +1,10 @@
 import { performance } from 'node:perf_hooks';
-import { reviewCoverage, type ReviewCoverage } from '../domain/review/coverage.ts';
+import { plural } from '../common/plural.ts';
+import {
+  describeCoverageGap,
+  reviewCoverage,
+  type ReviewCoverage,
+} from '../domain/review/coverage.ts';
 import type { NarrativeReview } from '../domain/review/narrative.ts';
 import type { ReviewMeta } from '../domain/review/review-meta.ts';
 import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
@@ -145,9 +150,7 @@ export async function review(
     // Not an error: the report carries the leftovers under "Not discussed".
     // But a run that skipped a third of the change is worth knowing about
     // before the report is opened, not after the chapters run out.
-    if (coverage.undiscussed.length > 0 || coverage.partly.length > 0) {
-      warn(coverageWarning(coverage));
-    }
+    if (coverage.uncited.length > 0) warn(coverageWarning(coverage));
   } else {
     parsed = await readReview(run);
   }
@@ -259,16 +262,8 @@ function describeCoverage(coverage: ReviewCoverage): string {
   return `${String(coverage.cited)} of ${plural(coverage.total, 'hunk')} cited`;
 }
 
-export function coverageWarning({ undiscussed, partly }: ReviewCoverage): string {
-  const parts = [
-    undiscussed.length > 0
-      ? `${plural(undiscussed.length, 'file')} not discussed in any chapter`
-      : null,
-    partly.length > 0
-      ? `${plural(partly.length, 'file')} ${undiscussed.length > 0 ? 'more ' : ''}only in part`
-      : null,
-  ].filter((part) => part !== null);
-  return `${parts.join(', and ')}; the report shows their hunks under "Not discussed"`;
+export function coverageWarning(coverage: ReviewCoverage): string {
+  return `${describeCoverageGap(coverage)}; the report shows their hunks under "Not discussed"`;
 }
 
 function describeGather(context: RunContext): string {
@@ -306,8 +301,4 @@ function approxCount(value: number): string {
 
 function megabytes(bytes: number): string {
   return `${(bytes / 1_000_000).toFixed(1)} MB`;
-}
-
-function plural(count: number, noun: string): string {
-  return `${String(count)} ${noun}${count === 1 ? '' : 's'}`;
 }

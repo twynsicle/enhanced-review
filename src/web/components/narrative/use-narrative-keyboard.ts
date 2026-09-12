@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { ReaderSection } from '@/web/components/narrative/sections';
+import { sectionHeadingId, type ReaderSection } from '@/web/components/narrative/sections';
 
 const FOCUS_RETRY_FRAMES = 30;
 
@@ -10,7 +10,7 @@ const FOCUS_RETRY_FRAMES = 30;
  */
 function focusHeading(id: string, framesLeft = FOCUS_RETRY_FRAMES): void {
   requestAnimationFrame(() => {
-    const heading = document.getElementById(`chapter-heading-${id}`);
+    const heading = document.getElementById(sectionHeadingId(id));
     if (heading) heading.focus();
     else if (framesLeft > 0) focusHeading(id, framesLeft - 1);
   });
@@ -36,8 +36,8 @@ function ownsSpace(target: EventTarget | null): boolean {
 
 /**
  * Keyboard navigation for the chapter reader. `onSelect` drives the URL
- * state a layer up. Bindings walk `sections` — summary, risk, then the
- * chapters — in the order the sidebar lists them:
+ * state a layer up. Bindings walk `sections` — summary, risk, the chapters,
+ * then "Not discussed" — in the order the sidebar lists them:
  *
  *   - `→` / Space     → next section
  *   - `←` / Shift+Spc → previous section

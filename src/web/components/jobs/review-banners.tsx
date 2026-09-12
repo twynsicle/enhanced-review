@@ -1,4 +1,5 @@
 import { Box, Group, Text } from '@mantine/core';
+import { plural } from '@/common/plural';
 import { RerunButton } from '@/web/components/jobs/rerun-button';
 import { token, type TokenName } from '@/web/theme/tokens';
 
@@ -28,7 +29,7 @@ export function StalenessBanner({ jobId, commitsAhead }: { jobId: string; commit
   const label =
     commitsAhead === 0
       ? 'New commits since this review.'
-      : `${commitsAhead} new commit${commitsAhead === 1 ? '' : 's'} since this review.`;
+      : `${plural(commitsAhead, 'new commit')} since this review.`;
   return (
     <Group
       role="status"

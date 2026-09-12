@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { BUNDLE_PLACEHOLDER } from '../domain/review/bundle-html.ts';
 import { runGit } from '../domain/review/clone/git-runner.server.ts';
+import type { UncitedFile } from '../domain/review/coverage.ts';
 import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import type { QueryFn } from './claude-run.ts';
 import { Shell } from './git.ts';
@@ -13,6 +14,8 @@ import { removeWorktreeSync } from './worktree.ts';
 import { runInterruptCleanups } from './interrupts.ts';
 import * as stubRun from './stub-run.ts';
 import * as terminal from './terminal.ts';
+
+const span = { startLine: 1, lineCount: 1 };
 
 // Real git, many spawns per test — see GIT_TEST_TIMEOUT.
 vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
@@ -93,35 +96,38 @@ function runFolders(): string[] {
   return existsSync(dir) ? readdirSync(dir) : [];
 }
 
-const coveredFile = (name: string, cited: number, total: number) => ({
-  file: { filename: name, status: 'modified' as const, additions: 1, deletions: 0 },
-  cited,
-  total,
-  uncited: [],
-});
+const coveredFile = (name: string, cited: number, total: number): UncitedFile => {
+  const hunk = { id: name, fileOrder: 1, original: span, modified: span };
+  return {
+    file: { filename: name, status: 'modified', additions: 1, deletions: 0 },
+    cited,
+    total,
+    uncited: [hunk],
+    chunk: { filename: name, language: 'typescript', hunks: [hunk] },
+  };
+};
 
 describe('coverageWarning', () => {
   const warning = (undiscussed: number, partly: number) =>
     coverageWarning({
       total: 0,
       cited: 0,
-      undiscussed: Array.from({ length: undiscussed }, (_, i) =>
-        coveredFile(`u${String(i)}`, 0, 1),
-      ),
-      partly: Array.from({ length: partly }, (_, i) => coveredFile(`p${String(i)}`, 1, 2)),
+      uncited: [
+        ...Array.from({ length: undiscussed }, (_, i) => coveredFile(`u${String(i)}`, 0, 1)),
+        ...Array.from({ length: partly }, (_, i) => coveredFile(`p${String(i)}`, 1, 2)),
+      ],
       byFile: new Map(),
-      uncitedChunks: [],
     });
 
   it('reads as one sentence whichever of the two it has to say', () => {
     expect(warning(13, 2)).toBe(
-      '13 files not discussed in any chapter, and 2 files more only in part; the report shows their hunks under "Not discussed"',
+      '13 files not discussed in any chapter, and 2 files discussed only in part; the report shows their hunks under "Not discussed"',
     );
     expect(warning(1, 0)).toBe(
       '1 file not discussed in any chapter; the report shows their hunks under "Not discussed"',
     );
     expect(warning(0, 1)).toBe(
-      '1 file only in part; the report shows their hunks under "Not discussed"',
+      '1 file discussed only in part; the report shows their hunks under "Not discussed"',
     );
   });
 });

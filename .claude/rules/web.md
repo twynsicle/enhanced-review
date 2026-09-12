@@ -62,7 +62,8 @@ src/web/
                      file-tree.ts (pure, no rendering: ReviewFile[] → the directory tree, single-child directory
                      chains collapsed into one row), chapter-card, summary-card (title/meta, overview
                      diagram, AI overview, author's description collapsed last), risk-card, file-view (a file's chunks,
-                     then its uncited hunks under their own label, or why it has none), skipped-file.ts (the copy for
+                     then its uncited hunks under their own label — coverage.byFile's entry is passed in, never
+                     recomputed — or why it has none), skipped-file.ts (the copy for
                      ReviewFile.skipped reasons), insight-callout,
                      article.module.css (the reading measure + the diff bleed lane),
                      lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),

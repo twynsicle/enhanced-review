@@ -9,6 +9,7 @@ import {
 } from '@/domain/review/narrative';
 import { ChapterReader } from '@/web/components/narrative/chapter-reader';
 import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
+import { sectionHeadingId } from '@/web/components/narrative/sections';
 import { fireEvent, render, screen } from '@/web/test/render';
 
 vi.mock('@monaco-editor/react', () => ({
@@ -118,16 +119,28 @@ describe('the "Not discussed" section', () => {
     renderReader(`/?ch=${UNDISCUSSED_SECTION_ID}`);
 
     expect(screen.getByRole('heading', { level: 1, name: 'Not discussed' })).toBeDefined();
-    expect(screen.getByText('The chapters cite 2 of 4 hunks.', { exact: false })).toBeDefined();
     expect(
-      screen.getByText('1 file not discussed in any chapter, 1 file only in part'),
+      screen.getByText('The chapters cite 2 of the 4 hunks in this change.', { exact: false }),
+    ).toBeDefined();
+    expect(
+      screen.getByText('1 file not discussed in any chapter, and 1 file discussed only in part'),
     ).toBeDefined();
     expect(screen.getByRole('figure', { name: 'Diff for src/a.ts' })).toBeDefined();
     expect(screen.getByRole('figure', { name: 'Diff for src/b.ts' })).toBeDefined();
     expect(screen.queryByRole('figure', { name: 'Diff for src/c.ts' })).toBeNull();
     expect(
-      screen.getByText('Other hunks of this file are discussed in The one chapter.'),
+      screen.getByText('Other hunks of src/a.ts are discussed in The one chapter.'),
     ).toBeDefined();
+  });
+
+  it('is where End lands, with focus on its heading like any other section', () => {
+    renderReader('/');
+    fireEvent.keyDown(document, { key: 'End' });
+
+    const heading = screen.getByRole('heading', { level: 1, name: 'Not discussed' });
+    // The id convention the keyboard hook focuses; a card that spelled its own
+    // was walked to and then never focused.
+    expect(heading.id).toBe(sectionHeadingId(UNDISCUSSED_SECTION_ID));
   });
 
   it('is absent when every hunk is cited', () => {

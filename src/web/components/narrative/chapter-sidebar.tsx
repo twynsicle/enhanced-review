@@ -22,7 +22,7 @@ import {
   type FileTreeNode,
 } from '@/web/components/narrative/file-tree';
 import { RiskInlineLabel, RiskScoreBars } from '@/web/components/narrative/risk-score';
-import type { ReaderSection } from '@/web/components/narrative/sections';
+import { sectionIndexLabel, type ReaderSection } from '@/web/components/narrative/sections';
 import { SKIP_REASON_LABEL } from '@/web/components/narrative/skipped-file';
 import { bindFileListView, useFileListView } from '@/web/stores/file-list-view';
 import classes from './chapter-sidebar.module.css';
@@ -128,7 +128,7 @@ function SidebarItem({
   active: boolean;
   onSelect: (id: string) => void;
 }) {
-  const { chapterNumber, hasDiagram } = section;
+  const { hasDiagram } = section;
   return (
     <li>
       <UnstyledButton
@@ -137,13 +137,7 @@ function SidebarItem({
         data-active={active || undefined}
         onClick={() => onSelect(section.id)}
       >
-        <span className={classes.index}>
-          {chapterNumber !== null
-            ? chapterNumber.toString().padStart(2, '0')
-            : section.kind === 'undiscussed'
-              ? '—'
-              : '00'}
-        </span>
+        <span className={classes.index}>{sectionIndexLabel(section)}</span>
         <span className={classes.label}>{section.label}</span>
         {/*
          * Which sections carry a picture, marked on the list the reader
@@ -305,6 +299,7 @@ function FileRow({
   const { dirname, basename } = splitFilename(file.filename);
   const showStats = file.additions > 0 || file.deletions > 0;
   const skipped = file.skipped ? `Not reviewed: ${SKIP_REASON_LABEL[file.skipped]}` : null;
+  const partly = coverage !== undefined && coverage.cited > 0;
   const undiscussed = skipped ? null : coverageNote(coverage);
   const note = skipped ?? undiscussed;
   return (
@@ -327,12 +322,8 @@ function FileRow({
       </Box>
       <span className={classes.trailing}>
         {undiscussed && (
-          <span
-            aria-hidden
-            className={classes.coverageMark}
-            data-partly={coverage && coverage.cited > 0 ? true : undefined}
-          >
-            {coverage && coverage.cited > 0 ? '◐' : '○'}
+          <span aria-hidden className={classes.coverageMark}>
+            {partly ? '◐' : '○'}
           </span>
         )}
         {showStats && <Stats additions={file.additions} deletions={file.deletions} />}

@@ -140,21 +140,6 @@ const H = {
   index: hunk('H0010', 0, [1, 1], [1, 2]),
 };
 
-/**
- * Every file's share of the hunk catalog, as the parse stage attaches it.
- * Two hunks are cited by no chapter on purpose — the paused guard, so
- * `cadence.ts` is discussed only in part, and the whole of `index.ts` — to
- * give the report its "Not discussed" section and the sidebar its marks.
- */
-const CATALOG: Record<string, ResolvedDiffHunk[]> = {
-  'src/scheduler/cadence.ts': [H.cadenceType, H.paused, H.intervals, H.lookup, H.pausedGuard],
-  'src/scheduler/queue.ts': [H.queue],
-  'src/scheduler/index.ts': [H.index],
-  'src/legacy/cron.ts': [H.cron],
-  'src/generated/schedule.schema.json': [H.schema],
-  'docs/scheduling.md': [H.docs],
-};
-
 const chunk = (filename: string, language: string, hunks: ResolvedDiffHunk[]): DiffChunk => ({
   filename,
   language,
@@ -202,48 +187,55 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         },
       ],
     },
+    /*
+     * Each file carries its share of the hunk catalog, as the parse stage
+     * attaches it. Two hunks are cited by no chapter on purpose — the widened
+     * Cadence union, so `cadence.ts` is discussed only in part, and the whole
+     * of `index.ts` — to give the report its "Not discussed" section and the
+     * sidebar its marks.
+     */
     files: [
       {
         filename: 'src/scheduler/cadence.ts',
         status: 'modified',
         additions: 14,
         deletions: 3,
-        hunks: CATALOG['src/scheduler/cadence.ts'],
+        hunks: [H.cadenceType, H.paused, H.intervals, H.lookup, H.pausedGuard],
       },
       {
         filename: 'src/scheduler/queue.ts',
         status: 'added',
         additions: 19,
         deletions: 0,
-        hunks: CATALOG['src/scheduler/queue.ts'],
+        hunks: [H.queue],
       },
       {
         filename: 'src/scheduler/index.ts',
         status: 'modified',
         additions: 2,
         deletions: 1,
-        hunks: CATALOG['src/scheduler/index.ts'],
+        hunks: [H.index],
       },
       {
         filename: 'src/legacy/cron.ts',
         status: 'removed',
         additions: 0,
         deletions: 9,
-        hunks: CATALOG['src/legacy/cron.ts'],
+        hunks: [H.cron],
       },
       {
         filename: 'src/generated/schedule.schema.json',
         status: 'modified',
         additions: 2398,
         deletions: 2,
-        hunks: CATALOG['src/generated/schedule.schema.json'],
+        hunks: [H.schema],
       },
       {
         filename: 'docs/scheduling.md',
         status: 'modified',
         additions: 9,
         deletions: 3,
-        hunks: CATALOG['docs/scheduling.md'],
+        hunks: [H.docs],
       },
       {
         filename: 'package-lock.json',
@@ -319,9 +311,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
             text: 'Hourly reviews on a busy repo run 24 times as often as before. Worth confirming the runner can take it.',
           },
         ],
-        diffChunks: [
-          chunk('src/scheduler/cadence.ts', 'typescript', [H.cadenceType, H.intervals, H.lookup]),
-        ],
+        diffChunks: [chunk('src/scheduler/cadence.ts', 'typescript', [H.intervals, H.lookup])],
       },
       {
         id: 'pausing',
@@ -341,7 +331,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
           },
         ],
         diffChunks: [
-          chunk('src/scheduler/cadence.ts', 'typescript', [H.paused]),
+          chunk('src/scheduler/cadence.ts', 'typescript', [H.paused, H.pausedGuard]),
           chunk('src/scheduler/queue.ts', 'typescript', [H.queue]),
         ],
         diagram: {

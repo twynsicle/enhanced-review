@@ -1,4 +1,4 @@
-import { reviewCoverage, type ReviewCoverage } from '@/domain/review/coverage';
+import type { ReviewCoverage } from '@/domain/review/coverage';
 import {
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
@@ -30,10 +30,7 @@ export interface ReaderSection {
   hasDiagram: boolean;
 }
 
-export function readerSections(
-  review: NarrativeReview,
-  coverage: ReviewCoverage = reviewCoverage(review),
-): ReaderSection[] {
+export function readerSections(review: NarrativeReview, coverage: ReviewCoverage): ReaderSection[] {
   const sections: ReaderSection[] = [
     {
       id: SUMMARY_SECTION_ID,
@@ -67,7 +64,7 @@ export function readerSections(
 
   // Last, and only when there is something to show: the hunks no chapter
   // cites. Reading to the end of the list is then reading the whole change.
-  if (coverage.uncitedChunks.length > 0) {
+  if (coverage.uncited.length > 0) {
     sections.push({
       id: UNDISCUSSED_SECTION_ID,
       kind: 'undiscussed',
@@ -78,6 +75,21 @@ export function readerSections(
   }
 
   return sections;
+}
+
+/**
+ * The two ids every section card spells. They read `chapter-…` for the
+ * synthesised sections too: the keyboard hook focuses `sectionHeadingId`, and
+ * a card that invented its own id was simply skipped by End and the arrows
+ * with nothing to show for it.
+ */
+export const sectionCardId = (id: string) => `chapter-${id}`;
+export const sectionHeadingId = (id: string) => `chapter-heading-${id}`;
+
+/** The sidebar's index glyph: a chapter's number, a dash for the backstop, `00` otherwise. */
+export function sectionIndexLabel(section: ReaderSection): string {
+  if (section.chapterNumber !== null) return section.chapterNumber.toString().padStart(2, '0');
+  return section.kind === 'undiscussed' ? '—' : '00';
 }
 
 /** The section a `?ch=` value names, or null when it names nothing here. */

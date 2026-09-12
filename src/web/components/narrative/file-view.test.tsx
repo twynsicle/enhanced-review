@@ -1,6 +1,7 @@
 import { createRoutesStub } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/domain/review/bundle';
+import { reviewCoverage } from '@/domain/review/coverage';
 import type { NarrativeChapter, ResolvedDiffHunk, ReviewFile } from '@/domain/review/narrative';
 import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
 import { render, screen } from '@/web/test/render';
@@ -44,12 +45,14 @@ function renderWithSource(files: ReviewFile[], cited: NarrativeChapter[]) {
       },
     },
   };
+  // The reader computes coverage once and hands each file its share.
+  const coverage = reviewCoverage(bundle.review).byFile.get('src/app.ts');
   const Stub = createRoutesStub([
     {
       path: '/',
       Component: () => (
         <EmbeddedFileSource bundle={bundle}>
-          <FileView filename="src/app.ts" chapters={cited} files={files} />
+          <FileView filename="src/app.ts" chapters={cited} files={files} coverage={coverage} />
         </EmbeddedFileSource>
       ),
     },
@@ -88,7 +91,7 @@ describe('FileView without hunks', () => {
     expect(screen.getByText(/didn’t select any hunks for this file/)).toBeDefined();
   });
 
-  it('says there was no text diff for a file whose catalog is empty', () => {
+  it('says there was no text diff for a file whose catalog is empty and nothing changed', () => {
     render(
       <FileView
         filename="src/app.ts"
@@ -99,6 +102,22 @@ describe('FileView without hunks', () => {
       />,
     );
     expect(screen.getByText(/changed without a text diff to show/)).toBeDefined();
+  });
+
+  it('does not claim "no text diff" for an empty catalog beside a line count', () => {
+    // A file the prompt filtered or truncated away: it has a patch, the
+    // reviewer was simply never given it.
+    render(
+      <FileView
+        filename="src/app.ts"
+        chapters={chapters}
+        files={[
+          { filename: 'src/app.ts', status: 'modified', additions: 9, deletions: 2, hunks: [] },
+        ]}
+      />,
+    );
+    expect(screen.queryByText(/without a text diff/)).toBeNull();
+    expect(screen.getByText(/wasn’t among the hunks the reviewer was given/)).toBeDefined();
   });
 });
 

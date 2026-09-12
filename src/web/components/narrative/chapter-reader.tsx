@@ -9,19 +9,18 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useSearchParams } from 'react-router';
-import { reviewCoverage } from '@/domain/review/coverage';
-import {
-  RISK_SECTION_ID,
-  SUMMARY_SECTION_ID,
-  UNDISCUSSED_SECTION_ID,
-  type NarrativeReview,
-} from '@/domain/review/narrative';
+import { reviewCoverage, type ReviewCoverage } from '@/domain/review/coverage';
+import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/domain/review/narrative';
 import type { ReviewMeta } from '@/domain/review/review-meta';
 import { ChapterCard } from '@/web/components/narrative/chapter-card';
 import { ChapterSidebar } from '@/web/components/narrative/chapter-sidebar';
 import { FileView } from '@/web/components/narrative/file-view';
 import { RiskCard } from '@/web/components/narrative/risk-card';
-import { findSection, readerSections } from '@/web/components/narrative/sections';
+import {
+  findSection,
+  readerSections,
+  type ReaderSection,
+} from '@/web/components/narrative/sections';
 import { SummaryCard } from '@/web/components/narrative/summary-card';
 import { UndiscussedCard } from '@/web/components/narrative/undiscussed-card';
 import { useNarrativeKeyboard } from '@/web/components/narrative/use-narrative-keyboard';
@@ -88,6 +87,8 @@ export interface ChapterReaderProps {
   initialActiveId: string;
   /** Summary-header actions (the hosted app's rerun button). */
   actions?: ReactNode;
+  /** Whether the reviewer's diff was trimmed to fit; the backstop section says so. */
+  diffTruncated?: boolean;
 }
 
 /**
@@ -97,7 +98,13 @@ export interface ChapterReaderProps {
  * chapter is what comes back when the file view is closed). Inline diffs read
  * their files from the `FileSource` the caller wraps it in.
  */
-export function ChapterReader({ review, meta, initialActiveId, actions }: ChapterReaderProps) {
+export function ChapterReader({
+  review,
+  meta,
+  initialActiveId,
+  actions,
+  diffTruncated = false,
+}: ChapterReaderProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const sidebarWidth = useSidebarWidth((state) => state.width);
   const setSidebarWidth = useSidebarWidth((state) => state.setWidth);
@@ -186,7 +193,10 @@ export function ChapterReader({ review, meta, initialActiveId, actions }: Chapte
     [sidebarWidth, setSidebarWidth],
   );
 
-  const activeChapter = review.chapters.find((ch) => ch.id === activeId) ?? null;
+  // One lookup, then one switch: the section list already knows which kind of
+  // card each id wants, and re-deriving that from the id at the render site is
+  // how the risk and backstop branches each grew their own guard.
+  const activeSection = findSection(sections, activeId) ?? sections[0]!;
   const activeIndex = review.chapters.findIndex((ch) => ch.id === activeId) + 1;
 
   return (
@@ -222,21 +232,74 @@ export function ChapterReader({ review, meta, initialActiveId, actions }: Chapte
 
       <section aria-live="polite" className={classes.main} ref={mainRef}>
         {activeFile ? (
-          <FileView filename={activeFile} chapters={review.chapters} files={review.files} />
-        ) : activeId === RISK_SECTION_ID && review.riskAssessment ? (
-          <RiskCard assessment={review.riskAssessment} />
-        ) : activeId === UNDISCUSSED_SECTION_ID && coverage.uncitedChunks.length > 0 ? (
-          <UndiscussedCard coverage={coverage} chapters={review.chapters} />
-        ) : !activeChapter ? (
-          <SummaryCard review={review} meta={meta} actions={actions} onSelectFile={onSelectFile} />
+          <FileView
+            filename={activeFile}
+            chapters={review.chapters}
+            files={review.files}
+            coverage={coverage.byFile.get(activeFile)}
+          />
         ) : (
-          <ChapterCard
-            chapter={activeChapter}
+          <SectionCard
+            section={activeSection}
+            review={review}
+            meta={meta}
+            coverage={coverage}
+            diffTruncated={diffTruncated}
             chapterIndex={activeIndex}
+            actions={actions}
             onSelectFile={onSelectFile}
           />
         )}
       </section>
     </div>
   );
+}
+
+/**
+ * The one card the reader shows for the active section. `sections` is already
+ * the authority on which sections this review has — the risk section is only
+ * in the list when there is an assessment, the backstop only when a chapter
+ * left a hunk uncited — so the kind decides and nothing here re-tests for the
+ * content behind it.
+ */
+function SectionCard({
+  section,
+  review,
+  meta,
+  coverage,
+  diffTruncated,
+  chapterIndex,
+  actions,
+  onSelectFile,
+}: {
+  section: ReaderSection;
+  review: NarrativeReview;
+  meta: ReviewMeta;
+  coverage: ReviewCoverage;
+  diffTruncated: boolean;
+  chapterIndex: number;
+  actions?: ReactNode;
+  onSelectFile: (filename: string) => void;
+}) {
+  const chapter = review.chapters.find((ch) => ch.id === section.id);
+  switch (section.kind) {
+    case 'risk':
+      return review.riskAssessment ? <RiskCard assessment={review.riskAssessment} /> : null;
+    case 'undiscussed':
+      return (
+        <UndiscussedCard
+          coverage={coverage}
+          chapters={review.chapters}
+          diffTruncated={diffTruncated}
+        />
+      );
+    case 'chapter':
+      return chapter ? (
+        <ChapterCard chapter={chapter} chapterIndex={chapterIndex} onSelectFile={onSelectFile} />
+      ) : null;
+    case 'summary':
+      return (
+        <SummaryCard review={review} meta={meta} actions={actions} onSelectFile={onSelectFile} />
+      );
+  }
 }
