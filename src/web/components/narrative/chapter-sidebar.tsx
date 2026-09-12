@@ -1,5 +1,5 @@
 import { ActionIcon, Box, Group, Stack, UnstyledButton, VisuallyHidden } from '@mantine/core';
-import { IconFolders, IconList } from '@tabler/icons-react';
+import { IconList, IconListTree } from '@tabler/icons-react';
 import {
   useCallback,
   useEffect,
@@ -209,7 +209,7 @@ function FileListViewToggle() {
       title={label}
       onClick={toggle}
     >
-      {tree ? <IconFolders size={16} /> : <IconList size={16} />}
+      {tree ? <IconListTree size={16} /> : <IconList size={16} />}
     </ActionIcon>
   );
 }

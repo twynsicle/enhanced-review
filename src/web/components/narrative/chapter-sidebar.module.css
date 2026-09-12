@@ -137,7 +137,15 @@
   display: grid;
   width: 100%;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
+  /*
+   * Baselines, not tops. The three cells carry three type sizes, and a row is
+   * one line tall in the tree and two in the flat list — so aligning boxes puts
+   * the status letter and the stats a couple of pixels below the name wherever
+   * the sizes differ, which the single-line tree row shows plainly. The middle
+   * cell's first baseline is the basename's, so the directory line below it
+   * does not drag the other two down.
+   */
+  align-items: baseline;
   gap: 8px;
   padding: 6px;
   padding-inline-start: calc(6px + 12px * min(var(--file-depth, 0), 6));
@@ -224,7 +232,6 @@
 }
 
 .status {
-  margin-top: 2px;
   font-family: var(--mantine-font-family-monospace);
   font-size: var(--mantine-font-size-xs);
 }
@@ -277,10 +284,6 @@
   font-size: var(--mantine-font-size-xs);
   color: var(--er-muted-foreground);
   white-space: nowrap;
-}
-
-.fileRow .stats {
-  margin-top: 2px;
 }
 
 .add {
