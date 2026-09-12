@@ -145,6 +145,7 @@ describe('runJob', () => {
       `diff --no-color --no-ext-diff --no-textconv ${BASE}..${HEAD}`,
       `diff --numstat -z --no-color --no-ext-diff --no-textconv ${BASE}..${HEAD}`,
       `diff --name-status -z --no-color --no-ext-diff --no-textconv ${BASE}..${HEAD}`,
+      `check-attr --source=${HEAD} -z linguist-generated linguist-vendored -- f.txt`,
       'log -1 --format=%an%n--BODY--%n%B',
     ]);
     expect(d.getPullMetadata).not.toHaveBeenCalled();
@@ -193,6 +194,62 @@ describe('runJob', () => {
       ['f.txt', undefined],
       ['yarn.lock', 'built-in'],
       ['logo.png', 'binary'],
+    ]);
+  });
+
+  it('records the marks the reviewed repository makes in its own .gitattributes', async () => {
+    const calls: string[][] = [];
+    const git: GitRunner = async (opts) => {
+      calls.push([...opts.args]);
+      const [cmd, ...rest] = opts.args;
+      if (cmd === 'rev-parse') return { stdout: `${HEAD}\n`, stderr: '', exitCode: 0 };
+      if (cmd === 'check-attr') {
+        const stdout = z(
+          'f.txt',
+          'linguist-generated',
+          'unspecified',
+          'f.txt',
+          'linguist-vendored',
+          'unspecified',
+          'api/client.gen.ts',
+          'linguist-generated',
+          'set',
+          'api/client.gen.ts',
+          'linguist-vendored',
+          'unspecified',
+        );
+        return { stdout, stderr: '', exitCode: 0 };
+      }
+      if (cmd === 'diff' && rest.includes('--numstat')) {
+        return { stdout: z('1\t1\tf.txt', '2\t0\tapi/client.gen.ts'), stderr: '', exitCode: 0 };
+      }
+      if (cmd === 'diff' && rest.includes('--name-status')) {
+        return { stdout: z('M', 'f.txt', 'M', 'api/client.gen.ts'), stderr: '', exitCode: 0 };
+      }
+      if (cmd === 'diff') return { stdout: DIFF, stderr: '', exitCode: 0 };
+      if (cmd === 'log') return { stdout: `Alice\n--BODY--\na commit\n`, stderr: '', exitCode: 0 };
+      return { stdout: '', stderr: '', exitCode: 0 };
+    };
+    const { store } = fakeStore();
+    await runJob(input(BRANCH), deps({ store, git }));
+
+    const [, finalizeInput] = vi.mocked(store.finalizeDone).mock.calls[0] ?? [];
+    const files = (finalizeInput?.content as NarrativeReview | undefined)?.files ?? [];
+    expect(files.map((file) => [file.filename, file.skipped])).toEqual([
+      ['f.txt', undefined],
+      ['api/client.gen.ts', 'generated'],
+    ]);
+    // Pinned to the commit under review: the clone is clean, but the same read
+    // runs against the engineer's own tree in a local review.
+    expect(calls.find((args) => args[0] === 'check-attr')).toEqual([
+      'check-attr',
+      `--source=${HEAD}`,
+      '-z',
+      'linguist-generated',
+      'linguist-vendored',
+      '--',
+      'f.txt',
+      'api/client.gen.ts',
     ]);
   });
 

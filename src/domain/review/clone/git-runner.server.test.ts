@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { createTempRepo, GIT_TEST_TIMEOUT } from '../../../test/git-repo.ts';
-import { GitCommandError, runGit, runGitOrThrow, type GitRunner } from './git-runner.server.ts';
+import {
+  argBatches,
+  GitCommandError,
+  runGit,
+  runGitOrThrow,
+  type GitRunner,
+} from './git-runner.server.ts';
 
 vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
 
@@ -72,5 +78,22 @@ describe('runGit', () => {
       rmSync(home, { recursive: true, force: true });
       repo.cleanup();
     }
+  });
+});
+
+describe('argBatches', () => {
+  it('keeps every path, splitting only when one command line would not hold them', () => {
+    const short = ['a.ts', 'b.ts', 'c.ts'];
+    expect(argBatches(short)).toEqual([short]);
+
+    const long = Array.from({ length: 500 }, (_, i) => `src/${'d'.repeat(60)}/f${String(i)}.ts`);
+    const batches = argBatches(long);
+    expect(batches.length).toBeGreaterThan(1);
+    expect(batches.flat()).toEqual(long);
+    for (const batch of batches) expect(batch.join(' ').length).toBeLessThan(16_000);
+  });
+
+  it('has no batch to run for no paths', () => {
+    expect(argBatches([])).toEqual([]);
   });
 });

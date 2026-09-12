@@ -35,20 +35,26 @@ src/domain/
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
                      DIAGRAM_LIMITS, hasUniformChange), target.ts (ReviewTarget schema, describeTarget),
                      review-meta.ts (ReviewMeta: the reader's summary header; reviewMetaFromJob for hosted jobs),
+                     skip-reasons.server.ts (why each changed file is left out, for both review paths: the built-in
+                     list, then the reviewed repository's own `.gitattributes` — `git check-attr` at the head commit,
+                     which resolves a nested `.gitattributes` for the paths beneath it — then binary; the git call is
+                     injected, since the hosted runner and `er` deliberately differ over whose git config applies;
+                     toReviewFiles stamps the reasons onto the changed files a review stores),
                      bundle.ts (ReviewBundle: a review + meta + both sides of each file, for offline rendering;
                      schemaVersion, no back-compat; parseBundle, filePair), bundle-html.ts (the bundle as the text of
                      the report's er-bundle element: injectBundle escapes every <, readEmbeddedBundle),
                      language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
     clone/           *.server.ts: git-runner (spawn, non-interactive, the host's system and global gitconfig ignored
-                     unless a call asks for `hostConfig`, abort → SIGTERM), clone-runner (init + fetch head +
+                     unless a call asks for `hostConfig`, abort → SIGTERM; argBatches, the path-list split that keeps a
+                     command line inside Windows' limit), clone-runner (init + fetch head +
                      verify SHA + fetch base + diff, which refuses the diff drivers a repository's own
                      `.gitattributes` can name; headRefFor, githubCloneUrl),
                      diff-files (listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over
                      `-z` output under the same diff pins, each rename's old path and the binary flag; output that
                      ends mid-record throws rather than yielding a short list)
-    prompt/          pure: ai-file-filter (isExcludedFromAI, and the ReviewFileSkipReason rules over it —
-                     builtInSkipReason, binarySkipReason, promptSkipReason for both in order; the hosted runner
-                     stamps them on a changed file, the CLI runs them either side of its .gitattributes pass),
+    prompt/          pure: ai-file-filter (the rules that need no repository to state them — builtInSkipReason over
+                     lockfiles, bundles and snapshots, binarySkipReason; skip-reasons.server.ts layers the
+                     repository's own marks between them),
                      diff-hunk-catalog (H0001… ids; PromptGrounding/groundingFor, what a model's answer is
                      checked against), narrative-prompt (system + user; the prompt reviews exactly the files
                      carrying no `skipped` reason, drops the patch of anything the built-in rules match even
@@ -94,12 +100,13 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t
 - **Runner** (`domain/review/run.server.ts`): `markRunning` (conditional
   `pending → running`; false means cancelled before start) → PR metadata →
   init + shallow fetch of `pull/N/head` or the branch → verify the head SHA
-  still matches → fetch the base SHA → diff + changed files → executor. The
+  still matches → fetch the base SHA → diff + changed files, each with its skip
+  reason → executor. The
   executor streams raw text; each fragment becomes a `review_chunks` row
   (`seq` from 0, inserts fire-and-forget, drained before finalize).
   `finalizeDone` writes the `reviews` row and `running → done` in one
   transaction, the changed files carrying their hunks when the executor
-  returned a catalog and `skipped` when the file's own skip reason says why the
+  returned a catalog and `skipped` when `skipReasons` says why the
   prompt left it out; the `job done` log line reports the hunk coverage.
   Failures → `markErrored(formatJobError(err))`, clipped to 500 chars. Every side effect is injected (`RunJobDeps`) so the stub review runs
   end to end from `run.integration.test.ts` against a local git repo.
