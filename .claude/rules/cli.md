@@ -29,7 +29,7 @@ src/cli/
   context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons, hunks numbered
                    across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
                    one annotated hunk file per reviewed file; pr.md
-  prompt.ts        system.md (the hosted instructions, unchanged) + prompt.md (the local delivery section)
+  prompt.ts        system.md (the shared instructions + LOCAL_WORKING_TREE) + prompt.md (the local delivery section)
   claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl;
                    the reviewed repo's own settings (settingSources user/project/local), read-only tools, the
                    engineer's environment inherited by the subprocess; the SDK is imported only when a run happens

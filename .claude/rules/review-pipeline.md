@@ -38,7 +38,10 @@ src/domain/
                      formatFileList and formatHunkCatalog are shared with the local CLI's prompt),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema),
                      parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own
-                     so a bad picture cannot fail the review; grounding checked against the hunk catalog), types.ts (PrData)
+                     so a bad picture cannot fail the review; grounding checked against the hunk catalog), types.ts (PrData),
+                     instructions.ts (the review instructions and output schema, shared with the local CLI, plus one
+                     closing paragraph per path: SERVER_WORKING_TREE, LOCAL_WORKING_TREE; the assembled server prompt is
+                     pinned byte-for-byte by __fixtures__/server-prompt.txt)
     executor/        types.ts (ReviewExecutor, errors); stub-executor.server.ts (STUB_REVIEW in fragments);
                      claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist);
                      sdk-loop.server.ts (the message loop both this and the local CLI run on: text, tool uses and the

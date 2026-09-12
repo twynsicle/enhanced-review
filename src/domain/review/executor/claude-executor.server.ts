@@ -1,6 +1,7 @@
 import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
 import { logger } from '../../../common/logger.ts';
 import { pickHostEnv } from '../../../config/host-env.ts';
+import { SERVER_WORKING_TREE } from '../prompt/instructions.ts';
 import { buildNarrativePrompt } from '../prompt/narrative-prompt.ts';
 import { parseNarrativeReview } from '../prompt/parse-narrative.ts';
 import { runSdkLoop } from './sdk-loop.server.ts';
@@ -20,11 +21,6 @@ import {
  * MCP servers) and no persisted transcript. Only an allowlist of host
  * variables reaches the SDK subprocess.
  */
-const FILESYSTEM_BOUNDARY = `
-
----
-You are running inside a freshly cloned working tree at the current working directory. The diff in the user prompt is your primary input. You may use Read, Glob, and Grep to look up surrounding context. Output only the <narrative_review> JSON block — no preamble, no closing remarks.`;
-
 const MAX_TURNS = 30;
 const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep'] as const;
 
@@ -79,7 +75,7 @@ export class ClaudeExecutor implements ReviewExecutor {
     const options: Options = {
       cwd: input.cloneDir,
       model: input.model,
-      systemPrompt: system + FILESYSTEM_BOUNDARY,
+      systemPrompt: system + SERVER_WORKING_TREE,
       tools: [...READ_ONLY_TOOLS],
       allowedTools: [...READ_ONLY_TOOLS],
       permissionMode: 'dontAsk',

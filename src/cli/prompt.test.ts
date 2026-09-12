@@ -2,7 +2,10 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { NARRATIVE_SYSTEM_PROMPT } from '../domain/review/prompt/narrative-prompt.ts';
+import {
+  LOCAL_WORKING_TREE,
+  NARRATIVE_SYSTEM_PROMPT,
+} from '../domain/review/prompt/instructions.ts';
 import type { RunContext } from './context.ts';
 import { buildPrompt, writePrompt } from './prompt.ts';
 import { runFiles, type RunFiles } from './run-folder.ts';
@@ -135,7 +138,7 @@ describe('the local prompt', () => {
 
   it('writes the hosted instructions unchanged beside the prompt', async () => {
     const user = await writePrompt(context(), run);
-    expect(readFileSync(run.system, 'utf8')).toBe(NARRATIVE_SYSTEM_PROMPT);
+    expect(readFileSync(run.system, 'utf8')).toBe(NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
     expect(readFileSync(run.prompt, 'utf8')).toBe(user);
   });
 });

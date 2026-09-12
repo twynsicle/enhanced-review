@@ -1,19 +1,19 @@
 import { writeFile } from 'node:fs/promises';
 import type { ReviewFileSkipReason } from '../domain/review/narrative.ts';
 import {
-  formatFileList,
-  formatHunkCatalog,
+  LOCAL_WORKING_TREE,
   NARRATIVE_SYSTEM_PROMPT,
-} from '../domain/review/prompt/narrative-prompt.ts';
+} from '../domain/review/prompt/instructions.ts';
+import { formatFileList, formatHunkCatalog } from '../domain/review/prompt/narrative-prompt.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
 
 /**
- * The prompt stage: `system.md` is the hosted review's instructions,
- * unchanged for now (Phase 4 adapts the wording to a local run); `prompt.md`
- * is this change, delivered the local way. The hosted prompt inlines the
- * diff; here the agent reads one hunk file per reviewed file, and can open
- * anything else in its working directory.
+ * The prompt stage: `system.md` is the shared review instructions plus the
+ * paragraph that says where a local run is standing; `prompt.md` is this
+ * change, delivered the local way. The hosted prompt inlines the diff; here
+ * the agent reads one hunk file per reviewed file, and can open anything
+ * else in its working directory.
  */
 
 /** A description longer than this stays in `context/pr.md`, with a pointer. */
@@ -29,7 +29,7 @@ const SKIP_NOTE: Record<ReviewFileSkipReason, string> = {
 
 export async function writePrompt(context: RunContext, run: RunFiles): Promise<string> {
   const user = buildPrompt(context, run);
-  await writeFile(run.system, NARRATIVE_SYSTEM_PROMPT);
+  await writeFile(run.system, NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
   await writeFile(run.prompt, user);
   return user;
 }
