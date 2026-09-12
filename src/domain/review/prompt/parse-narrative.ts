@@ -10,15 +10,15 @@ import {
   type ReviewRiskFactorImpact,
   type ReviewRiskScore,
 } from '../narrative.ts';
-import type { DiffHunkIndex } from './diff-hunk-catalog.ts';
+import type { PromptGrounding } from './diff-hunk-catalog.ts';
 import { sanitizeDiagram } from './parse-diagram.ts';
 
 /**
  * Turns the model's `<narrative_review>` block into a `NarrativeReview`.
  * Lenient on purpose: missing ids/titles are synthesised, unknown insight
  * types fall back to `context`, an out-of-range risk score drops the whole
- * assessment, and hunk ids are resolved against the prompt's index (unknown
- * or wrong-file ids are dropped). Diagrams go through `parse-diagram.ts`,
+ * assessment, and hunk ids are resolved against what the prompt showed
+ * (unknown or wrong-file ids are dropped). Diagrams go through `parse-diagram.ts`,
  * which validates each one on its own so a malformed picture cannot take the
  * review down with it. The result is validated against
  * `NarrativeReviewSchema`, so whatever lands in `reviews.content` parses
@@ -77,13 +77,13 @@ function sanitizeRiskAssessment(raw: unknown): ReviewRiskAssessment | undefined 
   return { score, summary, rationale, factors };
 }
 
-function resolveHunks(chunk: Rec, hunkIndex: DiffHunkIndex | undefined): ResolvedDiffHunk[] {
-  if (!hunkIndex || !Array.isArray(chunk['hunkIds'])) return [];
+function resolveHunks(chunk: Rec, grounding: PromptGrounding | undefined): ResolvedDiffHunk[] {
+  if (!grounding || !Array.isArray(chunk['hunkIds'])) return [];
   const filename = typeof chunk['filename'] === 'string' ? chunk['filename'] : '';
   const deduped = new Map<string, ResolvedDiffHunk>();
   for (const hunkId of chunk['hunkIds']) {
     if (typeof hunkId !== 'string') continue;
-    const hunk = hunkIndex.byId[hunkId];
+    const hunk = grounding.shown.byId[hunkId];
     if (!hunk || hunk.filename !== filename) continue;
     deduped.set(hunk.id, {
       id: hunk.id,
@@ -113,7 +113,7 @@ function sanitizeInsights(raw: unknown): Insight[] {
     });
 }
 
-function sanitizeChapter(raw: Rec, index: number, hunkIndex: DiffHunkIndex | undefined): Rec {
+function sanitizeChapter(raw: Rec, index: number, grounding: PromptGrounding | undefined): Rec {
   const n = String(index + 1);
   const id = typeof raw['id'] === 'string' && raw['id'].length > 0 ? raw['id'] : `chapter-${n}`;
   const title =
@@ -131,11 +131,11 @@ function sanitizeChapter(raw: Rec, index: number, hunkIndex: DiffHunkIndex | und
     .map((chunk) => ({
       filename: chunk['filename'] as string,
       language: typeof chunk['language'] === 'string' ? chunk['language'] : 'plaintext',
-      hunks: resolveHunks(chunk, hunkIndex),
+      hunks: resolveHunks(chunk, grounding),
     }))
     .filter((chunk) => chunk.hunks.length > 0);
 
-  const diagram = sanitizeDiagram(raw['diagram'], `${id}-diagram`, hunkIndex);
+  const diagram = sanitizeDiagram(raw['diagram'], `${id}-diagram`, grounding);
 
   return {
     id,
@@ -204,7 +204,7 @@ function endsString(json: string, from: number): boolean {
   return true;
 }
 
-export function parseNarrativeReview(text: string, hunkIndex?: DiffHunkIndex): ParseResult {
+export function parseNarrativeReview(text: string, grounding?: PromptGrounding): ParseResult {
   const startTag = '<narrative_review>';
   const endTag = '</narrative_review>';
   const startIdx = text.indexOf(startTag);
@@ -237,14 +237,14 @@ export function parseNarrativeReview(text: string, hunkIndex?: DiffHunkIndex): P
   }
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment']);
-  const overviewDiagram = sanitizeDiagram(parsed['overviewDiagram'], 'overview-diagram', hunkIndex);
+  const overviewDiagram = sanitizeDiagram(parsed['overviewDiagram'], 'overview-diagram', grounding);
   const candidate = {
     prTitle: parsed['prTitle'],
     overviewSummary: parsed['overviewSummary'],
     ...(riskAssessment ? { riskAssessment } : {}),
     ...(overviewDiagram ? { overviewDiagram } : {}),
     chapters: parsed['chapters'].map((chapter, index) =>
-      sanitizeChapter(isRecord(chapter) ? chapter : {}, index, hunkIndex),
+      sanitizeChapter(isRecord(chapter) ? chapter : {}, index, grounding),
     ),
   };
 

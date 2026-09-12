@@ -23,7 +23,8 @@ src/cli/
   targets.ts       resolveTarget: branch (against the open PR's base or origin's default, fetched first), pr (fetch
                    pull/<n>/head, merge-base with its base), staged (the index as a dangling commit on HEAD); --base;
                    locateTarget (repo root + slug only, for --from); TargetSchema
-  git.ts           Shell: git (the shared non-interactive runner) and gh, bound to one directory
+  git.ts           Shell: git (the shared non-interactive runner, run with the engineer's own gitconfig so
+                   their credentials, proxy and safe.directory apply) and gh, bound to one directory
   run-folder.ts    <repo root>/er-reviews/<slug>/<stamp>/ and each stage's file; latestRunFolder; the runs folder
                    ignores itself; hunkFileName (Windows-safe)
   context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons, hunks numbered

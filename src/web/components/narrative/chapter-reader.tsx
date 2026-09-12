@@ -258,9 +258,9 @@ export function ChapterReader({
  * The one card the reader shows for the active section. `sections` is already
  * the authority on which sections this review has — the risk section is only
  * in the list when there is an assessment, the backstop only when a chapter
- * left a hunk uncited — so the kind alone decides which card to draw. The two
- * remaining checks narrow optional data for the type system rather than test
- * whether the section can be reached.
+ * left a hunk uncited — so the kind alone decides which card to draw. Where a
+ * case still tests its data, it is narrowing an optional field for the type
+ * system, not asking whether the section can be reached.
  */
 function SectionCard({
   section,

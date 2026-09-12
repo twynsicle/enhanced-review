@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   listChangedFileDetails,
   parseChangedFiles,
+  TruncatedGitOutputError,
   type ChangedFile,
 } from './diff-files.server.ts';
 import type { GitRunner } from './git-runner.server.ts';
@@ -107,9 +108,23 @@ describe('parseChangedFiles', () => {
     ).toEqual([file('docs/notes für mich.md', 'added', 1, 0)]);
   });
 
-  it('ignores empty and malformed records', () => {
+  it('ignores a numstat record with too few columns', () => {
     expect(parseChangedFiles('', '')).toEqual([]);
-    expect(parseChangedFiles(numstatZ('not-a-numstat'), nameStatusZ('M'))).toEqual([]);
+    expect(parseChangedFiles(numstatZ('not-a-numstat'), nameStatusZ('M', 'f.txt'))).toEqual([
+      file('f.txt', 'modified', 0, 0),
+    ]);
+  });
+
+  it('throws when either list ends mid-record rather than returning a short one', () => {
+    // A file dropped here is a file the prompt never lists and coverage never
+    // counts, while its patch is still in the diff: silence is the one answer
+    // that cannot be noticed.
+    expect(() => parseChangedFiles(numstatZ('1\t1\t', 'old.ts'), nameStatusZ())).toThrow(
+      TruncatedGitOutputError,
+    );
+    expect(() => parseChangedFiles(numstatZ('1\t1\tf.txt'), nameStatusZ('M'))).toThrow(
+      TruncatedGitOutputError,
+    );
   });
 });
 
@@ -126,9 +141,12 @@ describe('listChangedFileDetails', () => {
     await expect(listChangedFileDetails(git, '/work', 'base', 'head')).resolves.toEqual([
       file('f.txt', 'modified', 3, 1),
     ]);
+    // The diff drivers a repository can name in its own `.gitattributes` are
+    // refused here too: numstat honours textconv, and would then count lines
+    // for a file the reviewed diff carries only as "Binary files ... differ".
     expect(calls).toEqual([
-      ['diff', '--numstat', '-z', 'base..head'],
-      ['diff', '--name-status', '-z', 'base..head'],
+      ['diff', '--numstat', '-z', '--no-color', '--no-ext-diff', '--no-textconv', 'base..head'],
+      ['diff', '--name-status', '-z', '--no-color', '--no-ext-diff', '--no-textconv', 'base..head'],
     ]);
   });
 });

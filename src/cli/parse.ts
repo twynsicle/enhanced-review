@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { withFileHunks } from '../domain/review/coverage.ts';
 import { NarrativeReviewSchema, type NarrativeReview } from '../domain/review/narrative.ts';
-import type { DiffHunk, DiffHunkIndex } from '../domain/review/prompt/diff-hunk-catalog.ts';
+import { groundingFor } from '../domain/review/prompt/diff-hunk-catalog.ts';
 import { parseNarrativeReview } from '../domain/review/prompt/parse-narrative.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
@@ -20,7 +20,11 @@ export async function parseRun(context: RunContext, run: RunFiles): Promise<Narr
   } catch {
     throw new Error(`no raw.txt in ${run.folder}; run from an earlier stage`);
   }
-  const parsed = parseNarrativeReview(raw, hunkIndex(context.hunks));
+  const grounding = groundingFor(
+    context.hunks,
+    context.files.filter((file) => !file.skipped).map((file) => file.filename),
+  );
+  const parsed = parseNarrativeReview(raw, grounding);
   if (!parsed.ok) {
     throw new Error(
       `${parsed.error}. The model's answer is in ${run.raw}; ` +
@@ -45,8 +49,4 @@ export async function readReview(run: RunFiles): Promise<NarrativeReview> {
   const parsed = NarrativeReviewSchema.safeParse(JSON.parse(raw));
   if (!parsed.success) throw new Error(`${run.review} is not a review: ${parsed.error.message}`);
   return parsed.data;
-}
-
-function hunkIndex(hunks: readonly DiffHunk[]): DiffHunkIndex {
-  return { hunks: [...hunks], byId: Object.fromEntries(hunks.map((hunk) => [hunk.id, hunk])) };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isGraphDiagram } from '../diagram.ts';
-import { buildDiffHunkIndex } from './diff-hunk-catalog.ts';
+import { buildDiffHunkIndex, groundingFor } from './diff-hunk-catalog.ts';
 import { sanitizeDiagram } from './parse-diagram.ts';
 
 const DIFF = `diff --git a/src/a.ts b/src/a.ts
@@ -18,7 +18,7 @@ diff --git a/src/b.ts b/src/b.ts
 +w
 `;
 
-const hunkIndex = buildDiffHunkIndex(DIFF);
+const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
 
 /** A minimum viable graph: two nodes, one edge, a caption. */
 function graph(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -37,15 +37,15 @@ function graph(overrides: Record<string, unknown> = {}): Record<string, unknown>
 
 describe('sanitizeDiagram', () => {
   it('drops a diagram with no caption', () => {
-    expect(sanitizeDiagram({ ...graph(), caption: '   ' }, 'd', hunkIndex)).toBeUndefined();
+    expect(sanitizeDiagram({ ...graph(), caption: '   ' }, 'd', grounding)).toBeUndefined();
   });
 
   it('drops a diagram whose kind is not one of the four', () => {
-    expect(sanitizeDiagram(graph({ kind: 'gantt' }), 'd', hunkIndex)).toBeUndefined();
+    expect(sanitizeDiagram(graph({ kind: 'gantt' }), 'd', grounding)).toBeUndefined();
   });
 
   it('falls back to a per-kind title but keeps the caption verbatim', () => {
-    const result = sanitizeDiagram(graph({ title: '', kind: 'state' }), 'd', hunkIndex);
+    const result = sanitizeDiagram(graph({ title: '', kind: 'state' }), 'd', grounding);
     expect(result?.title).toBe('States');
     expect(result?.caption).toBe('What the prose cannot say.');
     expect(result?.id).toBe('d');
@@ -60,7 +60,7 @@ describe('sanitizeDiagram', () => {
         ],
       }),
       'd',
-      hunkIndex,
+      grounding,
     );
     expect(result && isGraphDiagram(result) && result.edges).toHaveLength(1);
   });
@@ -75,7 +75,7 @@ describe('sanitizeDiagram', () => {
         ],
       }),
       'd',
-      hunkIndex,
+      grounding,
     );
     const labels = result && isGraphDiagram(result) ? result.edges.map((e) => e.label) : [];
     expect(labels).toEqual(['launched', 'deferred', 'failed']);
@@ -91,7 +91,7 @@ describe('sanitizeDiagram', () => {
         ],
       }),
       'd',
-      hunkIndex,
+      grounding,
     );
     const nodes = result && isGraphDiagram(result) ? result.nodes : [];
     expect(nodes[0]?.group).toBe('web');
@@ -107,12 +107,32 @@ describe('sanitizeDiagram', () => {
         ],
       }),
       'd',
-      hunkIndex,
+      grounding,
     );
     const nodes = result && isGraphDiagram(result) ? result.nodes : [];
     expect(nodes).toHaveLength(2);
     expect(nodes[0]?.filename).toBe('src/a.ts');
     expect(nodes[1]?.filename).toBeUndefined();
+  });
+
+  it('keeps the filename of a file whose hunks the prompt never showed', () => {
+    // A hard-truncated diff carries fewer files than the file list the model
+    // took the name from, and a node grounded on one of them is right: it
+    // loses the hunks it cannot name, not the page it links to.
+    const truncated = groundingFor(buildDiffHunkIndex(DIFF).hunks, ['src/a.ts', 'src/cut.ts']);
+    const result = sanitizeDiagram(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', filename: 'src/cut.ts', hunkIds: ['H0001'] },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+      'd',
+      truncated,
+    );
+    const nodes = result && isGraphDiagram(result) ? result.nodes : [];
+    expect(nodes[0]?.filename).toBe('src/cut.ts');
+    expect(nodes[0]?.hunkIds).toBeUndefined();
   });
 
   it('keeps only hunk ids that belong to the node file', () => {
@@ -124,7 +144,7 @@ describe('sanitizeDiagram', () => {
         ],
       }),
       'd',
-      hunkIndex,
+      grounding,
     );
     const nodes = result && isGraphDiagram(result) ? result.nodes : [];
     expect(nodes[0]?.hunkIds).toEqual(['H0001']);
@@ -139,7 +159,7 @@ describe('sanitizeDiagram', () => {
         ],
       }),
       'd',
-      hunkIndex,
+      grounding,
     );
     const nodes = result && isGraphDiagram(result) ? result.nodes : [];
     expect(nodes[0]?.filename).toBeUndefined();
@@ -156,7 +176,7 @@ describe('sanitizeDiagram', () => {
         ],
       }),
       'd',
-      hunkIndex,
+      grounding,
     );
     const stateNodes = asState && isGraphDiagram(asState) ? asState.nodes : [];
     expect(stateNodes[0]?.initial).toBe(true);
@@ -170,7 +190,7 @@ describe('sanitizeDiagram', () => {
         ],
       }),
       'd',
-      hunkIndex,
+      grounding,
     );
     const archNodes = asArchitecture && isGraphDiagram(asArchitecture) ? asArchitecture.nodes : [];
     expect(archNodes[0]?.initial).toBeUndefined();
@@ -186,7 +206,7 @@ describe('sanitizeDiagram', () => {
           ],
         }),
         'd',
-        hunkIndex,
+        grounding,
       ),
     ).toBeUndefined();
   });
@@ -201,7 +221,7 @@ describe('sanitizeDiagram', () => {
         ],
       }),
       'd',
-      hunkIndex,
+      grounding,
     );
     const nodes = result && isGraphDiagram(result) ? result.nodes : [];
     expect(nodes).toHaveLength(2);
@@ -209,7 +229,7 @@ describe('sanitizeDiagram', () => {
   });
 
   it('defaults kind, change and direction', () => {
-    const result = sanitizeDiagram(graph(), 'd', hunkIndex);
+    const result = sanitizeDiagram(graph(), 'd', grounding);
     const nodes = result && isGraphDiagram(result) ? result.nodes : [];
     expect(nodes[0]?.kind).toBe('code');
     expect(nodes[0]?.change).toBe('unchanged');
@@ -238,7 +258,7 @@ describe('sanitizeDiagram (sequence)', () => {
         { type: 'message', from: 'loop', to: 'ghost', label: 'vanish' },
       ]),
       'd',
-      hunkIndex,
+      grounding,
     );
     expect(result?.kind === 'sequence' && result.steps).toHaveLength(1);
   });
@@ -272,7 +292,7 @@ describe('sanitizeDiagram (sequence)', () => {
         },
       ]),
       'd',
-      hunkIndex,
+      grounding,
     );
 
     const steps = result?.kind === 'sequence' ? result.steps : [];
@@ -292,7 +312,7 @@ describe('sanitizeDiagram (sequence)', () => {
       sanitizeDiagram(
         sequence([{ type: 'message', from: 'ghost', to: 'db', label: 'nope' }]),
         'd',
-        hunkIndex,
+        grounding,
       ),
     ).toBeUndefined();
   });

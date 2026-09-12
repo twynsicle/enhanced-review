@@ -54,7 +54,19 @@ export const runGh: CommandRunner = (opts) =>
     });
   });
 
-export const HOST_RUNNERS: Runners = { git: runGit, gh: runGh };
+/**
+ * git as the engineer running it. The shared runner ignores the system and
+ * global configuration, because the server diffs a repository it did not write
+ * on a host whose gitconfig it does not control; here those files are what
+ * makes git work at all — the credential helper, proxy and `url.insteadOf`
+ * that reach origin, and the `safe.directory` entries without which git
+ * refuses to touch the repository. Nothing the catalog needs rides on them:
+ * each patch is numbered under a `diff --git` header this CLI writes itself,
+ * and every diff it reads passes `--no-ext-diff --no-textconv`.
+ */
+const runLocalGit: CommandRunner = (opts) => runGit({ ...opts, hostConfig: true });
+
+export const HOST_RUNNERS: Runners = { git: runLocalGit, gh: runGh };
 
 export class Shell {
   readonly cwd: string;

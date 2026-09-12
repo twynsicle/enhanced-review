@@ -1,6 +1,12 @@
 import { NARRATIVE_SYSTEM_PROMPT } from './instructions.ts';
 import type { ReviewFile, ReviewFileSkipReason } from '../narrative.ts';
-import { buildDiffHunkIndex, type DiffHunk, type DiffHunkIndex } from './diff-hunk-catalog.ts';
+import { builtInSkipReason } from './ai-file-filter.ts';
+import {
+  buildDiffHunkIndex,
+  groundingFor,
+  type DiffHunk,
+  type PromptGrounding,
+} from './diff-hunk-catalog.ts';
 import type { PrData } from './types.ts';
 
 /**
@@ -12,11 +18,10 @@ import type { PrData } from './types.ts';
  * Hunks are numbered over the whole filtered diff, before truncation, because
  * numbering after it would renumber every hunk that follows a trimmed one and
  * the ids stored on the review would then mean something different from the
- * ids the coverage backstop measures against. That leaves two sets, and they
- * are not interchangeable: `catalog` is all of them, which is what coverage
- * needs; `hunkIndex` holds only the hunks the prompt actually showed, which is
- * what parsing resolves against, so an id the model guessed at from a trimmed
- * gap cannot come back as a real line span nobody was given.
+ * ids the coverage backstop measures against. So the result carries both the
+ * whole `catalog`, which is what coverage measures against, and the
+ * `grounding` the model's answer is checked through, which resolves only the
+ * hunks the prompt showed.
  */
 const MAX_DIFF_TOKENS = 80_000;
 const CHARS_PER_TOKEN = 4;
@@ -27,10 +32,10 @@ export interface NarrativePromptResult {
   system: string;
   user: string;
   wasTruncated: boolean;
-  /** The hunks the prompt listed, for resolving the ids the model cites. */
-  hunkIndex: DiffHunkIndex;
   /** Every hunk of every reviewed file, for the coverage backstop. */
   catalog: DiffHunk[];
+  /** What the model's citations are resolved against. */
+  grounding: PromptGrounding;
 }
 
 /** Trims the largest file patches first, keeping their head and tail. */
@@ -130,13 +135,6 @@ function hunksShownIn(diff: string, hunks: readonly DiffHunk[]): DiffHunk[] {
 
 const hunkKey = (hunk: DiffHunk) => `${hunk.filename}\u0000${hunk.header}`;
 
-/** An index over just these hunks, so no other id resolves through it. */
-function indexOf(hunks: readonly DiffHunk[]): DiffHunkIndex {
-  const byId: Partial<Record<string, DiffHunk>> = {};
-  for (const hunk of hunks) byId[hunk.id] = hunk;
-  return { hunks: [...hunks], byId };
-}
-
 /** The Changed Hunks list the model cites ids from. */
 export function formatHunkCatalog(hunks: readonly DiffHunk[]): string {
   if (hunks.length === 0) return '  (No patch hunks were detected in the provided diff.)';
@@ -158,7 +156,14 @@ export function buildNarrativePrompt(prData: PrData): NarrativePromptResult {
   const skipped = new Set(prData.files.filter(isSkipped).map((f) => f.filename));
   const reviewed = prData.files.filter((f) => !skipped.has(f.filename));
 
-  const filtered = dropPatches(prData.diff, (filename) => skipped.has(filename));
+  // A patch is dropped when its file is stamped `skipped`, and also when the
+  // built-in rules alone would stamp it: the file list and the diff come from
+  // separate git commands, and a path missing from the list must not have a
+  // lockfile's whole patch inlined and numbered into ids no file can carry.
+  const filtered = dropPatches(
+    prData.diff,
+    (filename) => skipped.has(filename) || builtInSkipReason(filename) !== null,
+  );
   const catalog = buildDiffHunkIndex(filtered).hunks;
   const { result: diff, wasTruncated } = truncateDiff(filtered);
   const shown = wasTruncated ? hunksShownIn(diff, catalog) : catalog;
@@ -195,7 +200,10 @@ ${diff}
     system: NARRATIVE_SYSTEM_PROMPT,
     user,
     wasTruncated,
-    hunkIndex: indexOf(shown),
     catalog,
+    grounding: groundingFor(
+      shown,
+      reviewed.map((file) => file.filename),
+    ),
   };
 }

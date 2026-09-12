@@ -39,24 +39,30 @@ src/domain/
                      schemaVersion, no back-compat; parseBundle, filePair), bundle-html.ts (the bundle as the text of
                      the report's er-bundle element: injectBundle escapes every <, readEmbeddedBundle),
                      language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
-    clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
-                     verify SHA + fetch base + diff, which pins the prefix, quoting and colour settings the hunk
-                     catalog's `diff --git a/… b/…` line depends on; headRefFor, githubCloneUrl),
+    clone/           *.server.ts: git-runner (spawn, non-interactive, the host's system and global gitconfig ignored
+                     unless a call asks for `hostConfig`, abort → SIGTERM), clone-runner (init + fetch head +
+                     verify SHA + fetch base + diff, which refuses the diff drivers a repository's own
+                     `.gitattributes` can name; headRefFor, githubCloneUrl),
                      diff-files (listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over
-                     `-z` output, each rename's old path and the binary flag)
+                     `-z` output under the same diff pins, each rename's old path and the binary flag; output that
+                     ends mid-record throws rather than yielding a short list)
     prompt/          pure: ai-file-filter (isExcludedFromAI, and the ReviewFileSkipReason rules over it —
                      builtInSkipReason, binarySkipReason, promptSkipReason for both in order; the hosted runner
                      stamps them on a changed file, the CLI runs them either side of its .gitattributes pass),
-                     diff-hunk-catalog (H0001… ids), narrative-prompt (system + user; the prompt reviews exactly the
-                     files carrying no `skipped` reason and lists the rest under Not Reviewed; hunk ids are numbered
+                     diff-hunk-catalog (H0001… ids; PromptGrounding/groundingFor, what a model's answer is
+                     checked against), narrative-prompt (system + user; the prompt reviews exactly the files
+                     carrying no `skipped` reason, drops the patch of anything the built-in rules match even
+                     when the file list missed it, and lists the rest under Not Reviewed; hunk ids are numbered
                      over the whole filtered diff, so ids mean the same thing to the coverage backstop, and the
-                     result splits them in two — `catalog`, every hunk, for coverage, and `hunkIndex`, only those the
-                     truncated prompt showed, for resolving what the model cites; NARRATIVE_SYSTEM_PROMPT,
-                     formatFileList, formatHunkCatalog and formatSkippedSection are shared with the local CLI's prompt),
+                     result carries both `catalog`, every hunk, for coverage, and `grounding`, which resolves only
+                     the hunks the truncated prompt showed while knowing every reviewed file's name;
+                     NARRATIVE_SYSTEM_PROMPT, formatFileList, formatHunkCatalog and formatSkippedSection are
+                     shared with the local CLI's prompt),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; a failed JSON.parse is
                      retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string),
                      parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own
-                     so a bad picture cannot fail the review; grounding checked against the hunk catalog), types.ts (PrData),
+                     so a bad picture cannot fail the review; a node's filename checked against the reviewed file
+                     list and its hunk ids against the hunks the prompt showed), types.ts (PrData),
                      instructions.ts (the review instructions and output schema, shared with the local CLI, plus one
                      closing paragraph per path: SERVER_WORKING_TREE, LOCAL_WORKING_TREE; the assembled server prompt is
                      pinned byte-for-byte by __fixtures__/server-prompt.txt)
@@ -93,8 +99,8 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t
   (`seq` from 0, inserts fire-and-forget, drained before finalize).
   `finalizeDone` writes the `reviews` row and `running → done` in one
   transaction, the changed files carrying their hunks when the executor
-  returned a catalog and `skipped` when the prompt's own filter left them out;
-  the `job done` log line reports the hunk coverage.
+  returned a catalog and `skipped` when the file's own skip reason says why the
+  prompt left it out; the `job done` log line reports the hunk coverage.
   Failures → `markErrored(formatJobError(err))`, clipped to 500 chars. Every side effect is injected (`RunJobDeps`) so the stub review runs
   end to end from `run.integration.test.ts` against a local git repo.
 - **Abort reasons** say who already wrote the terminal status: `cancel`

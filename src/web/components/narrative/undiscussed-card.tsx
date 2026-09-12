@@ -58,9 +58,8 @@ export function UndiscussedCard({
       </Stack>
 
       <Text fz="md">
-        The chapters cite {coverage.cited} of the {plural(coverage.total, 'hunk')} the reviewer was
-        given. The rest are here. A file a chapter took some hunks from appears with only the
-        others.
+        The chapters cite {coverage.cited} of the {plural(coverage.total, 'hunk')} in this change.
+        The rest are here. A file a chapter took some hunks from appears with only the others.
         {diffTruncated
           ? ' This change was too large to put in front of the reviewer whole, so some of what' +
             ' follows was never listed to it rather than passed over.'

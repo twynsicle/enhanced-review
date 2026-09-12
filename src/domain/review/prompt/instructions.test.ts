@@ -35,7 +35,16 @@ const PR_DATA: PrData = {
       skipped: 'built-in',
     },
   ],
+  // The lockfile's patch is here so the fixture records its absence: the
+  // prompt drops the patch of every file it lists under Not Reviewed, and a
+  // recording of a diff that never carried one proves nothing about that.
   diff: [
+    'diff --git a/package-lock.json b/package-lock.json',
+    '--- a/package-lock.json',
+    '+++ b/package-lock.json',
+    '@@ -1,3 +1,3 @@',
+    '-    "resolved": "https://registry.npmjs.org/nope/-/nope-1.0.0.tgz",',
+    '+    "resolved": "https://registry.npmjs.org/nope/-/nope-1.1.0.tgz",',
     'diff --git a/src/scheduler/cadence.ts b/src/scheduler/cadence.ts',
     '--- a/src/scheduler/cadence.ts',
     '+++ b/src/scheduler/cadence.ts',

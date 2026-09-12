@@ -20,6 +20,37 @@ export interface DiffHunkIndex {
   byId: Partial<Record<string, DiffHunk>>;
 }
 
+/**
+ * What a model's answer is checked against. The two halves are deliberately
+ * not the same list: an id resolves only when the prompt actually showed that
+ * hunk, so an id guessed at from a trimmed gap cannot come back as a real line
+ * span, while a diagram may name any file in the change, because the file list
+ * it takes a name from is never trimmed.
+ */
+export interface PromptGrounding {
+  /** The hunks the prompt listed, by id. */
+  shown: DiffHunkIndex;
+  /** The paths the review covers. */
+  filenames: ReadonlySet<string>;
+}
+
+/**
+ * Grounding over the hunks a prompt showed. `filenames` defaults to the files
+ * those hunks belong to, which is the whole change wherever nothing was
+ * trimmed away.
+ */
+export function groundingFor(
+  shown: readonly DiffHunk[],
+  filenames?: Iterable<string>,
+): PromptGrounding {
+  const byId: Partial<Record<string, DiffHunk>> = {};
+  for (const hunk of shown) byId[hunk.id] = hunk;
+  return {
+    shown: { hunks: [...shown], byId },
+    filenames: new Set(filenames ?? shown.map((hunk) => hunk.filename)),
+  };
+}
+
 const DIFF_FILE_HEADER_RE = /^diff --git a\/(.+) b\/(.+)$/;
 const HUNK_HEADER_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 

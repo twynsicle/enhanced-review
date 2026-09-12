@@ -49,19 +49,12 @@ const DIFF = `diff --git a/f.txt b/f.txt
 +bye
 `;
 
-/** The argv from the subcommand on: `-c <setting>` pairs sit before it, the way git takes them. */
-function subcommand(args: readonly string[]): string[] {
-  const rest = [...args];
-  while (rest[0] === '-c') rest.splice(0, 2);
-  return rest;
-}
-
 /** A git that answers every step the runner takes, recording the argv list. */
 function fakeGit(headSha = HEAD): { git: GitRunner; calls: string[][] } {
   const calls: string[][] = [];
   const git: GitRunner = async (opts: GitRunOptions) => {
     calls.push([...opts.args]);
-    const [cmd, ...rest] = subcommand(opts.args);
+    const [cmd, ...rest] = opts.args;
     let stdout = '';
     if (cmd === 'rev-parse') stdout = `${headSha}\n`;
     else if (cmd === 'diff' && rest.includes('--numstat')) stdout = '1\t1\tf.txt\0';
@@ -149,10 +142,9 @@ describe('runJob', () => {
       'checkout --quiet FETCH_HEAD',
       'rev-parse HEAD',
       `fetch --depth=1 origin ${BASE}`,
-      '-c core.quotePath=false -c diff.noprefix=false -c diff.mnemonicPrefix=false ' +
-        `-c diff.srcPrefix=a/ -c diff.dstPrefix=b/ diff --no-color --no-ext-diff --no-textconv ${BASE}..${HEAD}`,
-      `diff --numstat -z ${BASE}..${HEAD}`,
-      `diff --name-status -z ${BASE}..${HEAD}`,
+      `diff --no-color --no-ext-diff --no-textconv ${BASE}..${HEAD}`,
+      `diff --numstat -z --no-color --no-ext-diff --no-textconv ${BASE}..${HEAD}`,
+      `diff --name-status -z --no-color --no-ext-diff --no-textconv ${BASE}..${HEAD}`,
       'log -1 --format=%an%n--BODY--%n%B',
     ]);
     expect(d.getPullMetadata).not.toHaveBeenCalled();
@@ -178,7 +170,7 @@ describe('runJob', () => {
     // file: neither reaches the model, and a reviewed-looking row for either
     // is a change the reader is told nobody discussed.
     const git: GitRunner = async (opts) => {
-      const [cmd, ...rest] = subcommand(opts.args);
+      const [cmd, ...rest] = opts.args;
       if (cmd === 'rev-parse') return { stdout: `${HEAD}\n`, stderr: '', exitCode: 0 };
       if (cmd === 'diff' && rest.includes('--numstat')) {
         const stdout = z('1\t1\tf.txt', '9\t9\tyarn.lock', '-\t-\tlogo.png');

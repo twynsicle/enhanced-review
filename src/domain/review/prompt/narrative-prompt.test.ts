@@ -36,12 +36,33 @@ function truncatedPrompt() {
     files: [{ filename: 'src/big.ts', status: 'modified', additions: 12_000, deletions: 0 }],
     diff: manyHunkPatch(200),
   });
-  const shownIds = new Set(result.hunkIndex.hunks.map((hunk) => hunk.id));
+  const shownIds = new Set(result.grounding.shown.hunks.map((hunk) => hunk.id));
   return {
     result,
-    shownId: result.hunkIndex.hunks[0]!.id,
+    shownId: result.grounding.shown.hunks[0]!.id,
     gapId: result.catalog.find((hunk) => !shownIds.has(hunk.id))!.id,
   };
+}
+
+/**
+ * A prompt whose diff is cut off whole rather than trimmed per file: every
+ * patch is short enough that trimming skips it, so the budget takes the tail
+ * of the diff off at a stroke and the last files carry no hunks at all.
+ */
+function hardTruncatedPrompt() {
+  const names = Array.from({ length: 400 }, (_, i) => `src/f${String(i)}.ts`);
+  const result = buildNarrativePrompt(
+    prData({
+      files: names.map((filename) => ({
+        filename,
+        status: 'modified' as const,
+        additions: 100,
+        deletions: 0,
+      })),
+      diff: names.map((name) => patch(name, 100)).join(''),
+    }),
+  );
+  return { result, cut: names.at(-1)! };
 }
 
 function patch(filename: string, bodyLines: number): string {
@@ -80,16 +101,43 @@ function prData(overrides: Partial<PrData> = {}): PrData {
 
 describe('buildNarrativePrompt', () => {
   it('lists a skipped file apart and keeps it out of the diff and the hunk catalog', () => {
-    const { user, hunkIndex, catalog, wasTruncated } = buildNarrativePrompt(prData());
+    const { user, catalog, grounding, wasTruncated } = buildNarrativePrompt(prData());
     expect(user).toContain('## Files Changed (1)');
     expect(user).toContain('src/a.ts');
     expect(user).toContain('## Not Reviewed (1)');
     expect(user).toContain('package-lock.json  (lockfile, bundle or snapshot)');
     expect(user.slice(user.indexOf('## Full Diff'))).not.toContain('package-lock.json');
     expect(catalog.map((h) => h.filename)).toEqual(['src/a.ts']);
-    expect(hunkIndex.hunks.map((h) => h.filename)).toEqual(['src/a.ts']);
+    expect(grounding.shown.hunks.map((h) => h.filename)).toEqual(['src/a.ts']);
     expect(user).toContain('H0001  src/a.ts  @@ -1,1 +1,3 @@  original L1  modified L1-3');
     expect(wasTruncated).toBe(false);
+  });
+
+  it('drops a skippable patch the changed-file list does not mention', () => {
+    // The file list and the diff come from separate git commands, so a path
+    // missing from the list is a path no `skipped` stamp can reach. Without
+    // the rules applied to the patch itself, a lockfile's whole diff is
+    // inlined and numbered into ids no stored file can carry.
+    const { user, catalog } = buildNarrativePrompt(
+      prData({
+        files: [{ filename: 'src/a.ts', status: 'modified', additions: 3, deletions: 0 }],
+      }),
+    );
+    expect(user).not.toContain('## Not Reviewed');
+    expect(user.slice(user.indexOf('## Full Diff'))).not.toContain('package-lock.json');
+    expect(catalog.map((h) => h.filename)).toEqual(['src/a.ts']);
+  });
+
+  it('grounds diagram filenames on the file list, which truncation never shortens', () => {
+    // The instructions tell the model to take a diagram node's filename from
+    // Files Changed. Ground the name on the hunks instead and a correctly
+    // named node on a file the budget cut short of loses its click-through.
+    const { result, cut } = hardTruncatedPrompt();
+
+    expect(result.wasTruncated).toBe(true);
+    expect(result.user.slice(0, result.user.indexOf('## Changed Hunks'))).toContain(cut);
+    expect(result.grounding.shown.hunks.some((hunk) => hunk.filename === cut)).toBe(false);
+    expect(result.grounding.filenames.has(cut)).toBe(true);
   });
 
   it('includes the header, description and hunk-id instructions', () => {
@@ -208,7 +256,7 @@ describe('buildNarrativePrompt', () => {
       ],
     })}</narrative_review>`;
 
-    const parsed = parseNarrativeReview(raw, result.hunkIndex);
+    const parsed = parseNarrativeReview(raw, result.grounding);
     expect(parsed.ok).toBe(true);
     const review = (parsed as { ok: true; data: NarrativeReview }).data;
     expect(review.chapters[0]!.diffChunks[0]!.hunks.map((hunk) => hunk.id)).toEqual([shownId]);

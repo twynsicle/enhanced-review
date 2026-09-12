@@ -11,6 +11,14 @@ const STATUS_MAP: Record<string, ReviewFileStatus> = {
   U: 'modified',
 };
 
+/** Git's own output ran out mid-record, so the file list cannot be trusted to be whole. */
+export class TruncatedGitOutputError extends Error {
+  constructor(command: string) {
+    super(`git ${command} ended mid-record; the changed file list is incomplete`);
+    this.name = 'TruncatedGitOutputError';
+  }
+}
+
 /** A changed file with what the reader's list leaves out. */
 export interface ChangedFile extends ReviewFile {
   /** The path a renamed or copied file came from; null otherwise. */
@@ -18,6 +26,15 @@ export interface ChangedFile extends ReviewFile {
   /** numstat reports `-` counts: git sees no text lines to count. */
   binary: boolean;
 }
+
+/**
+ * The same pins the narrative diff carries. A driver the reviewed repository
+ * names in its own `.gitattributes` is the one no environment can disable, and
+ * textconv is what these two commands would otherwise disagree over: it gives
+ * `--numstat` real line counts for a file the diff prints as binary, and the
+ * file then reaches the model as reviewable with no hunks behind it.
+ */
+const DIFF_PINS = ['--no-color', '--no-ext-diff', '--no-textconv'] as const;
 
 /** The changed files between two commits: per-file counts, rename origins, binary flags. */
 export async function listChangedFileDetails(
@@ -27,13 +44,14 @@ export async function listChangedFileDetails(
   head: string,
   signal?: AbortSignal,
 ): Promise<ChangedFile[]> {
+  const range = `${base}..${head}`;
   const numstat = await runGitOrThrow(git, 'diff --numstat', {
-    args: ['diff', '--numstat', '-z', `${base}..${head}`],
+    args: ['diff', '--numstat', '-z', ...DIFF_PINS, range],
     cwd,
     signal,
   });
   const status = await runGitOrThrow(git, 'diff --name-status', {
-    args: ['diff', '--name-status', '-z', `${base}..${head}`],
+    args: ['diff', '--name-status', '-z', ...DIFF_PINS, range],
     cwd,
     signal,
   });
@@ -48,6 +66,10 @@ export async function listChangedFileDetails(
  * `old => new` column that never matches the two-column name-status record)
  * and it also sidesteps git's quoting of paths with spaces or non-ASCII
  * bytes. Binary files show `-` counts and become 0/0.
+ *
+ * A record that ends early throws rather than returning the files read so far:
+ * a short list is a file the review never accounts for, and the quiet version
+ * of that is a change nobody is told about.
  */
 export function parseChangedFiles(numstatZ: string, nameStatusZ: string): ChangedFile[] {
   const counts = new Map<string, { additions: number; deletions: number; binary: boolean }>();
@@ -60,7 +82,7 @@ export function parseChangedFiles(numstatZ: string, nameStatusZ: string): Change
     let filename = parts[2];
     if (filename === '') {
       // Rename/copy: the old and new paths are the next two fields.
-      if (i + 2 >= numFields.length) break;
+      if (i + 2 >= numFields.length) throw new TruncatedGitOutputError('diff --numstat');
       filename = numFields[i + 2];
       i += 2;
     }
@@ -78,7 +100,7 @@ export function parseChangedFiles(numstatZ: string, nameStatusZ: string): Change
     const code = statusFields[i].charAt(0).toUpperCase();
     const renamed = code === 'R' || code === 'C';
     const pathAt = renamed ? i + 2 : i + 1;
-    if (pathAt >= statusFields.length) break;
+    if (pathAt >= statusFields.length) throw new TruncatedGitOutputError('diff --name-status');
     const filename = statusFields[pathAt];
     const previousFilename = renamed ? statusFields[i + 1] : null;
     if (renamed) i += 1;
