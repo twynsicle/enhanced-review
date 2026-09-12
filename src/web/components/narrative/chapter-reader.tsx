@@ -194,8 +194,7 @@ export function ChapterReader({
   );
 
   // One lookup, then one switch: the section list already knows which kind of
-  // card each id wants, and re-deriving that from the id at the render site is
-  // how the risk and backstop branches each grew their own guard.
+  // card each id wants, so the render site never re-derives that from the id.
   const activeSection = findSection(sections, activeId) ?? sections[0]!;
   const activeIndex = review.chapters.findIndex((ch) => ch.id === activeId) + 1;
 
@@ -236,7 +235,7 @@ export function ChapterReader({
             filename={activeFile}
             chapters={review.chapters}
             files={review.files}
-            coverage={coverage.byFile.get(activeFile)}
+            coverage={coverage.byFile.get(activeFile) ?? null}
           />
         ) : (
           <SectionCard
@@ -259,8 +258,9 @@ export function ChapterReader({
  * The one card the reader shows for the active section. `sections` is already
  * the authority on which sections this review has — the risk section is only
  * in the list when there is an assessment, the backstop only when a chapter
- * left a hunk uncited — so the kind decides and nothing here re-tests for the
- * content behind it.
+ * left a hunk uncited — so the kind alone decides which card to draw. The two
+ * remaining checks narrow optional data for the type system rather than test
+ * whether the section can be reached.
  */
 function SectionCard({
   section,
@@ -281,7 +281,6 @@ function SectionCard({
   actions?: ReactNode;
   onSelectFile: (filename: string) => void;
 }) {
-  const chapter = review.chapters.find((ch) => ch.id === section.id);
   switch (section.kind) {
     case 'risk':
       return review.riskAssessment ? <RiskCard assessment={review.riskAssessment} /> : null;
@@ -293,10 +292,12 @@ function SectionCard({
           diffTruncated={diffTruncated}
         />
       );
-    case 'chapter':
+    case 'chapter': {
+      const chapter = review.chapters.find((ch) => ch.id === section.id);
       return chapter ? (
         <ChapterCard chapter={chapter} chapterIndex={chapterIndex} onSelectFile={onSelectFile} />
       ) : null;
+    }
     case 'summary':
       return (
         <SummaryCard review={review} meta={meta} actions={actions} onSelectFile={onSelectFile} />

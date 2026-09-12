@@ -46,7 +46,7 @@ function renderWithSource(files: ReviewFile[], cited: NarrativeChapter[]) {
     },
   };
   // The reader computes coverage once and hands each file its share.
-  const coverage = reviewCoverage(bundle.review).byFile.get('src/app.ts');
+  const coverage = reviewCoverage(bundle.review).byFile.get('src/app.ts') ?? null;
   const Stub = createRoutesStub([
     {
       path: '/',
@@ -66,6 +66,7 @@ describe('FileView without hunks', () => {
       <FileView
         filename="src/generated/client.ts"
         chapters={chapters}
+        coverage={null}
         files={[
           {
             filename: 'src/generated/client.ts',
@@ -85,6 +86,7 @@ describe('FileView without hunks', () => {
       <FileView
         filename="src/app.ts"
         chapters={chapters}
+        coverage={null}
         files={[{ filename: 'src/app.ts', status: 'modified', additions: 1, deletions: 1 }]}
       />,
     );
@@ -96,6 +98,7 @@ describe('FileView without hunks', () => {
       <FileView
         filename="src/app.ts"
         chapters={chapters}
+        coverage={null}
         files={[
           { filename: 'src/app.ts', status: 'modified', additions: 0, deletions: 0, hunks: [] },
         ]}
@@ -111,6 +114,7 @@ describe('FileView without hunks', () => {
       <FileView
         filename="src/app.ts"
         chapters={chapters}
+        coverage={null}
         files={[
           { filename: 'src/app.ts', status: 'modified', additions: 9, deletions: 2, hunks: [] },
         ]}

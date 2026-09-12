@@ -40,13 +40,19 @@ src/domain/
                      the report's er-bundle element: injectBundle escapes every <, readEmbeddedBundle),
                      language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
     clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
-                     verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists; the *Details/parseChangedFiles variants keep a
-                     rename's old path and the binary flag, for the local CLI)
-    prompt/          pure: ai-file-filter (isExcludedFromAI + promptSkipReason, the ReviewFileSkipReason the hosted
-                     runner stamps on a filtered file), diff-hunk-catalog (H0001… ids), narrative-prompt (system + user;
-                     hunk ids are numbered over the whole filtered diff and the catalog lists only what survives
-                     truncation, so ids mean the same thing to the coverage backstop; NARRATIVE_SYSTEM_PROMPT,
-                     formatFileList and formatHunkCatalog are shared with the local CLI's prompt),
+                     verify SHA + fetch base + diff, which pins the prefix, quoting and colour settings the hunk
+                     catalog's `diff --git a/… b/…` line depends on; headRefFor, githubCloneUrl),
+                     diff-files (listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over
+                     `-z` output, each rename's old path and the binary flag)
+    prompt/          pure: ai-file-filter (isExcludedFromAI, and the ReviewFileSkipReason rules over it —
+                     builtInSkipReason, binarySkipReason, promptSkipReason for both in order; the hosted runner
+                     stamps them on a changed file, the CLI runs them either side of its .gitattributes pass),
+                     diff-hunk-catalog (H0001… ids), narrative-prompt (system + user; the prompt reviews exactly the
+                     files carrying no `skipped` reason and lists the rest under Not Reviewed; hunk ids are numbered
+                     over the whole filtered diff, so ids mean the same thing to the coverage backstop, and the
+                     result splits them in two — `catalog`, every hunk, for coverage, and `hunkIndex`, only those the
+                     truncated prompt showed, for resolving what the model cites; NARRATIVE_SYSTEM_PROMPT,
+                     formatFileList, formatHunkCatalog and formatSkippedSection are shared with the local CLI's prompt),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; a failed JSON.parse is
                      retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string),
                      parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own

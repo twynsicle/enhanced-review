@@ -152,6 +152,10 @@ Use the description as author-provided intent. If it mentions user impact, rollo
 ## Files Changed (1)
   modified   +12/-3  src/scheduler/cadence.ts
 
+## Not Reviewed (1)
+These files changed but are left out of the review. They have no hunks; do not cite them.
+  package-lock.json  (lockfile, bundle or snapshot)
+
 ## Changed Hunks (Use These IDs in diffChunks.hunkIds)
   H0001  src/scheduler/cadence.ts  @@ -7,0 +8,2 @@  original L7 (+0)  modified L8-9
   H0002  src/scheduler/cadence.ts  @@ -16,3 +26,1 @@  original L16-18  modified L26

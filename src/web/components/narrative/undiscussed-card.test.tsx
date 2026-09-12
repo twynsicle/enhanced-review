@@ -120,7 +120,9 @@ describe('the "Not discussed" section', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Not discussed' })).toBeDefined();
     expect(
-      screen.getByText('The chapters cite 2 of the 4 hunks in this change.', { exact: false }),
+      screen.getByText('The chapters cite 2 of the 4 hunks the reviewer was given.', {
+        exact: false,
+      }),
     ).toBeDefined();
     expect(
       screen.getByText('1 file not discussed in any chapter, and 1 file discussed only in part'),

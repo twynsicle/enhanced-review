@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { listChangedFiles, mergeFileLists, parseChangedFiles } from './diff-files.server.ts';
+import {
+  listChangedFileDetails,
+  parseChangedFiles,
+  type ChangedFile,
+} from './diff-files.server.ts';
 import type { GitRunner } from './git-runner.server.ts';
+import type { ReviewFileStatus } from '../narrative.ts';
 
 /** `git diff --numstat -z` output: every field is NUL-terminated. */
 function numstatZ(...fields: string[]): string {
@@ -8,125 +13,107 @@ function numstatZ(...fields: string[]): string {
 }
 const nameStatusZ = numstatZ;
 
-describe('mergeFileLists', () => {
+/** One expected record; the cases that are not about renames or binaries take the defaults. */
+function file(
+  filename: string,
+  status: ReviewFileStatus,
+  additions: number,
+  deletions: number,
+  extra: Partial<ChangedFile> = {},
+): ChangedFile {
+  return {
+    filename,
+    status,
+    additions,
+    deletions,
+    previousFilename: null,
+    binary: false,
+    ...extra,
+  };
+}
+
+describe('parseChangedFiles', () => {
   it('joins counts and statuses on the filename', () => {
     expect(
-      mergeFileLists(
+      parseChangedFiles(
         numstatZ('10\t2\tsrc/a.ts', '0\t5\tsrc/b.ts'),
         nameStatusZ('M', 'src/a.ts', 'D', 'src/b.ts'),
       ),
-    ).toEqual([
-      { filename: 'src/a.ts', status: 'modified', additions: 10, deletions: 2 },
-      { filename: 'src/b.ts', status: 'removed', additions: 0, deletions: 5 },
-    ]);
+    ).toEqual([file('src/a.ts', 'modified', 10, 2), file('src/b.ts', 'removed', 0, 5)]);
   });
 
-  it('keeps the counts of a rename that also changed lines', () => {
+  it('keeps the counts and the old path of a rename that also changed lines', () => {
     // `-z` splits a rename into an empty third numstat field plus two paths;
     // the old line format collapsed it to `old.ts => new.ts` and never joined.
     expect(
-      mergeFileLists(
+      parseChangedFiles(
         numstatZ('4\t3\t', 'old.ts', 'new.ts'),
         nameStatusZ('R077', 'old.ts', 'new.ts'),
       ),
-    ).toEqual([{ filename: 'new.ts', status: 'renamed', additions: 4, deletions: 3 }]);
+    ).toEqual([file('new.ts', 'renamed', 4, 3, { previousFilename: 'old.ts' })]);
   });
 
   it('handles a rename whose paths share a directory prefix', () => {
     // The line format writes this as `src/{a => b}/x.ts`.
     expect(
-      mergeFileLists(
+      parseChangedFiles(
         numstatZ('1\t1\t', 'src/a/x.ts', 'src/b/x.ts'),
         nameStatusZ('R100', 'src/a/x.ts', 'src/b/x.ts'),
       ),
-    ).toEqual([{ filename: 'src/b/x.ts', status: 'renamed', additions: 1, deletions: 1 }]);
+    ).toEqual([file('src/b/x.ts', 'renamed', 1, 1, { previousFilename: 'src/a/x.ts' })]);
   });
 
   it('reports a copy under the new name', () => {
     expect(
-      mergeFileLists(
+      parseChangedFiles(
         numstatZ('0\t0\t', 'src/x.ts', 'src/y.ts'),
         nameStatusZ('C100', 'src/x.ts', 'src/y.ts'),
       ),
-    ).toEqual([{ filename: 'src/y.ts', status: 'copied', additions: 0, deletions: 0 }]);
+    ).toEqual([file('src/y.ts', 'copied', 0, 0, { previousFilename: 'src/x.ts' })]);
   });
 
   it('keeps ordinary entries straight when a rename sits between them', () => {
     expect(
-      mergeFileLists(
+      parseChangedFiles(
         numstatZ('1\t0\tsrc/a.ts', '2\t2\t', 'old.ts', 'new.ts', '0\t3\tsrc/c.ts'),
         nameStatusZ('M', 'src/a.ts', 'R090', 'old.ts', 'new.ts', 'M', 'src/c.ts'),
       ),
     ).toEqual([
-      { filename: 'src/a.ts', status: 'modified', additions: 1, deletions: 0 },
-      { filename: 'new.ts', status: 'renamed', additions: 2, deletions: 2 },
-      { filename: 'src/c.ts', status: 'modified', additions: 0, deletions: 3 },
+      file('src/a.ts', 'modified', 1, 0),
+      file('new.ts', 'renamed', 2, 2, { previousFilename: 'old.ts' }),
+      file('src/c.ts', 'modified', 0, 3),
     ]);
   });
 
-  it('treats binary "-" counts as zero and unknown codes as modified', () => {
+  it('marks binary files, zeroes their "-" counts, and treats unknown codes as modified', () => {
     expect(
-      mergeFileLists(numstatZ('-\t-\tlogo.png'), nameStatusZ('A', 'logo.png', 'X', 'weird')),
-    ).toEqual([
-      { filename: 'logo.png', status: 'added', additions: 0, deletions: 0 },
-      { filename: 'weird', status: 'modified', additions: 0, deletions: 0 },
+      parseChangedFiles(numstatZ('-\t-\tlogo.png'), nameStatusZ('A', 'logo.png', 'X', 'weird')),
+    ).toEqual([file('logo.png', 'added', 0, 0, { binary: true }), file('weird', 'modified', 0, 0)]);
+  });
+
+  it('separates an empty file from a binary one', () => {
+    // Both report no lines; only the binary one reports them as `-`.
+    expect(parseChangedFiles(numstatZ('0\t0\tempty.txt'), nameStatusZ('A', 'empty.txt'))).toEqual([
+      file('empty.txt', 'added', 0, 0),
     ]);
   });
 
   it('carries paths with spaces and non-ASCII bytes through unquoted', () => {
     expect(
-      mergeFileLists(
+      parseChangedFiles(
         numstatZ('1\t0\tdocs/notes für mich.md'),
         nameStatusZ('A', 'docs/notes für mich.md'),
       ),
-    ).toEqual([
-      { filename: 'docs/notes für mich.md', status: 'added', additions: 1, deletions: 0 },
-    ]);
+    ).toEqual([file('docs/notes für mich.md', 'added', 1, 0)]);
   });
 
   it('ignores empty and malformed records', () => {
-    expect(mergeFileLists('', '')).toEqual([]);
-    expect(mergeFileLists(numstatZ('not-a-numstat'), nameStatusZ('M'))).toEqual([]);
+    expect(parseChangedFiles('', '')).toEqual([]);
+    expect(parseChangedFiles(numstatZ('not-a-numstat'), nameStatusZ('M'))).toEqual([]);
   });
 });
 
-describe('parseChangedFiles', () => {
-  it("keeps a rename's old path and marks binary files", () => {
-    expect(
-      parseChangedFiles(
-        numstatZ('4	3	', 'old.ts', 'new.ts', '-	-	logo.png', '0	0	empty.txt'),
-        nameStatusZ('R077', 'old.ts', 'new.ts', 'A', 'logo.png', 'A', 'empty.txt'),
-      ),
-    ).toEqual([
-      {
-        filename: 'new.ts',
-        status: 'renamed',
-        additions: 4,
-        deletions: 3,
-        previousFilename: 'old.ts',
-        binary: false,
-      },
-      {
-        filename: 'logo.png',
-        status: 'added',
-        additions: 0,
-        deletions: 0,
-        previousFilename: null,
-        binary: true,
-      },
-      {
-        filename: 'empty.txt',
-        status: 'added',
-        additions: 0,
-        deletions: 0,
-        previousFilename: null,
-        binary: false,
-      },
-    ]);
-  });
-});
-
-describe('listChangedFiles', () => {
+describe('listChangedFileDetails', () => {
   it('runs numstat and name-status against the range and merges them', async () => {
     const calls: string[][] = [];
     const git: GitRunner = async (opts) => {
@@ -136,8 +123,8 @@ describe('listChangedFiles', () => {
         : nameStatusZ('M', 'f.txt');
       return { stdout, stderr: '', exitCode: 0 };
     };
-    await expect(listChangedFiles(git, '/work', 'base', 'head')).resolves.toEqual([
-      { filename: 'f.txt', status: 'modified', additions: 3, deletions: 1 },
+    await expect(listChangedFileDetails(git, '/work', 'base', 'head')).resolves.toEqual([
+      file('f.txt', 'modified', 3, 1),
     ]);
     expect(calls).toEqual([
       ['diff', '--numstat', '-z', 'base..head'],

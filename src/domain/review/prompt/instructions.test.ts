@@ -10,11 +10,11 @@ import { buildNarrativePrompt } from './narrative-prompt.ts';
 import type { PrData } from './types.ts';
 
 /**
- * The fixture holds the hosted review's assembled prompt as it was before the
- * instructions moved into their own module. Local mode
- * must not change what the hosted app asks the model, so this compares the
- * whole thing, system and user, against that recording. A deliberate change
- * to the prompt regenerates the fixture in the same commit.
+ * The fixture is a recording of the hosted review's assembled prompt, system
+ * and user. The instructions are shared with local mode, so this is what keeps
+ * a change made for one path from silently rewriting what the other asks the
+ * model. A deliberate change to the prompt regenerates the fixture in the same
+ * commit.
  */
 const FIXTURE = path.join(import.meta.dirname, '__fixtures__', 'server-prompt.txt');
 const SEPARATOR = '\n@@ USER @@\n';
@@ -27,7 +27,13 @@ const PR_DATA: PrData = {
   headRefName: 'feat/cadence',
   files: [
     { filename: 'src/scheduler/cadence.ts', status: 'modified', additions: 12, deletions: 3 },
-    { filename: 'package-lock.json', status: 'modified', additions: 400, deletions: 20 },
+    {
+      filename: 'package-lock.json',
+      status: 'modified',
+      additions: 400,
+      deletions: 20,
+      skipped: 'built-in',
+    },
   ],
   diff: [
     'diff --git a/src/scheduler/cadence.ts b/src/scheduler/cadence.ts',
@@ -46,7 +52,7 @@ const PR_DATA: PrData = {
 };
 
 describe('the shared review instructions', () => {
-  it('assemble the hosted prompt exactly as they did before the split', () => {
+  it('assemble the hosted prompt byte for byte', () => {
     const [system, user] = readFileSync(FIXTURE, 'utf8').split(SEPARATOR);
     const built = buildNarrativePrompt(PR_DATA);
 

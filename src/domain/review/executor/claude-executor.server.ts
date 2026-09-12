@@ -63,7 +63,7 @@ export class ClaudeExecutor implements ReviewExecutor {
   async run(input: ReviewExecutorInput): Promise<ReviewExecutorOutput> {
     if (input.signal.aborted) throw abortError('claude run aborted before start');
 
-    const { system, user, wasTruncated, hunkIndex } = buildNarrativePrompt(input.prData);
+    const { system, user, wasTruncated, hunkIndex, catalog } = buildNarrativePrompt(input.prData);
 
     const abortController = new AbortController();
     input.signal.addEventListener('abort', () => abortController.abort(), { once: true });
@@ -125,6 +125,6 @@ export class ClaudeExecutor implements ReviewExecutor {
       if (resultError) throw new ExecutorProcessError(resultError, '', null, raw);
       throw new ExecutorParseError(parsed.error, raw);
     }
-    return { review: parsed.data, wasTruncated, rawText: raw, hunks: hunkIndex.hunks };
+    return { review: parsed.data, wasTruncated, rawText: raw, hunks: catalog };
   }
 }

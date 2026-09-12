@@ -16,7 +16,10 @@ import { token } from '@/web/theme/tokens';
  *
  * `coverage` is the reader's, computed once over the whole review rather than
  * recomputed per file here: the two could disagree, and the sidebar's mark
- * and this header would then be counting different things.
+ * and this header would then be counting different things. It is required,
+ * and `null` says this file carries no catalog: a call site that could leave
+ * it out would silently turn a fully catalogued file into one the note claims
+ * the reviewer was never given.
  */
 export function FileView({
   filename,
@@ -27,7 +30,7 @@ export function FileView({
   filename: string;
   chapters: readonly NarrativeChapter[];
   files?: readonly ReviewFile[];
-  coverage?: FileCoverage | undefined;
+  coverage: FileCoverage | null;
 }) {
   const chunks: DiffChunk[] = [];
   for (const chapter of chapters) {

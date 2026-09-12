@@ -116,10 +116,32 @@ export async function cloneAndDiff(
 
   const diff = await runGitOrThrow(git, 'diff', {
     ...common,
-    // `core.quotePath=false` or a non-ASCII path prints as "src/caf\303\251.ts",
-    // which the hunk catalog's `diff --git a/… b/…` pattern does not match: its
-    // hunks would be filed under whichever file came before it.
-    args: ['-c', 'core.quotePath=false', 'diff', `${input.baseSha}..${actualHead}`],
+    /*
+     * The hunk catalog reads `diff --git a/<path> b/<path>` and nothing else,
+     * so every setting that can rewrite that line is pinned here rather than
+     * left to the host's gitconfig, which this process inherits. Without the
+     * pins a non-ASCII path arrives quoted whole (`"a/src/caf\303\251.ts"`),
+     * `diff.noprefix` and `diff.mnemonicPrefix` replace the `a/` and `b/`, and
+     * colour or an external/textconv driver rewrites the body — each of which
+     * matches nothing and collapses the whole catalog to empty.
+     */
+    args: [
+      '-c',
+      'core.quotePath=false',
+      '-c',
+      'diff.noprefix=false',
+      '-c',
+      'diff.mnemonicPrefix=false',
+      '-c',
+      'diff.srcPrefix=a/',
+      '-c',
+      'diff.dstPrefix=b/',
+      'diff',
+      '--no-color',
+      '--no-ext-diff',
+      '--no-textconv',
+      `${input.baseSha}..${actualHead}`,
+    ],
   });
 
   return { cloneDir, diff: diff.stdout };

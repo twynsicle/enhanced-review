@@ -1,7 +1,48 @@
 import { describe, expect, it } from 'vitest';
+import { reviewCoverage, withFileHunks } from '../coverage.ts';
 import { DIAGRAM_LIMITS } from '../diagram.ts';
+import type { NarrativeReview } from '../narrative.ts';
 import { buildNarrativePrompt } from './narrative-prompt.ts';
+import { parseNarrativeReview } from './parse-narrative.ts';
 import type { PrData } from './types.ts';
+
+/** One patch of `count` hunks, each far too big for the diff budget to keep whole. */
+function manyHunkPatch(count: number): string {
+  const body = Array.from({ length: count }, (_, h) =>
+    [
+      `@@ -${String(h * 60 + 1)},60 +${String(h * 60 + 1)},60 @@`,
+      ...Array.from(
+        { length: 60 },
+        (__, i) => `+hunk ${String(h)} line ${String(i)} ${'x'.repeat(40)}`,
+      ),
+    ].join('\n'),
+  ).join('\n');
+  return [
+    'diff --git a/src/big.ts b/src/big.ts',
+    '--- a/src/big.ts',
+    '+++ b/src/big.ts',
+    body,
+  ].join('\n');
+}
+
+/** A truncated prompt over one big file, plus what the model can and cannot have seen. */
+function truncatedPrompt() {
+  const result = buildNarrativePrompt({
+    title: 'Add widgets',
+    body: 'Because widgets.',
+    author: 'alice',
+    baseRefName: 'main',
+    headRefName: 'feat/widgets',
+    files: [{ filename: 'src/big.ts', status: 'modified', additions: 12_000, deletions: 0 }],
+    diff: manyHunkPatch(200),
+  });
+  const shownIds = new Set(result.hunkIndex.hunks.map((hunk) => hunk.id));
+  return {
+    result,
+    shownId: result.hunkIndex.hunks[0]!.id,
+    gapId: result.catalog.find((hunk) => !shownIds.has(hunk.id))!.id,
+  };
+}
 
 function patch(filename: string, bodyLines: number): string {
   const lines = [
@@ -24,7 +65,13 @@ function prData(overrides: Partial<PrData> = {}): PrData {
     headRefName: 'feat/widgets',
     files: [
       { filename: 'src/a.ts', status: 'modified', additions: 3, deletions: 0 },
-      { filename: 'package-lock.json', status: 'modified', additions: 900, deletions: 900 },
+      {
+        filename: 'package-lock.json',
+        status: 'modified',
+        additions: 900,
+        deletions: 900,
+        skipped: 'built-in',
+      },
     ],
     diff: patch('src/a.ts', 3) + patch('package-lock.json', 5),
     ...overrides,
@@ -32,11 +79,14 @@ function prData(overrides: Partial<PrData> = {}): PrData {
 }
 
 describe('buildNarrativePrompt', () => {
-  it('drops excluded files from the file list, the diff and the hunk catalog', () => {
-    const { user, hunkIndex, wasTruncated } = buildNarrativePrompt(prData());
+  it('lists a skipped file apart and keeps it out of the diff and the hunk catalog', () => {
+    const { user, hunkIndex, catalog, wasTruncated } = buildNarrativePrompt(prData());
     expect(user).toContain('## Files Changed (1)');
     expect(user).toContain('src/a.ts');
-    expect(user).not.toContain('package-lock.json');
+    expect(user).toContain('## Not Reviewed (1)');
+    expect(user).toContain('package-lock.json  (lockfile, bundle or snapshot)');
+    expect(user.slice(user.indexOf('## Full Diff'))).not.toContain('package-lock.json');
+    expect(catalog.map((h) => h.filename)).toEqual(['src/a.ts']);
     expect(hunkIndex.hunks.map((h) => h.filename)).toEqual(['src/a.ts']);
     expect(user).toContain('H0001  src/a.ts  @@ -1,1 +1,3 @@  original L1  modified L1-3');
     expect(wasTruncated).toBe(false);
@@ -93,10 +143,14 @@ describe('buildNarrativePrompt', () => {
     expect(user).toContain('(no description)');
   });
 
-  it('honours user exclusion patterns', () => {
-    const { user } = buildNarrativePrompt(prData(), ['src/a.ts']);
-    expect(user).toContain('## Files Changed (0)');
-    expect(user).toContain('(No patch hunks were detected in the provided diff.)');
+  it('says nothing about files the change did not skip', () => {
+    const { user } = buildNarrativePrompt(
+      prData({
+        files: [{ filename: 'src/a.ts', status: 'modified', additions: 3, deletions: 0 }],
+        diff: patch('src/a.ts', 3),
+      }),
+    );
+    expect(user).not.toContain('## Not Reviewed');
   });
 
   it('truncates oversized patches, keeps head and tail, and flags it', () => {
@@ -120,33 +174,11 @@ describe('buildNarrativePrompt', () => {
     // side of the cut: numbering after truncation would renumber the tail, and
     // the ids stored on the review would then mean something else to the
     // coverage backstop than they did to the model.
-    const hunks = 200;
-    const body = Array.from({ length: hunks }, (_, h) =>
-      [
-        `@@ -${String(h * 60 + 1)},60 +${String(h * 60 + 1)},60 @@`,
-        ...Array.from(
-          { length: 60 },
-          (__, i) => `+hunk ${String(h)} line ${String(i)} ${'x'.repeat(40)}`,
-        ),
-      ].join('\n'),
-    ).join('\n');
-    const diff = [
-      'diff --git a/src/big.ts b/src/big.ts',
-      '--- a/src/big.ts',
-      '+++ b/src/big.ts',
-      body,
-    ].join('\n');
-
-    const result = buildNarrativePrompt(
-      prData({
-        files: [{ filename: 'src/big.ts', status: 'modified', additions: 12_000, deletions: 0 }],
-        diff,
-      }),
-    );
+    const { result } = truncatedPrompt();
 
     expect(result.wasTruncated).toBe(true);
-    expect(result.hunkIndex.hunks).toHaveLength(hunks);
-    expect(result.hunkIndex.hunks.at(-1)?.id).toBe('H0200');
+    expect(result.catalog).toHaveLength(200);
+    expect(result.catalog.at(-1)?.id).toBe('H0200');
     const catalog = result.user.slice(
       result.user.indexOf('## Changed Hunks'),
       result.user.indexOf('## Full Diff'),
@@ -154,5 +186,42 @@ describe('buildNarrativePrompt', () => {
     expect(catalog).toContain('H0001');
     expect(catalog).toContain('H0200');
     expect(catalog).not.toContain('H0100');
+  });
+
+  it('resolves only the ids it showed, and leaves the rest to the backstop', () => {
+    // A cited id from the trimmed gap is a guess: resolving it would paint a
+    // chapter with a diff nobody was shown, and count that hunk as discussed.
+    const { result, shownId, gapId } = truncatedPrompt();
+    const raw = `<narrative_review>${JSON.stringify({
+      prTitle: 'Add widgets',
+      overviewSummary: 'Widgets.',
+      chapters: [
+        {
+          id: 'widgets',
+          title: 'Widgets',
+          description: 'The widgets.',
+          insights: [],
+          diffChunks: [
+            { filename: 'src/big.ts', language: 'typescript', hunkIds: [shownId, gapId] },
+          ],
+        },
+      ],
+    })}</narrative_review>`;
+
+    const parsed = parseNarrativeReview(raw, result.hunkIndex);
+    expect(parsed.ok).toBe(true);
+    const review = (parsed as { ok: true; data: NarrativeReview }).data;
+    expect(review.chapters[0]!.diffChunks[0]!.hunks.map((hunk) => hunk.id)).toEqual([shownId]);
+
+    const stored: NarrativeReview = {
+      ...review,
+      files: withFileHunks(
+        [{ filename: 'src/big.ts', status: 'modified', additions: 12_000, deletions: 0 }],
+        result.catalog,
+      ),
+    };
+    const coverage = reviewCoverage(stored);
+    expect(coverage.total).toBe(result.catalog.length);
+    expect(coverage.uncited[0]!.uncited.map((hunk) => hunk.id)).toContain(gapId);
   });
 });

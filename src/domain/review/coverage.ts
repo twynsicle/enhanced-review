@@ -137,9 +137,9 @@ export function reviewCoverage(review: NarrativeReview): ReviewCoverage {
 }
 
 /**
- * The gap in one clause, for the CLI's warning and the reader's card: the
- * two said the same thing in different words, and a reader who ran both saw
- * two different counts of the same shortfall.
+ * The gap in one clause, spelled here so the CLI's warning and the reader's
+ * card say it the same way: someone who runs both must not be told two
+ * different things about the same shortfall.
  */
 export function describeCoverageGap(coverage: ReviewCoverage): string {
   const none = coverage.uncited.filter((file) => file.cited === 0).length;

@@ -1,5 +1,6 @@
 import { Stack, Text, Title } from '@mantine/core';
 import { Fragment } from 'react';
+import { plural } from '@/common/plural';
 import { chaptersCiting, describeCoverageGap, type ReviewCoverage } from '@/domain/review/coverage';
 import { UNDISCUSSED_SECTION_ID, type NarrativeChapter } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
@@ -57,8 +58,9 @@ export function UndiscussedCard({
       </Stack>
 
       <Text fz="md">
-        The chapters cite {coverage.cited} of the {coverage.total} hunks in this change. The rest
-        are here. A file a chapter took some hunks from appears with only the others.
+        The chapters cite {coverage.cited} of the {plural(coverage.total, 'hunk')} the reviewer was
+        given. The rest are here. A file a chapter took some hunks from appears with only the
+        others.
         {diffTruncated
           ? ' This change was too large to put in front of the reviewer whole, so some of what' +
             ' follows was never listed to it rather than passed over.'

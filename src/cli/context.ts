@@ -16,7 +16,7 @@ import {
   type ReviewFile,
   type ReviewFileSkipReason,
 } from '../domain/review/narrative.ts';
-import { isExcludedFromAI } from '../domain/review/prompt/ai-file-filter.ts';
+import { binarySkipReason, builtInSkipReason } from '../domain/review/prompt/ai-file-filter.ts';
 import { buildDiffHunkIndex, type DiffHunk } from '../domain/review/prompt/diff-hunk-catalog.ts';
 import { ReviewMetaSchema, type ReviewMeta } from '../domain/review/review-meta.ts';
 import type { Shell } from './git.ts';
@@ -146,7 +146,8 @@ async function skipReasons(
 ): Promise<Map<string, ReviewFileSkipReason>> {
   const reasons = new Map<string, ReviewFileSkipReason>();
   for (const file of files) {
-    if (isExcludedFromAI(file.filename)) reasons.set(file.filename, 'built-in');
+    const builtIn = builtInSkipReason(file.filename);
+    if (builtIn) reasons.set(file.filename, builtIn);
   }
   const unclassified = files.map((file) => file.filename).filter((name) => !reasons.has(name));
   for (const batch of argBatches(unclassified)) {
@@ -168,7 +169,8 @@ async function skipReasons(
     }
   }
   for (const file of files) {
-    if (file.binary && !reasons.has(file.filename)) reasons.set(file.filename, 'binary');
+    const binary = binarySkipReason(file.binary);
+    if (binary && !reasons.has(file.filename)) reasons.set(file.filename, binary);
   }
   return reasons;
 }

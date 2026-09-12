@@ -1,6 +1,6 @@
 /**
  * `1 file`, `2 files`. Every noun this app counts takes a plain `-s`, and the
- * alternative was the same ternary written inline in six places, each free to
+ * alternative is the same ternary inline at each call site, each free to
  * disagree with the others about spacing or about what `String(count)` looks
  * like.
  */

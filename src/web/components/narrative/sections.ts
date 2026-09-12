@@ -79,9 +79,9 @@ export function readerSections(review: NarrativeReview, coverage: ReviewCoverage
 
 /**
  * The two ids every section card spells. They read `chapter-…` for the
- * synthesised sections too: the keyboard hook focuses `sectionHeadingId`, and
- * a card that invented its own id was simply skipped by End and the arrows
- * with nothing to show for it.
+ * synthesised sections too: the keyboard hook focuses `sectionHeadingId`, so
+ * a card that spells its id any other way is one End and the arrows skip
+ * silently.
  */
 export const sectionCardId = (id: string) => `chapter-${id}`;
 export const sectionHeadingId = (id: string) => `chapter-heading-${id}`;

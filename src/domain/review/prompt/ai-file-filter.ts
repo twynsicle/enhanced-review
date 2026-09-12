@@ -42,22 +42,35 @@ export function isExcludedFromAI(filename: string, userPatterns?: readonly strin
   return false;
 }
 
+/** The built-in list as a skip reason, or null when the path is none of it. */
+export function builtInSkipReason(
+  filename: string,
+  userPatterns?: readonly string[],
+): ReviewFileSkipReason | null {
+  return isExcludedFromAI(filename, userPatterns) ? 'built-in' : null;
+}
+
+/** Binary as a skip reason: git has no text hunks to put in front of the model. */
+export function binarySkipReason(binary: boolean): ReviewFileSkipReason | null {
+  return binary ? 'binary' : null;
+}
+
 /**
- * Why the prompt leaves a changed file out, from the file alone, or null when
- * it reaches the model. The reader needs this recorded on the file: without
- * it a filtered file looks like one the model simply chose not to discuss,
- * and the file view claims it changed without a text diff.
+ * Why a changed file is left out of the review, from the file alone, or null
+ * when it goes to the model. This is the one decision: `buildNarrativePrompt`
+ * lists exactly the files no reason applies to, so what the reader dims and
+ * what the model is asked about cannot disagree.
  *
- * The local CLI layers the repository's own `.gitattributes` between these
- * two — `generated` and `vendored` need a `git check-attr` at the head, which
- * the hosted path does not run.
+ * The local CLI layers the repository's own `.gitattributes` between the two
+ * rules — `generated` and `vendored` need a `git check-attr` at the head,
+ * which the hosted path does not run — so it calls them separately in that
+ * order rather than going through here.
  */
 export function promptSkipReason(
   file: { filename: string; binary: boolean },
   userPatterns?: readonly string[],
 ): ReviewFileSkipReason | null {
-  if (isExcludedFromAI(file.filename, userPatterns)) return 'built-in';
-  return file.binary ? 'binary' : null;
+  return builtInSkipReason(file.filename, userPatterns) ?? binarySkipReason(file.binary);
 }
 
 /** The same rules as globs, for tools that take deny patterns. */

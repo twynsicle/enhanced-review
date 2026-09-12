@@ -19,18 +19,7 @@ export interface ChangedFile extends ReviewFile {
   binary: boolean;
 }
 
-/** The changed files between two commits with per-file line counts. */
-export async function listChangedFiles(
-  git: GitRunner,
-  cwd: string,
-  base: string,
-  head: string,
-  signal?: AbortSignal,
-): Promise<ReviewFile[]> {
-  return (await listChangedFileDetails(git, cwd, base, head, signal)).map(toReviewFile);
-}
-
-/** `listChangedFiles`, keeping each rename's old path and whether the file is binary. */
+/** The changed files between two commits: per-file counts, rename origins, binary flags. */
 export async function listChangedFileDetails(
   git: GitRunner,
   cwd: string,
@@ -60,15 +49,6 @@ export async function listChangedFileDetails(
  * and it also sidesteps git's quoting of paths with spaces or non-ASCII
  * bytes. Binary files show `-` counts and become 0/0.
  */
-export function mergeFileLists(numstatZ: string, nameStatusZ: string): ReviewFile[] {
-  return parseChangedFiles(numstatZ, nameStatusZ).map(toReviewFile);
-}
-
-function toReviewFile({ filename, status, additions, deletions }: ChangedFile): ReviewFile {
-  return { filename, status, additions, deletions };
-}
-
-/** `mergeFileLists` with the old path of each rename or copy and the binary flag. */
 export function parseChangedFiles(numstatZ: string, nameStatusZ: string): ChangedFile[] {
   const counts = new Map<string, { additions: number; deletions: number; binary: boolean }>();
   // `<add>\t<del>\t<path>\0`, or `<add>\t<del>\t\0<old>\0<new>\0` for a
