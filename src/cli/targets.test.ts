@@ -3,9 +3,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runGit, type GitRunResult } from '../domain/review/clone/git-runner.server.ts';
-import { createTempRepo, type TempRepo } from '../test/git-repo.ts';
+import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import { Shell } from './git.ts';
 import { repoFromUrl, resolveTarget, slugify } from './targets.ts';
+
+// Real git, many spawns per test — see GIT_TEST_TIMEOUT.
+vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
 
 const NO_PR: GitRunResult = { stdout: '', stderr: 'no pull requests found', exitCode: 1 };
 

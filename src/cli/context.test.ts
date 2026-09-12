@@ -1,13 +1,16 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runGit } from '../domain/review/clone/git-runner.server.ts';
-import { createTempRepo, type TempRepo } from '../test/git-repo.ts';
+import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import { gather, MAX_EMBED_BYTES, readContext } from './context.ts';
 import { Shell } from './git.ts';
 import { createRunFolder } from './run-folder.ts';
 import { resolveTarget, type TargetRequest } from './targets.ts';
+
+// Real git, many spawns per test — see GIT_TEST_TIMEOUT.
+vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
 
 let repo: TempRepo;
 let runsRoot: string;
