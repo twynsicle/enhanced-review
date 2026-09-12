@@ -20,6 +20,11 @@ function makeLines(prefix: string, count: number): string {
   return Array.from({ length: count }, (_, index) => `${prefix}${String(index + 1)}`).join('\n');
 }
 
+/** The lines `makeLines` would number `from` through `to`, inclusive. */
+function takeLines(prefix: string, from: number, to: number): string[] {
+  return Array.from({ length: to - from + 1 }, (_, index) => `${prefix}${String(from + index)}`);
+}
+
 describe('groupSelectedHunks', () => {
   it('groups consecutive selected hunks together', () => {
     const groups = groupSelectedHunks([
@@ -133,6 +138,145 @@ describe('buildInlineDiffSnippets', () => {
       modified: '',
       originalStartLine: 1,
       modifiedStartLine: 1,
+    });
+  });
+
+  it('opens both sides on the same line when the group starts with an insertion', () => {
+    const snippets = buildInlineDiffSnippets({
+      hunks: [
+        makeHunk({
+          original: { startLine: 7, lineCount: 0 },
+          modified: { startLine: 8, lineCount: 2 },
+        }),
+      ],
+      original: makeLines('o', 20),
+      modified: [...takeLines('o', 1, 7), 'n1', 'n2', ...takeLines('o', 8, 20)].join('\n'),
+      contextLines: 3,
+    });
+
+    expect(snippets[0]).toMatchObject({
+      originalStartLine: 5,
+      modifiedStartLine: 5,
+      original: 'o5\no6\no7\no8\no9\no10',
+      modified: 'o5\no6\no7\nn1\nn2\no8\no9\no10',
+    });
+  });
+
+  it('opens both sides on the same line when the group starts with a deletion', () => {
+    const snippets = buildInlineDiffSnippets({
+      hunks: [
+        makeHunk({
+          original: { startLine: 12, lineCount: 3 },
+          modified: { startLine: 11, lineCount: 0 },
+        }),
+      ],
+      original: makeLines('o', 20),
+      modified: [...takeLines('o', 1, 11), ...takeLines('o', 15, 20)].join('\n'),
+      contextLines: 3,
+    });
+
+    expect(snippets[0]).toMatchObject({
+      originalStartLine: 9,
+      modifiedStartLine: 9,
+      original: 'o9\no10\no11\no12\no13\no14\no15\no16\no17',
+      modified: 'o9\no10\no11\no15\no16\no17',
+    });
+  });
+
+  it('anchors the group end on the last hunk when the first is an insertion', () => {
+    const snippets = buildInlineDiffSnippets({
+      hunks: [
+        makeHunk({
+          id: 'H0001',
+          fileOrder: 1,
+          original: { startLine: 7, lineCount: 0 },
+          modified: { startLine: 8, lineCount: 2 },
+        }),
+        makeHunk({
+          id: 'H0002',
+          fileOrder: 2,
+          original: { startLine: 12, lineCount: 2 },
+          modified: { startLine: 14, lineCount: 2 },
+        }),
+      ],
+      original: makeLines('o', 30),
+      modified: [
+        ...takeLines('o', 1, 7),
+        'n1',
+        'n2',
+        ...takeLines('o', 8, 11),
+        'r1',
+        'r2',
+        ...takeLines('o', 14, 30),
+      ].join('\n'),
+      contextLines: 2,
+    });
+
+    expect(snippets[0]).toMatchObject({
+      originalStartLine: 6,
+      modifiedStartLine: 6,
+      original: 'o6\no7\no8\no9\no10\no11\no12\no13\no14\no15',
+      modified: 'o6\no7\nn1\nn2\no8\no9\no10\no11\nr1\nr2\no14\no15',
+    });
+  });
+
+  it('does not push the group end forward when the last hunk is an insertion', () => {
+    const snippets = buildInlineDiffSnippets({
+      hunks: [
+        makeHunk({
+          id: 'H0001',
+          fileOrder: 1,
+          original: { startLine: 5, lineCount: 2 },
+          modified: { startLine: 5, lineCount: 2 },
+        }),
+        makeHunk({
+          id: 'H0002',
+          fileOrder: 2,
+          original: { startLine: 12, lineCount: 0 },
+          modified: { startLine: 13, lineCount: 2 },
+        }),
+      ],
+      original: makeLines('o', 30),
+      modified: [
+        ...takeLines('o', 1, 4),
+        'r1',
+        'r2',
+        ...takeLines('o', 7, 12),
+        'n1',
+        'n2',
+        ...takeLines('o', 13, 30),
+      ].join('\n'),
+      contextLines: 2,
+    });
+
+    expect(snippets[0]).toMatchObject({
+      originalStartLine: 3,
+      modifiedStartLine: 3,
+      original: 'o3\no4\no5\no6\no7\no8\no9\no10\no11\no12\no13\no14',
+      modified: 'o3\no4\nr1\nr2\no7\no8\no9\no10\no11\no12\nn1\nn2\no13\no14',
+    });
+  });
+
+  // An insertion above line 1 is `@@ -0,0 +1,n @@`, and the hunk catalog has no
+  // line 0 to hand on, so the original side arrives here starting at 1.
+  it('holds an insertion at the top of the file on the first line', () => {
+    const snippets = buildInlineDiffSnippets({
+      hunks: [
+        makeHunk({
+          original: { startLine: 1, lineCount: 0 },
+          modified: { startLine: 1, lineCount: 3 },
+        }),
+      ],
+      original: makeLines('o', 4),
+      modified: ['n1', 'n2', 'n3', ...takeLines('o', 1, 4)].join('\n'),
+      contextLines: 5,
+    });
+
+    expect(snippets[0]).toMatchObject({
+      originalStartLine: 1,
+      modifiedStartLine: 1,
+      original: 'o1\no2\no3\no4',
+      modified: 'n1\nn2\nn3\no1\no2\no3\no4',
     });
   });
 

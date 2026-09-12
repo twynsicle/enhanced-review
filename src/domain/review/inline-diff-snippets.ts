@@ -39,6 +39,23 @@ function getSpanEndLine(startLine: number, lineCount: number): number {
   return startLine + lineCount - 1;
 }
 
+/**
+ * The span's first changed line. A zero-length span has none: git writes its
+ * start as the line *before* the gap, so `@@ -7,0 +8,2 @@` inserts after
+ * original line 7 and the leading context must end at 7, not at 6. Count from
+ * the raw start and this side of the snippet opens one line earlier than the
+ * other; Monaco re-diffs the two slices it is handed, so it renders the
+ * surplus line as a change no hunk contains — a deletion above every
+ * insertion-only hunk, an insertion above every deletion-only one.
+ *
+ * `getSpanEndLine` wants no such correction: 7 really is the last line before
+ * the gap, and the trailing context picks up after it either way.
+ */
+function getSpanStartLine(startLine: number, lineCount: number): number {
+  if (lineCount <= 0) return startLine + 1;
+  return startLine;
+}
+
 function buildSliceBounds(
   startLine: number,
   endLine: number,
@@ -108,13 +125,13 @@ export function buildInlineDiffSnippets({
     if (!firstHunk || !lastHunk) continue;
 
     const originalBounds = buildSliceBounds(
-      firstHunk.original.startLine,
+      getSpanStartLine(firstHunk.original.startLine, firstHunk.original.lineCount),
       getSpanEndLine(lastHunk.original.startLine, lastHunk.original.lineCount),
       contextLines,
       originalLineCount,
     );
     const modifiedBounds = buildSliceBounds(
-      firstHunk.modified.startLine,
+      getSpanStartLine(firstHunk.modified.startLine, firstHunk.modified.lineCount),
       getSpanEndLine(lastHunk.modified.startLine, lastHunk.modified.lineCount),
       contextLines,
       modifiedLineCount,
