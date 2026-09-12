@@ -4,8 +4,6 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
-  type CSSProperties,
   type ReactNode,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
@@ -25,15 +23,16 @@ import { findSection, readerSections } from '@/web/components/narrative/sections
 import { SummaryCard } from '@/web/components/narrative/summary-card';
 import { useNarrativeKeyboard } from '@/web/components/narrative/use-narrative-keyboard';
 import { useReaderColumn } from '@/web/stores/diff-view';
+import {
+  applySidebarWidth,
+  bindSidebarWidth,
+  clampSidebarWidth,
+  useSidebarWidth,
+} from '@/web/stores/sidebar-width';
+import { SIDEBAR_WIDTHS } from '@/web/theme/tokens';
 import classes from './chapter-reader.module.css';
 
-const DEFAULT_SIDEBAR_WIDTH = 256;
-const MIN_SIDEBAR_WIDTH = 208;
-const MAX_SIDEBAR_WIDTH = 420;
-
-function clampSidebarWidth(width: number): number {
-  return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, width));
-}
+const KEYBOARD_RESIZE_STEP = 16;
 
 /**
  * Publish the article column's width for as long as the reader is on screen.
@@ -97,7 +96,9 @@ export interface ChapterReaderProps {
  */
 export function ChapterReader({ review, meta, initialActiveId, actions }: ChapterReaderProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const sidebarWidth = useSidebarWidth((state) => state.width);
+  const setSidebarWidth = useSidebarWidth((state) => state.setWidth);
+  useEffect(() => bindSidebarWidth(), []);
   const mainRef = useRef<HTMLElement | null>(null);
   useReportedColumnWidth(mainRef);
   const sections = useMemo(() => readerSections(review), [review]);
@@ -139,33 +140,42 @@ export function ChapterReader({ review, meta, initialActiveId, actions }: Chapte
       event.preventDefault();
       const startX = event.clientX;
       const startWidth = sidebarWidth;
+      let width = startWidth;
+      /*
+       * Painted straight onto the variable while the pointer is down, and
+       * committed to the store once on release: a width that is still moving
+       * has not earned a re-render of every editor in the article, nor a write
+       * to localStorage per frame.
+       */
       const onPointerMove = (moveEvent: PointerEvent): void => {
-        setSidebarWidth(clampSidebarWidth(startWidth + moveEvent.clientX - startX));
+        width = clampSidebarWidth(startWidth + moveEvent.clientX - startX);
+        applySidebarWidth(width);
       };
       const onPointerUp = (): void => {
         window.removeEventListener('pointermove', onPointerMove);
+        setSidebarWidth(width);
       };
       window.addEventListener('pointermove', onPointerMove);
       window.addEventListener('pointerup', onPointerUp, { once: true });
     },
-    [sidebarWidth],
+    [sidebarWidth, setSidebarWidth],
   );
 
-  const onResizeKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    event.preventDefault();
-    const direction = event.key === 'ArrowLeft' ? -1 : 1;
-    setSidebarWidth((current) => clampSidebarWidth(current + direction * 16));
-  }, []);
+  const onResizeKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const direction = event.key === 'ArrowLeft' ? -1 : 1;
+      setSidebarWidth(sidebarWidth + direction * KEYBOARD_RESIZE_STEP);
+    },
+    [sidebarWidth, setSidebarWidth],
+  );
 
   const activeChapter = review.chapters.find((ch) => ch.id === activeId) ?? null;
   const activeIndex = review.chapters.findIndex((ch) => ch.id === activeId) + 1;
 
   return (
-    <div
-      className={classes.grid}
-      style={{ '--review-sidebar-width': `${sidebarWidth}px` } as CSSProperties}
-    >
+    <div className={classes.grid}>
       <aside className={classes.aside}>
         <ChapterSidebar
           sections={sections}
@@ -183,8 +193,8 @@ export function ChapterReader({ review, meta, initialActiveId, actions }: Chapte
           role="separator"
           aria-label="Resize review navigation"
           aria-orientation="vertical"
-          aria-valuemin={MIN_SIDEBAR_WIDTH}
-          aria-valuemax={MAX_SIDEBAR_WIDTH}
+          aria-valuemin={SIDEBAR_WIDTHS.min}
+          aria-valuemax={SIDEBAR_WIDTHS.max}
           aria-valuenow={sidebarWidth}
           onPointerDown={onResizePointerDown}
           onKeyDown={onResizeKeyDown}

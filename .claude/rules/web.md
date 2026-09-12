@@ -11,7 +11,8 @@ server-only split inside `web` are in `AGENTS.md`; the look is in
 
 ```
 src/web/
-  root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary, middleware: [sessionMiddleware]
+  root.tsx           Layout, MantineProvider, ColorSchemeScript, GEOMETRY_SCRIPT (stored layout width + sidebar width
+                     applied before first paint), ErrorBoundary, middleware: [sessionMiddleware]
   entry.server.tsx   RR server entry (`reveal` default, logger instead of console); awaits bootJobs() before the first request
   routes.ts          route table — every file in routes/ must be listed here
   routes/            _gated.tsx (layout: requireUser) → _shell.tsx (layout: Topbar + JobNotifications; loader {user, serverNow, polling})
@@ -84,8 +85,11 @@ src/web/
   stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth: full ⇄ wide), diff-view.ts (`er-diff-view`,
                      bindDiffView: split ⇄ unified), diff-wrap.ts (`er-diff-wrap`, bindDiffWrap: off ⇄ on, spelled the
                      way Monaco spells diffWordWrap), file-list-view.ts (`er-file-list`, bindFileListView: flat ⇄ tree;
-                     bound from the sidebar's own toggle, not the topbar's), all four on raw-preference.ts (one word,
-                     not JSON, so the pre-paint script can read it); last-target.ts (`er:last-target`, per user).
+                     bound from the sidebar's own toggle, not the topbar's), sidebar-width.ts (`er-sidebar`,
+                     bindSidebarWidth: the reader's navigation column in pixels, clamped to SIDEBAR_WIDTHS rather
+                     than matched, painted as `--review-sidebar-width` on `<html>` — a drag writes the variable
+                     directly and commits to the store once on release), all five on raw-preference.ts (one word or one
+                     number, not JSON, so root.tsx's pre-paint script can read it); last-target.ts (`er:last-target`, per user).
                      diff-view.ts also holds useReaderColumn, the only store here that is never persisted: the column
                      width chapter-reader measures, with selectSpaceLimited over it — under SIDE_BY_SIDE_MIN_WIDTH the
                      toggle disables and inline-diff-chunk forces unified. A per-frame measurement is kept off the
