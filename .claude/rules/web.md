@@ -72,10 +72,12 @@ src/web/
                      renders unless ER_BUNDLE names a JSON file); the build inlines JS, CSS and fonts into one file and stamps its sources (viewer.stamp, which er checks)
                      (`react-router build` wipes build/, so it builds second); Monaco still loads from the CDN
   stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth: full ⇄ wide), diff-view.ts (`er-diff-view`,
-                     bindDiffView: split ⇄ unified, plus the column width chapter-reader measures and selectSpaceLimited over it —
-                     under SIDE_BY_SIDE_MIN_WIDTH the toggle disables and inline-diff-chunk forces unified), both on
-                     raw-preference.ts (one word, not JSON, so the pre-paint script can read it);
-                     last-target.ts (`er:last-target`, per user)
+                     bindDiffView: split ⇄ unified), both on raw-preference.ts (one word, not JSON, so the pre-paint
+                     script can read it); last-target.ts (`er:last-target`, per user).
+                     diff-view.ts also holds useReaderColumn, the only store here that is never persisted: the column
+                     width chapter-reader measures, with selectSpaceLimited over it — under SIDE_BY_SIDE_MIN_WIDTH the
+                     toggle disables and inline-diff-chunk forces unified. A per-frame measurement is kept off the
+                     persisted store because persist writes its slice after every set, unconditionally
   theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours + FONT_SIZES/DISPLAY_SIZE/
                      CAPTION_TYPE, the type scale) → theme.ts (Mantine ramps, fontSizes, sans + mono),
                      css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules)

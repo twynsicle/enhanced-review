@@ -60,12 +60,15 @@ and diff-view toggles at all — a control that visibly does nothing is worse th
 no control. The same principle runs one level deeper: below
 `SIDE_BY_SIDE_MIN_WIDTH` the column cannot carry two panes, so the diff toggle
 shows the stacked state and disables rather than claiming a view the page is not
-in. `chapter-reader.tsx` measures that column once and the store derives it, so
-the icon, the disabled state and the editors' `renderSideBySide` all come off one
-number and cannot disagree. Widening the shell is still not the same as widening the text:
-prose keeps its own measure in `ch`, and a page whose content gains nothing from
-the extra room (the job timeline) caps itself and stays left-aligned so the left
-edge never jumps between pages. Do not reintroduce a per-route
+in. `chapter-reader.tsx` measures that column once and `selectSpaceLimited`
+derives it, so the icon, the disabled state and the editors' `renderSideBySide`
+all come off one number and cannot disagree. The measurement lives in its own
+un-persisted store beside the preference — it arrives once per frame while the
+sidebar is dragged, and only a preference belongs in storage. Widening the shell
+is still not the same as widening the text: prose keeps its own measure in `ch`,
+and a page whose content gains nothing from the extra room (the job timeline)
+caps itself and stays left-aligned so the left edge never jumps between pages.
+Do not reintroduce a per-route
 `Container size={...}` — that is what made the toggle look broken everywhere
 outside the reader. `PageShell` pads the bottom more than the top (`SHELL_PB`):
 a page that ends flush with its last element reads as cut off.

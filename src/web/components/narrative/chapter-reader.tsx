@@ -24,7 +24,7 @@ import { RiskCard } from '@/web/components/narrative/risk-card';
 import { findSection, readerSections } from '@/web/components/narrative/sections';
 import { SummaryCard } from '@/web/components/narrative/summary-card';
 import { useNarrativeKeyboard } from '@/web/components/narrative/use-narrative-keyboard';
-import { useDiffView } from '@/web/stores/diff-view';
+import { useReaderColumn } from '@/web/stores/diff-view';
 import classes from './chapter-reader.module.css';
 
 const DEFAULT_SIDEBAR_WIDTH = 256;
@@ -46,15 +46,24 @@ function clampSidebarWidth(width: number): number {
  * unmount, so a page without a reader leaves the preference alone.
  */
 function useReportedColumnWidth(ref: React.RefObject<HTMLElement | null>): void {
-  const setColumnWidth = useDiffView((s) => s.setColumnWidth);
+  const setColumnWidth = useReaderColumn((s) => s.setColumnWidth);
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
+    /*
+     * A width of zero is not a narrow column, it is an unmeasured one — an
+     * ancestor with `display: none`, or a test environment that reports zeros
+     * for every box. The store reads `null` as "nothing has measured this yet"
+     * and leaves the preference alone, whereas a zero would read as too narrow
+     * for two panes: the toggle would sit permanently disabled and every diff
+     * would be forced to stacked. So report the absence, not the number.
+     */
+    const publish = (width: number): void => setColumnWidth(width > 0 ? width : null);
     const observer = new ResizeObserver(([entry]) => {
-      if (entry) setColumnWidth(entry.contentRect.width);
+      if (entry) publish(entry.contentRect.width);
     });
     observer.observe(element);
-    setColumnWidth(element.getBoundingClientRect().width);
+    publish(element.getBoundingClientRect().width);
     return () => {
       observer.disconnect();
       setColumnWidth(null);

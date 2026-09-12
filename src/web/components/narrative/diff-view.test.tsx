@@ -4,7 +4,13 @@ import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/domain/review/bundle
 import type { DiffChunk } from '@/domain/review/narrative';
 import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
 import { DiffViewToggle } from '@/web/components/topbar/diff-view-toggle';
-import { selectSpaceLimited, SIDE_BY_SIDE_MIN_WIDTH, useDiffView } from '@/web/stores/diff-view';
+import {
+  DIFF_VIEW_KEY,
+  selectSpaceLimited,
+  SIDE_BY_SIDE_MIN_WIDTH,
+  useDiffView,
+  useReaderColumn,
+} from '@/web/stores/diff-view';
 import { render, screen, waitFor } from '@/web/test/render';
 import { InlineDiffChunk } from './inline-diff-chunk';
 
@@ -69,11 +75,17 @@ async function renderDiff() {
   await screen.findByTestId('diff-editor');
 }
 
+/** Back to the defaults: the stored preference, and an unmeasured column. */
+function resetDiffView(): void {
+  window.localStorage.clear();
+  useDiffView.setState({ view: 'split' });
+  useReaderColumn.setState({ columnWidth: null });
+}
+
 describe('diff view preference', () => {
   beforeEach(() => {
     lastOptions.current = null;
-    window.localStorage.clear();
-    useDiffView.setState({ view: 'split', columnWidth: null });
+    resetDiffView();
   });
 
   it('sets the two revisions side by side by default', async () => {
@@ -88,7 +100,8 @@ describe('diff view preference', () => {
   });
 
   it('stacks them whatever the preference once the column is too narrow', async () => {
-    useDiffView.setState({ view: 'split', columnWidth: SIDE_BY_SIDE_MIN_WIDTH - 1 });
+    useDiffView.setState({ view: 'split' });
+    useReaderColumn.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH - 1 });
     await renderDiff();
     expect(lastOptions.current?.renderSideBySide).toBe(false);
   });
@@ -102,18 +115,36 @@ describe('diff view preference', () => {
   it('leaves the editor its own collapse, on the same threshold', async () => {
     await renderDiff();
     expect(lastOptions.current?.useInlineViewWhenSpaceIsLimited).toBe(true);
-    expect(lastOptions.current?.renderSideBySideInlineBreakpoint).toBe(SIDE_BY_SIDE_MIN_WIDTH);
+    // Monaco goes inline at `width <= breakpoint`, so the breakpoint is the
+    // widest column that collapses — one pixel under the store's minimum.
+    expect(lastOptions.current?.renderSideBySideInlineBreakpoint).toBe(SIDE_BY_SIDE_MIN_WIDTH - 1);
+  });
+
+  /*
+   * The off-by-one this pins: the store's threshold is exclusive and Monaco's
+   * breakpoint inclusive, so the pair only agree if the constant handed to the
+   * editor is one lower. At the two widths either side of the boundary, what
+   * the reader decides and what the editor would decide must match.
+   */
+  it.each([
+    { width: SIDE_BY_SIDE_MIN_WIDTH, sideBySide: true },
+    { width: SIDE_BY_SIDE_MIN_WIDTH - 1, sideBySide: false },
+  ])('agrees with the editor at a column of $width', async ({ width, sideBySide }) => {
+    useDiffView.setState({ view: 'split' });
+    useReaderColumn.setState({ columnWidth: width });
+    await renderDiff();
+    expect(lastOptions.current?.renderSideBySide).toBe(sideBySide);
+    // Monaco's own rule, from diffEditorOptions.js.
+    const breakpoint = lastOptions.current?.renderSideBySideInlineBreakpoint as number;
+    expect(width <= breakpoint).toBe(!sideBySide);
   });
 });
 
 describe('the toggle in a column too narrow for two panes', () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-    useDiffView.setState({ view: 'split', columnWidth: null });
-  });
+  beforeEach(resetDiffView);
 
   it('reads as stacked and stops offering a choice that would do nothing', () => {
-    useDiffView.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH - 1 });
+    useReaderColumn.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH - 1 });
     render(<DiffViewToggle />);
     const button = screen.getByRole('button');
     expect(button).toBeDisabled();
@@ -121,7 +152,7 @@ describe('the toggle in a column too narrow for two panes', () => {
   });
 
   it('offers it again as soon as there is room, with the preference intact', () => {
-    useDiffView.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH });
+    useReaderColumn.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH + 100 });
     render(<DiffViewToggle />);
     const button = screen.getByRole('button');
     expect(button).toBeEnabled();
@@ -129,11 +160,68 @@ describe('the toggle in a column too narrow for two panes', () => {
     expect(useDiffView.getState().view).toBe('split');
   });
 
+  // The boundary itself: `SIDE_BY_SIDE_MIN_WIDTH` is the narrowest column that
+  // still gets two panes, and the pixel below it is the widest that does not.
+  it.each([
+    { width: SIDE_BY_SIDE_MIN_WIDTH, limited: false },
+    { width: SIDE_BY_SIDE_MIN_WIDTH - 1, limited: true },
+  ])('calls a column of $width space-limited: $limited', ({ width, limited }) => {
+    useReaderColumn.setState({ columnWidth: width });
+    expect(selectSpaceLimited(useReaderColumn.getState())).toBe(limited);
+  });
+
+  /*
+   * And the toggle agrees at the boundary. The pixel below it is the first case
+   * in this block; this is the one width where an off-by-one in either
+   * comparison would show, so it gets its own case rather than a parameter —
+   * `no-conditional-expect` rules out picking the matcher from the table, and
+   * the raw `disabled` DOM property is not the same question as the matchers,
+   * which also read `aria-disabled` and Mantine's `data-disabled`.
+   */
+  it('still offers the choice at exactly the minimum width', () => {
+    useReaderColumn.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH });
+    render(<DiffViewToggle />);
+    expect(screen.getByRole('button')).toBeEnabled();
+  });
+
   it('leaves the preference alone while it cannot be honoured', () => {
-    useDiffView.setState({ view: 'unified', columnWidth: null });
-    expect(selectSpaceLimited(useDiffView.getState())).toBe(false);
-    useDiffView.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH - 1 });
-    expect(selectSpaceLimited(useDiffView.getState())).toBe(true);
+    useDiffView.setState({ view: 'unified' });
+    useReaderColumn.setState({ columnWidth: null });
+    expect(selectSpaceLimited(useReaderColumn.getState())).toBe(false);
+    useReaderColumn.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH - 1 });
+    expect(selectSpaceLimited(useReaderColumn.getState())).toBe(true);
     expect(useDiffView.getState().view).toBe('unified');
+  });
+});
+
+/*
+ * The measured column used to be a field on the persisted store, and zustand's
+ * `persist` writes the partialized slice after every `set` without comparing it
+ * first. Since `chapter-reader.tsx` republishes the width from a ResizeObserver
+ * — once per animation frame for as long as the sidebar handle is dragged —
+ * that meant a synchronous `localStorage.setItem` per frame, every one of them
+ * writing back the same unchanged word.
+ */
+describe('measuring the column', () => {
+  beforeEach(resetDiffView);
+
+  it('never touches storage, however many times the width is republished', () => {
+    const setItem = vi.spyOn(window.localStorage, 'setItem');
+    const { setColumnWidth } = useReaderColumn.getState();
+    for (let width = 700; width < 1100; width += 20) setColumnWidth(width);
+    // And the unmount path, which reports the absence of a measurement.
+    setColumnWidth(null);
+
+    expect(setItem).not.toHaveBeenCalled();
+    expect(selectSpaceLimited(useReaderColumn.getState())).toBe(false);
+    setItem.mockRestore();
+  });
+
+  it('still persists the preference itself, which is what storage is for', () => {
+    const setItem = vi.spyOn(window.localStorage, 'setItem');
+    useDiffView.getState().toggle();
+
+    expect(setItem).toHaveBeenCalledWith(DIFF_VIEW_KEY, 'unified');
+    setItem.mockRestore();
   });
 });

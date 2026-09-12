@@ -1,7 +1,12 @@
 import { ActionIcon } from '@mantine/core';
 import { IconLayoutColumns, IconLayoutRows } from '@tabler/icons-react';
 import { useEffect } from 'react';
-import { bindDiffView, selectSpaceLimited, useDiffView } from '@/web/stores/diff-view';
+import {
+  bindDiffView,
+  selectSpaceLimited,
+  useDiffView,
+  useReaderColumn,
+} from '@/web/stores/diff-view';
 
 /**
  * Flips every diff in the reader between side by side (the default) and
@@ -24,12 +29,12 @@ import { bindDiffView, selectSpaceLimited, useDiffView } from '@/web/stores/diff
 export function DiffViewToggle() {
   const view = useDiffView((s) => s.view);
   const toggle = useDiffView((s) => s.toggle);
-  const spaceLimited = useDiffView(selectSpaceLimited);
+  const spaceLimited = useReaderColumn(selectSpaceLimited);
   useEffect(() => bindDiffView(), []);
 
   const split = !spaceLimited && view === 'split';
   const label = spaceLimited
-    ? 'Diffs are stacked: the window is too narrow to set them side by side'
+    ? 'Diffs are stacked: the reading column is too narrow for two panes — widen the window or drag the sidebar in'
     : split
       ? 'Stack diffs into one column'
       : 'Show diffs side by side';

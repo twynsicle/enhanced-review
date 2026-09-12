@@ -15,6 +15,7 @@ import {
   selectSpaceLimited,
   SIDE_BY_SIDE_MIN_WIDTH,
   useDiffView,
+  useReaderColumn,
   type DiffView,
 } from '@/web/stores/diff-view';
 import { token } from '@/web/theme/tokens';
@@ -253,7 +254,7 @@ function SnippetEditor({
 
   // Memoised so the library only re-applies options when `expanded` or the
   // view flips; a fresh object each render would reset the per-side line
-  // numbers set by `applyLineNumbers` on every height measurement.
+  // numbers set by `applySnippetLayout` on every height measurement.
   const options = useMemo<editor.IDiffEditorConstructionOptions>(
     () => ({
       readOnly: true,
@@ -263,9 +264,15 @@ function SnippetEditor({
        * column this narrow, so this agrees rather than decides — it is the
        * backstop for a diff mounted somewhere that measures nothing, and it
        * reads the same threshold so the two can never part company.
+       *
+       * Minus one because the two comparisons point opposite ways: the store
+       * treats `SIDE_BY_SIDE_MIN_WIDTH` as wide enough, while Monaco goes
+       * inline at `width <= renderSideBySideInlineBreakpoint`. Passing the
+       * constant itself would collapse the editor at exactly 900px while the
+       * toggle still said side by side.
        */
       useInlineViewWhenSpaceIsLimited: true,
-      renderSideBySideInlineBreakpoint: SIDE_BY_SIDE_MIN_WIDTH,
+      renderSideBySideInlineBreakpoint: SIDE_BY_SIDE_MIN_WIDTH - 1,
       minimap: { enabled: false },
       renderOverviewRuler: false,
       overviewRulerLanes: 0,
@@ -327,7 +334,7 @@ function SnippetEditor({
 export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
   const pair = useFilePair(chunk.filename);
   const stored = useDiffView((s) => s.view);
-  const spaceLimited = useDiffView(selectSpaceLimited);
+  const spaceLimited = useReaderColumn(selectSpaceLimited);
   // Too narrow for two panes is not a preference the column can honour.
   const view: DiffView = spaceLimited ? 'unified' : stored;
   const [expanded, setExpanded] = useState(false);
