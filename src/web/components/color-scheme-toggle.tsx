@@ -3,7 +3,7 @@ import { IconMoon, IconSun } from '@tabler/icons-react';
 import { useHydrated } from '@/web/lib/use-hydrated';
 
 /**
- * Dark ⇄ light switch; persists through Mantine's `er-theme` manager (A3).
+ * Dark ⇄ light switch; persists through Mantine's `er-theme` manager.
  * The stored scheme is only known in the browser, so the toggle renders the
  * default (dark) icon until hydration to keep server and client markup
  * identical.

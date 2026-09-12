@@ -10,15 +10,18 @@ import path from 'node:path';
 // happy-dom, so the cwd is the reliable anchor.
 export const REPO_ROOT = process.cwd();
 
-// Guardrail sources mention the very patterns they police, so they are never
-// subjects themselves.
-const ALWAYS_EXCLUDE = [
+// Written by a build, not by a person: never a subject of a rule, and never
+// stale when a comment names one — it is absent on a clean checkout.
+export const GENERATED_OUTPUT = [
   'node_modules/**',
   'build/**',
   '.react-router/**',
-  'src/guardrails/**',
   'src/db/generated/**',
 ];
+
+// Guardrail sources mention the very patterns they police, so they are never
+// subjects themselves.
+const ALWAYS_EXCLUDE = [...GENERATED_OUTPUT, 'src/guardrails/**'];
 
 export function toPosix(p: string): string {
   return p.split(path.sep).join('/');

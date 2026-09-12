@@ -4,9 +4,9 @@ import { env } from '../config/env.ts';
 
 /**
  * Integration project global setup: probe Postgres once and publish the
- * result. Test files wrap themselves in `describeDb` (src/test/db.ts), which
+ * result. Test files wrap themselves in `describeDb` (`src/test/db.ts`), which
  * skips when the probe failed, so `npm run test:integration` exits 0 on a
- * machine without Docker instead of erroring on every file (A13).
+ * machine without Docker instead of erroring on every file.
  */
 declare module 'vitest' {
   export interface ProvidedContext {

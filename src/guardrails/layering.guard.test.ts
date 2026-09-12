@@ -11,7 +11,7 @@ import {
 } from './helpers';
 
 /**
- * Guardrail A4(a) — layering.
+ * Guardrail — layering.
  *
  *   web    → web, domain, db, common, config
  *   domain → domain, db, common, config

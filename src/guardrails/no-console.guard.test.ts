@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { listFiles, readSource, report } from './helpers';
 
 /**
- * Guardrail A4(c) — all output goes through the pino logger
+ * Guardrail — all output goes through the pino logger
  * (`src/common/logger.ts`); `console.*` is never used directly.
  */
 describe('guardrail: no console', () => {

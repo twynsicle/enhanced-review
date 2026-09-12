@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isTestFile, listFiles, readSource, report } from './helpers';
 
 /**
- * Guardrail A4(d) — `src/web/routes.ts` is the single route table. Every
+ * Guardrail — `src/web/routes.ts` is the single route table. Every
  * module under `src/web/routes/` is referenced from it, and every reference
  * points at a file that exists. Keeps dead route modules and typos out.
  */

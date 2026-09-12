@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { listFiles, readSource, report } from './helpers';
 
 /**
- * Guardrail A4(b) — `process.env` is read only in `src/config/`, so every
+ * Guardrail — `process.env` is read only in `src/config/`, so every
  * environment variable is declared, validated and defaulted in one place.
  */
 describe('guardrail: env access', () => {

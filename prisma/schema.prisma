@@ -4,7 +4,7 @@
 // Conventions: UUID v7 ids, camelCase fields mapped to snake_case columns,
 // snake_case plural table names. CHECK constraints that Prisma cannot express
 // (seq >= 0, risk_score 1..5) are hand-added in
-// migrations/0001_init/migration.sql.
+// `prisma/migrations/0001_init/migration.sql`.
 
 generator client {
   provider               = "prisma-client"
@@ -23,7 +23,7 @@ datasource db {
 /// id; login / name / avatar are refreshed on every sign-in. `github_login`
 /// is deliberately NOT unique: GitHub logins are reusable after a rename or
 /// an account deletion, and a stale row holding the name must not block the
-/// new owner's sign-in (see migrations/0003_drop_github_login_unique).
+/// new owner's sign-in (see `prisma/migrations/0003_drop_github_login_unique/`).
 model User {
   id          String   @id @default(uuid(7)) @db.Uuid
   githubId    BigInt   @unique @map("github_id")
@@ -57,8 +57,6 @@ model Session {
   @@map("sessions")
 }
 
-/// Invite-only allowlist of GitHub logins. Managed by the seed-allowlist job.
-
 enum JobStatus {
   pending
   running
@@ -70,11 +68,11 @@ enum JobStatus {
 }
 
 /// One row per review submission. Owner-only cancel while pending/running and
-/// any-authenticated-user reads are enforced in loaders/actions (A5).
+/// any-authenticated-user reads are enforced in loaders/actions.
 model ReviewJob {
   id           String    @id @default(uuid(7)) @db.Uuid
   userId       String    @map("user_id") @db.Uuid
-  /// ReviewTarget JSON (pr | branch), see src/domain/review.
+  /// ReviewTarget JSON (pr | branch), see `src/domain/review/`.
   target       Json
   status       JobStatus
   headSha      String?   @map("head_sha") @db.VarChar(64)

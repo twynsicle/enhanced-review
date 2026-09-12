@@ -48,7 +48,13 @@ export async function loadSession(request: Request): Promise<LoadedSession | nul
   return row ? { id: row.id, userId: row.userId, expiresAt: row.expiresAt, data: row.data } : null;
 }
 
-/** True once less than half of the session lifetime remains (A6 rolling). */
+/**
+ * True once less than half of the session lifetime remains — the point at
+ * which a request extends the session rather than let an active visitor be
+ * signed out mid-visit. Half is what keeps the write rare: rolling resets the
+ * expiry to a full lifetime, so no visitor costs more than one extra row
+ * update per half-lifetime however hard they browse.
+ */
 export function shouldRoll(
   expiresAt: Date,
   now = new Date(),

@@ -123,6 +123,15 @@
   list-style: none;
 }
 
+/*
+ * `--file-depth` is how deep a row sits, and it becomes left padding rather
+ * than a nested box so that every row keeps one right edge for its stats
+ * however deep it is. It has to follow the `padding` shorthand in each rule,
+ * which would otherwise reset it. The cap matters more than the step: the
+ * sidebar goes down to 208px, and a tree that kept indenting would spend the
+ * column on whitespace before it ran out of levels — past the sixth the
+ * nesting is carried by the group structure and the folded names alone.
+ */
 .fileRow {
   position: relative;
   display: grid;
@@ -131,6 +140,7 @@
   align-items: start;
   gap: 8px;
   padding: 6px;
+  padding-inline-start: calc(6px + 12px * min(var(--file-depth, 0), 6));
   overflow: hidden;
   border-radius: 6px;
   color: var(--er-muted-foreground);
@@ -138,8 +148,62 @@
   transition: background-color 150ms;
 }
 
-.fileRow:hover {
+.fileRow:hover,
+.dirRow:hover {
   background: color-mix(in oklab, var(--er-muted) 50%, transparent);
+}
+
+/*
+ * A directory row is structure, not a destination: it folds and nothing else.
+ * It is quieter than the files under it — smaller type, no status letter, no
+ * stats — so the column still reads as a list of files with headings in it
+ * rather than as two kinds of thing competing for the same glance.
+ */
+.dirRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  padding-inline-start: calc(6px + 12px * min(var(--file-depth, 0), 6));
+  overflow: hidden;
+  border-radius: 6px;
+  text-align: left;
+  transition: background-color 150ms;
+}
+
+.twisty {
+  flex-shrink: 0;
+  width: 10px;
+  text-align: center;
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1;
+  color: var(--er-muted-foreground);
+  transition: transform 150ms;
+}
+
+.twisty[data-open] {
+  transform: rotate(90deg);
+}
+
+.dirLabel {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1.3;
+  color: var(--er-muted-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
 .fileRow[data-active]::before {

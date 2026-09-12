@@ -10,7 +10,7 @@ import { describeGithubError, GITHUB_ERROR_STATUS, type GithubFailure } from './
 
 /**
  * GitHub token handling for loaders and actions. The token lives only in the
- * HttpOnly cookie (D3); a missing or rejected token sends the user through
+ * HttpOnly cookie; a missing or rejected token sends the user through
  * `/relink`, which re-runs the OAuth flow. Thrown redirects are followed by
  * `useFetcher` as well as by document requests.
  */

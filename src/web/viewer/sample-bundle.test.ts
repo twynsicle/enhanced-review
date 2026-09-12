@@ -4,6 +4,24 @@ import { SAMPLE_BUNDLE, SAMPLE_MISSING_FILE } from './sample-bundle';
 
 const chunks = SAMPLE_BUNDLE.review.chapters.flatMap((chapter) => chapter.diffChunks);
 
+/**
+ * A word found on the first line each hunk points at, and nowhere else near it.
+ * The spans in `sample-bundle.ts` are hand-written positional numbers against
+ * the file contents beside them, so editing a line in one of those contents
+ * slides every span below it and nothing says so — the overrun check only
+ * notices the ones that slide off the end of the file.
+ */
+const HUNK_ANCHORS: Record<string, string> = {
+  H0001: "Cadence = 'hourly'",
+  H0002: 'Paused schedules keep',
+  H0003: 'const HOUR_MS',
+  H0004: 'return INTERVALS[cadence]',
+  H0005: 'if (schedule.paused)',
+  H0006: 'import { isDue',
+  H0007: 'Superseded by src/scheduler',
+  H0008: '{',
+};
+
 describe('the sample report bundle', () => {
   it('parses as a current bundle', () => {
     const result = parseBundle(JSON.parse(JSON.stringify(SAMPLE_BUNDLE)));
@@ -31,6 +49,30 @@ describe('the sample report bundle', () => {
       }
     }
     expect(overruns).toEqual([]);
+  });
+
+  it('starts every hunk on the line it claims', () => {
+    const anchored: string[] = [];
+    const misplaced: string[] = [];
+    for (const chunk of chunks) {
+      const { base, head } = filePair(SAMPLE_BUNDLE, chunk.filename);
+      for (const { id, original, modified } of chunk.hunks) {
+        // The side that carries the change, falling back to the one that has
+        // content at all: a removed file and a too-large head only have a base.
+        const start =
+          head.ok && modified.lineCount > 0
+            ? { content: head.data.content, line: modified.startLine }
+            : base.ok && original.lineCount > 0
+              ? { content: base.data.content, line: original.startLine }
+              : null;
+        if (!start) continue;
+        anchored.push(id);
+        const line = start.content.split('\n')[start.line - 1] ?? '';
+        if (!line.includes(HUNK_ANCHORS[id] ?? id)) misplaced.push(`${id} → ${line}`);
+      }
+    }
+    expect(misplaced).toEqual([]);
+    expect(anchored.toSorted()).toEqual(Object.keys(HUNK_ANCHORS).toSorted());
   });
 
   it('lists skipped files, which no chunk points at', () => {

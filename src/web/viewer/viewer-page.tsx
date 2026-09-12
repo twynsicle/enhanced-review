@@ -6,6 +6,7 @@ import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
 import { ColorSchemeToggle } from '@/web/components/color-scheme-toggle';
 import { PageShell } from '@/web/components/page-shell';
 import { DiffViewToggle } from '@/web/components/topbar/diff-view-toggle';
+import { DiffWrapToggle } from '@/web/components/topbar/diff-wrap-toggle';
 import { LayoutWidthToggle } from '@/web/components/topbar/layout-width-toggle';
 import { StaticBrand, TopbarFrame } from '@/web/components/topbar/topbar';
 import { ReportProblem } from './report-problem';
@@ -26,6 +27,7 @@ function ReportTopbar() {
       end={
         <>
           <DiffViewToggle />
+          <DiffWrapToggle />
           <LayoutWidthToggle />
           <ColorSchemeToggle />
         </>

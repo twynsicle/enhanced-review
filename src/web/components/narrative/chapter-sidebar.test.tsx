@@ -1,10 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
   type NarrativeChapter,
+  type ReviewFile,
   type ReviewRiskAssessment,
 } from '@/domain/review/narrative';
+import { FILE_LIST_VIEW_KEY, useFileListView } from '@/web/stores/file-list-view';
 import { HAND_BEFORE_AFTER } from '@/web/test/diagram-fixtures';
 import { fireEvent, render, screen } from '@/web/test/render';
 import { ChapterSidebar } from './chapter-sidebar';
@@ -267,5 +269,206 @@ describe('<ChapterSidebar />', () => {
     expect(screen.getByText('page.tsx').closest('button')?.getAttribute('aria-current')).toBe(
       'true',
     );
+  });
+});
+
+const treeFiles: ReviewFile[] = [
+  { filename: 'docs/guide.md', status: 'modified', additions: 2, deletions: 1 },
+  {
+    filename: 'package-lock.json',
+    status: 'modified',
+    additions: 40,
+    deletions: 2,
+    skipped: 'built-in',
+  },
+  {
+    filename: 'src/web/components/chapter-sidebar.tsx',
+    status: 'modified',
+    additions: 9,
+    deletions: 4,
+  },
+  { filename: 'src/web/components/file-tree.ts', status: 'added', additions: 60, deletions: 0 },
+];
+
+function renderFiles(activeFile: string | null = null) {
+  return render(
+    <ChapterSidebar
+      sections={sections}
+      chapters={chapters}
+      activeId={SUMMARY_SECTION_ID}
+      activeFile={activeFile}
+      reviewTitle="t"
+      files={treeFiles}
+      onSelect={noop}
+      onSelectFile={noop}
+    />,
+  );
+}
+
+/** The `--file-depth` the row hands the stylesheet to turn into left padding. */
+function depthOf(label: string): string {
+  return screen.getByText(label).closest('button')!.style.getPropertyValue('--file-depth');
+}
+
+/** The rows that open a file, in either view — a directory row is the one carrying `aria-expanded`. */
+function fileRowButtons(): HTMLButtonElement[] {
+  const list = screen.getByLabelText('Changed files');
+  return [...list.querySelectorAll<HTMLButtonElement>('button:not([aria-expanded])')];
+}
+
+/**
+ * A directory row, found the way a screen reader would name it: by its own
+ * contents, which must stay the folded path rather than the subtree under it.
+ */
+function dirRow(name: string): HTMLElement {
+  return screen.getByRole('button', { name });
+}
+
+describe('<ChapterSidebar /> file list view', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useFileListView.setState({ view: 'flat' });
+  });
+
+  it('starts flat, and the toggle is in the Files header', () => {
+    renderFiles();
+    expect(screen.queryByRole('button', { name: 'src/web/components' })).toBeNull();
+    fireEvent.click(screen.getByLabelText('Group files by directory'));
+    expect(dirRow('src/web/components')).toBeDefined();
+    expect(screen.getByLabelText('List files flat')).toBeDefined();
+  });
+
+  it('lists exactly the same files either way', () => {
+    const onSelectFile = vi.fn();
+    const view = (
+      <ChapterSidebar
+        sections={sections}
+        chapters={chapters}
+        activeId={SUMMARY_SECTION_ID}
+        reviewTitle="t"
+        files={treeFiles}
+        onSelect={noop}
+        onSelectFile={onSelectFile}
+      />
+    );
+    render(view);
+
+    const clickAll = () => {
+      onSelectFile.mockClear();
+      for (const button of fileRowButtons()) fireEvent.click(button);
+      return onSelectFile.mock.calls.map(([filename]) => filename as string);
+    };
+
+    const flat = clickAll();
+    fireEvent.click(screen.getByLabelText('Group files by directory'));
+    const tree = clickAll();
+
+    expect(flat).toEqual(treeFiles.map((file) => file.filename));
+    expect(tree.toSorted()).toEqual(flat.toSorted());
+  });
+
+  it('groups files under the directory they share, collapsing the chain to one row', () => {
+    renderFiles();
+    fireEvent.click(screen.getByLabelText('Group files by directory'));
+
+    // `src`, `web` and `components` offer no choice between them, so they are
+    // one row rather than three levels of indentation.
+    expect(screen.getByText('src/web/components')).toBeDefined();
+    expect(screen.getByText('docs')).toBeDefined();
+    // The tree carries the directory, so the row no longer trails it.
+    expect(screen.queryByText('src/web/components/')).toBeNull();
+    expect(screen.getByText('package-lock.json')).toBeDefined();
+  });
+
+  it('folds a directory away without selecting it as a file', () => {
+    const onSelectFile = vi.fn();
+    render(
+      <ChapterSidebar
+        sections={sections}
+        chapters={chapters}
+        activeId={SUMMARY_SECTION_ID}
+        reviewTitle="t"
+        files={treeFiles}
+        onSelect={noop}
+        onSelectFile={onSelectFile}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText('Group files by directory'));
+
+    // The fold state belongs to the control that has the focus, so it is read
+    // off the button rather than off any wrapper around it.
+    expect(dirRow('src/web/components').getAttribute('aria-expanded')).toBe('true');
+
+    fireEvent.click(dirRow('src/web/components'));
+    expect(onSelectFile).not.toHaveBeenCalled();
+    expect(screen.queryByText('file-tree.ts')).toBeNull();
+    expect(dirRow('src/web/components').getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(dirRow('src/web/components'));
+    expect(screen.getByText('file-tree.ts')).toBeDefined();
+  });
+
+  it('nests the rows it groups, and claims no role it cannot honour', () => {
+    renderFiles('src/web/components/file-tree.ts');
+    fireEvent.click(screen.getByLabelText('Group files by directory'));
+
+    // Nesting is the hierarchy: the directory's own item holds the list its
+    // files sit in, which assistive technology reports without a tree role.
+    const item = dirRow('src/web/components').closest('li')!;
+    expect([...item.querySelectorAll(':scope > ul > li')]).toHaveLength(2);
+
+    // An ARIA tree announces arrow-key navigation, and there is none here.
+    const list = screen.getByLabelText('Changed files');
+    expect(list.querySelectorAll('[role="tree"], [role="treeitem"], [role="group"]')).toHaveLength(
+      0,
+    );
+
+    // The active file marks its own control, exactly as in the flat view.
+    expect(screen.getByText('file-tree.ts').closest('button')?.getAttribute('aria-current')).toBe(
+      'true',
+    );
+
+    // The depth the stylesheet turns into left padding. It is the row's only
+    // account of where it sits, so a row that forgot it would sit flush with
+    // its parent and look like a sibling.
+    expect(depthOf('docs')).toBe('0');
+    expect(depthOf('package-lock.json')).toBe('0');
+    expect(depthOf('guide.md')).toBe('1');
+    expect(depthOf('file-tree.ts')).toBe('1');
+  });
+
+  it('keeps the row itself identical across the two views', () => {
+    renderFiles('src/web/components/file-tree.ts');
+    const flatRow = screen.getByText('file-tree.ts').closest('button')!;
+    expect(flatRow.getAttribute('aria-current')).toBe('true');
+    expect(flatRow.textContent).toContain('A');
+    expect(flatRow.textContent).toContain('+60');
+
+    fireEvent.click(screen.getByLabelText('Group files by directory'));
+    const treeRow = screen.getByText('file-tree.ts').closest('button')!;
+    expect(treeRow.getAttribute('aria-current')).toBe('true');
+    expect(treeRow.textContent).toContain('A');
+    expect(treeRow.textContent).toContain('+60');
+
+    const skipped = screen.getByText('package-lock.json').closest('button')!;
+    expect(skipped.hasAttribute('data-skipped')).toBe(true);
+    expect(skipped.getAttribute('title')).toBe('Not reviewed: lockfile, bundle or snapshot');
+  });
+
+  it('comes back as the tree after a reload', () => {
+    window.localStorage.setItem(FILE_LIST_VIEW_KEY, 'tree');
+    renderFiles();
+    expect(dirRow('src/web/components')).toBeDefined();
+  });
+
+  it('remembers a choice but not which directories were folded', () => {
+    const { unmount } = renderFiles();
+    fireEvent.click(screen.getByLabelText('Group files by directory'));
+    fireEvent.click(dirRow('src/web/components'));
+    expect(window.localStorage.getItem(FILE_LIST_VIEW_KEY)).toBe('tree');
+    unmount();
+
+    renderFiles();
+    expect(dirRow('src/web/components').getAttribute('aria-expanded')).toBe('true');
   });
 });
