@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTempRepo, type TempRepo } from '../test/git-repo.ts';
+import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import { Shell } from './git.ts';
 import { onInterrupt, runInterruptCleanups } from './interrupts.ts';
 import {
@@ -11,6 +11,9 @@ import {
   sweepStaleWorktrees,
   type Worktree,
 } from './worktree.ts';
+
+// Real git, many spawns per test — see GIT_TEST_TIMEOUT.
+vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
 
 let repo: TempRepo;
 let shell: Shell;

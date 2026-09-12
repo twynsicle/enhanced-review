@@ -11,7 +11,8 @@ server-only split inside `web` are in `AGENTS.md`; the look is in
 
 ```
 src/web/
-  root.tsx           Layout, MantineProvider, ColorSchemeScript, ErrorBoundary, middleware: [sessionMiddleware]
+  root.tsx           Layout, MantineProvider, ColorSchemeScript, GEOMETRY_SCRIPT (stored layout width + sidebar width
+                     applied before first paint), ErrorBoundary, middleware: [sessionMiddleware]
   entry.server.tsx   RR server entry (`reveal` default, logger instead of console); awaits bootJobs() before the first request
   routes.ts          route table — every file in routes/ must be listed here
   routes/            _gated.tsx (layout: requireUser) → _shell.tsx (layout: Topbar + JobNotifications; loader {user, serverNow, polling})
@@ -33,8 +34,10 @@ src/web/
                      widths — `reader` follows the toggle, `page` is fixed — shared with the topbar), color-scheme-toggle,
                      app-error (generic error page, used by root + route boundaries);
                      topbar/ (topbar: Topbar on TopbarFrame, which the local report's header reuses with
-                     StaticBrand; topbar-nav, user-menu, and the reader-only trio layout-width-toggle +
-                     diff-view-toggle + diff-wrap-toggle, shown only where useIsReader() is true),
+                     StaticBrand; topbar-nav, user-menu, and display-menu — every display preference in one
+                     labelled dropdown (diffs, long lines, layout, theme), the first three only when its
+                     `reader` prop says so, and the three stores rehydrated on the menu itself because a
+                     dropdown does not mount its rows until it is opened),
                      jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                      job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
                      what-now, rerun-button, job-not-found (404 page shared with the reader), review-banners (the
@@ -74,7 +77,7 @@ src/web/
                      hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
   viewer/            the local report (vite.viewer.config.ts, not the RR app): index.html (the empty er-bundle element),
                      main.tsx (client-rendered, hash data router, stored width applied before render), viewer-page
-                     (a TopbarFrame with brand + diff-view/wrap/width/scheme toggles, then ChapterReader over
+                     (a TopbarFrame with brand + the same DisplayMenu, then ChapterReader over
                      EmbeddedFileSource),
                      report-problem (missing / version-mismatch / invalid bundle), sample-bundle.ts (what viewer:dev
                      renders unless ER_BUNDLE names a JSON file); the build inlines JS, CSS and fonts into one file and stamps its sources (viewer.stamp, which er checks)
@@ -82,8 +85,11 @@ src/web/
   stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth: full ⇄ wide), diff-view.ts (`er-diff-view`,
                      bindDiffView: split ⇄ unified), diff-wrap.ts (`er-diff-wrap`, bindDiffWrap: off ⇄ on, spelled the
                      way Monaco spells diffWordWrap), file-list-view.ts (`er-file-list`, bindFileListView: flat ⇄ tree;
-                     bound from the sidebar's own toggle, not the topbar's), all four on raw-preference.ts (one word,
-                     not JSON, so the pre-paint script can read it); last-target.ts (`er:last-target`, per user).
+                     bound from the sidebar's own toggle, not the topbar's), sidebar-width.ts (`er-sidebar`,
+                     bindSidebarWidth: the reader's navigation column in pixels, clamped to SIDEBAR_WIDTHS rather
+                     than matched, painted as `--review-sidebar-width` on `<html>` — a drag writes the variable
+                     directly and commits to the store once on release), all five on raw-preference.ts (one word or one
+                     number, not JSON, so root.tsx's pre-paint script can read it); last-target.ts (`er:last-target`, per user).
                      diff-view.ts also holds useReaderColumn, the only store here that is never persisted: the column
                      width chapter-reader measures, with selectSpaceLimited over it — under SIDE_BY_SIDE_MIN_WIDTH the
                      toggle disables and inline-diff-chunk forces unified. A per-frame measurement is kept off the

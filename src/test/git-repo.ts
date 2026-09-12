@@ -5,6 +5,22 @@ import path from 'node:path';
 import { hostEnv } from '../config/host-env.ts';
 
 /**
+ * How long a test that drives this helper is given.
+ *
+ * Standing up a repo with a bare origin costs a few dozen `git` invocations,
+ * and on Windows each one is a process spawn the virus scanner gets a look at
+ * first: a single test here runs 2.5–3 s on an idle machine. Vitest's 5 s
+ * default leaves so little headroom that these files fail the moment `npm run
+ * check` has the other projects competing for the same cores — which looks
+ * like flakiness and is really just a timeout set for tests that do not fork.
+ *
+ * Each file that uses this helper spends it through `vi.setConfig`, rather than
+ * the whole `unit` project carrying it, so a pure-logic test that starts taking
+ * seconds is still caught.
+ */
+export const GIT_TEST_TIMEOUT = 30_000;
+
+/**
  * A throwaway repository with a bare `origin`, for tests that drive real git.
  * The user's global config still applies, so the settings that would change
  * what a test sees (signing, line-ending conversion) are pinned per repo.

@@ -122,6 +122,25 @@ function makeOffsetLineNumbers(offset: number): editor.LineNumbersType {
   return (lineNumber: number): string => String(lineNumber + offset - 1);
 }
 
+/**
+ * How wide to hold a side's line-number column, in characters.
+ *
+ * Monaco sizes that column from the model it was handed, but a collapsed
+ * snippet's model starts again at 1 while the numbers drawn over it are the
+ * file's own — so a twenty-line snippet lifted from line 176 is measured for
+ * two digits and asked to paint three, and the number ends up flush against
+ * the edge of the gutter with nothing either side of it. Measuring the largest
+ * number actually rendered is what keeps the column honest.
+ *
+ * The extra character is the breathing room: Monaco right-aligns the digits in
+ * whatever width it is given, so a column sized to exactly fit them leaves no
+ * space on the left at all.
+ */
+function lineNumberWidth(startLine: number, text: string): number {
+  const lastLine = startLine + text.split('\n').length - 1;
+  return Math.max(3, String(lastLine).length + 1);
+}
+
 function buildModelPath(filename: string, key: string, side: 'original' | 'modified'): string {
   const encodedPath = filename.split('/').map(encodeURIComponent).join('/');
   return `file:///__inline__/${side}/${encodeURIComponent(key)}/${encodedPath}`;
@@ -147,7 +166,7 @@ function applySnippetLayout(
 ): void {
   diffEditor.getOriginalEditor().updateOptions({
     lineNumbers: expanded ? 'on' : makeOffsetLineNumbers(snippet.originalStartLine),
-    lineNumbersMinChars: 3,
+    lineNumbersMinChars: lineNumberWidth(snippet.originalStartLine, snippet.original),
     /*
      * Monaco turns the left side's glyph margin on whenever it renders side by
      * side, to house a fold-unchanged control this reader never shows, and it
@@ -159,7 +178,7 @@ function applySnippetLayout(
   });
   diffEditor.getModifiedEditor().updateOptions({
     lineNumbers: expanded ? 'on' : makeOffsetLineNumbers(snippet.modifiedStartLine),
-    lineNumbersMinChars: 3,
+    lineNumbersMinChars: lineNumberWidth(snippet.modifiedStartLine, snippet.modified),
   });
   diffEditor.layout();
 }

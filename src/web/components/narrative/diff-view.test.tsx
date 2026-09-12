@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/domain/review/bundle';
 import type { DiffChunk } from '@/domain/review/narrative';
 import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
-import { DiffViewToggle } from '@/web/components/topbar/diff-view-toggle';
+import { DisplayMenu } from '@/web/components/topbar/display-menu';
 import {
   DIFF_VIEW_KEY,
   selectSpaceLimited,
@@ -11,7 +11,7 @@ import {
   useDiffView,
   useReaderColumn,
 } from '@/web/stores/diff-view';
-import { render, screen, waitFor } from '@/web/test/render';
+import { render, screen, userEvent, waitFor } from '@/web/test/render';
 import { InlineDiffChunk } from './inline-diff-chunk';
 
 /** The options the last mounted editor was constructed with. */
@@ -140,23 +140,32 @@ describe('diff view preference', () => {
   });
 });
 
-describe('the toggle in a column too narrow for two panes', () => {
+/**
+ * The diffs row of the display menu, opened. The settings live behind a menu
+ * now, and a dropdown does not render its contents until it is opened, so every
+ * assertion about a row has to open it first.
+ */
+async function openDiffsRow(): Promise<HTMLElement> {
+  render(<DisplayMenu reader />);
+  await userEvent.click(screen.getByRole('button', { name: 'Display settings' }));
+  return screen.findByRole('menuitem', { name: /^Diffs:/ });
+}
+
+describe('the display menu in a column too narrow for two panes', () => {
   beforeEach(resetDiffView);
 
-  it('reads as stacked and stops offering a choice that would do nothing', () => {
+  it('reads as stacked and stops offering a choice that would do nothing', async () => {
     useReaderColumn.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH - 1 });
-    render(<DiffViewToggle />);
-    const button = screen.getByRole('button');
-    expect(button).toBeDisabled();
-    expect(button).toHaveAccessibleName(/too narrow/i);
+    const row = await openDiffsRow();
+    expect(row).toBeDisabled();
+    expect(row).toHaveAccessibleName(/too narrow/i);
   });
 
-  it('offers it again as soon as there is room, with the preference intact', () => {
+  it('offers it again as soon as there is room, with the preference intact', async () => {
     useReaderColumn.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH + 100 });
-    render(<DiffViewToggle />);
-    const button = screen.getByRole('button');
-    expect(button).toBeEnabled();
-    expect(button).toHaveAccessibleName('Stack diffs into one column');
+    const row = await openDiffsRow();
+    expect(row).toBeEnabled();
+    expect(row).toHaveAccessibleName('Diffs: Side by side');
     expect(useDiffView.getState().view).toBe('split');
   });
 
@@ -178,10 +187,9 @@ describe('the toggle in a column too narrow for two panes', () => {
    * the raw `disabled` DOM property is not the same question as the matchers,
    * which also read `aria-disabled` and Mantine's `data-disabled`.
    */
-  it('still offers the choice at exactly the minimum width', () => {
+  it('still offers the choice at exactly the minimum width', async () => {
     useReaderColumn.setState({ columnWidth: SIDE_BY_SIDE_MIN_WIDTH });
-    render(<DiffViewToggle />);
-    expect(screen.getByRole('button')).toBeEnabled();
+    expect(await openDiffsRow()).toBeEnabled();
   });
 
   it('leaves the preference alone while it cannot be honoured', () => {

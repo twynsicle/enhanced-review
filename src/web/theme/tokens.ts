@@ -246,6 +246,15 @@ export function token(name: TokenName): string {
  */
 export const LAYOUT_WIDTHS = { wide: '110rem', full: '100%' } as const;
 
+/*
+ * The reader's navigation column, in pixels: the width it opens at and the
+ * stops the drag handle clamps between. A token rather than a constant beside
+ * the handle because three things need the default and cannot ask each other
+ * for it — the stylesheet's starting value, the store, and the pre-paint
+ * script in `root.tsx`.
+ */
+export const SIDEBAR_WIDTHS = { default: 256, min: 208, max: 420 } as const;
+
 /**
  * The width of a page that is not the reader: the composer, the history list,
  * the job timeline. One fixed value, not a stop on the toggle — a 3400px form

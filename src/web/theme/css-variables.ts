@@ -2,6 +2,7 @@ import type { CSSVariablesResolver } from '@mantine/core';
 import {
   HLJS_TOKEN_NAMES,
   LAYOUT_WIDTHS,
+  SIDEBAR_WIDTHS,
   TOKEN_NAMES,
   darkTokens,
   hljsDarkTokens,
@@ -45,6 +46,7 @@ function schemeVariables(tokens: TokenMap, hljs: HljsTokenMap): Record<string, s
 export const cssVariablesResolver: CSSVariablesResolver = () => ({
   variables: {
     '--review-max-width': LAYOUT_WIDTHS.full,
+    '--review-sidebar-width': `${SIDEBAR_WIDTHS.default}px`,
   },
   light: schemeVariables(lightTokens, hljsLightTokens),
   dark: schemeVariables(darkTokens, hljsDarkTokens),

@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createTempRepo } from '../test/git-repo.ts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GIT_TEST_TIMEOUT, createTempRepo } from '../test/git-repo.ts';
 import {
   createRunFolder,
   hunkFileName,
@@ -10,6 +10,9 @@ import {
   RUNS_DIR,
   runStamp,
 } from './run-folder.ts';
+
+// Real git, many spawns per test — see GIT_TEST_TIMEOUT.
+vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
 
 let root: string;
 beforeEach(() => {
