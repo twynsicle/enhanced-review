@@ -45,6 +45,8 @@ export interface ClaudeRunDeps {
   query?: QueryFn;
   /** One line per tool use, for the terminal. */
   onActivity?: (activity: string) => void;
+  /** Each block of the answer as it arrives, for the terminal. */
+  onText?: (chunk: string) => void;
 }
 
 export interface ClaudeRunResult {
@@ -91,6 +93,7 @@ export async function runClaude(
         onText: (text) => {
           raw.write(text);
           characters += text.length;
+          deps.onText?.(text);
         },
         onToolUse: (tool, detail) => {
           event({ type: 'tool', tool, detail });

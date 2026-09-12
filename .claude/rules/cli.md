@@ -34,6 +34,8 @@ src/cli/
                    the reviewed repo's own settings (settingSources user/project/local), read-only tools, the
                    engineer's environment inherited by the subprocess; the SDK is imported only when a run happens
   bash-gate.ts     which Bash commands a review may run: one read-only invocation, no shell syntax, no launcher flags
+  progress.ts      the live line during the run: elapsed time, the file being read, chapter titles picked out of the
+                   answer as it streams; drawn only on a terminal
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks; no model
   parse.ts         raw.txt → the hosted lenient parser → review.json, files taken from context
   render.ts        the bundle into the viewer shell → review.html; viewerShell rebuilds build/viewer when stale

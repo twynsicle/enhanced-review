@@ -18,7 +18,12 @@ export async function parseRun(context: RunContext, run: RunFiles): Promise<Narr
     throw new Error(`no raw.txt in ${run.folder}; run from an earlier stage`);
   }
   const parsed = parseNarrativeReview(raw, hunkIndex(context.hunks));
-  if (!parsed.ok) throw new Error(`${parsed.error} (the model's answer is in ${run.raw})`);
+  if (!parsed.ok) {
+    throw new Error(
+      `${parsed.error}. The model's answer is in ${run.raw}; ` +
+        'fix it there and rerun with --from parse, or run again for a fresh answer.',
+    );
+  }
   const review: NarrativeReview = { ...parsed.data, files: context.files };
   await writeFile(run.review, `${JSON.stringify(review, null, 2)}\n`);
   return review;

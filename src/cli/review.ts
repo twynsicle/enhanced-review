@@ -7,6 +7,7 @@ import { Shell } from './git.ts';
 import { onInterrupt } from './interrupts.ts';
 import { parseRun, readReview } from './parse.ts';
 import { openFile } from './platform.ts';
+import { startProgress } from './progress.ts';
 import { writePrompt } from './prompt.ts';
 import { HOST_RENDER_DEPS, renderRun, type RenderDeps } from './render.ts';
 import { createRunFolder, latestRunFolder, type RunFiles } from './run-folder.ts';
@@ -97,16 +98,26 @@ export async function review(
           performance.now() - started,
         );
       } else {
-        const result = await runClaude(
-          run,
-          {
-            cwd: worktree?.path ?? context.target.repoRoot,
-            model: options.model,
-            maxTurns: options.maxTurns,
-            timeoutMs: options.timeoutMs,
-          },
-          { ...deps.claude, onActivity: deps.claude.onActivity ?? ((line) => note(`  ${line}`)) },
-        );
+        const progress = startProgress();
+        let result;
+        try {
+          result = await runClaude(
+            run,
+            {
+              cwd: worktree?.path ?? context.target.repoRoot,
+              model: options.model,
+              maxTurns: options.maxTurns,
+              timeoutMs: options.timeoutMs,
+            },
+            {
+              onActivity: progress.activity,
+              onText: progress.text,
+              ...deps.claude,
+            },
+          );
+        } finally {
+          progress.stop();
+        }
         if (result.incomplete !== null) warn(incompleteWarning(result));
         stage('run', `${describeRun(result)}${where}`, performance.now() - started);
       }
