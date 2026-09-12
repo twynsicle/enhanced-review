@@ -9,7 +9,7 @@ import {
   type DiagramChange,
   type DiagramNodeKind,
 } from '../diagram.ts';
-import type { DiffHunkIndex } from './diff-hunk-catalog.ts';
+import type { PromptGrounding } from './diff-hunk-catalog.ts';
 
 /**
  * Turns whatever the model put in a `diagram` field into a `Diagram`, or into
@@ -17,7 +17,7 @@ import type { DiffHunkIndex } from './diff-hunk-catalog.ts';
  *
  * Lenient in the same direction as `parse-narrative.ts`: the invalid *part* is
  * dropped, never the review. An edge pointing at a node that does not exist
- * goes; a `group` that names no group is cleared; a `filename` the diff does
+ * goes; a `group` that names no group is cleared; a `filename` the change does
  * not contain is cleared, which costs the node its click-through and nothing
  * else. What is dropped whole is a diagram that has emptied out — fewer than
  * two nodes, or no steps left — and one with no caption, because the caption is
@@ -52,40 +52,35 @@ function toNodeKind(raw: unknown): DiagramNodeKind {
   return parsed.success ? parsed.data : 'code';
 }
 
-/**
- * The filenames the diff actually contained. Grounding is checked against the
- * hunk catalog for the same reason `diffChunks` is: it is the only list in the
- * prompt the model could not have invented. A file truncated out of the diff
- * is unknown here, so its node keeps its label and loses its link — the
- * conservative direction.
- */
-function knownFilenames(hunkIndex: DiffHunkIndex | undefined): Set<string> {
-  return new Set(hunkIndex?.hunks.map((hunk) => hunk.filename) ?? []);
-}
-
-interface Grounding {
+interface NodeGrounding {
   filename?: string;
   hunkIds?: string[];
 }
 
-function resolveGrounding(
+/**
+ * A node's link into the change. The filename is checked against the file
+ * list, and the hunk ids against the hunks the prompt showed: both are lists
+ * the model could not have invented, and they are not the same list — a file
+ * the prompt showed no hunks for is still a file, and its node keeps the page
+ * it links to while losing the hunks it cannot name.
+ */
+function resolveNodeGrounding(
   raw: Rec,
   kind: DiagramNodeKind,
-  files: Set<string>,
-  hunkIndex: DiffHunkIndex | undefined,
-): Grounding {
+  grounding: PromptGrounding | undefined,
+): NodeGrounding {
   // Only code has a path. A table, a service or a person does not, and asking
   // for one is asking the model to make one up.
   if (kind !== 'code') return {};
   const filename = clamp(raw['filename'], 512);
-  if (filename === undefined || !files.has(filename)) return {};
+  if (filename === undefined || !grounding?.filenames.has(filename)) return {};
 
   const rawIds = Array.isArray(raw['hunkIds']) ? raw['hunkIds'] : [];
   const hunkIds = [
     ...new Set(
       rawIds.filter((id): id is string => {
         if (typeof id !== 'string') return false;
-        const hunk = hunkIndex?.byId[id];
+        const hunk = grounding.shown.byId[id];
         return hunk !== undefined && hunk.filename === filename;
       }),
     ),
@@ -94,7 +89,7 @@ function resolveGrounding(
   return hunkIds.length > 0 ? { filename, hunkIds } : { filename };
 }
 
-function sanitizeGraph(raw: Rec, kind: string, files: Set<string>, hunkIndex?: DiffHunkIndex): Rec {
+function sanitizeGraph(raw: Rec, kind: string, grounding: PromptGrounding | undefined): Rec {
   const groups = (Array.isArray(raw['groups']) ? raw['groups'] : [])
     .filter(isRecord)
     .map((group) => ({
@@ -128,7 +123,7 @@ function sanitizeGraph(raw: Rec, kind: string, files: Set<string>, hunkIndex?: D
           kind: nodeKind,
           change: toChange(node['change']),
           ...(group !== undefined && groupIds.has(group) ? { group } : {}),
-          ...resolveGrounding(node, nodeKind, files, hunkIndex),
+          ...resolveNodeGrounding(node, nodeKind, grounding),
           ...(initial ? { initial: true } : {}),
           ...(clamp(node['note'], DIAGRAM_LIMITS.noteChars) !== undefined
             ? { note: clamp(node['note'], DIAGRAM_LIMITS.noteChars) }
@@ -211,7 +206,7 @@ function sanitizeSteps(raw: unknown, participants: Set<string>, depth: number): 
     .slice(0, DIAGRAM_LIMITS.steps);
 }
 
-function sanitizeSequence(raw: Rec, files: Set<string>, hunkIndex?: DiffHunkIndex): Rec {
+function sanitizeSequence(raw: Rec, grounding: PromptGrounding | undefined): Rec {
   const seen = new Set<string>();
   const participants = (Array.isArray(raw['participants']) ? raw['participants'] : [])
     .filter(isRecord)
@@ -227,7 +222,7 @@ function sanitizeSequence(raw: Rec, files: Set<string>, hunkIndex?: DiffHunkInde
           label,
           kind,
           change: toChange(participant['change']),
-          ...resolveGrounding(participant, kind, files, hunkIndex),
+          ...resolveNodeGrounding(participant, kind, grounding),
         },
       ];
     })
@@ -250,7 +245,7 @@ const FALLBACK_TITLES: Record<string, string> = {
 export function sanitizeDiagram(
   raw: unknown,
   fallbackId: string,
-  hunkIndex?: DiffHunkIndex,
+  grounding?: PromptGrounding,
 ): Diagram | undefined {
   if (!isRecord(raw)) return undefined;
   const kind = DiagramKindSchema.safeParse(raw['kind']);
@@ -259,7 +254,6 @@ export function sanitizeDiagram(
   const caption = clamp(raw['caption'], DIAGRAM_LIMITS.captionChars);
   if (caption === undefined) return undefined;
 
-  const files = knownFilenames(hunkIndex);
   const candidate: Rec = {
     id: clamp(raw['id'], DIAGRAM_LIMITS.idChars) ?? fallbackId,
     title:
@@ -267,8 +261,8 @@ export function sanitizeDiagram(
     caption,
     kind: kind.data,
     ...(kind.data === 'sequence'
-      ? sanitizeSequence(raw, files, hunkIndex)
-      : sanitizeGraph(raw, kind.data, files, hunkIndex)),
+      ? sanitizeSequence(raw, grounding)
+      : sanitizeGraph(raw, kind.data, grounding)),
   };
 
   const validated = DiagramSchema.safeParse(candidate);

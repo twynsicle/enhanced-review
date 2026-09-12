@@ -22,7 +22,15 @@ src/domain/
                      pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getCommitsAhead); types.ts shared
   review/            shared: narrative.ts (NarrativeReview Zod schema + types; chapter.diagram? + overviewDiagram?;
                      ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
-                     SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's two synthesised sections),
+                     ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
+                     reviewable and not only what was cited; SUMMARY_SECTION_ID / RISK_SECTION_ID /
+                     UNDISCUSSED_SECTION_ID, the reader's synthesised sections),
+                     coverage.ts (the backstop for the instruction that the model cite every hunk: withFileHunks
+                     attaches the catalog to the files — the local CLI at parse, the hosted runner at finalize;
+                     reviewCoverage subtracts what the chapters cite, per hunk, and returns `uncited`, one
+                     FileCoverage per file with leftovers (its own DiffChunk on it), plus byFile, chaptersCiting
+                     and describeCoverageGap, the one sentence the CLI and the reader's card share; a file
+                     without a catalog reports nothing),
                      diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
                      DIAGRAM_LIMITS, hasUniformChange), target.ts (ReviewTarget schema, describeTarget),
@@ -31,19 +39,35 @@ src/domain/
                      schemaVersion, no back-compat; parseBundle, filePair), bundle-html.ts (the bundle as the text of
                      the report's er-bundle element: injectBundle escapes every <, readEmbeddedBundle),
                      language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
-    clone/           *.server.ts: git-runner (spawn, non-interactive, abort → SIGTERM), clone-runner (init + fetch head +
-                     verify SHA + fetch base + diff; headRefFor, githubCloneUrl), diff-files (listChangedFiles/mergeFileLists; the *Details/parseChangedFiles variants keep a
-                     rename's old path and the binary flag, for the local CLI)
-    prompt/          pure: ai-file-filter, diff-hunk-catalog (H0001… ids), narrative-prompt (system + user, truncation; NARRATIVE_SYSTEM_PROMPT,
-                     formatFileList and formatHunkCatalog are shared with the local CLI's prompt),
+    clone/           *.server.ts: git-runner (spawn, non-interactive, the host's system and global gitconfig ignored
+                     unless a call asks for `hostConfig`, abort → SIGTERM), clone-runner (init + fetch head +
+                     verify SHA + fetch base + diff, which refuses the diff drivers a repository's own
+                     `.gitattributes` can name; headRefFor, githubCloneUrl),
+                     diff-files (listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over
+                     `-z` output under the same diff pins, each rename's old path and the binary flag; output that
+                     ends mid-record throws rather than yielding a short list)
+    prompt/          pure: ai-file-filter (isExcludedFromAI, and the ReviewFileSkipReason rules over it —
+                     builtInSkipReason, binarySkipReason, promptSkipReason for both in order; the hosted runner
+                     stamps them on a changed file, the CLI runs them either side of its .gitattributes pass),
+                     diff-hunk-catalog (H0001… ids; PromptGrounding/groundingFor, what a model's answer is
+                     checked against), narrative-prompt (system + user; the prompt reviews exactly the files
+                     carrying no `skipped` reason, drops the patch of anything the built-in rules match even
+                     when the file list missed it, and lists the rest under Not Reviewed; hunk ids are numbered
+                     over the whole filtered diff, so ids mean the same thing to the coverage backstop, and the
+                     result carries both `catalog`, every hunk, for coverage, and `grounding`, which resolves only
+                     the hunks the truncated prompt showed while knowing every reviewed file's name;
+                     NARRATIVE_SYSTEM_PROMPT, formatFileList, formatHunkCatalog and formatSkippedSection are
+                     shared with the local CLI's prompt),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; a failed JSON.parse is
                      retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string),
                      parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own
-                     so a bad picture cannot fail the review; grounding checked against the hunk catalog), types.ts (PrData),
+                     so a bad picture cannot fail the review; a node's filename checked against the reviewed file
+                     list and its hunk ids against the hunks the prompt showed), types.ts (PrData),
                      instructions.ts (the review instructions and output schema, shared with the local CLI, plus one
                      closing paragraph per path: SERVER_WORKING_TREE, LOCAL_WORKING_TREE; the assembled server prompt is
                      pinned byte-for-byte by __fixtures__/server-prompt.txt)
-    executor/        types.ts (ReviewExecutor, errors); stub-executor.server.ts (STUB_REVIEW in fragments);
+    executor/        types.ts (ReviewExecutor, errors; the output's optional `hunks` is the prompt's catalog, which
+                     the runner attaches to `files[]` — the stub has none); stub-executor.server.ts (STUB_REVIEW in fragments);
                      claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist);
                      sdk-loop.server.ts (the message loop both this and the local CLI run on: text, tool uses and the
                      result out — subtype, turns, cost and token usage, cost counted even when the run ran out of
@@ -74,8 +98,10 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t
   executor streams raw text; each fragment becomes a `review_chunks` row
   (`seq` from 0, inserts fire-and-forget, drained before finalize).
   `finalizeDone` writes the `reviews` row and `running → done` in one
-  transaction. Failures → `markErrored(formatJobError(err))`, clipped to 500
-  chars. Every side effect is injected (`RunJobDeps`) so the stub review runs
+  transaction, the changed files carrying their hunks when the executor
+  returned a catalog and `skipped` when the file's own skip reason says why the
+  prompt left it out; the `job done` log line reports the hunk coverage.
+  Failures → `markErrored(formatJobError(err))`, clipped to 500 chars. Every side effect is injected (`RunJobDeps`) so the stub review runs
   end to end from `run.integration.test.ts` against a local git repo.
 - **Abort reasons** say who already wrote the terminal status: `cancel`
   (`cancel-job.server.ts` wrote `cancelled` before signalling), `timeout`

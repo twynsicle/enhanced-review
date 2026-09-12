@@ -123,6 +123,7 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {
           review={review}
           meta={loaderData.meta}
           initialActiveId={loaderData.initialActiveId}
+          diffTruncated={loaderData.diffTruncated}
           actions={<RerunButton jobId={job.id} />}
         />
       </GithubFileSource>

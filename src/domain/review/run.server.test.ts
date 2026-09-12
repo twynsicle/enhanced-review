@@ -15,6 +15,7 @@ import {
   type RunJobInput,
   type RunJobStore,
 } from './run.server.ts';
+import type { NarrativeReview } from './narrative.ts';
 import type { ReviewTarget } from './target.ts';
 
 const HEAD = 'a'.repeat(40);
@@ -64,6 +65,9 @@ function fakeGit(headSha = HEAD): { git: GitRunner; calls: string[][] } {
   };
   return { git, calls };
 }
+
+/** NUL-separated git output: every record, plus the trailing separator git writes. */
+const z = (...records: string[]) => records.join('\u0000') + '\u0000';
 
 const fetchFailsGit: GitRunner = async (opts) =>
   opts.args[0] === 'fetch'
@@ -138,9 +142,9 @@ describe('runJob', () => {
       'checkout --quiet FETCH_HEAD',
       'rev-parse HEAD',
       `fetch --depth=1 origin ${BASE}`,
-      `diff ${BASE}..${HEAD}`,
-      `diff --numstat -z ${BASE}..${HEAD}`,
-      `diff --name-status -z ${BASE}..${HEAD}`,
+      `diff --no-color --no-ext-diff --no-textconv ${BASE}..${HEAD}`,
+      `diff --numstat -z --no-color --no-ext-diff --no-textconv ${BASE}..${HEAD}`,
+      `diff --name-status -z --no-color --no-ext-diff --no-textconv ${BASE}..${HEAD}`,
       'log -1 --format=%an%n--BODY--%n%B',
     ]);
     expect(d.getPullMetadata).not.toHaveBeenCalled();
@@ -159,6 +163,37 @@ describe('runJob', () => {
       },
     });
     expect(store.markErrored).not.toHaveBeenCalled();
+  });
+
+  it('records why the prompt left a file out, rather than storing it as unmentioned', async () => {
+    // The prompt filters lockfiles, and git has no text to diff for a binary
+    // file: neither reaches the model, and a reviewed-looking row for either
+    // is a change the reader is told nobody discussed.
+    const git: GitRunner = async (opts) => {
+      const [cmd, ...rest] = opts.args;
+      if (cmd === 'rev-parse') return { stdout: `${HEAD}\n`, stderr: '', exitCode: 0 };
+      if (cmd === 'diff' && rest.includes('--numstat')) {
+        const stdout = z('1\t1\tf.txt', '9\t9\tyarn.lock', '-\t-\tlogo.png');
+        return { stdout, stderr: '', exitCode: 0 };
+      }
+      if (cmd === 'diff' && rest.includes('--name-status')) {
+        const stdout = z('M', 'f.txt', 'M', 'yarn.lock', 'A', 'logo.png');
+        return { stdout, stderr: '', exitCode: 0 };
+      }
+      if (cmd === 'diff') return { stdout: DIFF, stderr: '', exitCode: 0 };
+      if (cmd === 'log') return { stdout: `Alice\n--BODY--\na commit\n`, stderr: '', exitCode: 0 };
+      return { stdout: '', stderr: '', exitCode: 0 };
+    };
+    const { store } = fakeStore();
+    await runJob(input(BRANCH), deps({ store, git }));
+
+    const [, finalizeInput] = vi.mocked(store.finalizeDone).mock.calls[0] ?? [];
+    const files = (finalizeInput?.content as NarrativeReview | undefined)?.files ?? [];
+    expect(files.map((file) => [file.filename, file.skipped])).toEqual([
+      ['f.txt', undefined],
+      ['yarn.lock', 'built-in'],
+      ['logo.png', 'binary'],
+    ]);
   });
 
   it('feeds branch commit metadata and the diff into the executor', async () => {

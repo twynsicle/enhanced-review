@@ -1,4 +1,10 @@
 import { performance } from 'node:perf_hooks';
+import { plural } from '../common/plural.ts';
+import {
+  describeCoverageGap,
+  reviewCoverage,
+  type ReviewCoverage,
+} from '../domain/review/coverage.ts';
 import type { NarrativeReview } from '../domain/review/narrative.ts';
 import type { ReviewMeta } from '../domain/review/review-meta.ts';
 import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
@@ -135,12 +141,16 @@ export async function review(
   if (runs('parse')) {
     const started = performance.now();
     parsed = await parseRun(context, run);
-    const cited = parsed.chapters.flatMap((c) => c.diffChunks.flatMap((d) => d.hunks)).length;
+    const coverage = reviewCoverage(parsed);
     stage(
       'parse',
-      `${plural(parsed.chapters.length, 'chapter')}, ${plural(cited, 'hunk')} cited`,
+      `${plural(parsed.chapters.length, 'chapter')}, ${describeCoverage(coverage)}`,
       performance.now() - started,
     );
+    // Not an error: the report carries the leftovers under "Not discussed".
+    // But a run that skipped a third of the change is worth knowing about
+    // before the report is opened, not after the chapters run out.
+    if (coverage.uncited.length > 0) warn(coverageWarning(coverage));
   } else {
     parsed = await readReview(run);
   }
@@ -247,6 +257,15 @@ function incompleteWarning(result: ClaudeRunResult): string {
   );
 }
 
+function describeCoverage(coverage: ReviewCoverage): string {
+  if (coverage.total === 0) return 'no hunks to cite';
+  return `${String(coverage.cited)} of ${plural(coverage.total, 'hunk')} cited`;
+}
+
+export function coverageWarning(coverage: ReviewCoverage): string {
+  return `${describeCoverageGap(coverage)}; the report shows their hunks under "Not discussed"`;
+}
+
 function describeGather(context: RunContext): string {
   const skipped = context.files.filter((file) => file.skipped).length;
   const files = plural(context.files.length, 'file');
@@ -282,8 +301,4 @@ function approxCount(value: number): string {
 
 function megabytes(bytes: number): string {
   return `${(bytes / 1_000_000).toFixed(1)} MB`;
-}
-
-function plural(count: number, noun: string): string {
-  return `${String(count)} ${noun}${count === 1 ? '' : 's'}`;
 }

@@ -1,4 +1,5 @@
 import type { NarrativeReview } from '../narrative.ts';
+import type { DiffHunk } from '../prompt/diff-hunk-catalog.ts';
 import type { PrData } from '../prompt/types.ts';
 
 /**
@@ -20,6 +21,12 @@ export interface ReviewExecutorOutput {
   review: NarrativeReview;
   wasTruncated: boolean;
   rawText: string;
+  /**
+   * The hunks the model was asked to cite, so the stored review can say
+   * which it did not. Absent from the stub, which has no prompt and so no
+   * catalog to measure against.
+   */
+  hunks?: readonly DiffHunk[];
 }
 
 export interface ReviewExecutor {

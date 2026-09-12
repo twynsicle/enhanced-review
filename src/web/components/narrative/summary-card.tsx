@@ -7,6 +7,7 @@ import classes from '@/web/components/narrative/article.module.css';
 import { DiagramFigure } from '@/web/components/narrative/diagram/diagram-figure';
 import { LeadMarkdown } from '@/web/components/narrative/lead-markdown';
 import { MarkdownText } from '@/web/components/narrative/markdown-text';
+import { sectionCardId, sectionHeadingId } from '@/web/components/narrative/sections';
 import { token } from '@/web/theme/tokens';
 import { DISPLAY_SIZE } from '@/web/theme/tokens';
 
@@ -57,7 +58,7 @@ export function SummaryCard({
   );
 
   return (
-    <article className={classes.article} id={`chapter-${SUMMARY_SECTION_ID}`}>
+    <article className={classes.article} id={sectionCardId(SUMMARY_SECTION_ID)}>
       <Stack component="header" gap={12}>
         <Group justify="space-between" align="flex-start" gap={12} wrap="nowrap">
           <Caption tone="before">Summary</Caption>
@@ -65,7 +66,7 @@ export function SummaryCard({
         </Group>
         <Title
           order={1}
-          id={`chapter-heading-${SUMMARY_SECTION_ID}`}
+          id={sectionHeadingId(SUMMARY_SECTION_ID)}
           tabIndex={-1}
           fz={DISPLAY_SIZE}
           fw={600}

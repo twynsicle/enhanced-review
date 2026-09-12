@@ -15,7 +15,8 @@ import {
   headRefFor,
   HeadShaMismatchError,
 } from './clone/clone-runner.server.ts';
-import { listChangedFiles } from './clone/diff-files.server.ts';
+import { listChangedFileDetails, type ChangedFile } from './clone/diff-files.server.ts';
+import { reviewCoverage, withFileHunks } from './coverage.ts';
 import {
   GitCommandError,
   runGit,
@@ -25,7 +26,8 @@ import {
 import { ClaudeExecutor } from './executor/claude-executor.server.ts';
 import { StubExecutor } from './executor/stub-executor.server.ts';
 import { ExecutorParseError, ExecutorProcessError, type ReviewExecutor } from './executor/types.ts';
-import type { NarrativeReview } from './narrative.ts';
+import type { NarrativeReview, ReviewFile } from './narrative.ts';
+import { promptSkipReason } from './prompt/ai-file-filter.ts';
 import type { PrData } from './prompt/types.ts';
 import type { ReviewTarget } from './target.ts';
 
@@ -114,6 +116,20 @@ const defaultStore: RunJobStore = {
   markErrored: (jobId, message) => reviewJobs.markErrored(jobId, message),
 };
 
+/**
+ * The changed files as the review records them, each one the prompt filters
+ * out carrying why. The prompt drops these patches silently, so without the
+ * reason here the stored file looks reviewed-but-unmentioned: the sidebar
+ * lists it undimmed, and the coverage backstop counts a lockfile against the
+ * model's chapters.
+ */
+function reviewedFiles(changed: readonly ChangedFile[]): ReviewFile[] {
+  return changed.map(({ filename, status, additions, deletions, binary }) => {
+    const skipped = promptSkipReason({ filename, binary });
+    return { filename, status, additions, deletions, ...(skipped ? { skipped } : {}) };
+  });
+}
+
 async function readBranchMetadata(
   git: GitRunner,
   cwd: string,
@@ -190,7 +206,9 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ
     cloneDir = clone.cloneDir;
     if (signal.aborted) return 'aborted';
 
-    const files = await listChangedFiles(deps.git, cloneDir, target.baseSha, headSha, signal);
+    const files = reviewedFiles(
+      await listChangedFileDetails(deps.git, cloneDir, target.baseSha, headSha, signal),
+    );
 
     let prData: PrData;
     if (target.kind === 'pr' && prMeta) {
@@ -239,7 +257,10 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ
     // `done` has already seen the full stream.
     await Promise.allSettled(inFlight);
 
-    const content: NarrativeReview = { ...result.review, files };
+    const content: NarrativeReview = {
+      ...result.review,
+      files: result.hunks ? withFileHunks(files, result.hunks) : files,
+    };
     const finalized = await store.finalizeDone(jobId, {
       content,
       diffTruncated: result.wasTruncated,
@@ -249,7 +270,18 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ
       log.warn('job was no longer running at finalize; review discarded');
       return (outcome = 'skipped');
     }
-    log.info({ files: files.length, chunks: seq }, 'job done');
+    const coverage = reviewCoverage(content);
+    log.info(
+      {
+        files: files.length,
+        chunks: seq,
+        hunks: coverage.total,
+        hunksCited: coverage.cited,
+        filesUndiscussed: coverage.uncited.filter((file) => file.cited === 0).length,
+        filesPartlyDiscussed: coverage.uncited.filter((file) => file.cited > 0).length,
+      },
+      'job done',
+    );
     return (outcome = 'done');
   } catch (err) {
     if (signal.aborted) return 'aborted';

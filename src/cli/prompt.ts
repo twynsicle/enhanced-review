@@ -1,10 +1,13 @@
 import { writeFile } from 'node:fs/promises';
-import type { ReviewFileSkipReason } from '../domain/review/narrative.ts';
 import {
   LOCAL_WORKING_TREE,
   NARRATIVE_SYSTEM_PROMPT,
 } from '../domain/review/prompt/instructions.ts';
-import { formatFileList, formatHunkCatalog } from '../domain/review/prompt/narrative-prompt.ts';
+import {
+  formatFileList,
+  formatHunkCatalog,
+  formatSkippedSection,
+} from '../domain/review/prompt/narrative-prompt.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
 
@@ -20,13 +23,6 @@ import type { RunFiles } from './run-folder.ts';
 const MAX_INLINE_DESCRIPTION = 8000;
 const MAX_COMMIT_BODY = 600;
 
-const SKIP_NOTE: Record<ReviewFileSkipReason, string> = {
-  generated: 'marked linguist-generated',
-  vendored: 'marked linguist-vendored',
-  'built-in': 'lockfile, bundle or snapshot',
-  binary: 'binary',
-};
-
 export async function writePrompt(context: RunContext, run: RunFiles): Promise<string> {
   const user = buildPrompt(context, run);
   await writeFile(run.system, NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
@@ -37,7 +33,6 @@ export async function writePrompt(context: RunContext, run: RunFiles): Promise<s
 export function buildPrompt(context: RunContext, run: RunFiles): string {
   const { target, meta, files, hunks } = context;
   const reviewed = files.filter((file) => !file.skipped);
-  const skipped = files.filter((file) => file.skipped);
 
   const sections = [
     heading(context),
@@ -55,11 +50,7 @@ export function buildPrompt(context: RunContext, run: RunFiles): string {
     commits(context),
     workingDirectory(context, run),
     `## Files Changed (${String(reviewed.length)})\n${formatFileList(reviewed)}${renames(context)}`,
-    skipped.length > 0
-      ? `## Not Reviewed (${String(skipped.length)})\n` +
-        'These files changed but are left out of the review. They have no hunks; do not cite them.\n' +
-        skipped.map((file) => `  ${file.filename}  (${SKIP_NOTE[file.skipped!]})`).join('\n')
-      : null,
+    formatSkippedSection(files),
     `## Changed Hunks (Use These IDs in diffChunks.hunkIds)\n${formatHunkCatalog(hunks)}`,
     '## Hunk Files\n' +
       `The patch for each file in Files Changed is at \`${display(run.diffDir)}/<path>.diff\`, ` +

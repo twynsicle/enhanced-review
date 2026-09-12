@@ -1,6 +1,8 @@
+import type { ReviewCoverage } from '@/domain/review/coverage';
 import {
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
+  UNDISCUSSED_SECTION_ID,
   type NarrativeReview,
 } from '@/domain/review/narrative';
 
@@ -15,7 +17,7 @@ import {
  * since the summary sat first in the sidebar but last in the arrow-key cycle.
  * One ordered list, derived here, is what both consume instead.
  */
-export type SectionKind = 'summary' | 'risk' | 'chapter';
+export type SectionKind = 'summary' | 'risk' | 'chapter' | 'undiscussed';
 
 export interface ReaderSection {
   id: string;
@@ -28,7 +30,7 @@ export interface ReaderSection {
   hasDiagram: boolean;
 }
 
-export function readerSections(review: NarrativeReview): ReaderSection[] {
+export function readerSections(review: NarrativeReview, coverage: ReviewCoverage): ReaderSection[] {
   const sections: ReaderSection[] = [
     {
       id: SUMMARY_SECTION_ID,
@@ -60,7 +62,34 @@ export function readerSections(review: NarrativeReview): ReaderSection[] {
     });
   });
 
+  // Last, and only when there is something to show: the hunks no chapter
+  // cites. Reading to the end of the list is then reading the whole change.
+  if (coverage.uncited.length > 0) {
+    sections.push({
+      id: UNDISCUSSED_SECTION_ID,
+      kind: 'undiscussed',
+      label: 'Not discussed',
+      chapterNumber: null,
+      hasDiagram: false,
+    });
+  }
+
   return sections;
+}
+
+/**
+ * The two ids every section card spells. They read `chapter-…` for the
+ * synthesised sections too: the keyboard hook focuses `sectionHeadingId`, so
+ * a card that spells its id any other way is one End and the arrows skip
+ * silently.
+ */
+export const sectionCardId = (id: string) => `chapter-${id}`;
+export const sectionHeadingId = (id: string) => `chapter-heading-${id}`;
+
+/** The sidebar's index glyph: a chapter's number, a dash for the backstop, `00` otherwise. */
+export function sectionIndexLabel(section: ReaderSection): string {
+  if (section.chapterNumber !== null) return section.chapterNumber.toString().padStart(2, '0');
+  return section.kind === 'undiscussed' ? '—' : '00';
 }
 
 /** The section a `?ch=` value names, or null when it names nothing here. */

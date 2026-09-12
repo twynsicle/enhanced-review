@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDiffHunkIndex } from './diff-hunk-catalog.ts';
+import { buildDiffHunkIndex, groundingFor } from './diff-hunk-catalog.ts';
 import { escapeStrayQuotes, parseNarrativeReview } from './parse-narrative.ts';
 
 function wrap(payload: unknown): string {
@@ -125,8 +125,8 @@ describe('parseNarrativeReview', () => {
     ]);
   });
 
-  it('resolves hunk ids against the index, dropping unknown and wrong-file ids', () => {
-    const hunkIndex = buildDiffHunkIndex(DIFF);
+  it('resolves hunk ids against what the prompt showed, dropping unknown and wrong-file ids', () => {
+    const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
     const result = parseNarrativeReview(
       wrap({
         prTitle: 't',
@@ -150,7 +150,7 @@ describe('parseNarrativeReview', () => {
           },
         ],
       }),
-      hunkIndex,
+      grounding,
     );
     expect(result.ok && result.data.chapters[0]?.diffChunks).toEqual([
       {
@@ -247,7 +247,7 @@ describe('parseNarrativeReview', () => {
         overviewDiagram: diagram,
         chapters: [{ id: 'one', title: 'One', insights: [], diffChunks: [], diagram }],
       }),
-      buildDiffHunkIndex(DIFF),
+      groundingFor(buildDiffHunkIndex(DIFF).hunks),
     );
 
     expect(result.ok && result.data.overviewDiagram?.id).toBe('overview-diagram');

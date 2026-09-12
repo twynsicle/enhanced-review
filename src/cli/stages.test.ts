@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUNDLE_PLACEHOLDER, readEmbeddedBundle } from '../domain/review/bundle-html.ts';
+import { withFileHunks } from '../domain/review/coverage.ts';
 import type { RunContext } from './context.ts';
 import { parseRun, readReview } from './parse.ts';
 import { renderRun, viewerShell } from './render.ts';
@@ -95,7 +96,13 @@ describe('stub run → parse', () => {
       { title: 'a.ts', cited: ['H0001', 'H0002'] },
       { title: 'b.ts', cited: ['H0003'] },
     ]);
-    expect(review.files).toEqual(context().files);
+    // The files come from context, each carrying its share of the catalog.
+    expect(review.files).toEqual(withFileHunks(context().files, context().hunks));
+    expect(review.files?.map((file) => file.hunks?.map((h) => h.id))).toEqual([
+      ['H0001', 'H0002'],
+      ['H0003'],
+      undefined,
+    ]);
     await expect(readReview(run)).resolves.toEqual(review);
   });
 

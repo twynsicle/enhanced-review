@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
+import { createTempRepo, GIT_TEST_TIMEOUT } from '../../../test/git-repo.ts';
 import { GitCommandError, runGit, runGitOrThrow, type GitRunner } from './git-runner.server.ts';
+
+vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
 
 const okRunner: GitRunner = async () => ({ stdout: 'abc\n', stderr: '', exitCode: 0 });
 const failingRunner: GitRunner = async () => ({
@@ -39,5 +45,32 @@ describe('runGit', () => {
     const result = await runGit({ args: ['definitely-not-a-git-command'] });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr.length).toBeGreaterThan(0);
+  });
+
+  it('ignores a global setting that rewrites the diff, unless the caller asks for the host config', async () => {
+    // `diff.noprefix` stands in for every ambient setting that can make the
+    // `diff --git a/<path> b/<path>` line unmatchable: the hunk catalog reads
+    // that line, so one of them on the host is the whole catalog gone.
+    const repo = createTempRepo();
+    const home = mkdtempSync(path.join(tmpdir(), 'git-home-'));
+    try {
+      writeFileSync(path.join(home, '.gitconfig'), '[diff]\n\tnoprefix = true\n');
+      repo.write('f.txt', 'after\n');
+      const head = repo.commit('change');
+      const run = (hostConfig: boolean) =>
+        runGit({
+          args: ['diff', `${head}~1..${head}`],
+          cwd: repo.work,
+          env: { HOME: home, USERPROFILE: home },
+          hostConfig,
+        });
+
+      const [ignored, honoured] = await Promise.all([run(false), run(true)]);
+      expect(ignored.stdout).toContain('diff --git a/f.txt b/f.txt');
+      expect(honoured.stdout).toContain('diff --git f.txt f.txt');
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      repo.cleanup();
+    }
   });
 });

@@ -116,7 +116,21 @@ export async function cloneAndDiff(
 
   const diff = await runGitOrThrow(git, 'diff', {
     ...common,
-    args: ['diff', `${input.baseSha}..${actualHead}`],
+    /*
+     * A diff driver can come from the reviewed repository's own
+     * `.gitattributes`, which no environment variable disables, so the flags
+     * that refuse one are given per command. What they buy is the body of the
+     * patch: an external or textconv driver rewrites it into something the
+     * hunk catalog matches nothing in, and colour does the same to the
+     * `diff --git a/<path> b/<path>` line it reads.
+     */
+    args: [
+      'diff',
+      '--no-color',
+      '--no-ext-diff',
+      '--no-textconv',
+      `${input.baseSha}..${actualHead}`,
+    ],
   });
 
   return { cloneDir, diff: diff.stdout };

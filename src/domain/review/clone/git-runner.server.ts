@@ -2,9 +2,10 @@ import { spawn } from 'node:child_process';
 import { hostEnv } from '../../../config/host-env.ts';
 
 /**
- * Spawns `git` non-interactively. Every prompt is disabled (no terminal
- * prompt, no askpass, batch-mode ssh) so a bad token fails fast instead of
- * hanging the job. Aborting the signal sends SIGTERM to the child.
+ * Spawns `git` non-interactively, and with the host's own git configuration
+ * out of the way. Every prompt is disabled (no terminal prompt, no askpass,
+ * batch-mode ssh) so a bad token fails fast instead of hanging the job.
+ * Aborting the signal sends SIGTERM to the child.
  */
 export interface GitRunOptions {
   args: readonly string[];
@@ -12,6 +13,14 @@ export interface GitRunOptions {
   signal?: AbortSignal;
   /** Extra variables for this invocation only (auth headers, for example). */
   env?: Record<string, string | undefined>;
+  /**
+   * Read the host's system and global git configuration, which is otherwise
+   * ignored. For a command that has to act as the person running it — their
+   * credential helper, proxy and `url.insteadOf` reach a remote, their
+   * `safe.directory` entries decide whether git will touch a repository at
+   * all — those files are what makes git work.
+   */
+  hostConfig?: boolean;
 }
 
 export interface GitRunResult {
@@ -39,9 +48,30 @@ const NON_INTERACTIVE_ENV: Record<string, string> = {
   GIT_SSH_COMMAND: 'ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new',
 };
 
+/**
+ * The system and global configuration files, ignored. Either can carry a
+ * setting that rewrites a diff — `diff.noprefix`, `core.quotePath`, colour, an
+ * external or textconv driver — and the hunk catalog reads
+ * `diff --git a/<path> b/<path>` and nothing else, so a single such setting on
+ * the host collapses the catalog to empty.
+ *
+ * `/dev/null` is git's own spelling for an empty configuration and is
+ * understood on Windows too; a path that merely does not exist is a fatal
+ * error rather than an empty file.
+ */
+const NO_AMBIENT_CONFIG: Record<string, string> = {
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_CONFIG_GLOBAL: '/dev/null',
+};
+
 export const runGit: GitRunner = (opts) =>
   new Promise<GitRunResult>((resolve, reject) => {
-    const env = { ...hostEnv(), ...NON_INTERACTIVE_ENV, ...opts.env };
+    const env = {
+      ...hostEnv(),
+      ...NON_INTERACTIVE_ENV,
+      ...(opts.hostConfig ? {} : NO_AMBIENT_CONFIG),
+      ...opts.env,
+    };
     const child = spawn('git', [...opts.args], {
       cwd: opts.cwd,
       env,

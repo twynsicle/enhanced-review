@@ -73,6 +73,9 @@ Guidelines:
 - Each diffChunk must use only hunk IDs listed in "Changed Hunks". Do not invent IDs.
 - Keep hunk IDs file-consistent: only use hunk IDs that belong to the same filename as the diffChunk.
 - Prefer one diffChunk per file per chapter; group relevant hunk IDs in that chunk.
+- Every hunk in "Changed Hunks" must be cited by some chapter's diffChunks. A hunk that appears in no chapter is a change the reviewer never sees. Before you answer, go down the list and place any hunk you have not cited in the chapter whose story it belongs to.
+- Tests belong in the chapter that covers the code they test, not in a chapter of their own.
+- Wiring, docs, configuration and other small mechanical edits that belong to no story share one closing chapter (for example "Wiring and docs"), so that they are neither dropped nor given a chapter each.
 - Always include riskAssessment. Choose the score as a reviewer-effort signal, not as a judgment of author skill.
 - Risk score 1: no meaningful functional behavior change, such as copy-only edits, styling-only tweaks, comments/docs, formatting, config that only affects local development, or isolated test/tooling changes with no production path.
 - Risk score 2: functional logic changed, but the blast radius is low and user impact is minor or easy to observe. Examples include a small behavior change on one frontend page, guarded UX polish, or localized logic where failure has a clear workaround.

@@ -7,6 +7,7 @@ import {
   riskLabel,
   normalizeRiskScore,
 } from '@/web/components/narrative/risk-score';
+import { sectionCardId, sectionHeadingId } from '@/web/components/narrative/sections';
 import { DISPLAY_SIZE } from '@/web/theme/tokens';
 
 /**
@@ -24,14 +25,14 @@ export function RiskCard({ assessment }: { assessment: ReviewRiskAssessment }) {
   return (
     <article
       className={classes.article}
-      id={`chapter-${RISK_SECTION_ID}`}
-      aria-labelledby={`chapter-heading-${RISK_SECTION_ID}`}
+      id={sectionCardId(RISK_SECTION_ID)}
+      aria-labelledby={sectionHeadingId(RISK_SECTION_ID)}
     >
       <Stack component="header" gap={12}>
         <Caption tone="before">Risk</Caption>
         <Title
           order={1}
-          id={`chapter-heading-${RISK_SECTION_ID}`}
+          id={sectionHeadingId(RISK_SECTION_ID)}
           tabIndex={-1}
           fz={DISPLAY_SIZE}
           fw={600}

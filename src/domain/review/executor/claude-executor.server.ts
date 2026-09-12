@@ -63,7 +63,7 @@ export class ClaudeExecutor implements ReviewExecutor {
   async run(input: ReviewExecutorInput): Promise<ReviewExecutorOutput> {
     if (input.signal.aborted) throw abortError('claude run aborted before start');
 
-    const { system, user, wasTruncated, hunkIndex } = buildNarrativePrompt(input.prData);
+    const { system, user, wasTruncated, catalog, grounding } = buildNarrativePrompt(input.prData);
 
     const abortController = new AbortController();
     input.signal.addEventListener('abort', () => abortController.abort(), { once: true });
@@ -120,11 +120,11 @@ export class ClaudeExecutor implements ReviewExecutor {
 
     // Parse first: a complete narrative followed by a non-success result
     // (error_max_turns during cleanup, say) is still a usable review.
-    const parsed = parseNarrativeReview(raw, hunkIndex);
+    const parsed = parseNarrativeReview(raw, grounding);
     if (!parsed.ok) {
       if (resultError) throw new ExecutorProcessError(resultError, '', null, raw);
       throw new ExecutorParseError(parsed.error, raw);
     }
-    return { review: parsed.data, wasTruncated, rawText: raw };
+    return { review: parsed.data, wasTruncated, rawText: raw, hunks: catalog };
   }
 }

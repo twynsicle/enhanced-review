@@ -23,7 +23,8 @@ src/cli/
   targets.ts       resolveTarget: branch (against the open PR's base or origin's default, fetched first), pr (fetch
                    pull/<n>/head, merge-base with its base), staged (the index as a dangling commit on HEAD); --base;
                    locateTarget (repo root + slug only, for --from); TargetSchema
-  git.ts           Shell: git (the shared non-interactive runner) and gh, bound to one directory
+  git.ts           Shell: git (the shared non-interactive runner, run with the engineer's own gitconfig so
+                   their credentials, proxy and safe.directory apply) and gh, bound to one directory
   run-folder.ts    <repo root>/er-reviews/<slug>/<stamp>/ and each stage's file; latestRunFolder; the runs folder
                    ignores itself; hunkFileName (Windows-safe)
   context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons, hunks numbered
@@ -39,7 +40,9 @@ src/cli/
   progress.ts      the live line during the run: elapsed time, the file being read, chapter titles picked out of the
                    answer as it streams; drawn only on a terminal
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks; no model
-  parse.ts         raw.txt → the hosted lenient parser → review.json, files taken from context
+  parse.ts         raw.txt → the hosted lenient parser → review.json, files taken from context, each carrying its
+                   share of the hunk catalog (review.ts's parse stage line counts the hunks cited and warns about
+                   the files the chapters left out; the report shows them under "Not discussed")
   render.ts        the bundle into the viewer shell → review.html; viewerShell rebuilds build/viewer when stale
   viewer-stamp.ts  hash of the viewer's sources; the viewer build writes it, render compares it
   worktree.ts      a PR's run happens in a detached worktree of its head in the temp dir (er-pr<n>-<pid>-<stamp>),
