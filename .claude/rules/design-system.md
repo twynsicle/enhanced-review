@@ -114,6 +114,6 @@ contrast guardrail has no opinion on them.
 
 The bands are painted far weaker than Monaco's own 20%. At that strength they
 swallow the word-level highlight that says _what_ in a line changed, and a file
-that is entirely new has nothing to read but the band. The signal that a run is
-long lives in the line-number gutter instead, which is tinted harder than the
-band.
+that is entirely new has nothing to read but the band. Finding a run is left to
+two harder marks instead: the line-number gutter, tinted well above the band,
+and a solid rail down the content's left edge.
