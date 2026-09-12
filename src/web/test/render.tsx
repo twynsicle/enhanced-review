@@ -12,6 +12,14 @@ function Providers({ children }: { children: ReactNode }) {
       cssVariablesResolver={cssVariablesResolver}
       colorSchemeManager={colorSchemeManager}
       defaultColorScheme="dark"
+      /*
+       * Mantine's `Transition` renders through React's `<Activity>`, which
+       * keeps a closed overlay's nodes in the DOM but out of the accessibility
+       * tree — so a just-opened menu or modal is findable by `querySelector`
+       * and invisible to `getByRole`, which is the query that matters. `test`
+       * drops the transition and mounts the content outright.
+       */
+      env="test"
     >
       {children}
     </MantineProvider>

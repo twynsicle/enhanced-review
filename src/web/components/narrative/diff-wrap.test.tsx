@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/domain/review/bundle';
 import type { DiffChunk } from '@/domain/review/narrative';
 import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
-import { DiffWrapToggle } from '@/web/components/topbar/diff-wrap-toggle';
+import { DisplayMenu } from '@/web/components/topbar/display-menu';
 import { useDiffView } from '@/web/stores/diff-view';
 import { bindDiffWrap, DIFF_WRAP_KEY, useDiffWrap } from '@/web/stores/diff-wrap';
 import { act, render, screen, userEvent, waitFor } from '@/web/test/render';
@@ -130,7 +130,7 @@ async function renderReader() {
       path: '/',
       Component: () => (
         <EmbeddedFileSource bundle={bundle}>
-          <DiffWrapToggle />
+          <DisplayMenu reader />
           <InlineDiffChunk chunk={chunk} />
         </EmbeddedFileSource>
       ),
@@ -201,6 +201,15 @@ describe('the wrap preference', () => {
   });
 });
 
+/**
+ * The long-lines row of the display menu, opened. A dropdown does not render
+ * its contents until it is opened, so every assertion about a row opens it.
+ */
+async function openWrapRow(): Promise<HTMLElement> {
+  await userEvent.click(screen.getByRole('button', { name: 'Display settings' }));
+  return screen.findByRole('menuitem', { name: /^Long lines:/ });
+}
+
 describe('the wrap toggle', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -212,15 +221,15 @@ describe('the wrap toggle', () => {
     useDiffView.setState({ view: 'split' });
   });
 
-  it('offers wrapping, and names what the click will do', () => {
-    render(<DiffWrapToggle />);
-    expect(screen.getByRole('button')).toHaveAccessibleName('Wrap long lines');
+  it('offers wrapping, and names how it is currently set', async () => {
+    render(<DisplayMenu reader />);
+    expect(await openWrapRow()).toHaveAccessibleName('Long lines: Not wrapped');
   });
 
-  it('names the way back once wrapping is on', () => {
+  it('names the other state once wrapping is on', async () => {
     useDiffWrap.setState({ wrap: 'on' });
-    render(<DiffWrapToggle />);
-    expect(screen.getByRole('button')).toHaveAccessibleName('Stop wrapping long lines');
+    render(<DisplayMenu reader />);
+    expect(await openWrapRow()).toHaveAccessibleName('Long lines: Wrapped');
   });
 
   it('reflows the editor in place rather than mounting a new one', async () => {
@@ -228,7 +237,7 @@ describe('the wrap toggle', () => {
     monacoArrives();
     expect(lastWrap()).toBe('off');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Wrap long lines' }));
+    await userEvent.click(await openWrapRow());
 
     expect(lastWrap()).toBe('on');
     expect(widget.mounts).toBe(1);
@@ -264,7 +273,7 @@ describe('the wrap toggle', () => {
   it('keeps wrapping when the reader flips between split and unified', async () => {
     await renderReader();
     monacoArrives();
-    await userEvent.click(screen.getByRole('button', { name: 'Wrap long lines' }));
+    await userEvent.click(await openWrapRow());
 
     act(() => useDiffView.setState({ view: 'unified' }));
 
@@ -308,7 +317,7 @@ describe('the wrap toggle', () => {
     monacoArrives();
     expect(typeof widget.sides.modified.lineNumbers).toBe('function');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Wrap long lines' }));
+    await userEvent.click(await openWrapRow());
 
     expect(typeof widget.sides.original.lineNumbers).toBe('function');
     expect(typeof widget.sides.modified.lineNumbers).toBe('function');

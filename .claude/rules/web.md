@@ -33,8 +33,10 @@ src/web/
                      widths — `reader` follows the toggle, `page` is fixed — shared with the topbar), color-scheme-toggle,
                      app-error (generic error page, used by root + route boundaries);
                      topbar/ (topbar: Topbar on TopbarFrame, which the local report's header reuses with
-                     StaticBrand; topbar-nav, user-menu, and the reader-only trio layout-width-toggle +
-                     diff-view-toggle + diff-wrap-toggle, shown only where useIsReader() is true),
+                     StaticBrand; topbar-nav, user-menu, and display-menu — every display preference in one
+                     labelled dropdown (diffs, long lines, layout, theme), the first three only when its
+                     `reader` prop says so, and the three stores rehydrated on the menu itself because a
+                     dropdown does not mount its rows until it is opened),
                      jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                      job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
                      what-now, rerun-button, job-not-found (404 page shared with the reader), review-banners (the
@@ -74,7 +76,7 @@ src/web/
                      hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
   viewer/            the local report (vite.viewer.config.ts, not the RR app): index.html (the empty er-bundle element),
                      main.tsx (client-rendered, hash data router, stored width applied before render), viewer-page
-                     (a TopbarFrame with brand + diff-view/wrap/width/scheme toggles, then ChapterReader over
+                     (a TopbarFrame with brand + the same DisplayMenu, then ChapterReader over
                      EmbeddedFileSource),
                      report-problem (missing / version-mismatch / invalid bundle), sample-bundle.ts (what viewer:dev
                      renders unless ER_BUNDLE names a JSON file); the build inlines JS, CSS and fonts into one file and stamps its sources (viewer.stamp, which er checks)

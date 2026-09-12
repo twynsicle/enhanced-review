@@ -3,12 +3,9 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { BrandMark } from '@/web/components/brand-mark';
 import { shellMaxWidth, SHELL_PX, type ShellWidth } from '@/web/components/page-shell';
-import { ColorSchemeToggle } from '@/web/components/color-scheme-toggle';
 import { useIsReader } from '@/web/lib/reader-route';
 import { token } from '@/web/theme/tokens';
-import { DiffViewToggle } from './diff-view-toggle';
-import { DiffWrapToggle } from './diff-wrap-toggle';
-import { LayoutWidthToggle } from './layout-width-toggle';
+import { DisplayMenu } from './display-menu';
 import { TopbarNav } from './topbar-nav';
 import { UserMenu, type TopbarUser } from './user-menu';
 
@@ -82,9 +79,10 @@ export function TopbarFrame({
 }
 
 /**
- * The header shared by every page inside the app shell. The reader's display
- * preferences are offered only on the reader, where they do something; every
- * other page is a fixed width and has no use for either.
+ * The header shared by every page inside the app shell. The display menu is
+ * always offered — every page has a colour scheme — but it only carries the
+ * reader's own preferences over the reader, where they do something; every
+ * other page is a fixed width and has no use for them.
  */
 export function Topbar({ user }: { user: TopbarUser | null }) {
   const reader = useIsReader();
@@ -101,14 +99,7 @@ export function Topbar({ user }: { user: TopbarUser | null }) {
       }
       end={
         <>
-          {reader && (
-            <>
-              <DiffViewToggle />
-              <DiffWrapToggle />
-              <LayoutWidthToggle />
-            </>
-          )}
-          <ColorSchemeToggle />
+          <DisplayMenu reader={reader} />
           {user ? <UserMenu user={user} /> : null}
         </>
       }
