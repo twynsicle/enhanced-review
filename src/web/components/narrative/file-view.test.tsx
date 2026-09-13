@@ -9,6 +9,8 @@ import { FileView } from './file-view';
 
 vi.mock('@monaco-editor/react', () => ({
   DiffEditor: () => <div data-testid="diff-editor" />,
+  // The component pins the CDN through this before it mounts anything.
+  loader: { config: () => {} },
 }));
 
 const chapters: NarrativeChapter[] = [

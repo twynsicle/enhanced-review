@@ -10,6 +10,7 @@ import {
 import { detectLanguage } from '@/domain/review/language-map';
 import type { DiffChunk } from '@/domain/review/narrative';
 import { useFilePair } from '@/web/components/narrative/file-source';
+import { MONACO_VS_URL } from '@/web/components/narrative/monaco-cdn';
 import { useHydrated } from '@/web/lib/use-hydrated';
 import {
   selectSpaceLimited,
@@ -24,12 +25,19 @@ import classes from './inline-diff-chunk.module.css';
 
 /**
  * Monaco is a browser-only module (it touches `window` on import), so it is
- * loaded lazily behind the hydration guard. The library's default CDN loader
- * is kept.
+ * loaded lazily behind the hydration guard.
+ *
+ * The CDN is pointed at the declared version from in here rather than at the
+ * module scope of `monaco-cdn.ts`, so that the loader is fetched with the
+ * editor instead of riding in the initial bundle. `lazy` calls its factory
+ * once, and the editor asks the loader to `init` no earlier than its own
+ * mount, so the configuration is always in place before anything reads it.
  */
-const DiffEditor = lazy(() =>
-  import('@monaco-editor/react').then((mod) => ({ default: mod.DiffEditor })),
-);
+const DiffEditor = lazy(async () => {
+  const mod = await import('@monaco-editor/react');
+  mod.loader.config({ paths: { vs: MONACO_VS_URL } });
+  return { default: mod.DiffEditor };
+});
 
 const CONTEXT_LINES = 5;
 const MIN_EDITOR_HEIGHT = 60;

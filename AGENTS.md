@@ -65,7 +65,8 @@ src/
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only,
                        prisma-access, palette (token contrast, type scale, one label), diagram-colour (SVG takes token() only),
                        cli-imports (nothing `er` loads reaches env.ts, the logger, the db or a server package),
-                       comment-paths (a repo path named in a comment still exists — see Comments)
+                       comment-paths (a repo path named in a comment still exists — see Comments),
+                       monaco-version (the Monaco the reader loads is the one it is typechecked against)
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb),
                        git-repo.ts (a throwaway repository with a bare origin, for tests that drive real git)
   web/                 the React Router app: root.tsx, entry.server.tsx, routes.ts (every file in routes/ must be listed),

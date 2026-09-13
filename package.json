@@ -83,7 +83,7 @@
     "@types/react-dom": "^19.2.7",
     "cross-env": "^10.1.0",
     "happy-dom": "^20.14.0",
-    "monaco-editor": "^0.56.0",
+    "monaco-editor": "0.56.0",
     "oxlint": "^1.82.0",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",

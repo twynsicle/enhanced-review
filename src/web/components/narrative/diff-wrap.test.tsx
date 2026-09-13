@@ -85,6 +85,8 @@ vi.mock('@monaco-editor/react', async () => {
       }, [options]);
       return <div data-testid="diff-editor" />;
     },
+    // The component pins the CDN through this before it mounts anything.
+    loader: { config: () => {} },
   };
 });
 

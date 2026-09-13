@@ -71,7 +71,10 @@ src/web/
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group,
                      lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme; the wrap preference
                      goes to the live widget as diffWordWrap, never through its construction options, so a flip
-                     reflows in place instead of remounting),
+                     reflows in place instead of remounting; its lazy factory is also the one place that imports
+                     the editor, because it is where loader.config pins the CDN),
+                     monaco-cdn.ts (MONACO_VERSION / MONACO_VS_URL: which Monaco the CDN serves, held to the
+                     declared monaco-editor — the types' version — by the monaco-version guardrail),
                      file-source (where the diffs get files: GithubFileSource → /api/github/file fetcher,
                      EmbeddedFileSource → a ReviewBundle; useFilePair always mounts a fetcher, so the reader needs a
                      data router under either), risk-score,
