@@ -3,19 +3,24 @@ import type { Phase, PhaseState } from '@/web/components/jobs/live-phases';
 import { token } from '@/web/theme/tokens';
 import classes from './job-timeline.module.css';
 
+/*
+ * A pending phase is the only one that draws no glyph: an empty circle is what
+ * "not yet" looks like. Cancelled needs its own — sharing the blank left it
+ * indistinguishable from a phase still waiting to run, and its palette from
+ * one that finished.
+ */
 const MARKER: Record<PhaseState, string> = {
   done: '✓',
   active: '●',
   error: '!',
   pending: '',
-  cancelled: '',
+  cancelled: '–',
 };
 
 /** The three-phase timeline of the live view; the module paints the rail and markers. */
 export function JobTimeline({ phases }: { phases: Phase[] }) {
   return (
     <ol className={classes.list} aria-live="polite">
-      <span aria-hidden className={classes.rail} />
       {phases.map((phase) => (
         <li key={phase.id} className={classes.phase}>
           <span aria-hidden className={classes.marker} data-state={phase.state}>

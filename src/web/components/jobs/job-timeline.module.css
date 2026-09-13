@@ -37,7 +37,15 @@
   list-style: none;
 }
 
-.rail {
+/*
+ * The rail is generated rather than an element because its only possible
+ * parent is the `<ol>`, which may hold nothing but `<li>`s — and that `<ol>`
+ * is the `aria-live` region, where a stray node is read on every phase change.
+ * `::before` is the list's first child either way, so the markers, positioned
+ * later in tree order and opaque, still paint over its top end.
+ */
+.list::before {
+  content: '';
   position: absolute;
   /*
    * Begins at the first marker's centre, hidden behind it. The foot is an
@@ -92,11 +100,23 @@
   --marker-fg: var(--er-background);
 }
 
-.marker[data-state='done'],
-.marker[data-state='cancelled'] {
+.marker[data-state='done'] {
   --marker-bg: var(--er-after-soft);
   --marker-border: var(--er-after);
   --marker-fg: var(--er-after-ink);
+}
+
+/*
+ * Cancelled is terminal but not an achievement, so it takes neither the
+ * `after` palette that says the phase succeeded nor `destructive`, which would
+ * blame the run for something the viewer chose. Neutral is the third thing:
+ * stopped. `muted` is a ground in its own right, so `muted-foreground` on it
+ * is a pairing the contrast guardrail already covers.
+ */
+.marker[data-state='cancelled'] {
+  --marker-bg: var(--er-muted);
+  --marker-border: var(--er-border-strong);
+  --marker-fg: var(--er-muted-foreground);
 }
 
 .cursor {

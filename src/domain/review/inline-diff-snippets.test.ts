@@ -257,13 +257,13 @@ describe('buildInlineDiffSnippets', () => {
     });
   });
 
-  // An insertion above line 1 is `@@ -0,0 +1,n @@`, and the hunk catalog has no
-  // line 0 to hand on, so the original side arrives here starting at 1.
+  // An insertion above line 1 is `@@ -0,0 +1,n @@`: the catalog hands it on as
+  // a zero-length span at line 0, the position above the first line.
   it('holds an insertion at the top of the file on the first line', () => {
     const snippets = buildInlineDiffSnippets({
       hunks: [
         makeHunk({
-          original: { startLine: 1, lineCount: 0 },
+          original: { startLine: 0, lineCount: 0 },
           modified: { startLine: 1, lineCount: 3 },
         }),
       ],
@@ -278,6 +278,54 @@ describe('buildInlineDiffSnippets', () => {
       original: 'o1\no2\no3\no4',
       modified: 'n1\nn2\nn3\no1\no2\no3\no4',
     });
+  });
+
+  it('gives an insertion above line 1 no more trailing context than the other side', () => {
+    // The file has to run past the context window for this to bite: at four
+    // lines both sides clamp to the whole file and the surplus line hides.
+    // `-0,0` opens the first changed line at 1 and ends the span at 0, so the
+    // original slice is lines 1-5; `-1,0` would end it at 1 and take a sixth
+    // line the modified side has no counterpart for, which Monaco draws as a
+    // deletion at the bottom of the snippet.
+    const snippets = buildInlineDiffSnippets({
+      hunks: [
+        makeHunk({
+          original: { startLine: 0, lineCount: 0 },
+          modified: { startLine: 1, lineCount: 3 },
+        }),
+      ],
+      original: makeLines('o', 20),
+      modified: ['n1', 'n2', 'n3', ...takeLines('o', 1, 20)].join('\n'),
+      contextLines: 5,
+    });
+
+    expect(snippets[0]).toMatchObject({
+      originalStartLine: 1,
+      modifiedStartLine: 1,
+      original: 'o1\no2\no3\no4\no5',
+      modified: 'n1\nn2\nn3\no1\no2\no3\no4\no5',
+    });
+    // The two slices differ by exactly the three inserted lines.
+    expect(snippets[0]?.original.split('\n')).toHaveLength(5);
+    expect(snippets[0]?.modified.split('\n')).toHaveLength(8);
+  });
+
+  it('opens an insertion below line 1 one line later than one above it', () => {
+    const below = buildInlineDiffSnippets({
+      hunks: [
+        makeHunk({
+          original: { startLine: 1, lineCount: 0 },
+          modified: { startLine: 2, lineCount: 3 },
+        }),
+      ],
+      original: makeLines('o', 20),
+      modified: ['o1', 'n1', 'n2', 'n3', ...takeLines('o', 2, 20)].join('\n'),
+      contextLines: 5,
+    });
+
+    // Line 1 is context here, not a position the insertion sits above, so the
+    // original slice reaches one line further than the `-0,0` case above.
+    expect(below[0]).toMatchObject({ original: 'o1\no2\no3\no4\no5\no6' });
   });
 
   it('keeps original and modified offsets independent when line numbers diverge', () => {

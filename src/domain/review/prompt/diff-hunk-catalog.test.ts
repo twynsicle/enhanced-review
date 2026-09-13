@@ -19,6 +19,12 @@ new file mode 100644
 @@ -0,0 +1,2 @@
 +x
 +y
+diff --git a/src/c.ts b/src/c.ts
+--- a/src/c.ts
++++ b/src/c.ts
+@@ -1,0 +2,2 @@
++p
++q
 `;
 
 describe('buildDiffHunkIndex', () => {
@@ -28,6 +34,7 @@ describe('buildDiffHunkIndex', () => {
       ['H0001', 'src/a.ts', 1],
       ['H0002', 'src/a.ts', 2],
       ['H0003', 'src/b.ts', 1],
+      ['H0004', 'src/c.ts', 1],
     ]);
     expect(index.byId['H0001']).toMatchObject({
       original: { startLine: 1, lineCount: 3 },
@@ -40,9 +47,26 @@ describe('buildDiffHunkIndex', () => {
       modified: { startLine: 11, lineCount: 2 },
     });
     expect(index.byId['H0003']).toMatchObject({
-      original: { startLine: 1, lineCount: 0 },
+      original: { startLine: 0, lineCount: 0 },
       modified: { startLine: 1, lineCount: 2 },
     });
+  });
+
+  it('keeps an insertion above the first line apart from one below it', () => {
+    // `-0,0` and `-1,0` are different positions. Clamping both to line 1
+    // makes the original side of a diff that starts at line 1 carry one line
+    // of trailing context the modified side does not, and Monaco re-diffs the
+    // surplus into a deletion at the bottom of the snippet.
+    const index = buildDiffHunkIndex(DIFF);
+    expect(index.byId['H0003']?.original).toEqual({ startLine: 0, lineCount: 0 });
+    expect(index.byId['H0004']?.original).toEqual({ startLine: 1, lineCount: 0 });
+  });
+
+  it('floors a malformed zero-length header at 0 and any other at line 1', () => {
+    const index = buildDiffHunkIndex('diff --git a/x.ts b/x.ts\n@@ -0,0 +0,0 @@\n@@ -0 +0 @@\n');
+    expect(index.byId['H0001']?.original).toEqual({ startLine: 0, lineCount: 0 });
+    // A side that covers lines has no line 0 to sit on.
+    expect(index.byId['H0002']?.original).toEqual({ startLine: 1, lineCount: 1 });
   });
 
   it('ignores hunk headers that appear before any file header', () => {

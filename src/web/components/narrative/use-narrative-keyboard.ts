@@ -50,8 +50,11 @@ function ownsSpace(target: EventTarget | null): boolean {
  * the arrow cycle. They now agree with the list.
  *
  * The Space bindings step aside when focus is on a button, link or other
- * control that activates on Space; the arrow keys keep working from a focused
- * control, which is the point of having them.
+ * control that activates on Space; the arrow keys otherwise keep working from
+ * a focused control, which is the point of having them. Either way a control
+ * that has already called `preventDefault()` on the key keeps it — the two
+ * guards cover different cases, since a button activates on Space through the
+ * browser without preventing anything on keydown.
  */
 export function useNarrativeKeyboard({
   sections,
@@ -74,6 +77,23 @@ export function useNarrativeKeyboard({
     }
 
     function handler(e: KeyboardEvent): void {
+      /*
+       * A control that has already claimed this key keeps it. The sidebar's
+       * resize handle is why: it is a `separator`, where `←`/`→` are its own
+       * documented interaction, so a press did both — widened the column *and*
+       * walked to the next section, taking focus with it, which left the
+       * second press with nothing to resize.
+       *
+       * What puts React's `preventDefault()` before this handler is not the
+       * same in both builds, so do not move this listener assuming either.
+       * The report roots at a div, so React's delegated listener sits below
+       * `document` and the event arrives here already marked. The hosted app
+       * defines no client entry of its own and takes React Router's default,
+       * which hydrates `document` — React's listener is then on this very
+       * node, and runs first only because it was registered at hydration and
+       * this one in an effect. Same-target order, not propagation.
+       */
+      if (e.defaultPrevented) return;
       if (isTypingTarget(e.target)) return;
       // Leave Cmd-/Ctrl-/Alt- combinations to the browser; Shift is Shift+Space.
       if (e.metaKey || e.ctrlKey || e.altKey) return;

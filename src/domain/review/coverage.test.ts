@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { describeCoverageGap, fileCoverage, reviewCoverage, withFileHunks } from './coverage.ts';
-import type { NarrativeReview, ResolvedDiffHunk, ReviewFile } from './narrative.ts';
+import {
+  citedChunk,
+  describeCoverageGap,
+  fileCoverage,
+  reviewCoverage,
+  withFileHunks,
+} from './coverage.ts';
+import type {
+  NarrativeChapter,
+  NarrativeReview,
+  ResolvedDiffHunk,
+  ReviewFile,
+} from './narrative.ts';
 import type { DiffHunk } from './prompt/diff-hunk-catalog.ts';
 
 const span = (startLine: number, lineCount: number) => ({ startLine, lineCount });
@@ -160,6 +171,65 @@ describe('FileCoverage.chunk', () => {
   it('is null once a file is fully discussed', () => {
     const coverage = fileCoverage(withFileHunks(FILES, HUNKS)[1]!, new Set(['H0004']));
     expect(coverage?.chunk).toBeNull();
+  });
+});
+
+function chapter(
+  id: string,
+  hunks: ResolvedDiffHunk[],
+  { filename = 'src/a.ts', language = 'typescript' } = {},
+): NarrativeChapter {
+  return { id, title: id, insights: [], diffChunks: [{ filename, language, hunks }] };
+}
+
+describe('citedChunk', () => {
+  it('merges the chapters’ hunks into one chunk, ordered by the file rather than the narrative', () => {
+    const chunk = citedChunk('src/a.ts', [
+      chapter('ch1', [resolved('H0001', 1), resolved('H0003', 3)]),
+      chapter('ch2', [resolved('H0002', 2)]),
+    ]);
+    // Chapter order would give H0001, H0003, H0002 — and slice H0002's
+    // context out of a second copy of the file.
+    expect(chunk?.hunks.map((hunk) => hunk.id)).toEqual(['H0001', 'H0002', 'H0003']);
+  });
+
+  it('carries a hunk two chapters both cite once', () => {
+    const chunk = citedChunk('src/a.ts', [
+      chapter('ch1', [resolved('H0001', 1), resolved('H0002', 2)]),
+      chapter('ch2', [resolved('H0002', 2)]),
+    ]);
+    expect(chunk?.hunks.map((hunk) => hunk.id)).toEqual(['H0001', 'H0002']);
+  });
+
+  it('ignores chapters citing other files', () => {
+    const chunk = citedChunk('src/a.ts', [
+      chapter('ch1', [resolved('H0004', 1)], { filename: 'src/b.ts' }),
+      chapter('ch2', [resolved('H0001', 1)]),
+    ]);
+    expect(chunk).toEqual({
+      filename: 'src/a.ts',
+      language: 'typescript',
+      hunks: [resolved('H0001', 1)],
+    });
+  });
+
+  it('is null when no chapter names the file at all', () => {
+    expect(citedChunk('src/a.ts', [chapter('ch1', [], { filename: 'src/b.ts' })])).toBeNull();
+    expect(citedChunk('src/a.ts', [])).toBeNull();
+  });
+
+  it('keeps a chapter that names the file and cites nothing, which reads as the whole file', () => {
+    // An empty hunk list is what the inline diff falls back on to show the
+    // file entire; returning null here would drop the diff instead.
+    expect(citedChunk('src/a.ts', [chapter('ch1', [])])?.hunks).toEqual([]);
+  });
+
+  it('takes the language from the first citing chapter', () => {
+    const chunk = citedChunk('src/a.ts', [
+      chapter('ch1', [resolved('H0001', 1)], { language: 'tsx' }),
+      chapter('ch2', [resolved('H0002', 2)], { language: 'typescript' }),
+    ]);
+    expect(chunk?.language).toBe('tsx');
   });
 });
 

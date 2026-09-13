@@ -1,16 +1,20 @@
 import { Group, Stack, Text, Title } from '@mantine/core';
-import { chaptersCiting, type FileCoverage } from '@/domain/review/coverage';
-import type { DiffChunk, NarrativeChapter, ReviewFile } from '@/domain/review/narrative';
+import { useMemo } from 'react';
+import { chaptersCiting, citedChunk, type FileCoverage } from '@/domain/review/coverage';
+import type { NarrativeChapter, ReviewFile } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
 import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
 import { SKIP_REASON_TEXT } from '@/web/components/narrative/skipped-file';
 import { token } from '@/web/theme/tokens';
 
 /**
- * File-only view: every chunk any chapter selected from one file, so the
- * reader sees the full diff context the reviewer chose independent of the
- * narrative order — and, after those, whatever hunks of the file no chapter
- * cited, under their own label, so the file view is the whole file's change.
+ * File-only view: every hunk any chapter selected from one file, merged into
+ * a single diff in file order, so the reader sees the diff context the
+ * reviewer chose independent of the narrative order — and, after it, whatever
+ * hunks of the file no chapter cited, under their own label, so the file view
+ * is the whole file's change. The leftovers stay a diff of their own rather
+ * than joining the merge: what the reviewer passed over is the one thing this
+ * view must not blur into what it discussed.
  * A file listed in `files[]` with nothing to show gets a note instead: why it
  * was skipped, or why there is no diff.
  *
@@ -32,12 +36,15 @@ export function FileView({
   files?: readonly ReviewFile[];
   coverage: FileCoverage | null;
 }) {
-  const chunks: DiffChunk[] = [];
-  for (const chapter of chapters) {
-    for (const chunk of chapter.diffChunks) {
-      if (chunk.filename === filename) chunks.push(chunk);
-    }
-  }
+  /*
+   * Memoised for its identity, not its cost: the merge is cheap, but it
+   * builds a fresh `hunks` array, and `InlineDiffChunk` keys its snippet
+   * memo on that array. Recomputed per render, every re-render of this view
+   * re-slices both full file texts around every hunk group. The leftover
+   * chunk beside it comes off the reader's memoised coverage and so is
+   * already stable; this is the half that was not.
+   */
+  const cited = useMemo(() => citedChunk(filename, chapters), [filename, chapters]);
   const discussedIn = chaptersCiting(filename, chapters);
 
   const fileMeta = files?.find((f) => f.filename === filename) ?? null;
@@ -113,7 +120,7 @@ export function FileView({
               </span>
             </>
           )}
-          {chunks.length === 0 && leftover && (
+          {cited === null && leftover && (
             <>
               {dot}
               <span>Not discussed in any chapter</span>
@@ -122,22 +129,20 @@ export function FileView({
         </Group>
       </Stack>
 
-      {chunks.length > 0 && (
-        <Stack component="section" gap={20}>
-          {chunks.map((chunk, i) => (
-            <InlineDiffChunk key={`${chunk.filename}-${i}`} chunk={chunk} />
-          ))}
+      {cited !== null && (
+        <Stack component="section">
+          <InlineDiffChunk chunk={cited} />
         </Stack>
       )}
 
       {leftover && (
         <Stack component="section" gap={12} aria-label="Hunks not discussed in any chapter">
-          {chunks.length > 0 && <Caption>Not discussed in any chapter</Caption>}
+          {cited !== null && <Caption>Not discussed in any chapter</Caption>}
           <InlineDiffChunk chunk={leftover} />
         </Stack>
       )}
 
-      {chunks.length === 0 && !leftover && (
+      {cited === null && !leftover && (
         <Text
           px={16}
           py={20}

@@ -98,6 +98,45 @@ export function chaptersCiting(
   );
 }
 
+/**
+ * Every hunk the chapters cited from one file, as a single chunk. The file
+ * view draws this rather than a chunk per chapter: slicing the file around
+ * each chapter's hunks separately repeats the lines between two neighbouring
+ * hunks, once in each slice, and orders the editors by chapter instead of by
+ * the file. Merged, `groupSelectedHunks` decides the editors from `fileOrder`
+ * alone. Chapter cards still draw their own hunks and are unaffected.
+ *
+ * `language` is the first citing chapter's, which is the reviewer's own label
+ * for the file rather than one re-derived from its name.
+ *
+ * Null only when no chapter names the file at all. A chapter that names it
+ * and cites nothing keeps its chunk, because an empty hunk list is what the
+ * inline diff reads as "show the whole file".
+ */
+export function citedChunk(
+  filename: string,
+  chapters: readonly NarrativeChapter[],
+): DiffChunk | null {
+  const hunks: ResolvedDiffHunk[] = [];
+  const seen = new Set<string>();
+  let language: string | null = null;
+
+  for (const chapter of chapters) {
+    for (const chunk of chapter.diffChunks) {
+      if (chunk.filename !== filename) continue;
+      language ??= chunk.language;
+      for (const hunk of chunk.hunks) {
+        if (seen.has(hunk.id)) continue;
+        seen.add(hunk.id);
+        hunks.push(hunk);
+      }
+    }
+  }
+
+  if (language === null) return null;
+  return { filename, language, hunks: hunks.toSorted((a, b) => a.fileOrder - b.fileOrder) };
+}
+
 /** Null when the file carries no catalog, so an older review reports nothing rather than everything. */
 export function fileCoverage(file: ReviewFile, cited: ReadonlySet<string>): FileCoverage | null {
   if (!file.hunks) return null;
