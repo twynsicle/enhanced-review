@@ -53,6 +53,20 @@ describe('useNarrativeKeyboard', () => {
     expect(onSelect).toHaveBeenCalledWith('ch2');
   });
 
+  it('leaves a key a control has already claimed alone', () => {
+    // What the sidebar's resize handle does: `←`/`→` are a separator's own
+    // interaction, and it calls preventDefault() on them in its own onKeyDown.
+    render(<Harness activeId="ch1" onSelect={onSelect} />);
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      bubbles: true,
+      cancelable: true,
+    });
+    event.preventDefault();
+    document.dispatchEvent(event);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it('ArrowRight on the last section stops there', () => {
     render(<Harness activeId="ch3" onSelect={onSelect} />);
     fireEvent.keyDown(document, { key: 'ArrowRight' });

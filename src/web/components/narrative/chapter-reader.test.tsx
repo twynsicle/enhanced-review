@@ -5,7 +5,7 @@ import type { ReviewMeta } from '@/domain/review/review-meta';
 import { SIDEBAR_WIDTH_KEY, useSidebarWidth } from '@/web/stores/sidebar-width';
 import { fireEvent, render, screen } from '@/web/test/render';
 import { SIDEBAR_WIDTHS } from '@/web/theme/tokens';
-import { ChapterReader } from './chapter-reader';
+import { ChapterReader, KEYBOARD_RESIZE_STEP } from './chapter-reader';
 
 const meta: ReviewMeta = {
   repo: 'acme/widgets',
@@ -25,12 +25,12 @@ const review: NarrativeReview = {
   files: [{ filename: 'src/a.ts', status: 'modified', additions: 10, deletions: 4 }],
 };
 
-function renderReader() {
+function renderReader(withReview: NarrativeReview = review) {
   const Stub = createRoutesStub([
     {
       path: '/',
       Component: () => (
-        <ChapterReader review={review} meta={meta} initialActiveId={SUMMARY_SECTION_ID} />
+        <ChapterReader review={withReview} meta={meta} initialActiveId={SUMMARY_SECTION_ID} />
       ),
     },
   ]);
@@ -85,5 +85,31 @@ describe('the sidebar resize handle', () => {
     // And the handler is gone: a stray move with no button down moves nothing.
     fireEvent.pointerMove(window, { clientX: 600 });
     expect(painted()).toBe(`${committed}px`);
+  });
+
+  /*
+   * The arrows are a separator's own interaction, and the reader binds them on
+   * `document` to walk its sections. One press used to do both: widen the
+   * column and navigate away, which moved focus off the handle and left the
+   * next press with nothing to resize.
+   */
+  it('resizes on the arrow keys without walking to the next section', () => {
+    const withChapter: NarrativeReview = {
+      ...review,
+      chapters: [{ id: 'ch1', title: 'The scheduler', insights: [], diffChunks: [] }],
+    };
+    const handle = renderReader(withChapter);
+
+    fireEvent.keyDown(handle, { key: 'ArrowRight' });
+    fireEvent.keyDown(handle, { key: 'ArrowRight' });
+
+    // Two presses, two steps: the second is the one that used to be lost.
+    const step = SIDEBAR_WIDTHS.default + 2 * KEYBOARD_RESIZE_STEP;
+    expect(useSidebarWidth.getState().width).toBe(step);
+    expect(handle).toHaveAttribute('aria-valuenow', String(step));
+
+    // Still on the summary. The chapter's title appears in the sidebar either
+    // way, so this asks for the heading, which only the open section renders.
+    expect(screen.queryByRole('heading', { name: 'The scheduler' })).toBeNull();
   });
 });

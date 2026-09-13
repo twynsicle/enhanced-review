@@ -34,7 +34,8 @@ import {
 import { SIDEBAR_WIDTHS } from '@/web/theme/tokens';
 import classes from './chapter-reader.module.css';
 
-const KEYBOARD_RESIZE_STEP = 16;
+/** Pixels per arrow press on the resize handle. Exported for the test that counts them. */
+export const KEYBOARD_RESIZE_STEP = 16;
 
 /**
  * Publish the article column's width for as long as the reader is on screen.
