@@ -27,11 +27,13 @@ import classes from './inline-diff-chunk.module.css';
  * Monaco is a browser-only module (it touches `window` on import), so it is
  * loaded lazily behind the hydration guard.
  *
- * The CDN is pointed at the declared version from in here rather than at the
- * module scope of `monaco-cdn.ts`, so that the loader is fetched with the
- * editor instead of riding in the initial bundle. `lazy` calls its factory
- * once, and the editor asks the loader to `init` no earlier than its own
- * mount, so the configuration is always in place before anything reads it.
+ * Pointing the CDN at the declared version happens here, rather than as a
+ * side effect of importing `monaco-cdn.ts`, so that the loader ships with the
+ * editor instead of riding in the initial bundle — and so that the pin is a
+ * call someone can see, not an import that looks unused. `lazy` runs its
+ * factory once and the editor asks the loader to `init` no earlier than its
+ * own mount, so the configuration is always in place before anything reads
+ * it.
  */
 const DiffEditor = lazy(async () => {
   const mod = await import('@monaco-editor/react');

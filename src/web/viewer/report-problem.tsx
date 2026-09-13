@@ -84,9 +84,9 @@ export function ReportProblem({ problem }: { problem: Problem }) {
  * It takes nothing from the error. A message can carry a path off the machine
  * that raised it and a stack always does, and neither is the reader's to read
  * or act on — React has already put the error in the console for whoever
- * generated the file. Reloading is offered first because the failure this
- * catches most often is Monaco not arriving from the CDN, which a second
- * attempt usually cures.
+ * generated the file. Reloading is offered first because a report is a static
+ * file with no state behind it: a second attempt costs the reader nothing, and
+ * clears anything that only failed once.
  *
  * It also draws no topbar, unlike `ReportProblem`. The header is reader code
  * like any other, so a crash inside it would be thrown again here, and an
@@ -99,9 +99,9 @@ export function ReportCrashed() {
       title="This review can't be displayed"
       body={
         <>
-          Something went wrong while drawing this page. Reloading it will often fix it. If it does
-          not, ask whoever sent you this file to generate it again — the details are in the
-          browser&rsquo;s developer console.
+          Something went wrong while drawing this page. Reloading it may fix it. If it does not, ask
+          whoever sent you this file to generate it again — the details are in the browser&rsquo;s
+          developer console.
         </>
       }
     />
