@@ -72,7 +72,9 @@ src/web/
                      lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme; the wrap preference
                      goes to the live widget as diffWordWrap, never through its construction options, so a flip
                      reflows in place instead of remounting; its lazy factory is also the one place that imports
-                     the editor, because it is where loader.config pins the CDN),
+                     the editor, because it is where loader.config pins the CDN and where loader.init is awaited —
+                     a CDN that cannot be reached resolves the lazy to DiffUnavailable, a line of text in the card
+                     instead of an empty body, since the library swallows that failure and no boundary sees it),
                      monaco-cdn.ts (MONACO_VERSION / MONACO_VS_URL: which Monaco the CDN serves, held to the
                      declared monaco-editor — the types' version — by the monaco-version guardrail),
                      file-source (where the diffs get files: GithubFileSource → /api/github/file fetcher,

@@ -1,6 +1,16 @@
 import { Box, Group, Skeleton, Text, UnstyledButton, useComputedColorScheme } from '@mantine/core';
+import type { DiffEditorProps } from '@monaco-editor/react';
 import type { editor, IDisposable } from 'monaco-editor';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+} from 'react';
 import type { FileAtRef, GithubError, GithubResult } from '@/domain/github/types';
 import type { FilePair } from '@/domain/review/bundle';
 import {
@@ -24,6 +34,29 @@ import { token } from '@/web/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
 
 /**
+ * Stands in for a diff whose editor never arrived. The reader is told what is
+ * missing and what to try, because the alternative — and what this replaced —
+ * is a card with a header and an empty body, which reads as a file with no
+ * changes in it rather than as a failure.
+ *
+ * It names no library: "Monaco" is not a word the recipient of a review has
+ * any reason to know. Reloading is named in prose rather than offered as a
+ * button, matching the report's other failure surface; a control inside a
+ * diff strip that silently reloads the whole page is a bigger action than it
+ * would look.
+ */
+function DiffUnavailable() {
+  return (
+    <Box px={12} py={10}>
+      <Text fz="sm" c="dimmed">
+        The code viewer didn&rsquo;t load, so this diff can&rsquo;t be shown. Reloading the page may
+        fix it.
+      </Text>
+    </Box>
+  );
+}
+
+/**
  * Monaco is a browser-only module (it touches `window` on import), so it is
  * loaded lazily behind the hydration guard.
  *
@@ -31,13 +64,31 @@ import classes from './inline-diff-chunk.module.css';
  * side effect of importing `monaco-cdn.ts`, so that the loader ships with the
  * editor instead of riding in the initial bundle — and so that the pin is a
  * call someone can see, not an import that looks unused. `lazy` runs its
- * factory once and the editor asks the loader to `init` no earlier than its
- * own mount, so the configuration is always in place before anything reads
- * it.
+ * factory once, so the configuration is in place before anything reads it.
+ *
+ * `init` is awaited here rather than left to the editor because this is the
+ * only place its failure can be caught. The library calls it on mount, logs
+ * whatever it rejects with and renders nothing further, so the failure
+ * reaches no error boundary — a rejected promise is not a throw — and every
+ * diff on the page was left an empty box with no explanation. Awaiting it
+ * here makes "the editor is unavailable" a question of which component
+ * `lazy` resolves to, which is answerable.
+ *
+ * One "Uncaught (in promise)" survives in the console and is not ours to
+ * catch: `makeCancelable` in `@monaco-editor/loader` calls `.then(onFulfilled)`
+ * with no rejection handler beside its `.catch`, so the promise that derives
+ * from leaks once per `init`. What did go is the library's own
+ * "Monaco initialization: error" — the editor is never mounted now, so it
+ * never makes the call that would log it.
  */
-const DiffEditor = lazy(async () => {
+const DiffEditor = lazy<ComponentType<DiffEditorProps>>(async () => {
   const mod = await import('@monaco-editor/react');
   mod.loader.config({ paths: { vs: MONACO_VS_URL } });
+  try {
+    await mod.loader.init();
+  } catch {
+    return { default: DiffUnavailable };
+  }
   return { default: mod.DiffEditor };
 });
 
