@@ -218,9 +218,29 @@ Line endings are normalised to LF by `.gitattributes`.
 ## Task tracking (Linear)
 
 Bugs, features and improvements to the app are tracked in Linear, team
-**enhanced-reviews** (key `ER`). Before starting one, when opening its PR,
-when finishing it, and when an out-of-scope bug or feature turns up, load the
-`linear` skill and follow it.
+**enhanced-reviews** (key `ER`). Before starting one, when opening its PR and
+when finishing it, load the `linear` skill and follow it.
+
+**A bug you find while you are already in the code is yours to fix.** The
+default for something noticed in passing is a commit on the branch you are on,
+with the reason in its message — not a new issue. A ticket for a fix that would
+have taken twenty minutes costs more than it saves: someone has to read it,
+triage it, schedule it, and then rebuild the context you had in front of you at
+the time. A backlog of small tickets is a cost, not a record.
+
+File one instead only when you genuinely cannot do it now, and say which of
+these is why:
+
+- it turns on a decision that is the user's rather than yours;
+- it is big enough to want a review of its own;
+- it is somewhere the branch at hand has no business touching;
+- fixing it here would bury the change under review.
+
+Scope discipline still applies — this is about small fixes in code you are
+already changing, not licence to widen the task. When you fix in band, the
+commit message carries what the issue would have: what was wrong, and how you
+know it is not any more. When you are unsure which way it goes, ask; do not
+file as a way of avoiding the question.
 
 Housekeeping gets no issue: agent config (this file, `.claude/`), docs,
 tooling, CI, dependency bumps and small cleanups go straight to a
