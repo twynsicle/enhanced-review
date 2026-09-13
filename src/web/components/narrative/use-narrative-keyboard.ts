@@ -78,13 +78,20 @@ export function useNarrativeKeyboard({
 
     function handler(e: KeyboardEvent): void {
       /*
-       * A control that has already claimed this key keeps it. React listens on
-       * its root container, below `document`, so a `preventDefault()` in a
-       * component's own `onKeyDown` has marked the native event by the time
-       * this runs. The sidebar's resize handle is why: it is a `separator`,
-       * where `←`/`→` are its own documented interaction, so a press did both
-       * — widened the column *and* walked to the next section, taking focus
-       * with it, which left the second press with nothing to resize.
+       * A control that has already claimed this key keeps it. The sidebar's
+       * resize handle is why: it is a `separator`, where `←`/`→` are its own
+       * documented interaction, so a press did both — widened the column *and*
+       * walked to the next section, taking focus with it, which left the
+       * second press with nothing to resize.
+       *
+       * What puts React's `preventDefault()` before this handler is not the
+       * same in both builds, so do not move this listener assuming either.
+       * The report roots at a div, so React's delegated listener sits below
+       * `document` and the event arrives here already marked. The hosted app
+       * defines no client entry of its own and takes React Router's default,
+       * which hydrates `document` — React's listener is then on this very
+       * node, and runs first only because it was registered at hydration and
+       * this one in an effect. Same-target order, not propagation.
        */
       if (e.defaultPrevented) return;
       if (isTypingTarget(e.target)) return;

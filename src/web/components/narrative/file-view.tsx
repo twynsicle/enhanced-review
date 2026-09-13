@@ -1,4 +1,5 @@
 import { Group, Stack, Text, Title } from '@mantine/core';
+import { useMemo } from 'react';
 import { chaptersCiting, citedChunk, type FileCoverage } from '@/domain/review/coverage';
 import type { NarrativeChapter, ReviewFile } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
@@ -35,7 +36,15 @@ export function FileView({
   files?: readonly ReviewFile[];
   coverage: FileCoverage | null;
 }) {
-  const cited = citedChunk(filename, chapters);
+  /*
+   * Memoised for its identity, not its cost: the merge is cheap, but it
+   * builds a fresh `hunks` array, and `InlineDiffChunk` keys its snippet
+   * memo on that array. Recomputed per render, every re-render of this view
+   * re-slices both full file texts around every hunk group. The leftover
+   * chunk beside it comes off the reader's memoised coverage and so is
+   * already stable; this is the half that was not.
+   */
+  const cited = useMemo(() => citedChunk(filename, chapters), [filename, chapters]);
   const discussedIn = chaptersCiting(filename, chapters);
 
   const fileMeta = files?.find((f) => f.filename === filename) ?? null;
