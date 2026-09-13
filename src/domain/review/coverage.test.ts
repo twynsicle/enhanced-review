@@ -174,15 +174,15 @@ describe('FileCoverage.chunk', () => {
   });
 });
 
-describe('citedChunk', () => {
-  function chapter(
-    id: string,
-    hunks: ResolvedDiffHunk[],
-    { filename = 'src/a.ts', language = 'typescript' } = {},
-  ): NarrativeChapter {
-    return { id, title: id, insights: [], diffChunks: [{ filename, language, hunks }] };
-  }
+function chapter(
+  id: string,
+  hunks: ResolvedDiffHunk[],
+  { filename = 'src/a.ts', language = 'typescript' } = {},
+): NarrativeChapter {
+  return { id, title: id, insights: [], diffChunks: [{ filename, language, hunks }] };
+}
 
+describe('citedChunk', () => {
   it('merges the chapters’ hunks into one chunk, ordered by the file rather than the narrative', () => {
     const chunk = citedChunk('src/a.ts', [
       chapter('ch1', [resolved('H0001', 1), resolved('H0003', 3)]),
