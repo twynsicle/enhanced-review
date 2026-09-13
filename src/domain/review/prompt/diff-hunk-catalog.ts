@@ -54,11 +54,23 @@ export function groundingFor(
 const DIFF_FILE_HEADER_RE = /^diff --git a\/(.+) b\/(.+)$/;
 const HUNK_HEADER_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 
+/**
+ * One side of a hunk header, as a span.
+ *
+ * A zero-length side is a position, not a range: git writes it as the line the
+ * change sits *after*, so `@@ -0,0` inserts above the file's first line and
+ * `@@ -1,0` below it. Those are different places, and only a floor of 0 keeps
+ * them apart — clamping both to 1 makes the leading context of a diff that
+ * starts at line 1 one line longer on the original side than on the modified
+ * one, which Monaco re-diffs into a deletion no hunk contains. A side that
+ * covers lines is 1-based as usual.
+ */
 function toLineSpan(startRaw: string, lengthRaw?: string): DiffLineSpan {
-  const parsedStart = Number.parseInt(startRaw, 10);
   const parsedLength = lengthRaw === undefined ? 1 : Number.parseInt(lengthRaw, 10);
-  const startLine = Math.max(1, Number.isFinite(parsedStart) ? parsedStart : 1);
   const lineCount = Number.isFinite(parsedLength) ? Math.max(0, parsedLength) : 1;
+  const floor = lineCount === 0 ? 0 : 1;
+  const parsedStart = Number.parseInt(startRaw, 10);
+  const startLine = Math.max(floor, Number.isFinite(parsedStart) ? parsedStart : floor);
   return { startLine, lineCount };
 }
 

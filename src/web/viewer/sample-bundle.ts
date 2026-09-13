@@ -127,14 +127,19 @@ function hunk(
   };
 }
 
+/**
+ * `[startLine, lineCount]` per side, as git writes a hunk header. A
+ * zero-length side names the line the change sits *after*, so a whole-file
+ * add or delete is `0, 0` — the position above the first line — not `1, 0`.
+ */
 const H = {
   cadenceType: hunk('H0001', 0, [3, 1], [3, 1]),
   paused: hunk('H0002', 1, [7, 0], [8, 2]),
   intervals: hunk('H0003', 2, [10, 1], [12, 8]),
   lookup: hunk('H0004', 3, [13, 1], [22, 1]),
   pausedGuard: hunk('H0005', 4, [16, 0], [26, 1]),
-  queue: hunk('H0006', 0, [1, 0], [1, 19]),
-  cron: hunk('H0007', 0, [1, 9], [1, 0]),
+  queue: hunk('H0006', 0, [0, 0], [1, 19]),
+  cron: hunk('H0007', 0, [1, 9], [0, 0]),
   schema: hunk('H0008', 0, [1, 4], [1, 2400]),
   docs: hunk('H0009', 0, [12, 3], [12, 9]),
   index: hunk('H0010', 0, [1, 1], [1, 2]),
