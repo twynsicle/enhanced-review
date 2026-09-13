@@ -154,6 +154,32 @@ describe('FileView with hunks the chapters left out', () => {
     expect(screen.getAllByRole('figure', { name: 'Diff for src/app.ts' })).toHaveLength(2);
   });
 
+  it('draws one diff for hunks two chapters cite separately, not one per chapter', () => {
+    const cited: NarrativeChapter[] = [
+      {
+        id: 'ch1',
+        title: 'Shape of the change',
+        insights: [],
+        diffChunks: [{ filename: 'src/app.ts', language: 'typescript', hunks: [hunk('H0001', 1)] }],
+      },
+      {
+        id: 'ch2',
+        title: 'And its neighbour',
+        insights: [],
+        diffChunks: [{ filename: 'src/app.ts', language: 'typescript', hunks: [hunk('H0002', 2)] }],
+      },
+    ];
+    renderWithSource(files, cited);
+
+    // One figure, not two: a chunk per chapter would slice the file twice and
+    // draw the lines between the neighbouring hunks in both slices.
+    expect(screen.getAllByRole('figure', { name: 'Diff for src/app.ts' })).toHaveLength(1);
+    // Both chapters still get their credit in the header.
+    expect(screen.getByText(/Discussed in/).textContent).toContain('Shape of the change');
+    expect(screen.getByText(/Discussed in/).textContent).toContain('And its neighbour');
+    expect(screen.queryByText('Not discussed in any chapter')).toBeNull();
+  });
+
   it('shows a file no chapter cites as one diff, and says so in the header', () => {
     renderWithSource(files, chapters);
 
