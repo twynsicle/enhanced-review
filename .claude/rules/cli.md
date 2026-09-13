@@ -7,8 +7,8 @@ paths:
 # `src/cli/` — `er`, the local review CLI
 
 Loaded when you open a CLI file. `er review` runs inside the repository under
-review and writes a self-contained `review.html` that renders the same reader
-as the hosted app. It runs on an engineer's laptop with none
+review and writes one `review.html` — everything inlined but the Monaco editor,
+which the page fetches — that renders the same reader as the hosted app. It runs on an engineer's laptop with none
 of the server's configuration, so the `cli-imports` guardrail keeps its whole
 import graph clear of `env.ts`, the logger, the db layer and server-only
 packages. Output goes through `terminal.ts` (stdout/stderr, never `console`).
@@ -87,8 +87,11 @@ not an accident to fix:
   `src/web/components/narrative/` — the same components the hosted app serves.
   A change to the reader has to work for both, which is what `FileSource` and
   the bundle contract are for.
-- **One self-contained `review.html`**, everything inlined, opened from disk.
-  Chromium only; Firefox is out of scope.
+- **One `review.html`**, opened from disk: every script, style and font
+  inlined, and Monaco fetched from a CDN when a diff is opened. That last part
+  is a decision, not a gap — bundling the editor would cost 24 MB and the file
+  is meant to be emailable — so the report is not offline-capable and is not
+  going to be. Chromium only; Firefox is out of scope.
 - **The prompt is agentic, not inline.** It carries the file list and a compact
   hunk table, and the hunks themselves are files on disk the agent opens. This
   is the opposite of the hosted path, which pastes the diff in, and it is why

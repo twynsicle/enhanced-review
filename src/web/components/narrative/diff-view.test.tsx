@@ -22,6 +22,9 @@ vi.mock('@monaco-editor/react', () => ({
     lastOptions.current = options;
     return <div data-testid="diff-editor" />;
   },
+  // The component pins the CDN and waits for the editor through this before
+  // it mounts anything.
+  loader: { config: () => {}, init: () => Promise.resolve({}) },
 }));
 
 const chunk: DiffChunk = {

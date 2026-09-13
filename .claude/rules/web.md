@@ -71,7 +71,12 @@ src/web/
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group,
                      lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme; the wrap preference
                      goes to the live widget as diffWordWrap, never through its construction options, so a flip
-                     reflows in place instead of remounting),
+                     reflows in place instead of remounting; its lazy factory is also the one place that imports
+                     the editor, because it is where loader.config pins the CDN and where loader.init is awaited —
+                     a CDN that cannot be reached resolves the lazy to DiffUnavailable, a line of text in the card
+                     instead of an empty body, since the library swallows that failure and no boundary sees it),
+                     monaco-cdn.ts (MONACO_VERSION / MONACO_VS_URL: which Monaco the CDN serves, held to the
+                     declared monaco-editor — the types' version — by the monaco-version guardrail),
                      file-source (where the diffs get files: GithubFileSource → /api/github/file fetcher,
                      EmbeddedFileSource → a ReviewBundle; useFilePair always mounts a fetcher, so the reader needs a
                      data router under either), risk-score,
@@ -85,10 +90,14 @@ src/web/
                      a 30 s overlap, toasts once per job id, suppressed on that job's pages, browser Notification when
                      hidden + granted) — all browser-safe, styled via token() or a sibling CSS Module
   viewer/            the local report (vite.viewer.config.ts, not the RR app): index.html (the empty er-bundle element),
-                     main.tsx (client-rendered, hash data router, stored width applied before render), viewer-page
+                     main.tsx (client-rendered, hash data router, stored width applied before render),
+                     report-routes.tsx (the one catch-all route and its errorElement, apart from main.tsx so a test
+                     can mount it), viewer-page
                      (a TopbarFrame with brand + the same DisplayMenu, then ChapterReader over
                      EmbeddedFileSource),
-                     report-problem (missing / version-mismatch / invalid bundle), sample-bundle.ts (what viewer:dev
+                     report-problem (the one "cannot show the review" surface: ReportProblem for a missing /
+                     version-mismatch / invalid bundle, ReportCrashed as the route boundary — no topbar, and
+                     nothing off the error, which React has already logged), sample-bundle.ts (what viewer:dev
                      renders unless ER_BUNDLE names a JSON file); the build inlines JS, CSS and fonts into one file and stamps its sources (viewer.stamp, which er checks)
                      (`react-router build` wipes build/, so it builds second); Monaco still loads from the CDN
   stores/            Zustand, persisted: layout-width.ts (`er-layout`, bindLayoutWidth: full ⇄ wide), diff-view.ts (`er-diff-view`,

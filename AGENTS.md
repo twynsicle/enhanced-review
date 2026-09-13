@@ -46,7 +46,7 @@ prisma/
   migrations/          0001_init (hand-added CHECK constraints), 0002_drop_allowed_users,
                        0003_drop_github_login_unique (logins are reusable; identity is github_id)
 prisma.config.ts       Prisma CLI config; loads .env, datasource url from DATABASE_URL
-vite.viewer.config.ts  the local report: src/web/viewer/ → one self-contained build/viewer/viewer.html
+vite.viewer.config.ts  the local report: src/web/viewer/ → one build/viewer/viewer.html, all inlined but Monaco
 src/
   common/              logger.ts (pino), time-ago.ts, plural.ts — imports only config from src/
   config/              env.ts — Zod-parsed process.env, the only process.env reader; load-env.ts — loads .env for native entry points;
@@ -65,7 +65,8 @@ src/
   guardrails/          *.guard.test.ts — layering, env-access, no-console, routes-registered, zod-boundaries, server-only,
                        prisma-access, palette (token contrast, type scale, one label), diagram-colour (SVG takes token() only),
                        cli-imports (nothing `er` loads reaches env.ts, the logger, the db or a server package),
-                       comment-paths (a repo path named in a comment still exists — see Comments)
+                       comment-paths (a repo path named in a comment still exists — see Comments),
+                       monaco-version (the Monaco the reader loads is the one it is typechecked against)
   test/                integration-global-setup.ts (Postgres probe → provide dbAvailable), db.ts (describeDb, resetDb),
                        git-repo.ts (a throwaway repository with a bare origin, for tests that drive real git)
   web/                 the React Router app: root.tsx, entry.server.tsx, routes.ts (every file in routes/ must be listed),
@@ -217,9 +218,29 @@ Line endings are normalised to LF by `.gitattributes`.
 ## Task tracking (Linear)
 
 Bugs, features and improvements to the app are tracked in Linear, team
-**enhanced-reviews** (key `ER`). Before starting one, when opening its PR,
-when finishing it, and when an out-of-scope bug or feature turns up, load the
-`linear` skill and follow it.
+**enhanced-reviews** (key `ER`). Before starting one, when opening its PR and
+when finishing it, load the `linear` skill and follow it.
+
+**A bug you find while you are already in the code is yours to fix.** The
+default for something noticed in passing is a commit on the branch you are on,
+with the reason in its message — not a new issue. A ticket for a fix that would
+have taken twenty minutes costs more than it saves: someone has to read it,
+triage it, schedule it, and then rebuild the context you had in front of you at
+the time. A backlog of small tickets is a cost, not a record.
+
+File one instead only when you genuinely cannot do it now, and say which of
+these is why:
+
+- it turns on a decision that is the user's rather than yours;
+- it is big enough to want a review of its own;
+- it is somewhere the branch at hand has no business touching;
+- fixing it here would bury the change under review.
+
+Scope discipline still applies — this is about small fixes in code you are
+already changing, not licence to widen the task. When you fix in band, the
+commit message carries what the issue would have: what was wrong, and how you
+know it is not any more. When you are unsure which way it goes, ask; do not
+file as a way of avoiding the question.
 
 Housekeeping gets no issue: agent config (this file, `.claude/`), docs,
 tooling, CI, dependency bumps and small cleanups go straight to a

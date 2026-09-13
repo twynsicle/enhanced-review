@@ -1,6 +1,6 @@
 ---
 name: linear
-description: How this repo tracks bug and feature work in Linear (team enhanced-reviews, key ER). Use when starting a bug fix or feature, when a bug or feature idea turns up out of scope, when opening a PR for tracked work, and when that work is finished or abandoned. Covers finding or creating the issue, branch and PR naming, checkpoint updates, screenshots and status changes. Not for housekeeping (agent config, docs, tooling, small cleanups), which gets no issue.
+description: How this repo tracks bug and feature work in Linear (team enhanced-reviews, key ER). Use when starting a bug fix or feature, when opening a PR for tracked work, when that work is finished or abandoned, and when a bug turns up that genuinely cannot be fixed in the branch at hand. Covers finding or creating the issue, branch and PR naming, checkpoint updates, screenshots and status changes. Not for housekeeping (agent config, docs, tooling, small cleanups), which gets no issue, and not for small bugs found in code you are already changing, which are fixed in band.
 ---
 
 # Linear workflow
@@ -18,16 +18,23 @@ silently skipping any of the steps below.
 improvements to the app do; housekeeping does not. Everything below applies
 only to work that gets one.
 
-- **Backlog items go to Linear, not to the repo.** When an out-of-scope bug or
-  feature turns up (a follow-up, a bug noticed in passing, something the user
-  says to do "later"), search `ER` for an existing issue first and comment on
-  it if one covers the work. Otherwise create one in `Backlog` with one label
-  and a description that stands on its own: what was seen, where (file paths,
-  routes), why it matters, and what done looks like. Do not record backlog
-  items as TODO comments or as lists under `docs/`. Tell the user the
-  identifier. Leave priority unset and do not move items to `Todo`: triage is
-  the user's call. Out-of-scope housekeeping is not filed; mention it to the
-  user instead.
+- **Fix it in band before you reach for an issue.** A bug you find while you
+  are already in the code is normally a commit on the branch you are on, with
+  the reason in its message, and is finished there. `AGENTS.md` sets out the
+  few things that earn an issue instead: it turns on a decision that is the
+  user's, it is big enough to want its own review, it is somewhere this branch
+  should not touch, or fixing it here would bury the change under review. Say
+  which one applies when you file. A bug that is really a symptom of the thing
+  you are already fixing is never a separate issue.
+- **When it does earn one, it goes to Linear, not the repo.** Search `ER` for
+  an existing issue first and comment on it if one covers the work. Otherwise
+  create one in `Backlog` with one label and a description that stands on its
+  own: what was seen, where (file paths, routes), why it matters, and what
+  done looks like. Do not record backlog items as TODO comments or as lists
+  under `docs/`. Tell the user the identifier and why you filed rather than
+  fixed, so they can overrule you cheaply. Leave priority unset and do not move
+  items to `Todo`: triage is the user's call. Out-of-scope housekeeping is not
+  filed; mention it to the user instead.
 - **Starting a task: find its issue first.** If the user names an issue, read
   it and its comments before planning. If they do not, search `ER` by keyword
   across every status, since the issue may already be sitting in `Backlog`. If
