@@ -9,7 +9,7 @@ import { bindSidebarWidth } from '@/web/stores/sidebar-width';
 import { colorSchemeManager } from '@/web/theme/color-scheme';
 import { cssVariablesResolver } from '@/web/theme/css-variables';
 import { theme } from '@/web/theme/theme';
-import { ViewerPage } from './viewer-page';
+import { reportRoutes } from './report-routes';
 
 // Entry point of the local report. Client-rendered
 // only, so there is no hydration and no pre-paint script: MantineProvider
@@ -21,7 +21,7 @@ bindLayoutWidth();
 bindSidebarWidth();
 const result = readEmbeddedBundle(document.getElementById(BUNDLE_ELEMENT_ID)?.textContent);
 
-const router = createHashRouter([{ path: '*', element: <ViewerPage result={result} /> }]);
+const router = createHashRouter(reportRoutes(result));
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
