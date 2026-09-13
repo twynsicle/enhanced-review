@@ -28,8 +28,10 @@ src/domain/
                      coverage.ts (the backstop for the instruction that the model cite every hunk: withFileHunks
                      attaches the catalog to the files — the local CLI at parse, the hosted runner at finalize;
                      reviewCoverage subtracts what the chapters cite, per hunk, and returns `uncited`, one
-                     FileCoverage per file with leftovers (its own DiffChunk on it), plus byFile, chaptersCiting
-                     and describeCoverageGap, the one sentence the CLI and the reader's card share; a file
+                     FileCoverage per file with leftovers (its own DiffChunk on it), plus byFile, chaptersCiting,
+                     citedChunk (every chapter's hunks for one file merged into a single chunk, deduplicated and in
+                     file order, so the file view draws one diff rather than one per citing chapter) and
+                     describeCoverageGap, the one sentence the CLI and the reader's card share; a file
                      without a catalog reports nothing),
                      diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
