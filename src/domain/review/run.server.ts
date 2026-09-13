@@ -27,8 +27,8 @@ import { ClaudeExecutor } from './executor/claude-executor.server.ts';
 import { StubExecutor } from './executor/stub-executor.server.ts';
 import { ExecutorParseError, ExecutorProcessError, type ReviewExecutor } from './executor/types.ts';
 import type { NarrativeReview, ReviewFile } from './narrative.ts';
-import { promptSkipReason } from './prompt/ai-file-filter.ts';
 import type { PrData } from './prompt/types.ts';
+import { skipReasons, toReviewFiles, type RunGit } from './skip-reasons.server.ts';
 import type { ReviewTarget } from './target.ts';
 
 /**
@@ -117,17 +117,21 @@ const defaultStore: RunJobStore = {
 };
 
 /**
- * The changed files as the review records them, each one the prompt filters
- * out carrying why. The prompt drops these patches silently, so without the
- * reason here the stored file looks reviewed-but-unmentioned: the sidebar
- * lists it undimmed, and the coverage backstop counts a lockfile against the
- * model's chapters.
+ * The changed files as the review records them, each one it leaves out
+ * carrying why — including the marks the reviewed repository makes in its own
+ * `.gitattributes`, which is a read against the clone rather than a rule over
+ * the path.
  */
-function reviewedFiles(changed: readonly ChangedFile[]): ReviewFile[] {
-  return changed.map(({ filename, status, additions, deletions, binary }) => {
-    const skipped = promptSkipReason({ filename, binary });
-    return { filename, status, additions, deletions, ...(skipped ? { skipped } : {}) };
-  });
+async function reviewedFiles(
+  changed: readonly ChangedFile[],
+  git: GitRunner,
+  cwd: string,
+  headSha: string,
+  signal: AbortSignal,
+): Promise<ReviewFile[]> {
+  const runGitStdout: RunGit = async (args) =>
+    (await runGitOrThrow(git, args[0] ?? 'command', { args, cwd, signal })).stdout;
+  return toReviewFiles(changed, await skipReasons(changed, headSha, runGitStdout));
 }
 
 async function readBranchMetadata(
@@ -206,9 +210,14 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ
     cloneDir = clone.cloneDir;
     if (signal.aborted) return 'aborted';
 
-    const files = reviewedFiles(
-      await listChangedFileDetails(deps.git, cloneDir, target.baseSha, headSha, signal),
+    const changed = await listChangedFileDetails(
+      deps.git,
+      cloneDir,
+      target.baseSha,
+      headSha,
+      signal,
     );
+    const files = await reviewedFiles(changed, deps.git, cloneDir, headSha, signal);
 
     let prData: PrData;
     if (target.kind === 'pr' && prMeta) {

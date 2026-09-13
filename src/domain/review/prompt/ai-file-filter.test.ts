@@ -1,38 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { builtInDenyGlobs, isExcludedFromAI } from './ai-file-filter.ts';
+import { binarySkipReason, builtInSkipReason } from './ai-file-filter.ts';
 
-describe('isExcludedFromAI', () => {
+describe('builtInSkipReason', () => {
   it('excludes lockfiles by basename, case-insensitively', () => {
-    expect(isExcludedFromAI('package-lock.json')).toBe(true);
-    expect(isExcludedFromAI('apps/web/Gemfile.lock')).toBe(true);
-    expect(isExcludedFromAI('go.sum')).toBe(true);
+    expect(builtInSkipReason('package-lock.json')).toBe('built-in');
+    expect(builtInSkipReason('apps/web/Gemfile.lock')).toBe('built-in');
+    expect(builtInSkipReason('go.sum')).toBe('built-in');
   });
 
   it('excludes generated artefacts by extension and snapshot directories', () => {
-    expect(isExcludedFromAI('dist/app.min.js')).toBe(true);
-    expect(isExcludedFromAI('dist/app.js.map')).toBe(true);
-    expect(isExcludedFromAI('src/__snapshots__/x.test.ts.snap')).toBe(true);
+    expect(builtInSkipReason('dist/app.min.js')).toBe('built-in');
+    expect(builtInSkipReason('dist/app.js.map')).toBe('built-in');
+    expect(builtInSkipReason('src/__snapshots__/x.test.ts.snap')).toBe('built-in');
   });
 
   it('keeps ordinary source files', () => {
-    expect(isExcludedFromAI('src/index.ts')).toBe(false);
-    expect(isExcludedFromAI('package.json')).toBe(false);
-    expect(isExcludedFromAI('docs/locking.md')).toBe(false);
-  });
-
-  it('honours user patterns as basename, suffix or substring matches', () => {
-    expect(isExcludedFromAI('src/generated/schema.ts', ['generated/'])).toBe(true);
-    expect(isExcludedFromAI('src/schema.ts', ['schema.ts'])).toBe(true);
-    expect(isExcludedFromAI('src/schema.ts', ['other'])).toBe(false);
+    expect(builtInSkipReason('src/index.ts')).toBeNull();
+    expect(builtInSkipReason('package.json')).toBeNull();
+    expect(builtInSkipReason('docs/locking.md')).toBeNull();
   });
 });
 
-describe('builtInDenyGlobs', () => {
-  it('mirrors the exclusion rules as globs', () => {
-    const globs = builtInDenyGlobs();
-    expect(globs).toContain('**/package-lock.json');
-    expect(globs).toContain('**/*.min.js');
-    expect(globs).toContain('**/__snapshots__/**');
-    expect(new Set(globs).size).toBe(globs.length);
+describe('binarySkipReason', () => {
+  it('is a reason only for a file git has no text to diff for', () => {
+    expect(binarySkipReason(true)).toBe('binary');
+    expect(binarySkipReason(false)).toBeNull();
   });
 });

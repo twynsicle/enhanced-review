@@ -10,15 +10,11 @@ import {
   listChangedFileDetails,
   type ChangedFile,
 } from '../domain/review/clone/diff-files.server.ts';
-import {
-  DiffLineSpanSchema,
-  ReviewFileSchema,
-  type ReviewFile,
-  type ReviewFileSkipReason,
-} from '../domain/review/narrative.ts';
-import { binarySkipReason, builtInSkipReason } from '../domain/review/prompt/ai-file-filter.ts';
+import { argBatches } from '../domain/review/clone/git-runner.server.ts';
+import { DiffLineSpanSchema, ReviewFileSchema } from '../domain/review/narrative.ts';
 import { buildDiffHunkIndex, type DiffHunk } from '../domain/review/prompt/diff-hunk-catalog.ts';
 import { ReviewMetaSchema, type ReviewMeta } from '../domain/review/review-meta.ts';
+import { skipReasons, toReviewFiles } from '../domain/review/skip-reasons.server.ts';
 import type { Shell } from './git.ts';
 import { hunkFileName, RUNS_DIR, type RunFiles } from './run-folder.ts';
 import { TargetSchema, type Target } from './targets.ts';
@@ -69,8 +65,6 @@ export const MAX_EMBED_BYTES = 1_000_000;
 
 const MAX_COMMITS = 200;
 const PARALLEL_GIT = 8;
-/** Paths per command line, well inside Windows' 32K limit. */
-const MAX_ARG_CHARS = 16_000;
 const LITERAL = '--literal-pathspecs';
 
 export async function gather(
@@ -81,11 +75,8 @@ export async function gather(
 ): Promise<RunContext> {
   const { baseSha, headSha } = target;
   const changed = await listChangedFileDetails(shell.runners.git, shell.cwd, baseSha, headSha);
-  const reasons = await skipReasons(shell, headSha, changed);
-  const files: ReviewFile[] = changed.map(({ filename, status, additions, deletions }) => {
-    const skipped = reasons.get(filename);
-    return { filename, status, additions, deletions, ...(skipped ? { skipped } : {}) };
-  });
+  const reasons = await skipReasons(changed, headSha, (args) => shell.git(args));
+  const files = toReviewFiles(changed, reasons);
   const reviewed = changed.filter((file) => !reasons.has(file.filename));
 
   const diffs = await mapLimit(reviewed, PARALLEL_GIT, (file) => fileDiff(shell, target, file));
@@ -136,43 +127,6 @@ export async function readContext(run: RunFiles): Promise<RunContext> {
     throw new Error(`${run.context} is not a context this version of er wrote; run without --from`);
   }
   return parsed.data;
-}
-
-/** Why each file is left out: the built-in list, then .gitattributes at the head, then binary. */
-async function skipReasons(
-  shell: Shell,
-  headSha: string,
-  files: readonly ChangedFile[],
-): Promise<Map<string, ReviewFileSkipReason>> {
-  const reasons = new Map<string, ReviewFileSkipReason>();
-  for (const file of files) {
-    const builtIn = builtInSkipReason(file.filename);
-    if (builtIn) reasons.set(file.filename, builtIn);
-  }
-  const unclassified = files.map((file) => file.filename).filter((name) => !reasons.has(name));
-  for (const batch of argBatches(unclassified)) {
-    const out = await shell.git([
-      'check-attr',
-      `--source=${headSha}`,
-      '-z',
-      'linguist-generated',
-      'linguist-vendored',
-      '--',
-      ...batch,
-    ]);
-    // `<path>\0<attribute>\0<value>\0`, generated before vendored for each path.
-    const fields = out.split('\0');
-    for (let i = 0; i + 2 < fields.length; i += 3) {
-      const [name, attribute, value] = [fields[i]!, fields[i + 1]!, fields[i + 2]!];
-      if (reasons.has(name) || (value !== 'set' && value !== 'true')) continue;
-      reasons.set(name, attribute === 'linguist-generated' ? 'generated' : 'vendored');
-    }
-  }
-  for (const file of files) {
-    const binary = binarySkipReason(file.binary);
-    if (binary && !reasons.has(file.filename)) reasons.set(file.filename, binary);
-  }
-  return reasons;
 }
 
 /** One file's patch, as git prints it for the whole range. */
@@ -340,23 +294,6 @@ async function dirtyPaths(shell: Shell, kind: 'branch' | 'staged'): Promise<stri
     if (kind === 'branch' || worktree !== ' ') paths.push(name);
   }
   return paths;
-}
-
-function argBatches(paths: readonly string[]): string[][] {
-  const batches: string[][] = [];
-  let current: string[] = [];
-  let length = 0;
-  for (const name of paths) {
-    if (current.length > 0 && length + name.length + 1 > MAX_ARG_CHARS) {
-      batches.push(current);
-      current = [];
-      length = 0;
-    }
-    current.push(name);
-    length += name.length + 1;
-  }
-  if (current.length > 0) batches.push(current);
-  return batches;
 }
 
 async function mapLimit<T, R>(

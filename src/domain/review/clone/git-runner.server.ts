@@ -125,3 +125,30 @@ export async function runGitOrThrow(
   }
   return result;
 }
+
+/** Paths per command line, well inside Windows' 32K limit. */
+const MAX_ARG_CHARS = 16_000;
+
+/**
+ * Splits a path list into batches a single `git` invocation can carry. A
+ * repository can change more files than any platform allows arguments for, and
+ * the command that ran into that limit fails as a whole: a command per path
+ * instead would cost a process spawn each, which on Windows is the slowest
+ * thing these paths do.
+ */
+export function argBatches(paths: readonly string[]): string[][] {
+  const batches: string[][] = [];
+  let current: string[] = [];
+  let length = 0;
+  for (const name of paths) {
+    if (current.length > 0 && length + name.length + 1 > MAX_ARG_CHARS) {
+      batches.push(current);
+      current = [];
+      length = 0;
+    }
+    current.push(name);
+    length += name.length + 1;
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
