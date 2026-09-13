@@ -24,6 +24,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "viewer:dev", "--", "--port", "5181", "--strictPort"],
       "port": 5181
+    },
+    {
+      "name": "viewer-5182",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "viewer:dev", "--", "--port", "5182", "--strictPort"],
+      "port": 5182
     }
   ]
 }

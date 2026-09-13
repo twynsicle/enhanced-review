@@ -127,9 +127,14 @@ docker compose run --rm web node src/jobs/cli.ts recover-jobs
 
 `er review` runs the whole review on your laptop: it gathers the change with
 `git` and `gh`, runs the Claude Agent SDK as **you**, and writes one
-self-contained `review.html` that renders the same reader the hosted app
-does. No server, no database, no GitHub App — which is the point, because
-getting an app installed in an organisation can take months.
+`review.html` that renders the same reader the hosted app does. No server, no
+database, no GitHub App — which is the point, because getting an app installed
+in an organisation can take months.
+
+The report is a single file: every script, style and font is inlined, so there
+is nothing beside it to keep or to send. The diff editor is the exception — it
+is fetched from a CDN when a diff is opened, which keeps the file small enough
+to email. Reading the review needs no network; reading a diff does.
 
 ### Install
 

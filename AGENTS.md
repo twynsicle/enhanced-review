@@ -46,7 +46,7 @@ prisma/
   migrations/          0001_init (hand-added CHECK constraints), 0002_drop_allowed_users,
                        0003_drop_github_login_unique (logins are reusable; identity is github_id)
 prisma.config.ts       Prisma CLI config; loads .env, datasource url from DATABASE_URL
-vite.viewer.config.ts  the local report: src/web/viewer/ → one self-contained build/viewer/viewer.html
+vite.viewer.config.ts  the local report: src/web/viewer/ → one build/viewer/viewer.html, all inlined but Monaco
 src/
   common/              logger.ts (pino), time-ago.ts, plural.ts — imports only config from src/
   config/              env.ts — Zod-parsed process.env, the only process.env reader; load-env.ts — loads .env for native entry points;

@@ -9,7 +9,7 @@ import { fail, line } from './terminal.ts';
 
 /**
  * `er` — review a change from inside the repository that holds it, and write
- * a self-contained HTML report. This is the bin entry that
+ * the result as one HTML file. This is the bin entry that
  * `npm link` puts on PATH.
  */
 const USAGE = `Usage: er review [<pr-number> | --staged] [options]
