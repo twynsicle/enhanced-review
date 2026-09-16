@@ -5,8 +5,8 @@ import type { ReviewMeta } from '@/domain/review/review-meta';
 import { Caption } from '@/web/components/caption';
 import classes from '@/web/components/narrative/article.module.css';
 import { DiagramFigure } from '@/web/components/narrative/diagram/diagram-figure';
-import { LeadMarkdown } from '@/web/components/narrative/lead-markdown';
 import { MarkdownText } from '@/web/components/narrative/markdown-text';
+import { ProsePassage } from '@/web/components/narrative/prose-passage';
 import { sectionCardId, sectionHeadingId } from '@/web/components/narrative/sections';
 import { token } from '@/web/theme/tokens';
 import { DISPLAY_SIZE } from '@/web/theme/tokens';
@@ -137,23 +137,17 @@ export function SummaryCard({
         </Group>
       </Stack>
 
-      {/*
-       * The diagram leads, ahead of the prose. It is the one thing on this
-       * page that can be taken in without reading, and the whole argument for
-       * having it is that a reader arriving at a large change wants the shape
-       * before the sentences.
-       */}
+      <Stack component="section" gap={12}>
+        <Caption component="h3">Review summary</Caption>
+        <ProsePassage prose={review.overviewSummary} />
+      </Stack>
+
       {review.overviewDiagram && (
         <DiagramFigure
           diagram={review.overviewDiagram}
           {...(onSelectFile ? { onSelectFile } : {})}
         />
       )}
-
-      <Stack component="section" gap={12}>
-        <Caption component="h3">Review summary</Caption>
-        <LeadMarkdown text={review.overviewSummary} />
-      </Stack>
 
       {meta.description && <AuthorDescription body={meta.description} />}
     </article>

@@ -296,7 +296,12 @@ describe('<ChapterSidebar />', () => {
         ],
       },
     ];
-    const coverage = reviewCoverage({ prTitle: 't', overviewSummary: '', files, chapters: cited });
+    const coverage = reviewCoverage({
+      prTitle: 't',
+      overviewSummary: { lede: '' },
+      files,
+      chapters: cited,
+    });
     render(
       <ChapterSidebar
         sections={sections}

@@ -50,7 +50,7 @@ function renderChunk() {
       description: null,
       stats: null,
     },
-    review: { prTitle: 'A change', overviewSummary: 'It changes things.', chapters: [] },
+    review: { prTitle: 'A change', overviewSummary: { lede: 'It changes things.' }, chapters: [] },
     files: {
       'src/main.ts': {
         base: { kind: 'content', content: 'one\n' },

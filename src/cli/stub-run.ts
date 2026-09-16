@@ -31,7 +31,9 @@ export function stubReview({ meta, files, hunks }: RunContext) {
       return {
         id: `file-${String(index + 1)}`,
         title: file.filename.split('/').at(-1)!,
-        description: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${plural(ids.length, 'hunk')}.`,
+        description: {
+          lede: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${plural(ids.length, 'hunk')}.`,
+        },
         insights: [
           {
             type: 'context',
@@ -46,9 +48,12 @@ export function stubReview({ meta, files, hunks }: RunContext) {
     });
   return {
     prTitle: meta.title,
-    overviewSummary:
-      'A mechanical review from er review --stub: one chapter per changed file, citing every hunk, ' +
-      'so the report can be checked on a real change without running a model.',
+    overviewSummary: {
+      lede: 'A mechanical review: one chapter per changed file, citing every hunk.',
+      body:
+        'From `er review --stub`, so the report can be checked against a real change ' +
+        'without running a model.',
+    },
     chapters:
       chapters.length > 0
         ? chapters
@@ -56,7 +61,9 @@ export function stubReview({ meta, files, hunks }: RunContext) {
             {
               id: 'nothing-reviewed',
               title: 'Nothing to cite',
-              description: 'Every changed file was left out of the review, so there are no hunks.',
+              description: {
+                lede: 'Every changed file was left out of the review, so there are no hunks.',
+              },
               insights: [],
               diffChunks: [],
             },

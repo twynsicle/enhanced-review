@@ -4,7 +4,7 @@ import { ExecutorParseError, ExecutorProcessError, type ReviewExecutorInput } fr
 
 const NARRATIVE_JSON = JSON.stringify({
   prTitle: 'Test PR',
-  overviewSummary: 'A test summary.',
+  overviewSummary: { lede: 'A test summary.' },
   chapters: [
     {
       id: 'c1',

@@ -2,9 +2,11 @@ import {
   InsightTypeSchema,
   NarrativeReviewSchema,
   ReviewRiskFactorImpactSchema,
+  type DiffChunk,
   type Insight,
   type InsightType,
   type NarrativeReview,
+  type Prose,
   type ResolvedDiffHunk,
   type ReviewRiskAssessment,
   type ReviewRiskFactorImpact,
@@ -95,7 +97,30 @@ function resolveHunks(chunk: Rec, grounding: PromptGrounding | undefined): Resol
   return [...deduped.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
 }
 
-function sanitizeInsights(raw: unknown): Insight[] {
+/**
+ * A `{ lede, body }` passage. Nothing written is `undefined` rather than a
+ * passage of empty strings, so the reader can tell "no prose" from "a lede
+ * that is a space".
+ *
+ * A body arriving without a lede is promoted to one: the model wrote it, and
+ * drawing it is better than dropping prose because it came in the wrong field.
+ */
+function sanitizeProse(raw: unknown): Prose | undefined {
+  if (!isRecord(raw)) return undefined;
+  const lede = typeof raw['lede'] === 'string' ? raw['lede'].trim() : '';
+  const body = typeof raw['body'] === 'string' ? raw['body'].trim() : '';
+  if (lede.length === 0) return body.length > 0 ? { lede: body } : undefined;
+  return { lede, ...(body.length > 0 ? { body } : {}) };
+}
+
+/**
+ * `anchors` are the paths this chapter cites. An insight naming one keeps its
+ * `filename` and is drawn on that diff; an insight naming anything else loses
+ * the anchor and joins the chapter's list, because the card it asked for is
+ * not on the page and an insight nobody sees is worse than one in the wrong
+ * place.
+ */
+function sanitizeInsights(raw: unknown, anchors: ReadonlySet<string>): Insight[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter(
@@ -105,26 +130,28 @@ function sanitizeInsights(raw: unknown): Insight[] {
       const rawTitle = ins['title'];
       const title =
         typeof rawTitle === 'string' && rawTitle.trim().length > 0 ? rawTitle.trim() : undefined;
+      const rawFilename = ins['filename'];
+      const filename =
+        typeof rawFilename === 'string' && anchors.has(rawFilename) ? rawFilename : undefined;
       return {
         type: toInsightType(ins['type']),
         ...(title !== undefined ? { title } : {}),
         text: ins.text,
+        ...(filename !== undefined ? { filename } : {}),
       };
     });
 }
 
-function sanitizeChapter(raw: Rec, index: number, grounding: PromptGrounding | undefined): Rec {
+function sanitizeChapter(
+  raw: Rec,
+  index: number,
+  grounding: PromptGrounding | undefined,
+): Rec & { id: string; title: string; diffChunks: DiffChunk[] } {
   const n = String(index + 1);
   const id = typeof raw['id'] === 'string' && raw['id'].length > 0 ? raw['id'] : `chapter-${n}`;
   const title =
     typeof raw['title'] === 'string' && raw['title'].length > 0 ? raw['title'] : `Chapter ${n}`;
-  // Older model outputs used `summary` where the schema now says `description`.
-  const description =
-    typeof raw['description'] === 'string'
-      ? raw['description']
-      : typeof raw['summary'] === 'string'
-        ? raw['summary']
-        : '';
+  const description = sanitizeProse(raw['description']);
 
   const diffChunks = (Array.isArray(raw['diffChunks']) ? raw['diffChunks'] : [])
     .filter((chunk): chunk is Rec => isRecord(chunk) && typeof chunk['filename'] === 'string')
@@ -140,11 +167,32 @@ function sanitizeChapter(raw: Rec, index: number, grounding: PromptGrounding | u
   return {
     id,
     title,
-    description,
-    insights: sanitizeInsights(raw['insights']),
+    ...(description ? { description } : {}),
+    insights: sanitizeInsights(raw['insights'], new Set(diffChunks.map((c) => c.filename))),
     diffChunks,
     ...(diagram ? { diagram } : {}),
   };
+}
+
+/**
+ * A chapter with no diffChunks is prose the reader cannot check against any
+ * code, whether the model wrote it that way or every hunk id it cited failed
+ * to resolve (an invented id, or a filename that didn't match its hunk
+ * verbatim). Either way the review is misleading, so the whole answer fails
+ * rather than shipping with a hole in it — the caller decides what a failed
+ * review means (a job goes to `error`, `er` points at `raw.txt`), but nothing
+ * downstream is left to guess why a chapter came back empty.
+ *
+ * Only enforced when the prompt showed at least one hunk: a change with
+ * nothing reviewable (every file skipped) legitimately has no hunk for any
+ * chapter to cite, and that is a fact worth showing rather than a failure.
+ */
+function findEmptyChapter(
+  chapters: (Rec & { id: string; title: string; diffChunks: DiffChunk[] })[],
+  grounding: PromptGrounding | undefined,
+): (Rec & { id: string; title: string; diffChunks: DiffChunk[] }) | undefined {
+  if (!grounding || grounding.shown.hunks.length === 0) return undefined;
+  return chapters.find((chapter) => chapter.diffChunks.length === 0);
 }
 
 /** A real backslash, kept out of the source the way `terminal.ts` does it. */
@@ -230,22 +278,35 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
   if (
     !isRecord(parsed) ||
     typeof parsed['prTitle'] !== 'string' ||
-    typeof parsed['overviewSummary'] !== 'string' ||
     !Array.isArray(parsed['chapters'])
   ) {
     return { ok: false, error: 'Narrative review JSON is missing required fields' };
+  }
+
+  const overviewSummary = sanitizeProse(parsed['overviewSummary']);
+  if (!overviewSummary) {
+    return { ok: false, error: 'Narrative review JSON is missing required fields' };
+  }
+
+  const chapters = parsed['chapters'].map((chapter, index) =>
+    sanitizeChapter(isRecord(chapter) ? chapter : {}, index, grounding),
+  );
+  const emptyChapter = findEmptyChapter(chapters, grounding);
+  if (emptyChapter) {
+    return {
+      ok: false,
+      error: `Chapter "${emptyChapter.title}" (${emptyChapter.id}) cites no hunk that resolved against the diff`,
+    };
   }
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment']);
   const overviewDiagram = sanitizeDiagram(parsed['overviewDiagram'], 'overview-diagram', grounding);
   const candidate = {
     prTitle: parsed['prTitle'],
-    overviewSummary: parsed['overviewSummary'],
+    overviewSummary,
     ...(riskAssessment ? { riskAssessment } : {}),
     ...(overviewDiagram ? { overviewDiagram } : {}),
-    chapters: parsed['chapters'].map((chapter, index) =>
-      sanitizeChapter(isRecord(chapter) ? chapter : {}, index, grounding),
-    ),
+    chapters,
   };
 
   const validated = NarrativeReviewSchema.safeParse(candidate);

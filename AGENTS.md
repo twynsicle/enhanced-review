@@ -153,6 +153,29 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
   top-level `src/` area imported at runtime, or a runtime import of one of
   those packages, breaks the container but not `npm run dev`. Detail in
   `.claude/rules/container.md`.
+- **Fail loudly on a review.** Prefer failing to generate a review over
+  shipping one that is incomplete or misleading — never patch over a
+  generation defect by silently dropping or hiding part of the model's
+  answer. If a check downstream of the model finds the answer doesn't hold up
+  (e.g. a chapter with nothing to show for it, in `parse-narrative.ts`), the
+  right move is to fail the whole review, not to quietly repair it into
+  something that looks fine. A human sees a failed job and knows to look; a
+  silently-repaired review looks trustworthy and isn't.
+- **There is no backwards compatibility here, and nothing should be written as
+  though there were.** The only part of this app anywhere near real use is
+  `er`'s report generation, and that is stateless: a report is generated,
+  read and thrown away. Nothing has to keep reading data an older version
+  wrote. So when a shape changes, change it — do not accept the old shape
+  beside the new one, do not add a field-was-a-string branch, do not keep a
+  fallback for a key a previous prompt used, do not leave a type optional to
+  spare data that no longer exists. Delete the old shape and fix every caller.
+  Simple code a reader can follow in one pass is worth far more than
+  compatibility with a past that cannot reach us. If a comment justifies
+  something by appeal to "older reviews" or "older model output", that
+  justification is void and the code it guards should go. Leniency toward the
+  _model's_ output is a separate and still-live concern — a model is a
+  nondeterministic producer, and being forgiving about what it sends back is
+  not backwards compatibility. Say which one a comment means.
 
 ## Comments
 

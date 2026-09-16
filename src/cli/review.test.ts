@@ -67,14 +67,14 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
 const MODEL_REVIEW = `<narrative_review>
 {
   "prTitle": "The staged change",
-  "overviewSummary": "One chapter, written by the model in this test.",
+  "overviewSummary": { "lede": "One chapter, written by the model in this test." },
   "chapters": [
     {
       "id": "app",
       "title": "App",
       "description": "src/app.ts changed.",
       "insights": [{ "type": "context", "title": "From the test model", "text": "Not a real run." }],
-      "diffChunks": []
+      "diffChunks": [{ "filename": "src/app.ts", "language": "typescript", "hunkIds": ["H0001"] }]
     }
   ]
 }
@@ -171,17 +171,25 @@ describe('er review', () => {
   });
 
   it('counts the hunks the model cited, and warns about the files it left out', async () => {
-    // MODEL_REVIEW cites nothing, so the one changed file goes undiscussed.
+    // A second file so the model can leave one changed file undiscussed
+    // without any of its chapters ending up with no hunks of their own —
+    // an empty chapter now fails the review outright.
+    repo.write('src/other.ts', 'export const other = 1;\n');
+    repo.git('add', 'src/other.ts');
+    const modelReviewPartial = MODEL_REVIEW.replace(
+      '"diffChunks": [{ "filename": "src/app.ts", "language": "typescript", "hunkIds": ["H0001"] }]',
+      '"diffChunks": [{ "filename": "src/other.ts", "language": "typescript", "hunkIds": ["H0002"] }]',
+    );
     const query: QueryFn = () =>
       (async function* () {
-        yield assistantText(MODEL_REVIEW);
+        yield assistantText(modelReviewPartial);
         yield runResult();
       })();
     await review(options({ stub: false, open: false }), { ...deps, claude: { query } });
 
     expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
       'parse',
-      '1 chapter, 0 of 1 hunk cited',
+      '1 chapter, 1 of 2 hunks cited',
       expect.any(Number),
     );
     expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith(
@@ -198,7 +206,7 @@ describe('er review', () => {
     );
     expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
       'parse',
-      '1 chapter, 1 of 1 hunk cited',
+      '2 chapters, 2 of 2 hunks cited',
       expect.any(Number),
     );
     expect(vi.mocked(terminal.warn)).not.toHaveBeenCalled();

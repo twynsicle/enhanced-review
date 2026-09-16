@@ -22,7 +22,7 @@ const bundle: ReviewBundle = {
     description: null,
     stats: null,
   },
-  review: { prTitle: 'Escaping', overviewSummary: 'x < y', chapters: [] },
+  review: { prTitle: 'Escaping', overviewSummary: { lede: 'x < y' }, chapters: [] },
   files: {
     'src/a.ts': { base: { kind: 'absent' }, head: { kind: 'content', content: HOSTILE } },
   },

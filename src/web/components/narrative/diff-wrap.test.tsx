@@ -117,7 +117,7 @@ const bundle: ReviewBundle = {
     description: null,
     stats: null,
   },
-  review: { prTitle: 't', overviewSummary: '', chapters: [] },
+  review: { prTitle: 't', overviewSummary: { lede: '' }, chapters: [] },
   files: {
     'src/main.ts': {
       base: { kind: 'content', content: 'one\ntwo\n' },

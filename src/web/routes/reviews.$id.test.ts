@@ -45,7 +45,7 @@ const REVIEW: Review = {
   createdAt: new Date(),
   content: {
     prTitle: 'Feature',
-    overviewSummary: 'lead',
+    overviewSummary: { lede: 'lead' },
     chapters: [
       { id: 'ch1', title: 'One', insights: [{ type: 'context', text: 'a' }], diffChunks: [] },
       { id: 'ch2', title: 'Two', insights: [{ type: 'highlight', text: 'b' }], diffChunks: [] },

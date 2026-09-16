@@ -21,6 +21,10 @@ src/domain/
                      classifyGithubError, toResult), repos, pulls, branches (GraphQL), resolve-target (re-pin SHAs),
                      pull-metadata (runner), view-time (getFileAtRef, getBranchHead, getCommitsAhead); types.ts shared
   review/            shared: narrative.ts (NarrativeReview Zod schema + types; chapter.diagram? + overviewDiagram?;
+                     ProseSchema — overviewSummary and chapter.description are a `{ lede, body? }`, the lede one
+                     short sentence and the body Markdown, because one free-text field is what produced the
+                     50-word sentences this replaced; Insight.filename? — the file an insight is about, drawn on
+                     that diff card rather than above all of them;
                      ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
                      ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
                      reviewable and not only what was cited; SUMMARY_SECTION_ID / RISK_SECTION_ID /
@@ -67,7 +71,14 @@ src/domain/
                      NARRATIVE_SYSTEM_PROMPT, formatFileList, formatHunkCatalog and formatSkippedSection are
                      shared with the local CLI's prompt),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; a failed JSON.parse is
-                     retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string),
+                     retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string;
+                     fails the whole review — never silently drops or keeps a chapter — when a chapter ends up with no
+                     diffChunks after hunk-id resolution and the prompt showed at least one hunk to cite, since prose
+                     with nothing to show for it is a generation defect, not a valid review; a diff with nothing
+                     reviewable at all is exempt, since then no chapter could have cited anything;
+                     sanitizeProse takes either shape the model might send, and an insight's `filename` survives
+                     only when the chapter's own diffChunks cite it — anchored elsewhere it would be drawn
+                     nowhere, so the anchor goes and the insight stays),
                      parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own
                      so a bad picture cannot fail the review; a node's filename checked against the reviewed file
                      list and its hunk ids against the hunks the prompt showed), types.ts (PrData),

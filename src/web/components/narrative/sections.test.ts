@@ -15,7 +15,7 @@ const sectionsOf = (r: NarrativeReview) => readerSections(r, reviewCoverage(r));
 function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
   return {
     prTitle: 'A change',
-    overviewSummary: 'It changes things.',
+    overviewSummary: { lede: 'It changes things.' },
     chapters: [
       { id: 'ch1', title: 'One', insights: [], diffChunks: [] },
       { id: 'ch2', title: 'Two', insights: [], diffChunks: [] },
@@ -95,7 +95,7 @@ describe('readerSections', () => {
       }),
     );
     expect(cited.some((section) => section.kind === 'undiscussed')).toBe(false);
-    // No catalog at all: an older review, which has nothing to report.
+    // No catalog at all, so there is nothing a backstop could report on.
     expect(sectionsOf(review()).some((section) => section.kind === 'undiscussed')).toBe(false);
   });
 
@@ -121,7 +121,7 @@ describe('findSection', () => {
   });
 
   it('returns null for an id this review does not have', () => {
-    // A `?ch=` from an older review, or a hand-typed one.
+    // A hand-typed `?ch=`, or one carried over from a different review.
     expect(findSection(sections, 'ch9')).toBeNull();
     expect(findSection(sections, RISK_SECTION_ID)).toBeNull();
     expect(findSection(sections, null)).toBeNull();

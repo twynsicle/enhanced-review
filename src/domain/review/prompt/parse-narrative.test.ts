@@ -26,7 +26,7 @@ describe('parseNarrativeReview', () => {
     const result = parseNarrativeReview(
       wrap({
         prTitle: 'Risk test',
-        overviewSummary: 'Summary',
+        overviewSummary: { lede: 'Summary' },
         riskAssessment: {
           score: 4,
           summary: 'High risk because data can be affected.',
@@ -49,7 +49,7 @@ describe('parseNarrativeReview', () => {
       ok: true,
       data: {
         prTitle: 'Risk test',
-        overviewSummary: 'Summary',
+        overviewSummary: { lede: 'Summary' },
         riskAssessment: {
           score: 4,
           summary: 'High risk because data can be affected.',
@@ -68,11 +68,11 @@ describe('parseNarrativeReview', () => {
     });
   });
 
-  it('omits invalid risk assessments for backwards compatibility', () => {
+  it('drops a risk assessment whose score is out of range, and keeps the review', () => {
     const result = parseNarrativeReview(
       wrap({
-        prTitle: 'Old review',
-        overviewSummary: 'Summary',
+        prTitle: 'Scoreless',
+        overviewSummary: { lede: 'Summary' },
         riskAssessment: { score: 9 },
         chapters: [],
       }),
@@ -83,7 +83,12 @@ describe('parseNarrativeReview', () => {
 
   it('rounds a fractional score and synthesises a summary', () => {
     const result = parseNarrativeReview(
-      wrap({ prTitle: 't', overviewSummary: 's', riskAssessment: { score: 2.6 }, chapters: [] }),
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        riskAssessment: { score: 2.6 },
+        chapters: [],
+      }),
     );
     expect(result.ok && result.data.riskAssessment).toEqual({
       score: 3,
@@ -97,32 +102,84 @@ describe('parseNarrativeReview', () => {
     const result = parseNarrativeReview(
       wrap({
         prTitle: 't',
-        overviewSummary: 's',
+        overviewSummary: { lede: 's' },
         chapters: [
           {
-            summary: 'legacy summary field',
+            description: { lede: 'No id and no title of its own.' },
             insights: [
               { type: 'highlight', title: '  Headline  ', text: 'body' },
               { type: 'bogus', text: 'falls back to context' },
               { type: 'context' },
               'not an insight',
             ],
+            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
           },
         ],
       }),
+      groundingFor(buildDiffHunkIndex(DIFF).hunks),
     );
     expect(result.ok && result.data.chapters).toEqual([
       {
         id: 'chapter-1',
         title: 'Chapter 1',
-        description: 'legacy summary field',
+        description: { lede: 'No id and no title of its own.' },
         insights: [
           { type: 'highlight', title: 'Headline', text: 'body' },
           { type: 'context', text: 'falls back to context' },
         ],
-        diffChunks: [],
+        diffChunks: [
+          {
+            filename: 'src/a.ts',
+            language: 'typescript',
+            hunks: [
+              {
+                id: 'H0001',
+                fileOrder: 1,
+                original: { startLine: 1, lineCount: 3 },
+                modified: { startLine: 1, lineCount: 4 },
+              },
+            ],
+          },
+        ],
       },
     ]);
+  });
+
+  it('fails the review when a chapter ends up with no diffChunks', () => {
+    const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          { id: 'empty', title: 'Empty', insights: [], diffChunks: [] },
+          {
+            id: 'real',
+            title: 'Real',
+            insights: [],
+            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
+          },
+        ],
+      }),
+      grounding,
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: 'Chapter "Empty" (empty) cites no hunk that resolved against the diff',
+    });
+  });
+
+  it('does not fail an empty chapter when the diff showed no hunks at all', () => {
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [{ id: 'nothing', title: 'Nothing to cite', insights: [], diffChunks: [] }],
+      }),
+      groundingFor([]),
+    );
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.data.chapters[0]?.diffChunks).toEqual([]);
   });
 
   it('resolves hunk ids against what the prompt showed, dropping unknown and wrong-file ids', () => {
@@ -130,12 +187,11 @@ describe('parseNarrativeReview', () => {
     const result = parseNarrativeReview(
       wrap({
         prTitle: 't',
-        overviewSummary: 's',
+        overviewSummary: { lede: 's' },
         chapters: [
           {
             id: 'c1',
             title: 'C1',
-            description: '',
             insights: [],
             diffChunks: [
               {
@@ -190,7 +246,7 @@ describe('parseNarrativeReview', () => {
     const result = parseNarrativeReview(
       wrap({
         prTitle: 't',
-        overviewSummary: 's',
+        overviewSummary: { lede: 's' },
         chapters: [{ id: 'c', title: 'C', diffChunks: [{ filename: 'a', hunkIds: ['H0001'] }] }],
       }),
     );
@@ -199,7 +255,7 @@ describe('parseNarrativeReview', () => {
 
   it('strips unknown top-level keys so stored content matches the schema', () => {
     const result = parseNarrativeReview(
-      wrap({ prTitle: 't', overviewSummary: 's', chapters: [], extra: 'noise' }),
+      wrap({ prTitle: 't', overviewSummary: { lede: 's' }, chapters: [], extra: 'noise' }),
     );
     expect(result.ok && result.data).not.toHaveProperty('extra');
   });
@@ -222,7 +278,7 @@ describe('parseNarrativeReview', () => {
   it('ignores a closing tag mentioned in the preamble before the real block', () => {
     const text = `I will end the block with </narrative_review> when I am done.\n${wrap({
       prTitle: 't',
-      overviewSummary: 's',
+      overviewSummary: { lede: 's' },
       chapters: [],
     })}`;
     const result = parseNarrativeReview(text);
@@ -243,9 +299,17 @@ describe('parseNarrativeReview', () => {
     const result = parseNarrativeReview(
       wrap({
         prTitle: 'Diagrams',
-        overviewSummary: 'Summary',
+        overviewSummary: { lede: 'Summary' },
         overviewDiagram: diagram,
-        chapters: [{ id: 'one', title: 'One', insights: [], diffChunks: [], diagram }],
+        chapters: [
+          {
+            id: 'one',
+            title: 'One',
+            insights: [],
+            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
+            diagram,
+          },
+        ],
       }),
       groundingFor(buildDiffHunkIndex(DIFF).hunks),
     );
@@ -258,7 +322,7 @@ describe('parseNarrativeReview', () => {
     const result = parseNarrativeReview(
       wrap({
         prTitle: 'Diagrams',
-        overviewSummary: 'Summary',
+        overviewSummary: { lede: 'Summary' },
         // No caption: the diagram goes, the review stays.
         overviewDiagram: { kind: 'architecture', title: 'Shape', nodes: [], edges: [] },
         chapters: [{ id: 'one', title: 'One', insights: [], diffChunks: [] }],
@@ -274,22 +338,114 @@ describe('parseNarrativeReview', () => {
 /** One double quote, built rather than escaped, so it survives any tooling. */
 const DQ = String.fromCharCode(34);
 
+const chapter = (description: unknown) => ({
+  prTitle: 't',
+  overviewSummary: { lede: 'A lede.', body: 'And a body.' },
+  chapters: [
+    {
+      id: 'c',
+      title: 'C',
+      description,
+      insights: [],
+      diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
+    },
+  ],
+});
+
+describe('prose passages', () => {
+  const parse = (payload: unknown) =>
+    parseNarrativeReview(wrap(payload), groundingFor(buildDiffHunkIndex(DIFF).hunks));
+
+  it('keeps a lede and a body apart', () => {
+    const result = parse(chapter({ lede: 'The lede.', body: '- a\n- b' }));
+    expect(result.ok && result.data.chapters[0]?.description).toEqual({
+      lede: 'The lede.',
+      body: '- a\n- b',
+    });
+    expect(result.ok && result.data.overviewSummary).toEqual({
+      lede: 'A lede.',
+      body: 'And a body.',
+    });
+  });
+
+  it('ignores a description that is not a passage', () => {
+    const result = parse(chapter('one flat string, which is not the shape asked for'));
+    expect(result.ok && result.data.chapters[0]?.description).toBeUndefined();
+  });
+
+  it('promotes a body that arrived without a lede', () => {
+    const result = parse(chapter({ body: 'only the detail' }));
+    expect(result.ok && result.data.chapters[0]?.description).toEqual({ lede: 'only the detail' });
+  });
+
+  it('drops a description with nothing in it', () => {
+    const result = parse(chapter({ lede: '   ', body: '' }));
+    expect(result.ok && result.data.chapters[0]?.description).toBeUndefined();
+  });
+
+  it('fails the review when the overview has no prose at all', () => {
+    const result = parse({ prTitle: 't', overviewSummary: { body: '' }, chapters: [] });
+    expect(result).toEqual({
+      ok: false,
+      error: 'Narrative review JSON is missing required fields',
+    });
+  });
+});
+
+describe('an insight anchored to a file', () => {
+  const parse = (insights: unknown) =>
+    parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          {
+            id: 'c',
+            title: 'C',
+            description: { lede: 'd' },
+            insights,
+            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
+          },
+        ],
+      }),
+      groundingFor(buildDiffHunkIndex(DIFF).hunks),
+    );
+
+  it('keeps a filename the chapter cites', () => {
+    const result = parse([{ type: 'highlight', text: 'about this file', filename: 'src/a.ts' }]);
+    expect(result.ok && result.data.chapters[0]?.insights).toEqual([
+      { type: 'highlight', text: 'about this file', filename: 'src/a.ts' },
+    ]);
+  });
+
+  it('drops an anchor the chapter does not cite, and keeps the insight', () => {
+    // The second file is in the diff but not in this chapter, so its card is
+    // not on the page — anchored there the insight would be drawn nowhere.
+    const result = parse([{ type: 'context', text: 'still worth saying', filename: 'src/b.ts' }]);
+    expect(result.ok && result.data.chapters[0]?.insights).toEqual([
+      { type: 'context', text: 'still worth saying' },
+    ]);
+  });
+});
+
 describe('a quote the model forgot to escape', () => {
   // What a real review sent, and what it used to cost: one unescaped pair
   // inside a 37 KB answer, and the whole run thrown away.
-  const STRAY = `{ "prTitle": "T", "overviewSummary": "a ${DQ}no hunks${DQ} message", "chapters": [] }`;
+  const STRAY = `{ "prTitle": "T", "overviewSummary": { "lede": "a ${DQ}no hunks${DQ} message" }, "chapters": [] }`;
 
   it('is escaped, so the review survives', () => {
     const result = parseNarrativeReview(`<narrative_review>${STRAY}</narrative_review>`);
 
     expect(result.ok).toBe(true);
-    expect(result.ok && result.data.overviewSummary).toBe(`a ${DQ}no hunks${DQ} message`);
+    expect(result.ok && result.data.overviewSummary).toEqual({
+      lede: `a ${DQ}no hunks${DQ} message`,
+    });
   });
 
   it('leaves valid JSON exactly as it was', () => {
     const valid = JSON.stringify({
       prTitle: 'T',
-      overviewSummary: `escaped ${DQ}quotes${DQ}, a brace } and a comma, inside`,
+      overviewSummary: { lede: `escaped ${DQ}quotes${DQ}, a brace } and a comma, inside` },
       chapters: [{ id: 'a', title: 'A', insights: [], diffChunks: [] }],
     });
 
@@ -298,7 +454,7 @@ describe('a quote the model forgot to escape', () => {
 
   it('still fails cleanly on what it cannot repair', () => {
     // A stray quote directly before a comma reads as the end of the string.
-    const beyond = `{ "prTitle": "T", "overviewSummary": "he said ${DQ}hi${DQ}, then left", "chapters": [] }`;
+    const beyond = `{ "prTitle": "T", "overviewSummary": { "lede": "he said ${DQ}hi${DQ}, then left" }, "chapters": [] }`;
     const result = parseNarrativeReview(`<narrative_review>${beyond}</narrative_review>`);
 
     expect(result.ok).toBe(false);

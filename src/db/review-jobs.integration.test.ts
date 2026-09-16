@@ -59,7 +59,7 @@ describeDb('review-jobs repository', () => {
     await expect(markRunning(job.id)).resolves.toBe(true);
     await expect(markRunning(job.id)).resolves.toBe(false);
 
-    const content = { prTitle: 'x', overviewSummary: 'y', chapters: [] };
+    const content = { prTitle: 'x', overviewSummary: { lede: 'y' }, chapters: [] };
     await expect(
       finalizeDone(job.id, { content, diffTruncated: true, riskScore: 3 }),
     ).resolves.toBe(true);

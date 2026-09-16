@@ -29,7 +29,7 @@ const hunk = (id: string, fileOrder: number): ResolvedDiffHunk => ({
 /** One chapter citing half of `a.ts`; `b.ts` cited nowhere; `c.ts` fully cited. */
 const review: NarrativeReview = {
   prTitle: 'A change',
-  overviewSummary: 'It changes things.',
+  overviewSummary: { lede: 'It changes things.' },
   files: [
     {
       filename: 'src/a.ts',

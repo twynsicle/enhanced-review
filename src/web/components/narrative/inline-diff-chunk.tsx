@@ -18,8 +18,9 @@ import {
   type InlineDiffSnippet,
 } from '@/domain/review/inline-diff-snippets';
 import { detectLanguage } from '@/domain/review/language-map';
-import type { DiffChunk } from '@/domain/review/narrative';
+import type { DiffChunk, Insight } from '@/domain/review/narrative';
 import { useFilePair } from '@/web/components/narrative/file-source';
+import { InsightCallout } from '@/web/components/narrative/insight-callout';
 import { MONACO_VS_URL } from '@/web/components/narrative/monaco-cdn';
 import { useHydrated } from '@/web/lib/use-hydrated';
 import {
@@ -512,12 +513,52 @@ function SnippetEditor({
 }
 
 /**
+ * The insights anchored to this file, between the card's header and its diff.
+ *
+ * Capped at the reading measure even though the card itself bleeds to the full
+ * column. The diff is what earns the extra width; a sentence set across 1700px
+ * does not, and the reader's rule is that prose keeps the measure wherever it
+ * appears.
+ *
+ * Above the diff rather than beside a line: a Monaco view zone would push the
+ * lines apart and cost the diff the even rhythm that makes it scannable, which
+ * is the whole reason a diff is a diff. This is close enough to be an answer
+ * and far enough to leave the code alone.
+ */
+function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {
+  return (
+    <Box
+      px={12}
+      py={12}
+      maw="var(--er-measure)"
+      style={{ borderBottom: `1px solid ${token('border')}` }}
+    >
+      <Box style={{ display: 'grid', rowGap: 16 }}>
+        {insights.map((insight, i) => (
+          <InsightCallout key={i} insight={insight} />
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+/**
  * One file's reviewer-selected hunks: both sides come from the surrounding
  * `FileSource` (GitHub or an embedded bundle), are sliced to the lines around
  * each hunk group (`buildInlineDiffSnippets`) and shown in one Monaco
  * `DiffEditor` per group; "Show full file" swaps in the whole pair.
+ *
+ * `insights` are the chapter's insights that named this file. The other places
+ * a diff appears — the file view, the undiscussed backstop — pass none, since
+ * an insight belongs to the chapter that wrote it.
  */
-export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
+export function InlineDiffChunk({
+  chunk,
+  insights = [],
+}: {
+  chunk: DiffChunk;
+  insights?: readonly Insight[];
+}) {
   const pair = useFilePair(chunk.filename);
   const stored = useDiffView((s) => s.view);
   const wrap = useDiffWrap((s) => s.wrap);
@@ -605,6 +646,8 @@ export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
           </UnstyledButton>
         )}
       </Group>
+
+      {insights.length > 0 && <AnchoredInsights insights={insights} />}
 
       {state.kind === 'loading' && (
         <Text px={12} py={16} fz="sm" c="dimmed">

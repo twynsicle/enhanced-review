@@ -19,7 +19,7 @@ const baseMeta: ReviewMeta = {
 function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
   return {
     prTitle: 'Add scheduled reviews',
-    overviewSummary: 'The scheduler runs reviews on a cadence.',
+    overviewSummary: { lede: 'The scheduler runs reviews on a cadence.' },
     chapters: [],
     files: [{ filename: 'src/a.ts', status: 'modified', additions: 10, deletions: 4 }],
     ...overrides,
@@ -47,14 +47,14 @@ describe('<SummaryCard />', () => {
     expect(screen.queryByText('Data loss is possible')).toBeNull();
   });
 
-  it('draws the overview diagram above the written summary', () => {
+  it('draws the written summary above the overview diagram', () => {
     const { container } = renderCard({ overviewDiagram: REAL_ARCHITECTURE });
     const figure = container.querySelector('figure');
     const summary = screen.getByText('Review summary');
     expect(figure).not.toBeNull();
-    // `compareDocumentPosition` reads DOM order: the diagram comes first.
+    // `compareDocumentPosition` reads DOM order: the summary comes first.
     expect(
-      (figure as Element).compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING,
+      summary.compareDocumentPosition(figure as Element) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 

@@ -5,14 +5,14 @@ import { InsightCallout } from './insight-callout';
 describe('<InsightCallout />', () => {
   it('renders the editorial label and the insight text', () => {
     render(<InsightCallout insight={{ type: 'rationale', text: 'Why we did X' }} />);
-    expect(screen.getByText(/Praise/)).toBeDefined();
+    expect(screen.getByText(/Reasoning/)).toBeDefined();
     expect(screen.getByText('Why we did X')).toBeDefined();
   });
 
   it('renders a distinct label per insight type', () => {
     const cases = [
       { type: 'context', label: /Context/ },
-      { type: 'rationale', label: /Praise/ },
+      { type: 'rationale', label: /Reasoning/ },
       { type: 'highlight', label: /Risk/ },
       { type: 'reference', label: /Suggestion/ },
     ] as const;

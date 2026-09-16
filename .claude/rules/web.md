@@ -60,15 +60,19 @@ src/web/
                      lists with aria-expanded on the directory buttons — a disclosure list, not an ARIA tree, since
                      there is no roving tabindex — and the fold state in component state),
                      file-tree.ts (pure, no rendering: ReviewFile[] → the directory tree, single-child directory
-                     chains collapsed into one row), chapter-card, summary-card (title/meta, overview
+                     chains collapsed into one row), chapter-card (groupInsightsByFile splits the chapter's
+                     insights: an anchored one goes down to its diff card, the rest stay in the Insights
+                     section above them), summary-card (title/meta, overview
                      diagram, AI overview, author's description collapsed last), risk-card, file-view (one diff over
                      every hunk the chapters cited, merged by coverage.ts's citedChunk so neighbouring hunks are not
                      sliced twice, then its uncited hunks under their own label — coverage.byFile's entry is passed
                      in, never recomputed — or why it has none), skipped-file.ts (the copy for
                      ReviewFile.skipped reasons), insight-callout,
                      article.module.css (the reading measure + the diff bleed lane),
-                     lead-markdown, markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
+                     prose-passage (a Prose: the lede one step up the scale, the body as Markdown beneath),
+                     markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group,
+                     the chapter's insights that named this file above the diff, capped at the measure,
                      lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme; the wrap preference
                      goes to the live widget as diffWordWrap, never through its construction options, so a flip
                      reflows in place instead of remounting; its lazy factory is also the one place that imports
