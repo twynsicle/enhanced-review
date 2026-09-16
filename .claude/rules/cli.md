@@ -49,7 +49,7 @@ src/cli/
                    added without hooks or LFS downloads, removed after the run or on interrupt; the sweep removes
                    worktrees whose process is gone
   interrupts.ts    the cleanup registry the signal handlers run (synchronous: the process exits straight after)
-  platform.ts      everything OS-specific (Windows now, macOS later): the tool root, npm scripts, the temp dir,
+  platform.ts      everything OS-specific (Windows and macOS): the tool root, npm scripts, the temp dir,
                    path comparison, opening a file
   terminal.ts      stage lines, notes, warnings, errors
 ```
@@ -109,9 +109,10 @@ not an accident to fix:
   have to be paid for twice.
 - **Local and hosted reviews never meet.** No import, no upload, no hosting a
   report anywhere.
-- **Windows only, so far.** `platform.ts` is the single seam every OS
-  difference goes through; macOS is its own piece of work and the organisation
-  runs it, so that seam is the first place to look.
+- **Windows and macOS.** `platform.ts` is the single seam every OS difference
+  goes through — where the tool root is, how it runs its own npm scripts, the
+  temp dir a PR worktree lives in, and how a report is opened. A third OS
+  needs only a branch there, not a change anywhere else.
 
 Also deliberately absent, and not oversights: user-configurable exclusions,
 distribution as a Claude Code plugin or skill, and reviewing unstaged changes.

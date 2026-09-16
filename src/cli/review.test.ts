@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
@@ -33,10 +33,13 @@ vi.mock('./terminal.ts', () => ({
 }));
 
 let repo: TempRepo;
+/** `repo.work`, as `git rev-parse --show-toplevel` reports it: resolved past any symlink. */
+let repoRoot: string;
 let deps: ReviewDeps & { open: Mock<(file: string) => void> };
 
 beforeEach(() => {
   repo = createTempRepo();
+  repoRoot = path.resolve(realpathSync.native(repo.work));
   deps = {
     shell: new Shell(repo.work, {
       git: runGit,
@@ -137,7 +140,7 @@ describe('er review', () => {
     await expect(review(options(), deps)).resolves.toBe(0);
 
     const [folder] = runFolders();
-    const run = path.join(repo.work, RUNS_DIR, 'staged', folder!);
+    const run = path.join(repoRoot, RUNS_DIR, 'staged', folder!);
     const stageFiles = [
       'context.json',
       'system.md',
@@ -162,8 +165,8 @@ describe('er review', () => {
 
     await expect(review(options({ stub: false }), { ...deps, claude: { query } })).resolves.toBe(0);
 
-    const run = path.join(repo.work, RUNS_DIR, 'staged', runFolders()[0]!);
-    expect(cwd).toBe(repo.work);
+    const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
+    expect(cwd).toBe(repoRoot);
     expect(readFileSync(path.join(run, 'raw.txt'), 'utf8')).toBe(MODEL_REVIEW);
     expect(readFileSync(path.join(run, 'events.jsonl'), 'utf8')).toContain('"subtype":"success"');
     expect(readFileSync(path.join(run, 'review.json'), 'utf8')).toContain('The staged change');

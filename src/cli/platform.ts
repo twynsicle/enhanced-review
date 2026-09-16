@@ -1,15 +1,14 @@
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hostEnv } from '../config/host-env.ts';
 
 /**
- * Everything that differs by operating system lives here, so the macOS work
- * has one file to change: where the tool itself is,
- * how it runs its own npm scripts, where temporary worktrees go, and how a
- * report is opened.
+ * Everything that differs by operating system lives here: where the tool
+ * itself is, how it runs its own npm scripts, where temporary worktrees go,
+ * and how a report is opened. Supports Windows and macOS.
  */
 
 /** The root of this tool's own clone, found from this file's real location. */
@@ -51,9 +50,12 @@ export function runNpmScript(script: 'viewer:build', cwd: string): Promise<Scrip
   });
 }
 
-/** Where PR worktrees go: the OS temp dir. */
+/**
+ * Where PR worktrees go: the OS temp dir, resolved past any symlink (macOS's
+ * `/tmp` is one) so it matches the paths `git worktree list` reports back.
+ */
 export function worktreeParent(): string {
-  return os.tmpdir();
+  return realpathSync(os.tmpdir());
 }
 
 /** A hooks path that holds no hooks, so git runs none. */
@@ -61,12 +63,17 @@ export const NO_HOOKS_PATH = os.devNull;
 
 /** Whether `child` is `parent` or inside it; Windows paths compare case-insensitively. */
 export function isInside(parent: string, child: string): boolean {
-  const relative = path.relative(parent.toLowerCase(), child.toLowerCase());
+  const caseInsensitive = process.platform === 'win32';
+  const [parentCmp, childCmp] = caseInsensitive
+    ? [parent.toLowerCase(), child.toLowerCase()]
+    : [parent, child];
+  const relative = path.relative(parentCmp, childCmp);
   return !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 
 /** Opens a file with its default application: for a report, the default browser. */
 export function openFile(file: string): void {
-  // explorer.exe hands the file to its registered handler without a shell in between.
-  spawn('explorer.exe', [file], { detached: true, stdio: 'ignore' }).unref();
+  // Both hand the file to its registered handler without a shell in between.
+  const command = process.platform === 'win32' ? 'explorer.exe' : 'open';
+  spawn(command, [file], { detached: true, stdio: 'ignore' }).unref();
 }
