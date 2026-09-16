@@ -1,5 +1,6 @@
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import type { ReviewMeta } from '../domain/review/review-meta.ts';
 
 /**
  * Where a run keeps its stage files:
@@ -111,4 +112,23 @@ function stampKey(name: string): [string, number] {
 export function hunkFileName(filename: string): string {
   // oxlint-disable-next-line no-control-regex -- control characters are exactly what Windows refuses
   return `${filename.replace(/[<>:"|?*\x00-\x1f]/g, '_')}.diff`;
+}
+
+/**
+ * The name the report gets once it leaves the run folder: `review.html` on
+ * its own carries nothing once it is attached to a Slack message or an
+ * email, so a PR review is named after the PR it reviewed instead. A branch
+ * or staged review has no PR to name it after, so it keeps `review.html`.
+ */
+export function reportFileName(meta: ReviewMeta): string {
+  if (meta.prNumber === null) return 'review.html';
+  const title = safeFileNamePart(meta.title);
+  return `er-${String(meta.prNumber)}${title ? ` - ${title}` : ''}.html`;
+}
+
+/** A string as the readable part of a file name, safe on Windows. */
+function safeFileNamePart(text: string): string {
+  const trimmed = text.trim().slice(0, 100);
+  // oxlint-disable-next-line no-control-regex -- control characters are exactly what Windows refuses
+  return trimmed.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_');
 }
