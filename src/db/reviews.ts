@@ -11,7 +11,6 @@ export interface ReviewRecord {
   jobId: string;
   content: unknown;
   findings: unknown;
-  diffTruncated: boolean;
   createdAt: Date;
 }
 
@@ -23,7 +22,6 @@ export function findReviewByJobId(jobId: string): Promise<ReviewRecord | null> {
       jobId: true,
       content: true,
       findings: true,
-      diffTruncated: true,
       createdAt: true,
     },
   });

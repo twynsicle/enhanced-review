@@ -152,7 +152,6 @@ export interface FinalizeDoneInput {
   content: Prisma.InputJsonValue;
   /** `Finding[]`; what validating the model's answer turned up. */
   findings: Prisma.InputJsonValue;
-  diffTruncated: boolean;
   riskScore: number | null;
 }
 
@@ -177,7 +176,6 @@ export async function finalizeDone(
         jobId: id,
         content: input.content,
         findings: input.findings,
-        diffTruncated: input.diffTruncated,
       },
     });
     return true;

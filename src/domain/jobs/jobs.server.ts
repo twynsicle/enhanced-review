@@ -21,7 +21,6 @@ export interface Review {
   jobId: string;
   content: NarrativeReview;
   findings: Finding[];
-  diffTruncated: boolean;
   createdAt: Date;
 }
 
@@ -48,7 +47,6 @@ export function parseReview(record: reviews.ReviewRecord): Review {
     jobId: record.jobId,
     content: content.data,
     findings: findings.data,
-    diffTruncated: record.diffTruncated,
     createdAt: record.createdAt,
   };
 }

@@ -122,7 +122,7 @@ function capturingExecutor(
       exec.input = i;
       await onRun(i);
       if (result instanceof Error) throw result;
-      return { review: STUB_REVIEW, wasTruncated: false, rawText: '', findings: [] };
+      return { review: STUB_REVIEW, rawText: '', findings: [] };
     },
   };
   return exec;
@@ -157,7 +157,6 @@ describe('runJob', () => {
     expect(store.finalizeDone).toHaveBeenCalledTimes(1);
     const [, finalizeInput] = vi.mocked(store.finalizeDone).mock.calls[0] ?? [];
     expect(finalizeInput).toMatchObject({
-      diffTruncated: false,
       riskScore: 2,
       findings: [],
       content: {
@@ -174,14 +173,14 @@ describe('runJob', () => {
     ];
     const executor: ReviewExecutor = {
       name: 'fake',
-      run: async () => ({ review: STUB_REVIEW, wasTruncated: true, rawText: '', findings }),
+      run: async () => ({ review: STUB_REVIEW, rawText: '', findings }),
     };
     const { store } = fakeStore();
 
     await expect(runJob(input(BRANCH), deps({ store, executor }))).resolves.toBe('done');
 
     const [, finalizeInput] = vi.mocked(store.finalizeDone).mock.calls[0] ?? [];
-    expect(finalizeInput).toMatchObject({ findings, diffTruncated: true });
+    expect(finalizeInput).toMatchObject({ findings });
   });
 
   it('records why the prompt left a file out, rather than storing it as unmentioned', async () => {

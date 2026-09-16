@@ -43,8 +43,8 @@ src/domain/
                      citedChunk (every chapter's hunks for one file merged into a single chunk, deduplicated and in
                      file order, so the file view draws one diff rather than one per citing chapter); a file
                      without a catalog reports nothing. A shown hunk no chapter cites is fatal, so leftovers
-                     survive only where the prompt was truncated — which is why the file view still draws them and
-                     there is no longer a "Not discussed" section),
+                     survive only where the prompt was truncated — which is why the file view draws them under their
+                     own label and the reader has no separate "Not discussed" section),
                      diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
                      DIAGRAM_LIMITS, hasUniformChange), target.ts (ReviewTarget schema, describeTarget),
@@ -79,7 +79,7 @@ src/domain/
                      NARRATIVE_SYSTEM_PROMPT, formatFileList, formatHunkCatalog and formatSkippedSection are
                      shared with the local CLI's prompt),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; every repair it makes
-                     is recorded as a Finding, so leniency is no longer silence; it reads the LAST complete
+                     is recorded as a Finding, so leniency is not silence; it reads the LAST complete
                      <narrative_review> block, since a run that was asked to answer again leaves more than one;
                      a failed JSON.parse is
                      retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string;

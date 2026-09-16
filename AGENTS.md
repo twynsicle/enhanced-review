@@ -45,7 +45,8 @@ prisma/
   schema.prisma        5 models (users, sessions, review_jobs, reviews, review_chunks) + JobStatus
   migrations/          0001_init (hand-added CHECK constraints), 0002_drop_allowed_users,
                        0003_drop_github_login_unique (logins are reusable; identity is github_id),
-                       0004_review_findings (what validating a generated review found)
+                       0004_review_findings (what validating a generated review found),
+                       0005_drop_review_diff_truncated (a truncated diff is one of those findings)
 prisma.config.ts       Prisma CLI config; loads .env, datasource url from DATABASE_URL
 vite.viewer.config.ts  the local report: src/web/viewer/ → one build/viewer/viewer.html, all inlined but Monaco
 src/

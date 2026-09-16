@@ -6,7 +6,7 @@ import { fatalFindings, finding, type Finding } from '../findings.ts';
 import { SERVER_WORKING_TREE } from '../prompt/instructions.ts';
 import { buildNarrativePrompt } from '../prompt/narrative-prompt.ts';
 import { validateReview } from '../validate-review.ts';
-import { runSdkLoop } from './sdk-loop.server.ts';
+import { runSdkLoop, type SdkRunResult } from './sdk-loop.server.ts';
 import { MAX_VALIDATION_RETRIES, validationStopHook } from './validation-stop-hook.server.ts';
 import {
   abortError,
@@ -24,7 +24,15 @@ import {
  * MCP servers) and no persisted transcript. Only an allowlist of host
  * variables reaches the SDK subprocess.
  */
-const MAX_TURNS = 30;
+
+/**
+ * Measured on the local CLI, which shares this prompt: an 88-file, 138-hunk
+ * review took 32 turns, so this leaves a change about twice that size room to
+ * finish. Room matters more than it looks: a run that ends on `error_max_turns`
+ * fails the review outright, and every refused stop costs another full
+ * re-emission of the block on top of the reading.
+ */
+const MAX_TURNS = 60;
 const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep'] as const;
 
 /** Host variables forwarded to the SDK subprocess: credentials, proxies, paths. */
@@ -46,6 +54,20 @@ export const CLAUDE_ENV_KEYS: readonly string[] = [
   'HOME',
   'USERPROFILE',
 ];
+
+/**
+ * How the run ended, when that was not a clean success; null when it was.
+ *
+ * No result at all counts as ending badly. The SDK sends one for every way a
+ * run can finish, including running out of turns, so a stream that stops
+ * without one stopped for a reason nobody recorded — and taking that for a
+ * clean success would ship the answer of a run that was cut off.
+ */
+function howItEnded(result: SdkRunResult | null): string | null {
+  if (!result) return 'no result';
+  if (result.subtype !== 'success') return result.subtype;
+  return result.isError ? 'error' : null;
+}
 
 export type ClaudeQueryFn = typeof query;
 
@@ -125,10 +147,7 @@ export class ClaudeExecutor implements ReviewExecutor {
 
     const outcome = await runSdkLoop(queryFn, { prompt: user, options }, { onText });
     const raw = outcome.raw;
-    const resultError =
-      outcome.result && (outcome.result.subtype !== 'success' || outcome.result.isError)
-        ? `claude SDK result subtype=${outcome.result.subtype}`
-        : null;
+    const ended = howItEnded(outcome.result);
 
     if (outcome.callbackError) throw outcome.callbackError;
     if (outcome.sdkError) {
@@ -158,11 +177,11 @@ export class ClaudeExecutor implements ReviewExecutor {
     // was asked to, whatever its answer looks like: the turns it never took
     // are files it never read, and a review that reads well on half the
     // change is the most misleading thing this can produce.
-    if (resultError) {
+    if (ended !== null) {
       findings.push(
         finding(
           'run-stopped-early',
-          `The run did not finish cleanly (${outcome.result?.subtype ?? 'no result'}), so the reviewer stopped short of the change.`,
+          `The run did not finish cleanly (${ended}), so the reviewer stopped short of the change.`,
         ),
       );
     }
@@ -172,7 +191,9 @@ export class ClaudeExecutor implements ReviewExecutor {
     if (lastFatal) {
       // How the run ended outranks what it said: a run cut short stays a
       // process error even when the text it managed to emit parsed.
-      if (resultError) throw new ExecutorProcessError(resultError, '', null, raw);
+      if (ended !== null) {
+        throw new ExecutorProcessError(`claude SDK result: ${ended}`, '', null, raw);
+      }
       throw new ExecutorParseError(lastFatal.message, raw);
     }
     if (!validation.review) {
@@ -187,6 +208,6 @@ export class ClaudeExecutor implements ReviewExecutor {
         ),
       );
     }
-    return { review: validation.review, wasTruncated, rawText: raw, hunks: catalog, findings };
+    return { review: validation.review, rawText: raw, hunks: catalog, findings };
   }
 }

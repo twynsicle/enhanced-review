@@ -103,7 +103,6 @@ model Review {
   /// Finding[]: what validating the model's answer turned up. Never fatal —
   /// a fatal finding fails the job, so no review row is written at all.
   findings      Json     @default("[]")
-  diffTruncated Boolean  @default(false) @map("diff_truncated")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   job ReviewJob @relation(fields: [jobId], references: [id], onDelete: Cascade)

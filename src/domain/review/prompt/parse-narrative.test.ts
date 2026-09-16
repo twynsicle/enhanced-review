@@ -621,6 +621,73 @@ describe('what a repair records', () => {
     expect(codes(patched)).toEqual(['risk-part-dropped', 'risk-part-dropped']);
   });
 
+  it('notes a chunk that names no file, and one with no hunk id to resolve', () => {
+    const result = parse([
+      {
+        id: 'c',
+        title: 'C',
+        insights: [],
+        diffChunks: [
+          'src/a.ts',
+          { language: 'typescript', hunkIds: ['H0001'] },
+          { filename: 'src/b.ts', language: 'typescript', hunkIds: 'H0003' },
+          { filename: 'src/a.ts', language: 'typescript', hunkIds: [] },
+          cite('src/a.ts', ['H0001']),
+        ],
+      },
+    ]);
+    expect(codes(result)).toEqual([
+      'chunk-dropped',
+      'chunk-dropped',
+      'chunk-dropped',
+      'chunk-dropped',
+    ]);
+    expect(result.findings[2]).toMatchObject({
+      severity: 'note',
+      chapterId: 'c',
+      filename: 'src/b.ts',
+    });
+    expect(result.findings[2]?.message).toContain('no hunk id to resolve');
+    // The one usable chunk keeps the chapter, so nothing here is fatal.
+    expect(result.ok).toBe(true);
+  });
+
+  it('notes prose that arrived with nothing readable in it, and nothing for prose that never came', () => {
+    const result = parse([
+      {
+        id: 'c',
+        title: 'C',
+        description: '   ',
+        insights: [],
+        diffChunks: [cite('src/a.ts', ['H0001'])],
+      },
+      {
+        id: 'd',
+        title: 'D',
+        description: { lede: '', body: '  ' },
+        insights: [],
+        diffChunks: [cite('src/b.ts', ['H0003'])],
+      },
+      {
+        id: 'e',
+        title: 'E',
+        description: 7,
+        insights: [],
+        diffChunks: [cite('src/a.ts', ['H0002'])],
+      },
+      { id: 'f', title: 'F', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+    ]);
+    expect(codes(result)).toEqual(['prose-dropped', 'prose-dropped', 'prose-dropped']);
+    expect(result.findings[0]).toMatchObject({ severity: 'note', chapterId: 'c' });
+  });
+
+  it('notes a risk assessment that gave its factors as something other than a list', () => {
+    const result = parse([{ id: 'c', title: 'C', diffChunks: [cite('src/a.ts', ['H0001'])] }], {
+      riskAssessment: { score: 3, summary: 'Fine.', rationale: '', factors: 'none' },
+    });
+    expect(codes(result)).toEqual(['risk-part-dropped']);
+  });
+
   it('disqualifies the answer, once per empty chapter, and reports the first', () => {
     const result = parse([
       { id: 'empty', title: 'Empty', insights: [], diffChunks: [] },

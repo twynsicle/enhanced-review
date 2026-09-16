@@ -1,3 +1,4 @@
+import { plural } from '../../common/plural.ts';
 import { citedHunkIds } from './coverage.ts';
 import { findingLog, type Finding, type FindingLog } from './findings.ts';
 import type { NarrativeReview } from './narrative.ts';
@@ -23,8 +24,12 @@ export interface ReviewValidation {
  * How many uncited ids the message names before it gives up and counts. The
  * sentence is read by a person and sent back to the model, and a change with
  * hundreds of uncited hunks is not one more id away from being understood.
+ *
+ * Eight, because a job's error column holds 500 characters and real paths are
+ * long: list more and the count at the end — the part that says how bad this
+ * is — is what gets cut off.
  */
-const MAX_LISTED_HUNKS = 20;
+const MAX_LISTED_HUNKS = 8;
 
 export function validateReview(text: string, grounding?: PromptGrounding): ReviewValidation {
   const parsed = parseNarrativeReview(text, grounding);
@@ -66,9 +71,14 @@ function reportUncitedHunks(
     .map(([filename, ids]) => `${ids.join(', ')} (${filename})`)
     .join('; ');
   const rest = uncited.length - Math.min(uncited.length, MAX_LISTED_HUNKS);
-  const tail = rest > 0 ? `, and ${String(rest)} more` : '';
+  const tail = rest > 0 ? `; and ${String(rest)} more` : '';
 
-  log.add('hunk-uncited', `These hunks are cited by no chapter: ${listed}${tail}.`, {
-    hunkIds: uncited.map((hunk) => hunk.id),
-  });
+  // The count leads, because the list is what gets clipped: a message that
+  // reaches its reader as eight ids and no total reads like a small problem.
+  const many = uncited.length > 1;
+  log.add(
+    'hunk-uncited',
+    `${plural(uncited.length, 'hunk')} ${many ? 'are' : 'is'} cited by no chapter: ${listed}${tail}.`,
+    { hunkIds: uncited.map((hunk) => hunk.id) },
+  );
 }

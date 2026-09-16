@@ -12,7 +12,7 @@ import {
 } from './run-folder.ts';
 
 // Real git, many spawns per test — see GIT_TEST_TIMEOUT.
-vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
+vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT, hookTimeout: GIT_TEST_TIMEOUT });
 
 let root: string;
 beforeEach(() => {

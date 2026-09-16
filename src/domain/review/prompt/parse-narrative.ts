@@ -27,8 +27,8 @@ import { sanitizeDiagram } from './parse-diagram.ts';
  * back at read time.
  *
  * Every one of those repairs is recorded as a `Finding` (`findings.ts` holds
- * the severity of each), so leniency is no longer the same thing as silence:
- * the answer is still accepted, and what it cost is now attached to it.
+ * the severity of each), which is what keeps leniency from being silence: the
+ * answer is accepted, and what it cost travels with it.
  */
 export type ParseResult =
   | { ok: true; data: NarrativeReview; findings: Finding[] }
@@ -94,6 +94,12 @@ function sanitizeRiskAssessment(raw: unknown, log: FindingLog): ReviewRiskAssess
     );
   }
   const rationale = typeof raw['rationale'] === 'string' ? raw['rationale'] : '';
+  if (raw['factors'] !== undefined && !Array.isArray(raw['factors'])) {
+    log.add(
+      'risk-part-dropped',
+      'The risk assessment gave its factors as something other than a list, so it has none.',
+    );
+  }
   const rawFactors: unknown[] = Array.isArray(raw['factors']) ? raw['factors'] : [];
   const factors = rawFactors.flatMap((factor) => {
     if (
@@ -119,10 +125,23 @@ function resolveHunks(
   chapterId: string,
   log: FindingLog,
 ): ResolvedDiffHunk[] {
-  if (!grounding || !Array.isArray(chunk['hunkIds'])) return [];
+  // Nothing to resolve against: no prompt showed this answer any hunks, so a
+  // chunk citing none of them is not a chunk that lost anything.
+  if (!grounding) return [];
   const filename = typeof chunk['filename'] === 'string' ? chunk['filename'] : '';
+  const rawIds: unknown[] = Array.isArray(chunk['hunkIds']) ? chunk['hunkIds'] : [];
+  if (rawIds.length === 0) {
+    // Recorded here rather than where the empty chunk is finally dropped:
+    // this is the last place that knows which file's diff went with it.
+    log.add(
+      'chunk-dropped',
+      `Chapter ${chapterId} showed ${filename || 'a file it did not name'} with no hunk id to resolve, so that diff was dropped.`,
+      { chapterId, ...(filename ? { filename } : {}) },
+    );
+    return [];
+  }
   const deduped = new Map<string, ResolvedDiffHunk>();
-  for (const hunkId of chunk['hunkIds']) {
+  for (const hunkId of rawIds) {
     const hunk = typeof hunkId === 'string' ? grounding.shown.byId[hunkId] : undefined;
     if (!hunk || hunk.filename !== filename) {
       log.add(
@@ -160,9 +179,20 @@ function sanitizeProse(
   log: FindingLog,
   location: { chapterId?: string } = {},
 ): Prose | undefined {
+  // Nothing sent is not something lost, and the caller decides what a missing
+  // passage means. A passage that arrived and turned out to be unreadable is a
+  // loss, and one nobody would see from the page: the chapter keeps its title
+  // and its diffs and simply says nothing.
+  const nothing = (): undefined => {
+    if (raw !== undefined) {
+      log.add('prose-dropped', `${whose} arrived with nothing readable in it.`, location);
+    }
+    return undefined;
+  };
+
   if (typeof raw === 'string') {
     const only = raw.trim();
-    if (only.length === 0) return undefined;
+    if (only.length === 0) return nothing();
     log.add(
       'prose-promoted',
       `${whose} arrived as a bare string, which became its lede.`,
@@ -170,11 +200,11 @@ function sanitizeProse(
     );
     return { lede: only };
   }
-  if (!isRecord(raw)) return undefined;
+  if (!isRecord(raw)) return nothing();
   const lede = typeof raw['lede'] === 'string' ? raw['lede'].trim() : '';
   const body = typeof raw['body'] === 'string' ? raw['body'].trim() : '';
   if (lede.length === 0) {
-    if (body.length === 0) return undefined;
+    if (body.length === 0) return nothing();
     log.add('prose-promoted', `${whose} arrived with a body and no lede.`, location);
     return { lede: body };
   }
@@ -294,12 +324,23 @@ function sanitizeChapter(
   const rawChunks: unknown[] = Array.isArray(raw['diffChunks']) ? raw['diffChunks'] : [];
   const diffChunks = mergeChunksByFile(
     rawChunks
-      .filter((chunk): chunk is Rec => isRecord(chunk) && typeof chunk['filename'] === 'string')
-      .map((chunk) => ({
-        filename: chunk['filename'] as string,
-        language: typeof chunk['language'] === 'string' ? chunk['language'] : 'plaintext',
-        hunks: resolveHunks(chunk, grounding, id, log),
-      }))
+      .flatMap((chunk) => {
+        if (!isRecord(chunk) || typeof chunk['filename'] !== 'string') {
+          log.add(
+            'chunk-dropped',
+            `Chapter ${id} showed a diff that names no file, so it was dropped.`,
+            { chapterId: id },
+          );
+          return [];
+        }
+        return [
+          {
+            filename: chunk['filename'],
+            language: typeof chunk['language'] === 'string' ? chunk['language'] : 'plaintext',
+            hunks: resolveHunks(chunk, grounding, id, log),
+          },
+        ];
+      })
       // Before the merge, so a chunk whose every hunk id failed to resolve
       // cannot hand its language to the file's surviving chunk.
       .filter((chunk) => chunk.hunks.length > 0),

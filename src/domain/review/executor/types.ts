@@ -20,7 +20,6 @@ export interface ReviewExecutorInput {
 
 export interface ReviewExecutorOutput {
   review: NarrativeReview;
-  wasTruncated: boolean;
   rawText: string;
   /**
    * The hunks the model was asked to cite, so the stored review can say

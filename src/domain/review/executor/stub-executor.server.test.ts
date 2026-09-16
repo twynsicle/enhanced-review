@@ -56,7 +56,6 @@ describe('StubExecutor', () => {
     expect(onChunk.mock.calls.map((c) => c[0])).toEqual(fragments);
     expect(result).toEqual({
       review: STUB_REVIEW,
-      wasTruncated: false,
       rawText: fragments.join(''),
       findings: [],
     });

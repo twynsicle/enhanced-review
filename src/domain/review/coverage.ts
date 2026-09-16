@@ -10,8 +10,8 @@ import type { DiffHunk } from './prompt/diff-hunk-catalog.ts';
 
 /**
  * What the chapters left out, file by file. A hunk the reviewer was shown and
- * no chapter cites now disqualifies the whole answer (`validate-review.ts`),
- * so a review that reaches a reader has leftovers only where the prompt was
+ * no chapter cites disqualifies the whole answer (`validate-review.ts`), so a
+ * review that reaches a reader has leftovers only where the prompt was
  * truncated: hunks in the catalog that were cut before the model ever saw
  * them. The file view still draws those, and the sidebar still marks the file
  * they belong to, because they are changes nobody looked at.

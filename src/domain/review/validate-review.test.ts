@@ -60,7 +60,7 @@ describe('validateReview', () => {
       }),
     ]);
     expect(result.findings[0]?.message).toBe(
-      'These hunks are cited by no chapter: H0002 (src/a.ts); H0003 (src/b.ts).',
+      '2 hunks are cited by no chapter: H0002 (src/a.ts); H0003 (src/b.ts).',
     );
   });
 
@@ -77,7 +77,10 @@ describe('validateReview', () => {
       shown: { hunks, byId: Object.fromEntries(hunks.map((h) => [h.id, h])) },
       filenames: new Set(['src/a.ts']),
     });
-    expect(result.findings[0]?.message).toContain(', and 4 more.');
+    // The count leads: the job error column clips at 500 characters, and the
+    // tail is the first thing real paths push off the end.
+    expect(result.findings[0]?.message).toMatch(/^24 hunks are cited by no chapter: /);
+    expect(result.findings[0]?.message).toContain('; and 16 more.');
     expect(result.findings[0]?.hunkIds).toHaveLength(24);
   });
 
@@ -87,6 +90,7 @@ describe('validateReview', () => {
       grounding,
     );
     expect(result.findings.map((f) => f.code)).toEqual(['hunk-id-dropped', 'hunk-uncited']);
+    expect(result.findings[1]?.message).toBe('1 hunk is cited by no chapter: H0003 (src/b.ts).');
   });
 
   it('reports no review and the parse failure when the answer cannot be read', () => {

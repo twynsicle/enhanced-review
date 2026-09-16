@@ -36,8 +36,8 @@ function ownsSpace(target: EventTarget | null): boolean {
 
 /**
  * Keyboard navigation for the chapter reader. `onSelect` drives the URL
- * state a layer up. Bindings walk `sections` — summary, risk, the chapters,
- * then "Not discussed" — in the order the sidebar lists them:
+ * state a layer up. Bindings walk `sections` — the summary, risk where there
+ * is an assessment, then the chapters — in the order the sidebar lists them:
  *
  *   - `→` / Space     → next section
  *   - `←` / Shift+Spc → previous section
@@ -45,9 +45,9 @@ function ownsSpace(target: EventTarget | null): boolean {
  *   - `End`           → last section
  *   - `1`–`9`         → chapter at that number
  *
- * Home and End used to mean "first chapter" and "the summary", which put the
- * summary at both ends of the reader at once: first in the sidebar, last in
- * the arrow cycle. They now agree with the list.
+ * Home and End are the ends of that one list, nothing cleverer: pointing Home
+ * at the first chapter instead would put the summary at both ends of the
+ * reader at once, first in the sidebar and last in the arrow cycle.
  *
  * The Space bindings step aside when focus is on a button, link or other
  * control that activates on Space; the arrow keys otherwise keep working from

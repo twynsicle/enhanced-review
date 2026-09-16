@@ -41,7 +41,7 @@ src/web/
                      jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                      job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
                      what-now, rerun-button, job-not-found (404 page shared with the reader), review-banners (the
-                     hosted reader's truncation + staleness banners)), history/ (filter-chips,
+                     hosted reader's staleness banner; a truncated diff is a finding, drawn by findings-notice)), history/ (filter-chips,
                      empty-history), home/ (review-composer, target-combobox, recent-reviews, sparkline),
                      narrative/ (the reader, shared by the hosted route and the local report — nothing here may import
                      jobs/, ReviewTarget or PullMetadata: chapter-reader (+ .module.css grid, resizable sidebar,

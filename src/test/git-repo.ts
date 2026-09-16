@@ -14,6 +14,10 @@ import { hostEnv } from '../config/host-env.ts';
  * check` has the other projects competing for the same cores — which looks
  * like flakiness and is really just a timeout set for tests that do not fork.
  *
+ * It buys the hooks as much as the tests: most of these files stand the repo
+ * up in a `beforeEach`, so a `testTimeout` alone leaves the expensive half of
+ * the work on Vitest's default.
+ *
  * Each file that uses this helper spends it through `vi.setConfig`, rather than
  * the whole `unit` project carrying it, so a pure-logic test that starts taking
  * seconds is still caught.

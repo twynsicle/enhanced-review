@@ -129,7 +129,7 @@ export class StubExecutor implements ReviewExecutor {
       rawText += fragment;
       await sleepCancellable(sleep, fragmentDelayMs, input.signal);
     }
-    return { review, wasTruncated: false, rawText, findings: [] };
+    return { review, rawText, findings: [] };
   }
 }
 

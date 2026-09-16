@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { plural } from '../common/plural.ts';
 import { withFileHunks } from '../domain/review/coverage.ts';
-import { fatalFindings, finding, isFatal, type Finding } from '../domain/review/findings.ts';
+import { fatalFindings, finding, type Finding } from '../domain/review/findings.ts';
 import { NarrativeReviewSchema, type NarrativeReview } from '../domain/review/narrative.ts';
 import { groundingFor, type PromptGrounding } from '../domain/review/prompt/diff-hunk-catalog.ts';
 import { validateReview } from '../domain/review/validate-review.ts';
@@ -35,7 +35,7 @@ export async function parseRun(context: RunContext, run: RunFiles): Promise<Pars
     throw new Error(`no raw.txt in ${run.folder}; run from an earlier stage`);
   }
   const validation = validateReview(raw, groundingForRun(context));
-  const findings = [...validation.findings, ...(await runFindings(run, validation.findings))];
+  const findings = [...validation.findings, ...(await runFindings(run))];
 
   const fatal = fatalFindings(findings);
   if (fatal.length > 0) {
@@ -101,8 +101,12 @@ function howItEnded(result: RunEvent | undefined): string | null {
 /**
  * What the run itself cost the review, as findings. `--stub` writes no event
  * log at all, and a missing one says only that no model was run.
+ *
+ * A blocked stop earns `passed-after-retry` with nothing asked about the
+ * answer that followed it: an answer still disqualified after those blocks
+ * fails in `parseRun`, which throws before any of this is written or read.
  */
-async function runFindings(run: RunFiles, answerFindings: Finding[]): Promise<Finding[]> {
+async function runFindings(run: RunFiles): Promise<Finding[]> {
   let log: string;
   try {
     log = await readFile(run.events, 'utf8');
@@ -140,7 +144,7 @@ async function runFindings(run: RunFiles, answerFindings: Finding[]): Promise<Fi
   }
 
   const blocked = events.filter((event) => event.type === 'blocked').length;
-  if (blocked > 0 && !isFatal([...answerFindings, ...findings])) {
+  if (blocked > 0) {
     findings.push(
       finding(
         'passed-after-retry',

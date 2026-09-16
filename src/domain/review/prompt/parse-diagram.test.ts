@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isGraphDiagram, type Diagram } from '../diagram.ts';
+import { DIAGRAM_LIMITS, isGraphDiagram, type Diagram } from '../diagram.ts';
 import { findingLog, type Finding } from '../findings.ts';
 import { buildDiffHunkIndex, groundingFor, type PromptGrounding } from './diff-hunk-catalog.ts';
 import { sanitizeDiagram } from './parse-diagram.ts';
@@ -385,5 +385,90 @@ describe('what a diagram repair records', () => {
       sequence([{ type: 'message', from: 'ghost', to: 'db', label: 'nope' }]),
     );
     expect(findings.map((f) => f.code)).toEqual(['diagram-part-dropped', 'diagram-dropped']);
+  });
+});
+
+describe('a part of a diagram that was never an object', () => {
+  it('notes a group, a node and an edge that arrived as something else', () => {
+    const findings = findingsFrom(
+      graph({
+        groups: [null, { id: 'web', label: 'Web' }],
+        nodes: ['a node', { id: 'a', label: 'A' }, { id: 'b', label: 'B' }],
+        edges: [7, { from: 'a', to: 'b' }],
+      }),
+    );
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped a group that was not an object.',
+      'Diagram d dropped a node that was not an object.',
+      'Diagram d dropped an edge that was not an object.',
+    ]);
+    expect(findings.every((f) => f.code === 'diagram-part-dropped')).toBe(true);
+  });
+
+  it('notes a participant, a step and a branch that arrived as something else', () => {
+    const findings = findingsFrom({
+      ...sequence([
+        'not a step',
+        {
+          type: 'group',
+          style: 'alt',
+          branches: [
+            null,
+            {
+              label: 'claimed',
+              steps: [{ type: 'message', from: 'loop', to: 'db', label: 'claim' }],
+            },
+          ],
+        },
+      ]),
+      participants: [
+        42,
+        { id: 'loop', label: 'Loop' },
+        { id: 'db', label: 'Schedules', kind: 'data' },
+      ],
+    });
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped a participant that was not an object.',
+      'Diagram d dropped a step that was not an object.',
+      'Diagram d dropped a branch that was not an object.',
+    ]);
+  });
+});
+
+describe('a value a diagram had coerced or cut to fit', () => {
+  it('notes a change mark and a kind it could not read', () => {
+    const findings = findingsFrom(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', kind: 'cloud', change: 'sideways' },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+    );
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped the kind on node a, which was read as code.',
+      'Diagram d dropped the change mark on node a, which was read as unchanged.',
+    ]);
+  });
+
+  it('notes a caption, a label and a note cut to their limit', () => {
+    const findings = findingsFrom(
+      graph({
+        caption: 'c'.repeat(DIAGRAM_LIMITS.captionChars + 12),
+        nodes: [
+          {
+            id: 'a',
+            label: 'l'.repeat(DIAGRAM_LIMITS.labelChars + 1),
+            note: 'n'.repeat(DIAGRAM_LIMITS.noteChars + 3),
+          },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+    );
+    expect(findings.map((f) => f.message)).toEqual([
+      `Diagram d dropped 12 characters past the ${String(DIAGRAM_LIMITS.captionChars)} a caption allows.`,
+      `Diagram d dropped 1 character past the ${String(DIAGRAM_LIMITS.labelChars)} a node label allows.`,
+      `Diagram d dropped 3 characters past the ${String(DIAGRAM_LIMITS.noteChars)} a note allows.`,
+    ]);
   });
 });

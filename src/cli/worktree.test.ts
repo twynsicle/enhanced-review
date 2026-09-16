@@ -13,7 +13,7 @@ import {
 } from './worktree.ts';
 
 // Real git, many spawns per test — see GIT_TEST_TIMEOUT.
-vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
+vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT, hookTimeout: GIT_TEST_TIMEOUT });
 
 let repo: TempRepo;
 let shell: Shell;

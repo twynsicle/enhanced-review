@@ -6,10 +6,10 @@ import { z } from 'zod';
  *
  * The parsers are lenient by design — a nondeterministic producer sends back
  * something slightly wrong far more often than something unusable, and
- * throwing a whole review away over a dropped edge would be absurd. What was
- * missing until now was the *record*: the repair happened in silence, so
- * nobody could tell a review that arrived intact from one that was pieced
- * back together.
+ * throwing a whole review away over a dropped edge would be absurd. The
+ * *record* is what makes that leniency safe to have: a repair made in silence
+ * leaves a review that was pieced back together looking exactly like one that
+ * arrived intact.
  *
  * Severity is the policy, and it is stated once, in `SEVERITY_BY_CODE`:
  *
@@ -64,6 +64,10 @@ const SEVERITY_BY_CODE = {
   'chapter-title-synthesised': 'note',
   /** Prose arrived as a bare string, or as a body with no lede, and was promoted. */
   'prose-promoted': 'note',
+  /** Prose arrived with nothing readable in it, so a chapter has none. */
+  'prose-dropped': 'note',
+  /** A chapter's diff chunk that named no file, or listed no hunk id to resolve. */
+  'chunk-dropped': 'note',
   /** The JSON parsed only after a quote the model forgot to escape was escaped. */
   'json-quote-repaired': 'note',
   /** A chapter named one file in two chunks; they were merged into one. */

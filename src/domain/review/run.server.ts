@@ -274,7 +274,6 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ
     const finalized = await store.finalizeDone(jobId, {
       content,
       findings: result.findings,
-      diffTruncated: result.wasTruncated,
       riskScore: content.riskAssessment?.score ?? null,
     });
     if (!finalized) {

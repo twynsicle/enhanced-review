@@ -78,7 +78,6 @@ describe('ClaudeExecutor', () => {
     expect(out.review.prTitle).toBe('Test PR');
     expect(out.review.chapters).toHaveLength(1);
     expect(out.rawText).toBe(FRAGMENTS.join(''));
-    expect(out.wasTruncated).toBe(false);
   });
 
   it('throws ExecutorParseError when the response lacks the narrative tags', async () => {
@@ -124,7 +123,7 @@ describe('ClaudeExecutor', () => {
       permissionMode: 'dontAsk',
       settingSources: [],
       persistSession: false,
-      maxTurns: 30,
+      maxTurns: 60,
       env: { PATH: '/bin' },
       sandbox: {
         enabled: true,
@@ -206,6 +205,15 @@ describe('ClaudeExecutor', () => {
     const err = await executor.run(buildInput()).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ExecutorProcessError);
     expect((err as ExecutorProcessError).message).toContain('error_max_turns');
+  });
+
+  it('fails a stream that ends with no result at all', async () => {
+    // The SDK sends a result for every way a run can finish, so a stream
+    // without one stopped for a reason nobody recorded.
+    const { executor } = executorFor(FRAGMENTS.map((t) => assistant(t)));
+    const err = await executor.run(buildInput()).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ExecutorProcessError);
+    expect((err as ExecutorProcessError).message).toContain('no result');
   });
 
   it('returns no findings for an answer that needed no repair', async () => {
