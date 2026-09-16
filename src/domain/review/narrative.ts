@@ -162,11 +162,9 @@ export const NarrativeReviewSchema = z.object({
 export type NarrativeReview = z.infer<typeof NarrativeReviewSchema>;
 
 /**
- * Reserved ids for the reader's synthesised sections: two that precede the
- * first chapter, and one that follows the last when the chapters left hunks
- * uncited. They are not chapter ids and never come from the model — the
- * double underscores keep them out of the space a generated id can occupy.
+ * Reserved ids for the two reader sections that precede the first chapter.
+ * They are not chapter ids and never come from the model — the double
+ * underscores keep them out of the space a generated id can occupy.
  */
 export const SUMMARY_SECTION_ID = '__summary__';
 export const RISK_SECTION_ID = '__risk__';
-export const UNDISCUSSED_SECTION_ID = '__undiscussed__';

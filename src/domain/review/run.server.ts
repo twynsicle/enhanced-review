@@ -288,8 +288,6 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ
         chunks: seq,
         hunks: coverage.total,
         hunksCited: coverage.cited,
-        filesUndiscussed: coverage.uncited.filter((file) => file.cited === 0).length,
-        filesPartlyDiscussed: coverage.uncited.filter((file) => file.cited > 0).length,
         findings: countBySeverity(result.findings),
       },
       'job done',

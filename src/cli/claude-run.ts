@@ -7,6 +7,11 @@ import {
   type SdkQueryFn,
   type SdkUsage,
 } from '../domain/review/executor/sdk-loop.server.ts';
+import {
+  MAX_VALIDATION_RETRIES,
+  validationStopHook,
+} from '../domain/review/executor/validation-stop-hook.server.ts';
+import type { PromptGrounding } from '../domain/review/prompt/diff-hunk-catalog.ts';
 import { reviewBashCommand } from './bash-gate.ts';
 import { onInterrupt } from './interrupts.ts';
 import type { RunFiles } from './run-folder.ts';
@@ -55,6 +60,8 @@ export interface ClaudeRunOptions {
   model: string;
   maxTurns: number;
   timeoutMs: number;
+  /** What the answer is held against before the model is allowed to stop. */
+  grounding: PromptGrounding;
 }
 
 export interface ClaudeRunDeps {
@@ -63,6 +70,8 @@ export interface ClaudeRunDeps {
   onActivity?: (activity: string) => void;
   /** Each block of the answer as it arrives, for the terminal. */
   onText?: (chunk: string) => void;
+  /** A disqualified answer the model was asked to write again. */
+  onBlocked?: (attempt: number, reason: string) => void;
 }
 
 export interface ClaudeRunResult {
@@ -70,8 +79,6 @@ export interface ClaudeRunResult {
   characters: number;
   turns: number;
   costUsd: number | null;
-  /** Tool calls the gate turned away. Each one is an event in `events.jsonl`. */
-  denied: number;
   /** What the run spent. `null` when it ended without a result. */
   usage: SdkUsage | null;
   /** Set when the run ended on something other than a finished answer. */
@@ -103,20 +110,33 @@ export async function runClaude(
   };
 
   let characters = 0;
-  let denied = 0;
+  // The run keeps its own copy of the answer: the Stop hook grades everything
+  // the model has said, and a long narrative spans several assistant messages.
+  const said: string[] = [];
   const onDeny = (tool: string, input: Record<string, unknown>, reason: string) => {
-    denied += 1;
     event({ type: 'denied', tool, detail: describeInput(input), reason });
+  };
+  const onBlock = (attempt: number, reason: string) => {
+    event({ type: 'blocked', attempt, reason });
+    deps.onBlocked?.(attempt, reason);
   };
 
   try {
     const queryFn = deps.query ?? (await loadQuery());
     const outcome = await runSdkLoop(
       queryFn,
-      { prompt, options: sdkOptions(system, options, controller, onDeny) },
+      {
+        prompt,
+        options: sdkOptions(system, options, controller, {
+          onDeny,
+          onBlock,
+          text: () => said.join(''),
+        }),
+      },
       {
         onText: (text) => {
           raw.write(text);
+          said.push(text);
           characters += text.length;
           deps.onText?.(text);
         },
@@ -151,7 +171,6 @@ export async function runClaude(
     }
     return {
       characters,
-      denied,
       usage: result?.usage ?? null,
       turns: result?.turns ?? 0,
       costUsd: result?.costUsd ?? null,
@@ -175,11 +194,18 @@ function incompleteReason(result: { subtype: string; isError: boolean } | null):
   return result.isError ? 'error' : null;
 }
 
+interface RunCallbacks {
+  onDeny: (tool: string, input: Record<string, unknown>, reason: string) => void;
+  onBlock: (attempt: number, reason: string) => void;
+  /** Everything the model has said so far, for the Stop hook. */
+  text: () => string;
+}
+
 function sdkOptions(
   system: string,
   options: ClaudeRunOptions,
   controller: AbortController,
-  onDeny: (tool: string, input: Record<string, unknown>, reason: string) => void,
+  callbacks: RunCallbacks,
 ): Options {
   return {
     cwd: options.cwd,
@@ -189,7 +215,7 @@ function sdkOptions(
     allowedTools: [...PRE_APPROVED],
     canUseTool: (tool, input) => {
       const decision = permission(tool, input);
-      if (decision.behavior === 'deny') onDeny(tool, input, decision.message);
+      if (decision.behavior === 'deny') callbacks.onDeny(tool, input, decision.message);
       return Promise.resolve(decision);
     },
     // The engineer's own settings, and the reviewed repository's CLAUDE.md.
@@ -197,6 +223,18 @@ function sdkOptions(
     persistSession: false,
     abortController: controller,
     maxTurns: options.maxTurns,
+    // The same verdict the hosted run uses, in the same place: a disqualified
+    // answer costs one more turn here rather than a whole second run.
+    hooks: {
+      Stop: [
+        validationStopHook({
+          grounding: options.grounding,
+          maxRetries: MAX_VALIDATION_RETRIES,
+          text: callbacks.text,
+          onBlock: callbacks.onBlock,
+        }),
+      ],
+    },
   };
 }
 

@@ -27,8 +27,8 @@ src/domain/
                      that diff card rather than above all of them;
                      ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
                      ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
-                     reviewable and not only what was cited; SUMMARY_SECTION_ID / RISK_SECTION_ID /
-                     UNDISCUSSED_SECTION_ID, the reader's synthesised sections),
+                     reviewable and not only what was cited; SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's
+                     synthesised sections),
                      findings.ts (Finding: code, severity, message and where it happened, plus the ONE map from
                      code to severity — fatal disqualifies the answer, warning ships and is shown, note is only
                      recorded; FindingLog, the collector the parsers write to; FindingSchema, since findings are
@@ -36,14 +36,15 @@ src/domain/
                      validate-review.ts (validateReview(text, grounding) → { review, findings }: the parse plus the
                      coverage check, and the one verdict the Stop hook, the hosted executor and `er` all ask for;
                      a hunk the prompt showed that no chapter cites is fatal),
-                     coverage.ts (the backstop for the instruction that the model cite every hunk: withFileHunks
-                     attaches the catalog to the files — the local CLI at parse, the hosted runner at finalize;
-                     reviewCoverage subtracts what the chapters cite, per hunk, and returns `uncited`, one
-                     FileCoverage per file with leftovers (its own DiffChunk on it), plus byFile, chaptersCiting,
+                     coverage.ts (what the chapters left out, per file: withFileHunks attaches the catalog to the
+                     files — the local CLI at parse, the hosted runner at finalize; reviewCoverage subtracts what
+                     the chapters cite, per hunk, and returns the totals and byFile, one FileCoverage per
+                     catalogued file carrying its leftovers and their DiffChunk; plus chaptersCiting and
                      citedChunk (every chapter's hunks for one file merged into a single chunk, deduplicated and in
-                     file order, so the file view draws one diff rather than one per citing chapter) and
-                     describeCoverageGap, the one sentence the CLI and the reader's card share; a file
-                     without a catalog reports nothing),
+                     file order, so the file view draws one diff rather than one per citing chapter); a file
+                     without a catalog reports nothing. A shown hunk no chapter cites is fatal, so leftovers
+                     survive only where the prompt was truncated — which is why the file view still draws them and
+                     there is no longer a "Not discussed" section),
                      diagram.ts (Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk grounding,
                      DIAGRAM_LIMITS, hasUniformChange), target.ts (ReviewTarget schema, describeTarget),
@@ -72,7 +73,7 @@ src/domain/
                      checked against), narrative-prompt (system + user; the prompt reviews exactly the files
                      carrying no `skipped` reason, drops the patch of anything the built-in rules match even
                      when the file list missed it, and lists the rest under Not Reviewed; hunk ids are numbered
-                     over the whole filtered diff, so ids mean the same thing to the coverage backstop, and the
+                     over the whole filtered diff, so ids mean the same thing to the coverage check, and the
                      result carries both `catalog`, every hunk, for coverage, and `grounding`, which resolves only
                      the hunks the truncated prompt showed while knowing every reviewed file's name;
                      NARRATIVE_SYSTEM_PROMPT, formatFileList, formatHunkCatalog and formatSkippedSection are
@@ -139,7 +140,8 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t
   returned a catalog and `skipped` when `skipReasons` says why the
   prompt left it out, and the executor's findings landing in
   `reviews.findings`; the `job done` log line reports the hunk coverage and
-  the findings by severity.
+  the findings by severity. The reader shows the warnings above the summary
+  (`web/components/narrative/findings-notice.tsx`).
   Failures → `markErrored(formatJobError(err))`, clipped to 500 chars. Every side effect is injected (`RunJobDeps`) so the stub review runs
   end to end from `run.integration.test.ts` against a local git repo.
 - **Abort reasons** say who already wrote the terminal status: `cancel`

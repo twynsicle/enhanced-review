@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Finding } from '@/domain/review/findings';
 import type { NarrativeReview } from '@/domain/review/narrative';
 import type { ReviewMeta } from '@/domain/review/review-meta';
 import { REAL_ARCHITECTURE } from '@/web/test/diagram-fixtures';
@@ -26,8 +27,14 @@ function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
   };
 }
 
-function renderCard(overrides: Partial<NarrativeReview> = {}, meta: Partial<ReviewMeta> = {}) {
-  return render(<SummaryCard review={review(overrides)} meta={{ ...baseMeta, ...meta }} />);
+function renderCard(
+  overrides: Partial<NarrativeReview> = {},
+  meta: Partial<ReviewMeta> = {},
+  findings: Finding[] = [],
+) {
+  return render(
+    <SummaryCard review={review(overrides)} meta={{ ...baseMeta, ...meta }} findings={findings} />,
+  );
 }
 
 describe('<SummaryCard />', () => {

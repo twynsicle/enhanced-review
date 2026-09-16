@@ -1,21 +1,19 @@
 import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import type { HookInput } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { BUNDLE_PLACEHOLDER } from '../domain/review/bundle-html.ts';
 import { runGit } from '../domain/review/clone/git-runner.server.ts';
-import type { UncitedFile } from '../domain/review/coverage.ts';
 import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import type { QueryFn } from './claude-run.ts';
 import { Shell } from './git.ts';
-import { coverageWarning, review, type ReviewDeps, type ReviewOptions } from './review.ts';
+import { review, WARNED, type ReviewDeps, type ReviewOptions } from './review.ts';
 import { RUNS_DIR } from './run-folder.ts';
 import { removeWorktreeSync } from './worktree.ts';
 import { runInterruptCleanups } from './interrupts.ts';
 import * as stubRun from './stub-run.ts';
 import * as terminal from './terminal.ts';
-
-const span = { startLine: 1, lineCount: 1 };
 
 // Real git, many spawns per test — see GIT_TEST_TIMEOUT.
 vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
@@ -83,6 +81,16 @@ const MODEL_REVIEW = `<narrative_review>
 }
 </narrative_review>`;
 
+/** MODEL_REVIEW, with its one diff chunk replaced by the ones given. */
+const citing = (...chunks: string[]) =>
+  MODEL_REVIEW.replace(
+    '{ "filename": "src/app.ts", "language": "typescript", "hunkIds": ["H0001"] }',
+    chunks.join(', '),
+  );
+
+const chunk = (filename: string, id: string) =>
+  `{ "filename": "${filename}", "language": "typescript", "hunkIds": ["${id}"] }`;
+
 const assistantText = (text: string) =>
   ({ type: 'assistant', message: { content: [{ type: 'text', text }] } }) as never;
 
@@ -99,42 +107,6 @@ function runFolders(): string[] {
   return existsSync(dir) ? readdirSync(dir) : [];
 }
 
-const coveredFile = (name: string, cited: number, total: number): UncitedFile => {
-  const hunk = { id: name, fileOrder: 1, original: span, modified: span };
-  return {
-    file: { filename: name, status: 'modified', additions: 1, deletions: 0 },
-    cited,
-    total,
-    uncited: [hunk],
-    chunk: { filename: name, language: 'typescript', hunks: [hunk] },
-  };
-};
-
-describe('coverageWarning', () => {
-  const warning = (undiscussed: number, partly: number) =>
-    coverageWarning({
-      total: 0,
-      cited: 0,
-      uncited: [
-        ...Array.from({ length: undiscussed }, (_, i) => coveredFile(`u${String(i)}`, 0, 1)),
-        ...Array.from({ length: partly }, (_, i) => coveredFile(`p${String(i)}`, 1, 2)),
-      ],
-      byFile: new Map(),
-    });
-
-  it('reads as one sentence whichever of the two it has to say', () => {
-    expect(warning(13, 2)).toBe(
-      '13 files not discussed in any chapter, and 2 files discussed only in part; the report shows their hunks under "Not discussed"',
-    );
-    expect(warning(1, 0)).toBe(
-      '1 file not discussed in any chapter; the report shows their hunks under "Not discussed"',
-    );
-    expect(warning(0, 1)).toBe(
-      '1 file discussed only in part; the report shows their hunks under "Not discussed"',
-    );
-  });
-});
-
 describe('er review', () => {
   it('runs every stage with --stub and opens the report', async () => {
     await expect(review(options(), deps)).resolves.toBe(0);
@@ -147,6 +119,7 @@ describe('er review', () => {
       'prompt.md',
       'raw.txt',
       'review.json',
+      'findings.json',
       'review.html',
     ];
     expect(stageFiles.filter((file) => !existsSync(path.join(run, file)))).toEqual([]);
@@ -173,46 +146,87 @@ describe('er review', () => {
     expect(deps.open).toHaveBeenCalledWith(path.join(run, 'review.html'));
   });
 
-  it('counts the hunks the model cited, and warns about the files it left out', async () => {
-    // A second file so the model can leave one changed file undiscussed
-    // without any of its chapters ending up with no hunks of their own —
-    // an empty chapter now fails the review outright.
-    repo.write('src/other.ts', 'export const other = 1;\n');
-    repo.git('add', 'src/other.ts');
-    const modelReviewPartial = MODEL_REVIEW.replace(
-      '"diffChunks": [{ "filename": "src/app.ts", "language": "typescript", "hunkIds": ["H0001"] }]',
-      '"diffChunks": [{ "filename": "src/other.ts", "language": "typescript", "hunkIds": ["H0002"] }]',
-    );
-    const query: QueryFn = () =>
-      (async function* () {
-        yield assistantText(modelReviewPartial);
-        yield runResult();
-      })();
-    await review(options({ stub: false, open: false }), { ...deps, claude: { query } });
+  it('counts what the review covers, says nothing, and exits clean', async () => {
+    await expect(review(options({ open: false }), deps)).resolves.toBe(0);
 
     expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
       'parse',
-      '1 chapter, 1 of 2 hunks cited',
-      expect.any(Number),
-    );
-    expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith(
-      '1 file not discussed in any chapter; the report shows their hunks under "Not discussed"',
-    );
-
-    // The stub cites every hunk, so the same change passes without a word.
-    vi.mocked(terminal.warn).mockClear();
-    await review(options({ open: false }), deps);
-    expect(vi.mocked(terminal.stage)).toHaveBeenLastCalledWith(
-      'render',
-      expect.any(String),
-      expect.any(Number),
-    );
-    expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
-      'parse',
-      '2 chapters, 2 of 2 hunks cited',
+      '1 chapter, 1 hunk',
       expect.any(Number),
     );
     expect(vi.mocked(terminal.warn)).not.toHaveBeenCalled();
+  });
+
+  it('asks the model again for an answer that leaves a hunk uncited, and says so', async () => {
+    // Two files, so the first answer can leave one of them out without its
+    // chapter ending up with no hunks of its own — which would fail outright.
+    repo.write('src/other.ts', 'export const other = 1;\n');
+    repo.git('add', 'src/other.ts');
+    // src/app.ts is H0001 and src/other.ts H0002: the ids run over the whole
+    // change, and a chunk may only cite hunks of the file it names.
+    const answers = [
+      citing(chunk('src/app.ts', 'H0001')),
+      citing(chunk('src/app.ts', 'H0001'), chunk('src/other.ts', 'H0002')),
+    ];
+    const query: QueryFn = ({ options: sdkOptions }) =>
+      (async function* () {
+        for (const [index, answer] of answers.entries()) {
+          yield assistantText(answer);
+          const hook = sdkOptions.hooks?.Stop?.[0]?.hooks[0];
+          if (!hook) throw new Error('no Stop hook was registered');
+          const out = (await hook(
+            {
+              hook_event_name: 'Stop',
+              stop_hook_active: index > 0,
+              session_id: 's',
+              transcript_path: 't',
+              cwd: '.',
+            } as HookInput,
+            undefined,
+            { signal: new AbortController().signal },
+          )) as { decision?: string };
+          if (out.decision !== 'block') break;
+        }
+        yield runResult();
+      })();
+
+    await expect(
+      review(options({ stub: false, open: false }), { ...deps, claude: { query } }),
+    ).resolves.toBe(WARNED);
+
+    expect(vi.mocked(terminal.note)).toHaveBeenCalledWith(
+      expect.stringContaining('answer disqualified, asking again (1 of 3)'),
+    );
+    // Written once, and read again from events.jsonl by every later parse.
+    expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith(
+      expect.stringContaining('disqualified; this review is what it sent after 1 further attempt'),
+    );
+
+    const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
+    const findings = JSON.parse(readFileSync(path.join(run, 'findings.json'), 'utf8')) as {
+      code: string;
+    }[];
+    // Every severity: the promoted prose is a note, recorded and never printed.
+    expect(findings.map((item) => item.code)).toEqual(['prose-promoted', 'passed-after-retry']);
+    expect(vi.mocked(terminal.warn)).toHaveBeenCalledTimes(1);
+
+    vi.mocked(terminal.warn).mockClear();
+    await expect(review(options({ from: 'parse', open: false }), deps)).resolves.toBe(WARNED);
+    expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith(
+      expect.stringContaining('1 further attempt'),
+    );
+  });
+
+  it('fails the parse stage when the run behind the answer stopped early', async () => {
+    const query: QueryFn = () =>
+      (async function* () {
+        yield assistantText(MODEL_REVIEW);
+        yield { type: 'result', subtype: 'error_max_turns', num_turns: 5 } as never;
+      })();
+
+    await expect(
+      review(options({ stub: false, open: false }), { ...deps, claude: { query } }),
+    ).rejects.toThrow(/did not finish cleanly \(error_max_turns\)/);
   });
 
   it('resumes the newest run from parse without starting another', async () => {

@@ -143,8 +143,14 @@ ignored by git automatically. The report is `review.html`, and it opens when
 it is written unless you pass `--no-open`. Beside it sit the stage files:
 `context.json` (what changed), `prompt.md` and `system.md` (what was asked),
 `raw.txt` (what the model said), `events.jsonl` (what it did, what it cost,
-and any command the read-only gate refused) and `review.json` (the parsed
-review). A run folder is a complete record; delete the tree whenever you like.
+any command the read-only gate refused and any answer it was asked to write
+again), `review.json` (the parsed review) and `findings.json` (what validating
+it turned up). A run folder is a complete record; delete the tree whenever you
+like.
+
+`er review` exits 0 for a clean review, 2 for one that was written but carries
+warnings — each of them printed as it finishes — and 1 when there is no review
+to open.
 
 ### What the model may do
 
@@ -152,8 +158,9 @@ It gets `Read`, `Glob` and `Grep`, and `Bash` for read-only history —
 `git log`, `git show`, `git blame`, `git diff`, and `rg`/`grep`/`ls`/`cat`
 piped together. Every command is checked before it runs, and anything that
 could write, or reach a program not on the list, is refused with a message
-saying what it may run instead. Refusals are counted on the run line and
-recorded in `events.jsonl`; a review is never failed by one.
+saying what it may run instead. Refusals are recorded in `events.jsonl` and
+reported as one warning when the review finishes; a review is never failed by
+one.
 
 `--model`, `--max-turns` and `--timeout` override the defaults
 (`claude-sonnet-5`, 60 turns, 15 minutes). `er review --help` lists

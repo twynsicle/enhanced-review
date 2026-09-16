@@ -52,10 +52,17 @@ export function ViewerPage({ result }: { result: EmbeddedBundleResult }) {
       >
         <title>{`${bundle.review.prTitle || bundle.meta.title} · enhanced-review`}</title>
         <EmbeddedFileSource bundle={bundle}>
+          {/*
+           * No findings: a local review reports what validating it found in
+           * the terminal and in the run folder, where the person who ran it
+           * is already looking, and the report is a file they may forward to
+           * someone who was not there.
+           */}
           <ChapterReader
             review={bundle.review}
             meta={bundle.meta}
             initialActiveId={SUMMARY_SECTION_ID}
+            findings={[]}
           />
         </EmbeddedFileSource>
       </PageShell>

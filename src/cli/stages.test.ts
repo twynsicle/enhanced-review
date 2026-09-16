@@ -84,9 +84,12 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
 describe('stub run → parse', () => {
   it('gives each reviewed file a chapter citing all its hunks', async () => {
     await writeStubRun(context(), run);
-    const review = await parseRun(context(), run);
+    const { review, findings } = await parseRun(context(), run);
 
     expect(review.prTitle).toBe('Staged changes on main');
+    // A stub run has no event log, so there is nothing about the run to report.
+    expect(findings).toEqual([]);
+    expect(JSON.parse(readFileSync(run.findings, 'utf8'))).toEqual([]);
     expect(
       review.chapters.map((chapter) => ({
         title: chapter.title,
@@ -109,7 +112,7 @@ describe('stub run → parse', () => {
   it('still writes a review when every file was skipped', async () => {
     const onlySkipped = context({ files: [context().files[2]!], hunks: [], contents: {} });
     await writeStubRun(onlySkipped, run);
-    const review = await parseRun(onlySkipped, run);
+    const { review } = await parseRun(onlySkipped, run);
     expect(review.chapters.map((chapter) => chapter.id)).toEqual(['nothing-reviewed']);
   });
 
@@ -119,6 +122,48 @@ describe('stub run → parse', () => {
       `The answer contains no complete <narrative_review> block. The model's answer is in ${run.raw}; ` +
         'fix it there and rerun with --from parse',
     );
+  });
+
+  it('reads what the run itself cost off events.jsonl, so --from parse reports it too', async () => {
+    await writeStubRun(context(), run);
+    writeFileSync(
+      run.events,
+      [
+        JSON.stringify({ ms: 1, type: 'denied', tool: 'Bash', detail: 'rm -rf .' }),
+        JSON.stringify({ ms: 2, type: 'blocked', attempt: 1, reason: 'a hunk was uncited' }),
+        JSON.stringify({ ms: 3, type: 'result', subtype: 'success', isError: false }),
+        'half a line, from a run that was kill',
+      ].join('\n'),
+    );
+
+    const { findings } = await parseRun(context(), run);
+
+    expect(findings.map((item) => [item.code, item.severity])).toEqual([
+      ['commands-refused', 'warning'],
+      ['passed-after-retry', 'warning'],
+    ]);
+    expect(findings[0]?.message).toContain('1 command');
+    expect(findings[1]?.message).toContain('1 further attempt');
+    expect(JSON.parse(readFileSync(run.findings, 'utf8'))).toEqual(findings);
+  });
+
+  it('fails the review when the run behind it did not finish cleanly', async () => {
+    await writeStubRun(context(), run);
+    writeFileSync(
+      run.events,
+      `${JSON.stringify({ type: 'result', subtype: 'error_max_turns' })}\n`,
+    );
+
+    await expect(parseRun(context(), run)).rejects.toThrow(
+      /did not finish cleanly \(error_max_turns\).*Raise --max-turns.*raw\.txt/s,
+    );
+  });
+
+  it('fails the review when the run left no result at all', async () => {
+    await writeStubRun(context(), run);
+    writeFileSync(run.events, `${JSON.stringify({ type: 'tool', tool: 'Read' })}\n`);
+
+    await expect(parseRun(context(), run)).rejects.toThrow(/did not finish cleanly \(no result\)/);
   });
 
   it('says which stage to run when a stage file is missing', async () => {
@@ -132,7 +177,7 @@ describe('render', () => {
 
   it('packs the review, header and file contents into the viewer page', async () => {
     await writeStubRun(context(), run);
-    const review = await parseRun(context(), run);
+    const { review } = await parseRun(context(), run);
     const at = new Date('2026-09-11T10:00:00.000Z');
 
     await renderRun(context(), review, run, { viewerShell: async () => shellHtml }, at);

@@ -270,6 +270,6 @@ describe('buildNarrativePrompt', () => {
     };
     const coverage = reviewCoverage(stored);
     expect(coverage.total).toBe(result.catalog.length);
-    expect(coverage.uncited[0]!.uncited.map((hunk) => hunk.id)).toContain(gapId);
+    expect(coverage.byFile.get('src/big.ts')!.uncited.map((hunk) => hunk.id)).toContain(gapId);
   });
 });
