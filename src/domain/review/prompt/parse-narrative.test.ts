@@ -368,9 +368,18 @@ describe('prose passages', () => {
     });
   });
 
-  it('ignores a description that is not a passage', () => {
-    const result = parse(chapter('one flat string, which is not the shape asked for'));
-    expect(result.ok && result.data.chapters[0]?.description).toBeUndefined();
+  it('promotes a plain-string description to a lede', () => {
+    const result = parse(chapter('one flat string, not the object the prompt asks for'));
+    expect(result.ok && result.data.chapters[0]?.description).toEqual({
+      lede: 'one flat string, not the object the prompt asks for',
+    });
+  });
+
+  it('drops a description with no prose in it whatever its shape', () => {
+    for (const description of [7, null, ['a lede'], '   ', {}]) {
+      const result = parse(chapter(description));
+      expect(result.ok && result.data.chapters[0]?.description).toBeUndefined();
+    }
   });
 
   it('promotes a body that arrived without a lede', () => {
@@ -389,6 +398,40 @@ describe('prose passages', () => {
       ok: false,
       error: 'Narrative review JSON is missing required fields',
     });
+  });
+});
+
+describe('a chapter that splits one file across two chunks', () => {
+  it('merges them into one, deduplicated and in file order', () => {
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 'A lede.' },
+        chapters: [
+          {
+            id: 'c',
+            title: 'C',
+            insights: [{ type: 'highlight', text: 'Once, not twice.', filename: 'src/a.ts' }],
+            diffChunks: [
+              { filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0002'] },
+              { filename: 'src/a.ts', language: 'plaintext', hunkIds: ['H0001', 'H0002'] },
+              { filename: 'src/b.ts', language: 'typescript', hunkIds: ['H0003'] },
+            ],
+          },
+        ],
+      }),
+      groundingFor(buildDiffHunkIndex(DIFF).hunks),
+    );
+
+    const merged = result.ok ? result.data.chapters[0] : undefined;
+    expect(merged?.diffChunks.map((chunk) => chunk.filename)).toEqual(['src/a.ts', 'src/b.ts']);
+    expect(merged?.diffChunks[0]?.language).toBe('typescript');
+    expect(merged?.diffChunks[0]?.hunks.map((hunk) => hunk.id)).toEqual(['H0001', 'H0002']);
+    // The point of the merge: one card for the file, so its anchored insight
+    // is drawn once rather than once per chunk the model split it into.
+    expect(merged?.insights).toEqual([
+      { type: 'highlight', text: 'Once, not twice.', filename: 'src/a.ts' },
+    ]);
   });
 });
 

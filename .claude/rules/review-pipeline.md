@@ -76,9 +76,11 @@ src/domain/
                      diffChunks after hunk-id resolution and the prompt showed at least one hunk to cite, since prose
                      with nothing to show for it is a generation defect, not a valid review; a diff with nothing
                      reviewable at all is exempt, since then no chapter could have cited anything;
-                     sanitizeProse takes either shape the model might send, and an insight's `filename` survives
-                     only when the chapter's own diffChunks cite it — anchored elsewhere it would be drawn
-                     nowhere, so the anchor goes and the insight stays),
+                     sanitizeProse takes a `{ lede, body? }` object or a bare string, which is promoted to the
+                     lede, as is a body that arrived without one; a chapter's diffChunks are merged to one per
+                     filename, since the reader keys a file's insights and its count on the name; and an insight's
+                     `filename` survives only when the chapter's own diffChunks cite it — anchored elsewhere it
+                     would be drawn nowhere, so the anchor goes and the insight stays),
                      parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own
                      so a bad picture cannot fail the review; a node's filename checked against the reviewed file
                      list and its hunk ids against the hunks the prompt showed), types.ts (PrData),

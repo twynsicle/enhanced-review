@@ -102,10 +102,18 @@ function resolveHunks(chunk: Rec, grounding: PromptGrounding | undefined): Resol
  * passage of empty strings, so the reader can tell "no prose" from "a lede
  * that is a space".
  *
- * A body arriving without a lede is promoted to one: the model wrote it, and
- * drawing it is better than dropping prose because it came in the wrong field.
+ * A body arriving without a lede is promoted to one, and so is a bare string,
+ * the shape the model drops back to when it forgets the object. Both are
+ * leniency toward a nondeterministic producer, not compatibility with an older
+ * stored shape: a passage that is dropped for arriving in the wrong field
+ * leaves a chapter with a title, diffs and no prose, and a review missing what
+ * it was meant to say still looks finished to whoever reads it.
  */
 function sanitizeProse(raw: unknown): Prose | undefined {
+  if (typeof raw === 'string') {
+    const only = raw.trim();
+    return only.length > 0 ? { lede: only } : undefined;
+  }
   if (!isRecord(raw)) return undefined;
   const lede = typeof raw['lede'] === 'string' ? raw['lede'].trim() : '';
   const body = typeof raw['body'] === 'string' ? raw['body'].trim() : '';
@@ -142,6 +150,27 @@ function sanitizeInsights(raw: unknown, anchors: ReadonlySet<string>): Insight[]
     });
 }
 
+/**
+ * One chunk per file in a chapter. The reader keys a file's insights and its
+ * file count on the filename, so a chapter the model split across two chunks
+ * for one file drew every insight anchored there twice and counted the file
+ * twice over.
+ */
+function mergeChunksByFile(chunks: DiffChunk[]): DiffChunk[] {
+  const merged = new Map<string, DiffChunk>();
+  for (const chunk of chunks) {
+    const existing = merged.get(chunk.filename);
+    if (!existing) {
+      merged.set(chunk.filename, chunk);
+      continue;
+    }
+    const hunks = new Map(existing.hunks.map((hunk) => [hunk.id, hunk]));
+    for (const hunk of chunk.hunks) hunks.set(hunk.id, hunk);
+    existing.hunks = [...hunks.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
+  }
+  return [...merged.values()];
+}
+
 function sanitizeChapter(
   raw: Rec,
   index: number,
@@ -153,14 +182,18 @@ function sanitizeChapter(
     typeof raw['title'] === 'string' && raw['title'].length > 0 ? raw['title'] : `Chapter ${n}`;
   const description = sanitizeProse(raw['description']);
 
-  const diffChunks = (Array.isArray(raw['diffChunks']) ? raw['diffChunks'] : [])
-    .filter((chunk): chunk is Rec => isRecord(chunk) && typeof chunk['filename'] === 'string')
-    .map((chunk) => ({
-      filename: chunk['filename'] as string,
-      language: typeof chunk['language'] === 'string' ? chunk['language'] : 'plaintext',
-      hunks: resolveHunks(chunk, grounding),
-    }))
-    .filter((chunk) => chunk.hunks.length > 0);
+  const diffChunks = mergeChunksByFile(
+    (Array.isArray(raw['diffChunks']) ? raw['diffChunks'] : [])
+      .filter((chunk): chunk is Rec => isRecord(chunk) && typeof chunk['filename'] === 'string')
+      .map((chunk) => ({
+        filename: chunk['filename'] as string,
+        language: typeof chunk['language'] === 'string' ? chunk['language'] : 'plaintext',
+        hunks: resolveHunks(chunk, grounding),
+      }))
+      // Before the merge, so a chunk whose every hunk id failed to resolve
+      // cannot hand its language to the file's surviving chunk.
+      .filter((chunk) => chunk.hunks.length > 0),
+  );
 
   const diagram = sanitizeDiagram(raw['diagram'], `${id}-diagram`, grounding);
 

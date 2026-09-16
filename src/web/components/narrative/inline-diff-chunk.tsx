@@ -106,6 +106,9 @@ const EDITOR_HEIGHT_PADDING = 12;
  */
 const COLUMN_SETTLE_MS = 120;
 
+/** How long a pointerdown's scroll offset stays good for the focus it expects. */
+const PENDING_SCROLL_MS = 300;
+
 interface FileData {
   original: string;
   modified: string;
@@ -439,15 +442,22 @@ function SnippetEditor({
    * browser paints, so the reader never sees the jump. Keyed off pointerdown
    * rather than firing on every focus so a genuine keyboard Tab into the
    * editor keeps the browser's own scroll-into-view.
+   *
+   * The offset expires because only the focus that follows its own pointerdown
+   * may spend it. A press that never lands focus — Monaco still loading behind
+   * the skeleton, or a drag released elsewhere — otherwise leaves the offset
+   * sitting there, and the next keyboard Tab into this editor scrolls the page
+   * back to wherever the reader clicked earlier: the very jump this prevents,
+   * on the path it means to leave alone.
    */
-  const pendingScroll = useRef<{ x: number; y: number } | null>(null);
+  const pendingScroll = useRef<{ x: number; y: number; at: number } | null>(null);
   const onPointerDown = useCallback(() => {
-    pendingScroll.current = { x: window.scrollX, y: window.scrollY };
+    pendingScroll.current = { x: window.scrollX, y: window.scrollY, at: performance.now() };
   }, []);
   const onFocus = useCallback(() => {
     const pos = pendingScroll.current;
     pendingScroll.current = null;
-    if (pos) window.scrollTo(pos.x, pos.y);
+    if (pos && performance.now() - pos.at < PENDING_SCROLL_MS) window.scrollTo(pos.x, pos.y);
   }, []);
 
   // Memoised so the library only re-applies options when `expanded` or the
