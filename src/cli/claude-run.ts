@@ -26,8 +26,14 @@ import type { RunFiles } from './run-folder.ts';
  * repo under review is someone else's code and must not register hooks.
  */
 
-/** Spelled out rather than read from `env.ts`, which the CLI must not import. */
-export const DEFAULT_MODEL = 'claude-sonnet-5';
+/**
+ * Spelled out rather than read from `env.ts`, which the CLI must not import.
+ * The `[1m]` suffix asks for the 1M-token context window explicitly: without
+ * it, a large review can autocompact mid-run, and autocompact repeatedly
+ * refilling the context within a few turns of the previous compact aborts
+ * the run outright.
+ */
+export const DEFAULT_MODEL = 'claude-sonnet-5[1m]';
 /**
  * Measured: an 88-file, 138-hunk review took 32 turns and 7m 36s, so both of
  * these leave a change about twice that size room to finish. A review that
