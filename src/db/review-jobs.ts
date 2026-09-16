@@ -150,6 +150,8 @@ export async function markRunning(id: string, now = new Date()): Promise<boolean
 export interface FinalizeDoneInput {
   /** A `NarrativeReview`; the caller owns the shape. */
   content: Prisma.InputJsonValue;
+  /** `Finding[]`; what validating the model's answer turned up. */
+  findings: Prisma.InputJsonValue;
   diffTruncated: boolean;
   riskScore: number | null;
 }
@@ -171,7 +173,12 @@ export async function finalizeDone(
     });
     if (result.count === 0) return false;
     await tx.review.create({
-      data: { jobId: id, content: input.content, diffTruncated: input.diffTruncated },
+      data: {
+        jobId: id,
+        content: input.content,
+        findings: input.findings,
+        diffTruncated: input.diffTruncated,
+      },
     });
     return true;
   });

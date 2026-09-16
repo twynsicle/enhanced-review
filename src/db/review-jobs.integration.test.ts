@@ -60,8 +60,11 @@ describeDb('review-jobs repository', () => {
     await expect(markRunning(job.id)).resolves.toBe(false);
 
     const content = { prTitle: 'x', overviewSummary: { lede: 'y' }, chapters: [] };
+    const FINDINGS = [
+      { code: 'diff-truncated', severity: 'warning', message: 'Part of the change was not shown.' },
+    ];
     await expect(
-      finalizeDone(job.id, { content, diffTruncated: true, riskScore: 3 }),
+      finalizeDone(job.id, { content, findings: FINDINGS, diffTruncated: true, riskScore: 3 }),
     ).resolves.toBe(true);
 
     const done = await findJobById(job.id);
@@ -71,12 +74,13 @@ describeDb('review-jobs repository', () => {
     await expect(findReviewByJobId(job.id)).resolves.toMatchObject({
       jobId: job.id,
       content,
+      findings: FINDINGS,
       diffTruncated: true,
     });
 
     // A second finalize neither flips anything nor inserts a duplicate review.
     await expect(
-      finalizeDone(job.id, { content, diffTruncated: false, riskScore: 1 }),
+      finalizeDone(job.id, { content, findings: [], diffTruncated: false, riskScore: 1 }),
     ).resolves.toBe(false);
     await expect(prisma.review.count()).resolves.toBe(1);
   });
@@ -85,7 +89,7 @@ describeDb('review-jobs repository', () => {
     const user = await makeUser('alice', 1n);
     const job = await createJob({ userId: user.id, target: TARGET, headSha: 'head' });
     await expect(
-      finalizeDone(job.id, { content: {}, diffTruncated: false, riskScore: null }),
+      finalizeDone(job.id, { content: {}, findings: [], diffTruncated: false, riskScore: null }),
     ).resolves.toBe(false);
     await expect(prisma.review.count()).resolves.toBe(0);
     await expect(findJobById(job.id)).resolves.toMatchObject({ status: 'pending' });
@@ -119,7 +123,7 @@ describeDb('review-jobs repository', () => {
     await expect(cancelJob(job.id, alice.id)).resolves.toBe(false);
     await expect(markRunning(job.id)).resolves.toBe(false);
     await expect(
-      finalizeDone(job.id, { content: {}, diffTruncated: false, riskScore: null }),
+      finalizeDone(job.id, { content: {}, findings: [], diffTruncated: false, riskScore: null }),
     ).resolves.toBe(false);
   });
 
@@ -135,7 +139,12 @@ describeDb('review-jobs repository', () => {
     await expect(findInFlightJob(user.id, 2)).resolves.toBeNull();
 
     await markRunning(first.id);
-    await finalizeDone(first.id, { content: {}, diffTruncated: false, riskScore: null });
+    await finalizeDone(first.id, {
+      content: {},
+      findings: [],
+      diffTruncated: false,
+      riskScore: null,
+    });
     await expect(findInFlightJob(user.id, 1)).resolves.toBeNull();
   });
 

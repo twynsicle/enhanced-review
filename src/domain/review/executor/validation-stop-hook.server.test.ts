@@ -1,0 +1,97 @@
+import type { HookInput } from '@anthropic-ai/claude-agent-sdk';
+import { describe, expect, it, vi } from 'vitest';
+import { buildDiffHunkIndex, groundingFor } from '../prompt/diff-hunk-catalog.ts';
+import { validationStopHook } from './validation-stop-hook.server.ts';
+
+const DIFF = `diff --git a/src/a.ts b/src/a.ts
+--- a/src/a.ts
++++ b/src/a.ts
+@@ -1,3 +1,4 @@
++x
+@@ -20,2 +21,3 @@
++y
+`;
+
+const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
+
+function answer(hunkIds: string[]): string {
+  return `<narrative_review>${JSON.stringify({
+    prTitle: 't',
+    overviewSummary: { lede: 's' },
+    chapters: [
+      {
+        id: 'c',
+        title: 'C',
+        insights: [],
+        diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds }],
+      },
+    ],
+  })}</narrative_review>`;
+}
+
+const STOP = {
+  hook_event_name: 'Stop',
+  stop_hook_active: false,
+  session_id: 's',
+  transcript_path: 't',
+  cwd: '.',
+} as HookInput;
+
+function harness(texts: string[], maxRetries = 3) {
+  let at = 0;
+  const onBlock = vi.fn<(attempt: number, reason: string) => void>();
+  const matcher = validationStopHook({
+    grounding,
+    maxRetries,
+    text: () => texts[Math.min(at, texts.length - 1)] ?? '',
+    onBlock,
+  });
+  const stop = async (): Promise<{ decision?: string; reason?: string }> => {
+    const out = (await matcher.hooks[0]!(STOP, undefined, {
+      signal: new AbortController().signal,
+    })) as { decision?: string; reason?: string };
+    at += 1;
+    return out;
+  };
+  return { stop, onBlock };
+}
+
+describe('validationStopHook', () => {
+  it('lets a complete answer stop', async () => {
+    const { stop, onBlock } = harness([answer(['H0001', 'H0002'])]);
+    await expect(stop()).resolves.toEqual({ continue: true });
+    expect(onBlock).not.toHaveBeenCalled();
+  });
+
+  it('refuses the stop with the defect and an instruction to send the whole block', async () => {
+    const { stop, onBlock } = harness([answer(['H0001'])]);
+    const out = await stop();
+    expect(out.decision).toBe('block');
+    expect(out.reason).toContain('H0002 (src/a.ts)');
+    expect(out.reason).toContain('Re-emit the complete <narrative_review>');
+    expect(onBlock).toHaveBeenCalledWith(1, out.reason);
+  });
+
+  it('says what is missing when there is no block at all', async () => {
+    const { stop } = harness(['I had a look and decided not to.']);
+    await expect(stop()).resolves.toMatchObject({
+      reason: expect.stringContaining('no complete <narrative_review> block') as string,
+    });
+  });
+
+  it('stops refusing once the budget is spent', async () => {
+    const bad = answer(['H0001']);
+    const { stop, onBlock } = harness([bad, bad, bad, bad], 3);
+    for (let i = 0; i < 3; i += 1) expect((await stop()).decision).toBe('block');
+    await expect(stop()).resolves.toEqual({ continue: true });
+    expect(onBlock).toHaveBeenCalledTimes(3);
+    expect(onBlock.mock.calls.map(([attempt]) => attempt)).toEqual([1, 2, 3]);
+  });
+
+  it('spends nothing on the attempts that were good', async () => {
+    const { stop, onBlock } = harness([answer(['H0001']), answer(['H0001', 'H0002'])]);
+    expect((await stop()).decision).toBe('block');
+    await expect(stop()).resolves.toEqual({ continue: true });
+    expect(onBlock).toHaveBeenCalledTimes(1);
+  });
+});

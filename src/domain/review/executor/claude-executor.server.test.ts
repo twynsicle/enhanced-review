@@ -1,3 +1,4 @@
+import type { HookInput, Options } from '@anthropic-ai/claude-agent-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { CLAUDE_ENV_KEYS, ClaudeExecutor, type ClaudeQueryFn } from './claude-executor.server.ts';
 import { ExecutorParseError, ExecutorProcessError, type ReviewExecutorInput } from './types.ts';
@@ -197,13 +198,19 @@ describe('ClaudeExecutor', () => {
     expect((err as ExecutorProcessError).message).toContain('error_max_turns');
   });
 
-  it('returns the parsed review even when the SDK ends with a non-success result', async () => {
+  it('fails a run that stopped early, however complete its answer looks', async () => {
     const { executor } = executorFor([
       ...FRAGMENTS.map((t) => assistant(t)),
       result('error_max_turns'),
     ]);
-    const out = await executor.run(buildInput());
-    expect(out.review.prTitle).toBe('Test PR');
+    const err = await executor.run(buildInput()).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ExecutorProcessError);
+    expect((err as ExecutorProcessError).message).toContain('error_max_turns');
+  });
+
+  it('returns no findings for an answer that needed no repair', async () => {
+    const { executor } = executorFor([...FRAGMENTS.map((t) => assistant(t)), result('success')]);
+    await expect(executor.run(buildInput())).resolves.toMatchObject({ findings: [] });
   });
 
   it('calls onChunk per text block of a multi-block message', async () => {
@@ -215,5 +222,123 @@ describe('ClaudeExecutor', () => {
     const out = await executor.run({ ...buildInput(), onChunk });
     expect(onChunk.mock.calls.map((c) => c[0])).toEqual([block1, block2]);
     expect(out.rawText).toBe(block1 + block2);
+  });
+});
+
+const DIFF = `diff --git a/src/a.ts b/src/a.ts
+--- a/src/a.ts
++++ b/src/a.ts
+@@ -1,3 +1,4 @@
++x
+@@ -20,2 +21,3 @@
++y
+`;
+
+/** A review of `DIFF` citing exactly the hunks named. */
+function answer(hunkIds: string[]): string {
+  return `<narrative_review>${JSON.stringify({
+    prTitle: 'Two hunks',
+    overviewSummary: { lede: 'A summary.' },
+    chapters: [
+      {
+        id: 'c1',
+        title: 'The change',
+        insights: [],
+        diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds }],
+      },
+    ],
+  })}</narrative_review>`;
+}
+
+function groundedInput(): ReviewExecutorInput {
+  return {
+    ...buildInput(),
+    prData: {
+      title: 'Two hunks',
+      body: 'body',
+      author: 'octocat',
+      baseRefName: 'main',
+      headRefName: 'feature',
+      files: [{ filename: 'src/a.ts', status: 'modified', additions: 2, deletions: 0 }],
+      diff: DIFF,
+    },
+  };
+}
+
+/**
+ * A query that answers, then submits to the Stop hook the way the SDK does:
+ * a refusal sends it back for the next answer in the list, and the last
+ * answer stands whatever the hook says of it.
+ */
+function answeringQueryFn(answers: string[], subtype = 'success') {
+  const blocks: string[] = [];
+  const queryFn = ((args: { prompt: string; options: Options }) =>
+    (async function* () {
+      for (const [index, text] of answers.entries()) {
+        yield assistant(text);
+        const hook = args.options.hooks?.Stop?.[0]?.hooks[0];
+        if (!hook) throw new Error('no Stop hook was registered');
+        const out = (await hook(
+          {
+            hook_event_name: 'Stop',
+            stop_hook_active: index > 0,
+            session_id: 's',
+            transcript_path: 't',
+            cwd: '.',
+          } as HookInput,
+          undefined,
+          { signal: new AbortController().signal },
+        )) as { decision?: string; reason?: string };
+        if (out.decision !== 'block') break;
+        blocks.push(String(out.reason));
+      }
+      yield result(subtype);
+    })()) as unknown as ClaudeQueryFn;
+  return { queryFn, blocks };
+}
+
+describe('the validation retry', () => {
+  it('asks again when a hunk is cited by no chapter, naming the hunk', async () => {
+    const { queryFn, blocks } = answeringQueryFn([answer(['H0001']), answer(['H0001', 'H0002'])]);
+    const executor = new ClaudeExecutor({ queryFn, env: {} });
+
+    const out = await executor.run(groundedInput());
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toContain('H0002 (src/a.ts)');
+    expect(blocks[0]).toContain('Re-emit the complete');
+    expect(out.review.chapters[0]?.diffChunks[0]?.hunks.map((h) => h.id)).toEqual([
+      'H0001',
+      'H0002',
+    ]);
+    expect(out.findings).toEqual([
+      expect.objectContaining({ code: 'passed-after-retry', severity: 'warning' }),
+    ]);
+  });
+
+  it('gives up after three refusals and fails the review with the last reason', async () => {
+    const { queryFn, blocks } = answeringQueryFn([
+      answer(['H0001']),
+      answer(['H0001']),
+      answer(['H0001']),
+      answer(['H0001']),
+    ]);
+    const executor = new ClaudeExecutor({ queryFn, env: {} });
+
+    const err = await executor.run(groundedInput()).catch((e: unknown) => e);
+
+    expect(blocks).toHaveLength(3);
+    expect(err).toBeInstanceOf(ExecutorParseError);
+    expect((err as ExecutorParseError).message).toContain('H0002 (src/a.ts)');
+  });
+
+  it('lets a complete first answer stop without asking anything', async () => {
+    const { queryFn, blocks } = answeringQueryFn([answer(['H0001', 'H0002'])]);
+    const executor = new ClaudeExecutor({ queryFn, env: {} });
+
+    const out = await executor.run(groundedInput());
+
+    expect(blocks).toEqual([]);
+    expect(out.findings).toEqual([]);
   });
 });

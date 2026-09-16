@@ -70,6 +70,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   return {
     job: toJobView(job),
     review: review.content,
+    findings: review.findings,
     diffTruncated: review.diffTruncated,
     meta: reviewMetaFromJob(job.target, metadata.pullMetadata, job.githubLogin),
     isStale: metadata.currentHeadSha !== null && metadata.currentHeadSha !== headSha,

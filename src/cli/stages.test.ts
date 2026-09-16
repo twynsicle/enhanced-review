@@ -116,7 +116,7 @@ describe('stub run → parse', () => {
   it("points at raw.txt when the model's answer does not parse", async () => {
     writeFileSync(run.raw, 'I could not finish the review.');
     await expect(parseRun(context(), run)).rejects.toThrow(
-      `did not contain expected <narrative_review> tags. The model's answer is in ${run.raw}; ` +
+      `The answer contains no complete <narrative_review> block. The model's answer is in ${run.raw}; ` +
         'fix it there and rerun with --from parse',
     );
   });

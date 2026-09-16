@@ -27,7 +27,7 @@ export async function parseRun(context: RunContext, run: RunFiles): Promise<Narr
   const parsed = parseNarrativeReview(raw, grounding);
   if (!parsed.ok) {
     throw new Error(
-      `${parsed.error}. The model's answer is in ${run.raw}; ` +
+      `${parsed.error} The model's answer is in ${run.raw}; ` +
         'fix it there and rerun with --from parse, or run again for a fresh answer.',
     );
   }

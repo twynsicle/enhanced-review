@@ -1,3 +1,4 @@
+import type { Finding } from '../findings.ts';
 import type { NarrativeReview } from '../narrative.ts';
 import type { DiffHunk } from '../prompt/diff-hunk-catalog.ts';
 import type { PrData } from '../prompt/types.ts';
@@ -27,6 +28,12 @@ export interface ReviewExecutorOutput {
    * catalog to measure against.
    */
   hunks?: readonly DiffHunk[];
+  /**
+   * What validating the answer found. Never fatal here — a fatal finding
+   * fails the run instead of returning — so this is the record of what the
+   * review cost to obtain, which the job stores and the reader shows.
+   */
+  findings: Finding[];
 }
 
 export interface ReviewExecutor {

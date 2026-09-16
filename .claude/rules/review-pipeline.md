@@ -29,6 +29,13 @@ src/domain/
                      ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
                      reviewable and not only what was cited; SUMMARY_SECTION_ID / RISK_SECTION_ID /
                      UNDISCUSSED_SECTION_ID, the reader's synthesised sections),
+                     findings.ts (Finding: code, severity, message and where it happened, plus the ONE map from
+                     code to severity — fatal disqualifies the answer, warning ships and is shown, note is only
+                     recorded; FindingLog, the collector the parsers write to; FindingSchema, since findings are
+                     stored in `reviews.findings` and read back),
+                     validate-review.ts (validateReview(text, grounding) → { review, findings }: the parse plus the
+                     coverage check, and the one verdict the Stop hook, the hosted executor and `er` all ask for;
+                     a hunk the prompt showed that no chapter cites is fatal),
                      coverage.ts (the backstop for the instruction that the model cite every hunk: withFileHunks
                      attaches the catalog to the files — the local CLI at parse, the hosted runner at finalize;
                      reviewCoverage subtracts what the chapters cite, per hunk, and returns `uncited`, one
@@ -70,7 +77,10 @@ src/domain/
                      the hunks the truncated prompt showed while knowing every reviewed file's name;
                      NARRATIVE_SYSTEM_PROMPT, formatFileList, formatHunkCatalog and formatSkippedSection are
                      shared with the local CLI's prompt),
-                     parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; a failed JSON.parse is
+                     parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; every repair it makes
+                     is recorded as a Finding, so leniency is no longer silence; it reads the LAST complete
+                     <narrative_review> block, since a run that was asked to answer again leaves more than one;
+                     a failed JSON.parse is
                      retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string;
                      fails the whole review — never silently drops or keeps a chapter — when a chapter ends up with no
                      diffChunks after hunk-id resolution and the prompt showed at least one hunk to cite, since prose
@@ -81,15 +91,20 @@ src/domain/
                      filename, since the reader keys a file's insights and its count on the name; and an insight's
                      `filename` survives only when the chapter's own diffChunks cite it — anchored elsewhere it
                      would be drawn nowhere, so the anchor goes and the insight stays),
-                     parse-diagram (same leniency for diagrams: drops the invalid part, validates each diagram on its own
+                     parse-diagram (same leniency for diagrams, and the same record of it: drops the invalid part,
+                     validates each diagram on its own
                      so a bad picture cannot fail the review; a node's filename checked against the reviewed file
                      list and its hunk ids against the hunks the prompt showed), types.ts (PrData),
                      instructions.ts (the review instructions and output schema, shared with the local CLI, plus one
                      closing paragraph per path: SERVER_WORKING_TREE, LOCAL_WORKING_TREE; the assembled server prompt is
                      pinned byte-for-byte by __fixtures__/server-prompt.txt)
     executor/        types.ts (ReviewExecutor, errors; the output's optional `hunks` is the prompt's catalog, which
-                     the runner attaches to `files[]` — the stub has none); stub-executor.server.ts (STUB_REVIEW in fragments);
+                     the runner attaches to `files[]` — the stub has none, and its `findings` are the non-fatal
+                     record of what the answer cost); stub-executor.server.ts (STUB_REVIEW in fragments);
                      claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist);
+                     validation-stop-hook.server.ts (the retry, as a Stop hook: validates the text accumulated so far
+                     and refuses the stop up to MAX_VALIDATION_RETRIES times, naming the defect and asking for the
+                     whole block again; SDK types only, so `er` can share it);
                      sdk-loop.server.ts (the message loop both this and the local CLI run on: text, tool uses and the
                      result out — subtype, turns, cost and token usage, cost counted even when the run ran out of
                      turns — nothing thrown: each caller decides what a failure means)
@@ -122,13 +137,25 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t
   `finalizeDone` writes the `reviews` row and `running → done` in one
   transaction, the changed files carrying their hunks when the executor
   returned a catalog and `skipped` when `skipReasons` says why the
-  prompt left it out; the `job done` log line reports the hunk coverage.
+  prompt left it out, and the executor's findings landing in
+  `reviews.findings`; the `job done` log line reports the hunk coverage and
+  the findings by severity.
   Failures → `markErrored(formatJobError(err))`, clipped to 500 chars. Every side effect is injected (`RunJobDeps`) so the stub review runs
   end to end from `run.integration.test.ts` against a local git repo.
 - **Abort reasons** say who already wrote the terminal status: `cancel`
   (`cancel-job.server.ts` wrote `cancelled` before signalling), `timeout`
   (`timeout.server.ts` wrote `error` first), `shutdown` (nobody — the runner
   writes `error: interrupted: server shutting down`).
+- **Validation**: every answer is judged by `validateReview`, and what it
+  found travels with the review (`findings.ts` states the severity of each
+  finding in one place). A disqualifying finding — an unreadable answer, a
+  missing field, a chapter with no hunk of its own, a hunk no chapter cites, a
+  run that stopped early — refuses the model's stop and names the defect, up
+  to three times; what survives that fails the review outright, because a
+  review with a hole in it that looks finished is worse than no review. A
+  warning ships with the review and is shown to whoever ran it; a note is only
+  recorded. On the hosted side a fatal finding means the job errors, so a
+  stored review's findings are never fatal.
 - **Executors**: `REVIEW_EXECUTOR=stub` replays `STUB_REVIEW` in fragments
   (local default, all tests); `claude` runs the Agent SDK in the clone with
   read-only tools, the filesystem sandbox pinned to the clone,
@@ -144,4 +171,5 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t
   `errorsLast24h`.
 - **Reads** go through `domain/jobs/jobs.server.ts`, which parses the JSON
   columns (`target` → `ReviewTargetSchema`, `content` →
-  `NarrativeReviewSchema`); repositories return them as `unknown`.
+  `NarrativeReviewSchema`, `findings` → `FindingsSchema`); repositories return
+  them as `unknown`.

@@ -58,6 +58,7 @@ describe('StubExecutor', () => {
       review: STUB_REVIEW,
       wasTruncated: false,
       rawText: fragments.join(''),
+      findings: [],
     });
     expect(executor.name).toBe('stub');
   });

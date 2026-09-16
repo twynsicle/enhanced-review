@@ -135,3 +135,29 @@ describe('extractChapterTitles', () => {
     expect(extractChapterTitles(buf)).toEqual({ titles: ['Done'], inProgressTitle: 'Mid' });
   });
 });
+
+describe('a run that was asked to answer again', () => {
+  it('lists only the chapters of the last block, not both attempts', () => {
+    const first = `${PRE}{"id":"c1","title":"First go"},{"id":"c2","title":"Also first go"}]}</narrative_review>`;
+    const second = `${PRE}{"id":"c1","title":"Second go"},{"id":"c2","title":"Still writ`;
+    expect(
+      extractChapterTitles(`${first}
+One moment.
+${second}`),
+    ).toEqual({
+      titles: ['Second go'],
+      inProgressTitle: 'Still writ',
+    });
+  });
+
+  it('keeps showing the finished block until the next one opens', () => {
+    const first = `${PRE}{"id":"c1","title":"First go"}]}</narrative_review>`;
+    expect(
+      extractChapterTitles(`${first}
+Let me redo that.`),
+    ).toEqual({
+      titles: ['First go'],
+      inProgressTitle: null,
+    });
+  });
+});

@@ -41,6 +41,7 @@ const JOB = {
 } as unknown as ReviewJob;
 const REVIEW: Review = {
   jobId: 'j1',
+  findings: [],
   diffTruncated: true,
   createdAt: new Date(),
   content: {
