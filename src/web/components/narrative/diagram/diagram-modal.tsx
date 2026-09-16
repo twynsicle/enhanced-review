@@ -144,7 +144,13 @@ export function DiagramModal({
             setPanning(false);
           }}
           onWheel={(event) => {
-            zoomBy(event.deltaY < 0 ? 1.1 : 1 / 1.1);
+            /*
+             * A trackpad fling fires many small wheel events per gesture, so
+             * a fixed per-event step compounds fast; scaling by the event's
+             * own deltaY keeps a light touch light and a hard scroll fast,
+             * instead of one gesture jumping from 20% to 100%.
+             */
+            zoomBy(Math.pow(1.0015, -event.deltaY));
           }}
         >
           {children}

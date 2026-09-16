@@ -20,7 +20,7 @@ import { DIAGRAM_TYPE, estimateTextWidth, fitCaption, widestLine, wrapLabel } fr
  * appears in both, which is the truth: it was there, and it is different.
  */
 const NODE_MIN_W = 96;
-const NODE_MAX_W = 216;
+const NODE_MAX_W = 320;
 const NODE_PAD_X = 14;
 const NODE_PAD_Y = 11;
 const NODE_MAX_LINES = 2;

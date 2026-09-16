@@ -31,7 +31,7 @@ import {
   type DiffView,
 } from '@/web/stores/diff-view';
 import { useDiffWrap, type DiffWrap } from '@/web/stores/diff-wrap';
-import { token } from '@/web/theme/tokens';
+import { token, TOPBAR_HEIGHT } from '@/web/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
 
 /**
@@ -429,6 +429,27 @@ function SnippetEditor({
     center.querySelector<HTMLElement>('a[role="button"]')?.click();
   }, []);
 
+  /*
+   * Monaco's hidden input carries the caret wherever the mouse puts it, but it
+   * starts a click at wherever it was left, and the browser's own "scroll the
+   * newly-focused element into view" runs before it catches up — on a page
+   * this long, that yanks the whole window to the input's stale position.
+   * Capturing the scroll offset on the preceding pointerdown and putting it
+   * straight back once focus lands undoes that in the same task, before the
+   * browser paints, so the reader never sees the jump. Keyed off pointerdown
+   * rather than firing on every focus so a genuine keyboard Tab into the
+   * editor keeps the browser's own scroll-into-view.
+   */
+  const pendingScroll = useRef<{ x: number; y: number } | null>(null);
+  const onPointerDown = useCallback(() => {
+    pendingScroll.current = { x: window.scrollX, y: window.scrollY };
+  }, []);
+  const onFocus = useCallback(() => {
+    const pos = pendingScroll.current;
+    pendingScroll.current = null;
+    if (pos) window.scrollTo(pos.x, pos.y);
+  }, []);
+
   // Memoised so the library only re-applies options when `expanded` or the
   // view flips; a fresh object each render would reset the per-side line
   // numbers set by `applySnippetLayout` on every height measurement.
@@ -486,7 +507,13 @@ function SnippetEditor({
 
   const fallback = <Skeleton height={MIN_EDITOR_HEIGHT} radius={0} />;
   return (
-    <div className={classes.editor} style={{ height: editorHeight }} onClick={onClick}>
+    <div
+      className={classes.editor}
+      style={{ height: editorHeight }}
+      onClick={onClick}
+      onPointerDown={onPointerDown}
+      onFocus={onFocus}
+    >
       {hydrated ? (
         <Suspense fallback={fallback}>
           <DiffEditor
@@ -590,7 +617,14 @@ export function InlineDiffChunk({
       role="figure"
       aria-label={`Diff for ${chunk.filename}`}
       style={{
-        overflow: 'hidden',
+        /*
+         * `clip`, not `hidden`: both round the card's corners, but `hidden`
+         * makes this box a scroll container, and the header below sticks to
+         * the nearest one. Against a card that cannot scroll, its offset
+         * resolved to "56px down from the top of the card" and it sat over
+         * the first lines of the diff for good.
+         */
+        overflow: 'clip',
         borderRadius: 8,
         boxShadow: `0 0 0 1px ${token('border')}`,
         background: token('card'),
@@ -602,8 +636,11 @@ export function InlineDiffChunk({
         py={8}
         fz="sm"
         style={{
+          position: 'sticky',
+          top: TOPBAR_HEIGHT,
+          zIndex: 10,
           borderBottom: `1px solid ${token('border')}`,
-          background: `color-mix(in oklab, ${token('muted')} 30%, transparent)`,
+          background: `color-mix(in oklab, ${token('muted')} 30%, ${token('card')})`,
         }}
       >
         <Text

@@ -4,7 +4,7 @@ import { Link } from 'react-router';
 import { BrandMark } from '@/web/components/brand-mark';
 import { shellMaxWidth, SHELL_PX, type ShellWidth } from '@/web/components/page-shell';
 import { useIsReader } from '@/web/lib/reader-route';
-import { token } from '@/web/theme/tokens';
+import { token, TOPBAR_HEIGHT } from '@/web/theme/tokens';
 import { DisplayMenu } from './display-menu';
 import { TopbarNav } from './topbar-nav';
 import { UserMenu, type TopbarUser } from './user-menu';
@@ -59,7 +59,7 @@ export function TopbarFrame({
       }}
     >
       <Group
-        h={56}
+        h={TOPBAR_HEIGHT}
         maw={shellMaxWidth(width)}
         mx="auto"
         px={SHELL_PX}

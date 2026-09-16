@@ -124,6 +124,25 @@ export function ChapterReader({
         : (findSection(sections, urlActive)?.id ?? initialActiveId)
       : SUMMARY_SECTION_ID;
 
+  /*
+   * A chapter or file switch starts the reader at the top of its content —
+   * carrying over the previous section's scroll position reads as picking up
+   * a new chapter halfway through. `preventScrollReset` on the navigation
+   * below keeps React Router from fighting this on the way in, and this
+   * effect skips its own first run so a deep link still lands where its
+   * `?ch=`/`?file=` puts it rather than snapping away from it.
+   */
+  const activeContentId = activeFile ?? activeId;
+  const isFirstRender = useRef(true);
+  // oxlint-disable-next-line react/exhaustive-deps -- activeContentId is the trigger, not read in the body
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    window.scrollTo({ top: 0 });
+  }, [activeContentId]);
+
   const onSelect = useCallback(
     (id: string) => {
       const next = new URLSearchParams(searchParams);
