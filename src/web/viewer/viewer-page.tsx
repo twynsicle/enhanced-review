@@ -53,10 +53,9 @@ export function ViewerPage({ result }: { result: EmbeddedBundleResult }) {
         <title>{`${bundle.review.prTitle || bundle.meta.title} · enhanced-review`}</title>
         <EmbeddedFileSource bundle={bundle}>
           {/*
-           * No findings: a local review reports what validating it found in
-           * the terminal and in the run folder, where the person who ran it
-           * is already looking, and the report is a file they may forward to
-           * someone who was not there.
+           * The local report carries no findings. Whoever ran `er` is told
+           * what validating the review found, in the terminal and in
+           * findings.json, so the report is kept to the review itself.
            */}
           <ChapterReader
             review={bundle.review}

@@ -1,12 +1,17 @@
 import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
 import { logger } from '../../../common/logger.ts';
-import { plural } from '../../../common/plural.ts';
 import { pickHostEnv } from '../../../config/host-env.ts';
-import { fatalFindings, finding, type Finding } from '../findings.ts';
+import {
+  fatalFindings,
+  finding,
+  passedAfterRetry,
+  runStoppedEarly,
+  type Finding,
+} from '../findings.ts';
 import { SERVER_WORKING_TREE } from '../prompt/instructions.ts';
 import { buildNarrativePrompt } from '../prompt/narrative-prompt.ts';
 import { validateReview } from '../validate-review.ts';
-import { runSdkLoop, type SdkRunResult } from './sdk-loop.server.ts';
+import { howItEnded, runSdkLoop } from './sdk-loop.server.ts';
 import { MAX_VALIDATION_RETRIES, validationStopHook } from './validation-stop-hook.server.ts';
 import {
   abortError,
@@ -54,20 +59,6 @@ export const CLAUDE_ENV_KEYS: readonly string[] = [
   'HOME',
   'USERPROFILE',
 ];
-
-/**
- * How the run ended, when that was not a clean success; null when it was.
- *
- * No result at all counts as ending badly. The SDK sends one for every way a
- * run can finish, including running out of turns, so a stream that stops
- * without one stopped for a reason nobody recorded — and taking that for a
- * clean success would ship the answer of a run that was cut off.
- */
-function howItEnded(result: SdkRunResult | null): string | null {
-  if (!result) return 'no result';
-  if (result.subtype !== 'success') return result.subtype;
-  return result.isError ? 'error' : null;
-}
 
 export type ClaudeQueryFn = typeof query;
 
@@ -139,6 +130,9 @@ export class ClaudeExecutor implements ReviewExecutor {
               retries = attempt;
               log.warn({ attempt, reason }, 'review validation blocked stop');
             },
+            onError: (err) => {
+              log.error({ err }, 'review validation hook failed');
+            },
           }),
         ],
       },
@@ -177,37 +171,26 @@ export class ClaudeExecutor implements ReviewExecutor {
     // was asked to, whatever its answer looks like: the turns it never took
     // are files it never read, and a review that reads well on half the
     // change is the most misleading thing this can produce.
-    if (ended !== null) {
-      findings.push(
-        finding(
-          'run-stopped-early',
-          `The run did not finish cleanly (${ended}), so the reviewer stopped short of the change.`,
-        ),
-      );
-    }
+    if (ended !== null) findings.push(runStoppedEarly(ended));
 
     const fatal = fatalFindings(findings);
-    const lastFatal = fatal.at(-1);
-    if (lastFatal) {
+    if (fatal.length > 0) {
+      // The thrown message is one sentence and the job's error column holds
+      // 500 characters, so the whole list goes to the log first: whoever looks
+      // at why a job errored sees everything the answer was judged on.
+      log.error({ findings, ended }, 'review validation failed');
       // How the run ended outranks what it said: a run cut short stays a
       // process error even when the text it managed to emit parsed.
       if (ended !== null) {
         throw new ExecutorProcessError(`claude SDK result: ${ended}`, '', null, raw);
       }
-      throw new ExecutorParseError(lastFatal.message, raw);
+      throw new ExecutorParseError(fatal[0]!.message, raw);
     }
     if (!validation.review) {
       // Unreachable: an answer that did not parse carries a fatal finding.
       throw new ExecutorParseError('The answer was not a usable review.', raw);
     }
-    if (retries > 0) {
-      findings.push(
-        finding(
-          'passed-after-retry',
-          `The reviewer's first answer was disqualified; this review is what it sent after ${plural(retries, 'further attempt')}.`,
-        ),
-      );
-    }
+    if (retries > 0) findings.push(passedAfterRetry(retries));
     return { review: validation.review, rawText: raw, hunks: catalog, findings };
   }
 }

@@ -11,7 +11,9 @@ review and writes one `review.html` — everything inlined but the Monaco editor
 which the page fetches — that renders the same reader as the hosted app. It runs on an engineer's laptop with none
 of the server's configuration, so the `cli-imports` guardrail keeps its whole
 import graph clear of `env.ts`, the logger, the db layer and server-only
-packages. Output goes through `terminal.ts` (stdout/stderr, never `console`).
+packages, and holds the Agent SDK to type-only or dynamic imports so nothing
+but a real run loads it. Output goes through `terminal.ts` (stdout/stderr,
+never `console`).
 
 ```
 src/cli/
@@ -19,8 +21,9 @@ src/cli/
                    the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
                    --keep-worktree, --model, --max-turns, --timeout; prints each warning finding after the parse
-                   line and returns WARNED (2) when there was one; deps (Shell, render, open, query) injectable
-                   for the end-to-end test
+                   line and returns WARNED (2) when there was one — --from render reads them back with
+                   readFindings, so rendering again says the same thing about the review; deps (Shell, render,
+                   open, query) injectable for the end-to-end test
   targets.ts       resolveTarget: branch (against the open PR's base or origin's default, fetched first), pr (fetch
                    pull/<n>/head, merge-base with its base), staged (the index as a dangling commit on HEAD); --base;
                    locateTarget (repo root + slug only, for --from); TargetSchema
@@ -36,20 +39,27 @@ src/cli/
                    (tool uses, refusals, blocked stops, and a result event carrying turns, cost and the token
                    usage); the shared validationStopHook registered on Stop over the run's own copy of the answer,
                    so a disqualified one costs a turn rather than a second run, and each refusal is a `blocked`
-                   event and a terminal note; the reviewed repo's own settings (settingSources user/project/local),
+                   event and a terminal note, and a hook that throws is a `hook-error` event and a warning rather
+                   than a stranded run; the reviewed repo's own settings (settingSources user/project/local),
                    read-only tools, the engineer's environment inherited by the subprocess; the SDK is imported
                    only when a run happens
   bash-gate.ts     which Bash commands a review may run: the line is split at | && ||, every part must be a known
                    read-only invocation; no redirection (bar 2>/dev/null), substitution or launcher flags
   progress.ts      the live line during the run: elapsed time, the file being read, chapter titles picked out of the
                    answer as it streams; drawn only on a terminal
-  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks; no model
+  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks; no model. It also
+                   overwrites events.jsonl with one clean result event, so the parse stage reads how this run
+                   ended and never an earlier run's log
   parse.ts         raw.txt → validateReview (the same verdict the hosted run uses) → review.json + findings.json,
                    files taken from context, each carrying its share of the hunk catalog; what the run itself cost
                    is read back off events.jsonl rather than passed down, so --from parse reports the same
                    findings without paying for the model again: refusals → one `commands-refused` warning, a
                    result that is missing or not a clean success → a fatal `run-stopped-early`, blocked stops →
-                   `passed-after-retry`. A fatal finding fails the stage, pointing at raw.txt
+                   `passed-after-retry`; no events.jsonl at all is itself a fatal `run-stopped-early`, since an
+                   empty findings list and no record of the run must not read alike, and any other read error is
+                   rethrown. A fatal finding fails the stage, having written findings.json and no review.json
+                   first, so the record of the failure survives it. readFindings reads that file back for the
+                   render stage, and refuses one that is missing or fatal
   render.ts        the bundle into the viewer shell → review.html; viewerShell rebuilds build/viewer when stale
   viewer-stamp.ts  hash of the viewer's sources; the viewer build writes it, render compares it
   worktree.ts      a PR's run happens in a detached worktree of its head in the temp dir (er-pr<n>-<pid>-<stamp>),

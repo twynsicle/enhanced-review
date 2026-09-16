@@ -1,16 +1,7 @@
 import { Group } from '@mantine/core';
 import { plural } from '@/common/plural';
 import { RerunButton } from '@/web/components/jobs/rerun-button';
-import { token, type TokenName } from '@/web/theme/tokens';
-
-function bannerStyle(tone: TokenName) {
-  return {
-    borderRadius: 6,
-    border: `1px solid color-mix(in oklab, ${token(tone)} 40%, transparent)`,
-    background: `color-mix(in oklab, ${token(tone)} 10%, transparent)`,
-    color: token('foreground'),
-  };
-}
+import { bannerStyle } from '@/web/theme/tokens';
 
 /** Shown when the target has moved past the reviewed head; offers a rerun. */
 export function StalenessBanner({ jobId, commitsAhead }: { jobId: string; commitsAhead: number }) {

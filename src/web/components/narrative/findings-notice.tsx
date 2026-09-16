@@ -1,7 +1,7 @@
 import { List, Stack } from '@mantine/core';
 import type { Finding } from '@/domain/review/findings';
 import { Caption } from '@/web/components/caption';
-import { token } from '@/web/theme/tokens';
+import { bannerStyle } from '@/web/theme/tokens';
 
 /**
  * What validating this review found, for the person reading it. Only the
@@ -25,12 +25,7 @@ export function FindingsNotice({ findings }: { findings: readonly Finding[] }) {
       gap={8}
       px={16}
       py={12}
-      style={{
-        borderRadius: 6,
-        border: `1px solid color-mix(in oklab, ${token('suggestion')} 40%, transparent)`,
-        background: `color-mix(in oklab, ${token('suggestion')} 10%, transparent)`,
-        color: token('foreground'),
-      }}
+      style={bannerStyle('suggestion')}
     >
       <Caption component="h3" tone="suggestion">
         What this review cost

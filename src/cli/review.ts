@@ -11,7 +11,7 @@ import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-ru
 import { gather, readContext, type RunContext } from './context.ts';
 import { Shell } from './git.ts';
 import { onInterrupt } from './interrupts.ts';
-import { groundingForRun, parseRun, readReview } from './parse.ts';
+import { groundingForRun, parseRun, readFindings, readReview } from './parse.ts';
 import { openFile } from './platform.ts';
 import { startProgress } from './progress.ts';
 import { writePrompt } from './prompt.ts';
@@ -130,6 +130,7 @@ export async function review(
               onActivity: progress.activity,
               onText: progress.text,
               onBlocked: blockedNote,
+              onHookError: hookErrorNote,
               ...deps.claude,
             },
           );
@@ -144,24 +145,29 @@ export async function review(
   }
 
   let parsed: NarrativeReview;
-  let warnings: Finding[] = [];
+  let findings: Finding[];
   if (runs('parse')) {
     const started = performance.now();
     const result = await parseRun(context, run);
     parsed = result.review;
-    warnings = result.findings.filter((item) => item.severity === 'warning');
+    findings = result.findings;
     stage(
       'parse',
       `${plural(parsed.chapters.length, 'chapter')}, ${plural(reviewCoverage(parsed).total, 'hunk')}`,
       performance.now() - started,
     );
-    // The review still ships: each of these is something around the chapters
-    // that was lost, not a hole in them. Said before the report opens, because
-    // afterwards nobody comes back to the terminal.
-    for (const warning of warnings) warn(warning.message);
   } else {
+    // Rendering again is still shipping the review, so it still says what the
+    // review cost. The answer is not in front of this stage; what the parse
+    // made of it is, in findings.json.
     parsed = await readReview(run);
+    findings = await readFindings(run);
   }
+  // The review still ships: each of these is something around the chapters
+  // that was lost, not a hole in them. Said before the report opens, because
+  // afterwards nobody comes back to the terminal.
+  const warnings = findings.filter((item) => item.severity === 'warning');
+  for (const warning of warnings) warn(warning.message);
 
   const started = performance.now();
   const bytes = await renderRun(context, parsed, run, deps.render);
@@ -174,15 +180,23 @@ export async function review(
 }
 
 /**
- * A disqualified answer, as it happens. The progress line is redrawn every
- * second, so it is taken down first rather than left with a note written
+ * A disqualified answer, as it happens. Only what was wrong with it: the rest
+ * of what the model was sent is an instruction addressed to the model, and it
+ * is in `events.jsonl` for anyone who wants it. The progress line is redrawn
+ * every second, so it is taken down first rather than left with a note written
  * across it.
  */
-function blockedNote(attempt: number, reason: string): void {
+function blockedNote(attempt: number, defects: string): void {
   clearStatus();
   note(
-    `  answer disqualified, asking again (${String(attempt)} of ${String(MAX_VALIDATION_RETRIES)}): ${reason}`,
+    `  answer disqualified, asking again (${String(attempt)} of ${String(MAX_VALIDATION_RETRIES)}): ${defects}`,
   );
+}
+
+/** The run carried on ungraded; whatever it wrote is judged at the parse stage. */
+function hookErrorNote(error: Error): void {
+  clearStatus();
+  warn(`the answer could not be checked while the model was still writing: ${error.message}`);
 }
 
 /**

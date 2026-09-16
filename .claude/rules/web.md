@@ -116,7 +116,8 @@ src/web/
                      toggle disables and inline-diff-chunk forces unified. A per-frame measurement is kept off the
                      persisted store because persist writes its slice after every set, unconditionally
   theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours + FONT_SIZES/DISPLAY_SIZE/
-                     CAPTION_TYPE, the type scale) → theme.ts (Mantine ramps, fontSizes, sans + mono),
+                     CAPTION_TYPE, the type scale + bannerStyle, the one tinted panel the staleness banner and the
+                     findings notice share) → theme.ts (Mantine ramps, fontSizes, sans + mono),
                      css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules)
   lib/               parse.server.ts (Zod parseParams / parseSearchParams / parseFormData), github.server.ts (requireGithubToken,
                      withGithub → /relink, githubFailure), github-api.ts (resource-route body types, GITHUB_ERROR_STATUS),

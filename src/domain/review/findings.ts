@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { plural } from '../../common/plural.ts';
 
 /**
  * What validating a generated review found: every repair, every omission and
@@ -18,8 +19,9 @@ import { z } from 'zod';
  *            review does. A reader must never be handed a review with a hole
  *            in it that looks finished.
  *   warning  something *around* the chapters was lost — a summary, a diagram,
- *            an anchor, a truncated diff. The review ships and the person who
- *            ran it is told.
+ *            an anchor, a truncated diff — or the answer cost more to get than
+ *            it should have. The review ships and the person who ran it is
+ *            told.
  *   note     a repair that cost the reader nothing. Recorded so a pattern of
  *            them is visible, and nothing more.
  *
@@ -70,7 +72,7 @@ const SEVERITY_BY_CODE = {
   'chunk-dropped': 'note',
   /** The JSON parsed only after a quote the model forgot to escape was escaped. */
   'json-quote-repaired': 'note',
-  /** A chapter named one file in two chunks; they were merged into one. */
+  /** A chapter showed one file twice — two chunks, or one hunk cited twice — and the repeat went. */
   'chunks-merged': 'note',
   /** An insight's type is not one of the four, and fell back to `context`. */
   'insight-type-unknown': 'note',
@@ -127,7 +129,7 @@ export function finding(
  */
 export interface FindingLog {
   readonly findings: Finding[];
-  /** Returns what it recorded, so a fatal path can report the same sentence. */
+  /** Returns what it recorded, for a caller that wants the finding itself. */
   add(code: FindingCode, message: string, location?: FindingLocation): Finding;
 }
 
@@ -147,8 +149,25 @@ export function fatalFindings(findings: readonly Finding[]): Finding[] {
   return findings.filter((item) => item.severity === 'fatal');
 }
 
-export function isFatal(findings: readonly Finding[]): boolean {
-  return findings.some((item) => item.severity === 'fatal');
+/**
+ * The two findings a run earns by how it behaved rather than by what it said,
+ * built here because the hosted executor and `er` both record them and a
+ * person comparing a job's findings with a run folder's must read the same
+ * sentence in both.
+ *
+ * `hint` is what the reader can do about it, which is the one part that
+ * differs: a hosted job is rerun, a local run is given more room.
+ */
+export function runStoppedEarly(ended: string, hint?: string): Finding {
+  const what = `The run did not finish cleanly (${ended}), so the reviewer stopped short of the change.`;
+  return finding('run-stopped-early', hint === undefined ? what : `${what} ${hint}`);
+}
+
+export function passedAfterRetry(attempts: number): Finding {
+  return finding(
+    'passed-after-retry',
+    `The reviewer's first answer was disqualified; this review is what it sent after ${plural(attempts, 'further attempt')}.`,
+  );
 }
 
 /** Severity totals, for a log line that has no room for the findings themselves. */

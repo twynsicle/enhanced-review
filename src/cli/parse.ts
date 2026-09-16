@@ -2,7 +2,15 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { plural } from '../common/plural.ts';
 import { withFileHunks } from '../domain/review/coverage.ts';
-import { fatalFindings, finding, type Finding } from '../domain/review/findings.ts';
+import { howItEnded } from '../domain/review/executor/sdk-loop.server.ts';
+import {
+  fatalFindings,
+  finding,
+  passedAfterRetry,
+  runStoppedEarly,
+  FindingsSchema,
+  type Finding,
+} from '../domain/review/findings.ts';
 import { NarrativeReviewSchema, type NarrativeReview } from '../domain/review/narrative.ts';
 import { groundingFor, type PromptGrounding } from '../domain/review/prompt/diff-hunk-catalog.ts';
 import { validateReview } from '../domain/review/validate-review.ts';
@@ -39,6 +47,10 @@ export async function parseRun(context: RunContext, run: RunFiles): Promise<Pars
 
   const fatal = fatalFindings(findings);
   if (fatal.length > 0) {
+    // Written before the throw, and `review.json` is not: the record of why
+    // this failed outlives the terminal it was printed to, and the stale
+    // review a later `--from render` would otherwise draw is not there to draw.
+    await writeFile(run.findings, `${JSON.stringify(findings, null, 2)}\n`);
     throw new Error(
       `${fatal.map((item) => item.message).join(' ')} The model's answer is in ${run.raw}; ` +
         'fix it there and rerun with --from parse, or run again for a fresh answer.',
@@ -91,16 +103,11 @@ function readEvent(line: string): RunEvent[] {
   }
 }
 
-/** How the run ended, when that was not a clean success; null when it was. */
-function howItEnded(result: RunEvent | undefined): string | null {
-  if (!result) return 'no result';
-  if (result.subtype !== 'success') return result.subtype ?? 'unknown';
-  return result.isError === true ? 'error' : null;
-}
-
 /**
- * What the run itself cost the review, as findings. `--stub` writes no event
- * log at all, and a missing one says only that no model was run.
+ * What the run itself cost the review, as findings. Every run stage writes an
+ * event log, `--stub` included, so its absence is not "no model ran" — it is
+ * a run nobody has any record of, which is exactly what a clean parse must not
+ * be mistaken for.
  *
  * A blocked stop earns `passed-after-retry` with nothing asked about the
  * answer that followed it: an answer still disqualified after those blocks
@@ -110,8 +117,17 @@ async function runFindings(run: RunFiles): Promise<Finding[]> {
   let log: string;
   try {
     log = await readFile(run.events, 'utf8');
-  } catch {
-    return [];
+  } catch (error) {
+    // Only a missing file is a fact about the run. Anything else — a
+    // permission, a bad handle — is a fact about this machine, and swallowing
+    // it would report a defect in the review that is nothing of the kind.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return [
+      finding(
+        'run-stopped-early',
+        `There is no record of how the run ended: ${run.events} is not there. Run again from the run stage.`,
+      ),
+    ];
   }
 
   const events = log.split('\n').flatMap(readEvent);
@@ -133,26 +149,43 @@ async function runFindings(run: RunFiles): Promise<Finding[]> {
   const result = events.findLast((event) => event.type === 'result');
   const ended = howItEnded(result);
   if (ended !== null) {
+    // Nothing the parse stage can be told to do clears this: the finding is
+    // about turns the reviewer never took, so the only fix is another run.
     findings.push(
-      finding(
-        'run-stopped-early',
-        `The run did not finish cleanly (${ended}), so the reviewer stopped short of the change. ` +
-          'Raise --max-turns, or edit raw.txt and use --from parse.',
-      ),
+      runStoppedEarly(ended, 'Raise --max-turns or --timeout and run again from the run stage.'),
     );
     return findings;
   }
 
   const blocked = events.filter((event) => event.type === 'blocked').length;
-  if (blocked > 0) {
-    findings.push(
-      finding(
-        'passed-after-retry',
-        `The reviewer's first answer was disqualified; this review is what it sent after ${plural(blocked, 'further attempt')}.`,
-      ),
+  if (blocked > 0) findings.push(passedAfterRetry(blocked));
+  return findings;
+}
+
+/**
+ * What the last parse recorded. The render stage has no answer in front of it,
+ * so this is the only thing that knows whether the review it is about to draw
+ * shipped with something lost — and a `--from render` that says nothing about
+ * a warned review is the same silence the findings exist to end.
+ */
+export async function readFindings(run: RunFiles): Promise<Finding[]> {
+  let raw: string;
+  try {
+    raw = await readFile(run.findings, 'utf8');
+  } catch {
+    throw new Error(`no findings.json in ${run.folder}; run from parse`);
+  }
+  const parsed = FindingsSchema.safeParse(JSON.parse(raw) as unknown);
+  if (!parsed.success) {
+    throw new Error(`${run.findings} is not a list of findings: ${parsed.error.message}`);
+  }
+  const fatal = fatalFindings(parsed.data);
+  if (fatal.length > 0) {
+    throw new Error(
+      `the last parse failed; run from parse. ${fatal.map((item) => item.message).join(' ')}`,
     );
   }
-  return findings;
+  return parsed.data;
 }
 
 export async function readReview(run: RunFiles): Promise<NarrativeReview> {

@@ -37,23 +37,25 @@ const STOP = {
   cwd: '.',
 } as HookInput;
 
-function harness(texts: string[], maxRetries = 3) {
+function harness(texts: string[] | (() => string), maxRetries = 3) {
   let at = 0;
-  const onBlock = vi.fn<(attempt: number, reason: string) => void>();
+  const onBlock = vi.fn<(attempt: number, reason: string, defects: string) => void>();
+  const onError = vi.fn<(error: Error) => void>();
   const matcher = validationStopHook({
     grounding,
     maxRetries,
-    text: () => texts[Math.min(at, texts.length - 1)] ?? '',
+    text: typeof texts === 'function' ? texts : () => texts[Math.min(at, texts.length - 1)] ?? '',
     onBlock,
+    onError,
   });
-  const stop = async (): Promise<{ decision?: string; reason?: string }> => {
+  const stop = async (): Promise<{ decision?: string; reason?: string; continue?: boolean }> => {
     const out = (await matcher.hooks[0]!(STOP, undefined, {
       signal: new AbortController().signal,
-    })) as { decision?: string; reason?: string };
+    })) as { decision?: string; reason?: string; continue?: boolean };
     at += 1;
     return out;
   };
-  return { stop, onBlock };
+  return { stop, onBlock, onError };
 }
 
 describe('validationStopHook', () => {
@@ -68,8 +70,30 @@ describe('validationStopHook', () => {
     const out = await stop();
     expect(out.decision).toBe('block');
     expect(out.reason).toContain('H0002 (src/a.ts)');
-    expect(out.reason).toContain('Re-emit the complete <narrative_review>');
-    expect(onBlock).toHaveBeenCalledWith(1, out.reason);
+    expect(out.reason).toContain('complete narrative review block again, inside its tags');
+    expect(onBlock).toHaveBeenCalledWith(1, out.reason, expect.stringContaining('H0002'));
+  });
+
+  /**
+   * The instruction is read back by the parser, which looks for the tag pair:
+   * spelling it here would leave an empty block at the end of the transcript
+   * and disqualify the very answer this asked for.
+   */
+  it('names no tag pair in what it sends back', async () => {
+    const { stop } = harness([answer(['H0001'])]);
+    const out = await stop();
+    expect(out.reason).not.toContain('</narrative_review>');
+  });
+
+  it('allows the stop and reports when the hook itself throws', async () => {
+    const { stop, onBlock, onError } = harness(() => {
+      throw new Error('the transcript went missing');
+    });
+    await expect(stop()).resolves.toEqual({ continue: true });
+    expect(onBlock).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'the transcript went missing' }),
+    );
   });
 
   it('says what is missing when there is no block at all', async () => {

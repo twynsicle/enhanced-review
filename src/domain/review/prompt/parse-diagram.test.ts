@@ -472,3 +472,67 @@ describe('a value a diagram had coerced or cut to fit', () => {
     ]);
   });
 });
+
+describe('a diagram that never became one', () => {
+  it('says nothing when the field was never sent', () => {
+    expect(findingsFrom(undefined)).toEqual([]);
+    expect(findingsFrom(null)).toEqual([]);
+  });
+
+  it('records a diagram that arrived as something other than an object', () => {
+    expect(findingsFrom('a picture of the flow')).toEqual([
+      {
+        code: 'diagram-dropped',
+        severity: 'warning',
+        message: 'The diagram for d arrived as string rather than an object, so there is none.',
+      },
+    ]);
+  });
+});
+
+describe('a default a diagram fell back to', () => {
+  it('notes a direction it could not read, and says nothing when none was sent', () => {
+    expect(findingsFrom(graph({ direction: 'widdershins' })).map((f) => f.message)).toEqual([
+      'Diagram d dropped the direction, which was read as down.',
+    ]);
+    expect(findingsFrom(graph())).toEqual([]);
+  });
+
+  it('notes a group style and a message style it could not read', () => {
+    const findings = findingsFrom({
+      kind: 'sequence',
+      caption: 'What the prose cannot say.',
+      participants: [
+        { id: 'a', label: 'A' },
+        { id: 'b', label: 'B' },
+      ],
+      steps: [
+        { type: 'message', from: 'a', to: 'b', label: 'call', style: 'shout' },
+        {
+          type: 'group',
+          style: 'maybe',
+          branches: [{ steps: [{ type: 'message', from: 'a', to: 'b', label: 'inner' }] }],
+        },
+      ],
+    });
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped the style on the message a → b, which was read as call.',
+      'Diagram d dropped the style on a group, which was read as alt.',
+    ]);
+  });
+
+  it('records grounding a node could not keep', () => {
+    const findings = findingsFrom(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', kind: 'external', filename: 'src/a.ts' },
+          { id: 'b', label: 'B', hunkIds: ['H0001'] },
+        ],
+      }),
+    );
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped the filename on a node of kind external, which links to no file.',
+      'Diagram d dropped the hunk ids on a node that named no file.',
+    ]);
+  });
+});

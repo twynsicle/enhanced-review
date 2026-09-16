@@ -12,8 +12,8 @@ import { parseNarrativeReview } from './prompt/parse-narrative.ts';
  * this, so all three judge an answer by the same rules.
  *
  * `review` is what parsed, which can be a perfectly well-formed review that
- * is nonetheless disqualified by a finding. Callers decide on
- * `isFatal(findings)`, never on `review !== null` alone.
+ * is nonetheless disqualified by a finding. Callers decide on the findings —
+ * `fatalFindings` — never on `review !== null` alone.
  */
 export interface ReviewValidation {
   review: NarrativeReview | null;

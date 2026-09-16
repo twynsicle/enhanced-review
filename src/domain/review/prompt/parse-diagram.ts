@@ -91,6 +91,24 @@ function toChange(raw: unknown, whose: string, drop: DropPart): DiagramChange {
   return 'unchanged';
 }
 
+/**
+ * One of a small set of values, or the default. Same bargain as `toChange`:
+ * silent when nothing was sent, since the default is exactly what an absent
+ * field means, and recorded when something arrived that this reader cannot
+ * use — the picture is then drawn differently from the one the model asked for.
+ */
+function toOneOf<T extends string>(
+  raw: unknown,
+  allowed: readonly T[],
+  fallback: T,
+  whose: string,
+  drop: DropPart,
+): T {
+  if (typeof raw === 'string' && (allowed as readonly string[]).includes(raw)) return raw as T;
+  if (raw !== undefined && raw !== null) drop(`${whose}, which was read as ${fallback}`);
+  return fallback;
+}
+
 function toNodeKind(raw: unknown, whose: string, drop: DropPart): DiagramNodeKind {
   const parsed = DiagramNodeKindSchema.safeParse(raw);
   if (parsed.success) return parsed.data;
@@ -118,9 +136,17 @@ function resolveNodeGrounding(
 ): NodeGrounding {
   // Only code has a path. A table, a service or a person does not, and asking
   // for one is asking the model to make one up.
-  if (kind !== 'code') return {};
+  if (kind !== 'code') {
+    if (raw['filename'] !== undefined && raw['filename'] !== null) {
+      drop(`the filename on a node of kind ${kind}, which links to no file`);
+    }
+    return {};
+  }
   const filename = clamp(raw['filename'], 512, 'filename', drop);
-  if (filename === undefined) return {};
+  if (filename === undefined) {
+    if (list(raw['hunkIds']).length > 0) drop('the hunk ids on a node that named no file');
+    return {};
+  }
   if (!grounding?.filenames.has(filename)) {
     drop(`the filename ${filename} on a node, which the change does not contain`);
     return {};
@@ -246,7 +272,13 @@ function sanitizeGraph(
     drop,
   );
 
-  const direction = raw['direction'] === 'right' ? 'right' : 'down';
+  const direction = toOneOf(
+    raw['direction'],
+    ['down', 'right'] as const,
+    'down',
+    'the direction',
+    drop,
+  );
   return { direction, ...(groups.length > 0 ? { groups } : {}), nodes, edges };
 }
 
@@ -272,7 +304,6 @@ function sanitizeSteps(
           drop('a group nested deeper than two levels');
           return [];
         }
-        const style = SequenceGroupStyleSchema.safeParse(step['style']);
         const branches = capped(
           list(step['branches']).flatMap((branch) => {
             if (!isRecord(branch)) {
@@ -300,7 +331,13 @@ function sanitizeSteps(
         return [
           {
             type: 'group',
-            style: style.success ? style.data : 'alt',
+            style: toOneOf(
+              step['style'],
+              SequenceGroupStyleSchema.options,
+              'alt',
+              'the style on a group',
+              drop,
+            ),
             ...(label !== undefined ? { label } : {}),
             branches,
           },
@@ -324,7 +361,13 @@ function sanitizeSteps(
           from,
           to,
           label,
-          style: step['style'] === 'return' ? 'return' : 'call',
+          style: toOneOf(
+            step['style'],
+            ['call', 'return'] as const,
+            'call',
+            `the style on the message ${from} → ${to}`,
+            drop,
+          ),
           change: toChange(step['change'], `the message ${from} → ${to}`, drop),
         },
       ];
@@ -396,8 +439,17 @@ export function sanitizeDiagram(
   grounding: PromptGrounding | undefined,
   log: FindingLog,
 ): Diagram | undefined {
-  // Nothing in the field is not a dropped diagram; there was never one.
-  if (!isRecord(raw)) return undefined;
+  if (!isRecord(raw)) {
+    // Nothing in the field is not a dropped diagram; there was never one. A
+    // value that is not an object is a picture the model meant to draw.
+    if (raw !== undefined && raw !== null) {
+      log.add(
+        'diagram-dropped',
+        `The diagram for ${fallbackId} arrived as ${typeof raw} rather than an object, so there is none.`,
+      );
+    }
+    return undefined;
+  }
 
   // The one string cut with nothing said about it: the diagram's own id is
   // never shown and nothing points at it, and every finding below is addressed

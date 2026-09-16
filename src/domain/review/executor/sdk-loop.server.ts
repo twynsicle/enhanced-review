@@ -28,6 +28,25 @@ export interface SdkRunResult {
 }
 
 /**
+ * How the run ended, when that was not a clean success; null when it was.
+ *
+ * No result at all counts as ending badly. The SDK sends one for every way a
+ * run can finish, including running out of turns, so a stream that stops
+ * without one stopped for a reason nobody recorded — and taking that for a
+ * clean success would ship the answer of a run that was cut off.
+ *
+ * Structural rather than `SdkRunResult`, because `er` asks the same question
+ * of a result it read back out of its own event log.
+ */
+export function howItEnded(
+  result: { subtype?: string; isError?: boolean } | null | undefined,
+): string | null {
+  if (!result) return 'no result';
+  if (result.subtype !== 'success') return result.subtype ?? 'unknown';
+  return result.isError === true ? 'error' : null;
+}
+
+/**
  * What the run spent, totalled over every model it used. An agentic run pays
  * for its whole context on each turn, so `inputTokens` climbs far past the
  * size of the prompt, and how much of it was read from cache rather than sent

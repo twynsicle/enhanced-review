@@ -32,7 +32,9 @@ src/domain/
                      findings.ts (Finding: code, severity, message and where it happened, plus the ONE map from
                      code to severity — fatal disqualifies the answer, warning ships and is shown, note is only
                      recorded; FindingLog, the collector the parsers write to; FindingSchema, since findings are
-                     stored in `reviews.findings` and read back),
+                     stored in `reviews.findings` and read back; runStoppedEarly/passedAfterRetry, the two findings
+                     a run earns by how it behaved, built here so the hosted executor and `er` record the same
+                     sentence),
                      validate-review.ts (validateReview(text, grounding) → { review, findings }: the parse plus the
                      coverage check, and the one verdict the Stop hook, the hosted executor and `er` all ask for;
                      a hunk the prompt showed that no chapter cites is fatal),
@@ -79,8 +81,9 @@ src/domain/
                      NARRATIVE_SYSTEM_PROMPT, formatFileList, formatHunkCatalog and formatSkippedSection are
                      shared with the local CLI's prompt),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; every repair it makes
-                     is recorded as a Finding, so leniency is not silence; it reads the LAST complete
-                     <narrative_review> block, since a run that was asked to answer again leaves more than one;
+                     is recorded as a Finding, so leniency is not silence; it reads the last complete
+                     <narrative_review> block *that parses*, since a run asked to answer again leaves more than one
+                     and the model then writes a sentence naming the tags, which would otherwise win it;
                      a failed JSON.parse is
                      retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string;
                      fails the whole review — never silently drops or keeps a chapter — when a chapter ends up with no
@@ -105,10 +108,13 @@ src/domain/
                      claude-executor.server.ts (Agent SDK, read-only tools, sandbox, settingSources: [], env allowlist);
                      validation-stop-hook.server.ts (the retry, as a Stop hook: validates the text accumulated so far
                      and refuses the stop up to MAX_VALIDATION_RETRIES times, naming the defect and asking for the
-                     whole block again; SDK types only, so `er` can share it);
+                     whole block again — without spelling the tag pair, which the parser would then find; onBlock
+                     gets the defects apart from the whole reason sent to the model, and onError allows the stop
+                     when the hook itself throws rather than stranding the run; SDK types only, so `er` can share it);
                      sdk-loop.server.ts (the message loop both this and the local CLI run on: text, tool uses and the
                      result out — subtype, turns, cost and token usage, cost counted even when the run ran out of
-                     turns — nothing thrown: each caller decides what a failure means)
+                     turns — nothing thrown: each caller decides what a failure means; plus howItEnded, the one
+                     reading of a result both sides take)
     run.server.ts    runJob(input, deps) → 'done' | 'skipped' | 'aborted' | 'errored'; defaultRunJobDeps(); formatJobError
   jobs/              all *.server.ts: registry (AbortControllers on globalThis[JOBS_REGISTRY_KEY]), timeout (armTimeout),
                      start-review (startReview / rerunJob / launchJob), cancel-job, recover-jobs, boot (bootJobs, once per process),

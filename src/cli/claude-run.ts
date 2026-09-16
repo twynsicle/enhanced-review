@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import {
+  howItEnded,
   runSdkLoop,
   type SdkQueryFn,
   type SdkUsage,
@@ -70,8 +71,10 @@ export interface ClaudeRunDeps {
   onActivity?: (activity: string) => void;
   /** Each block of the answer as it arrives, for the terminal. */
   onText?: (chunk: string) => void;
-  /** A disqualified answer the model was asked to write again. */
-  onBlocked?: (attempt: number, reason: string) => void;
+  /** A disqualified answer the model was asked to write again: what was wrong with it. */
+  onBlocked?: (attempt: number, defects: string) => void;
+  /** The validation hook itself threw; the run carried on ungraded. */
+  onHookError?: (error: Error) => void;
 }
 
 export interface ClaudeRunResult {
@@ -116,9 +119,15 @@ export async function runClaude(
   const onDeny = (tool: string, input: Record<string, unknown>, reason: string) => {
     event({ type: 'denied', tool, detail: describeInput(input), reason });
   };
-  const onBlock = (attempt: number, reason: string) => {
+  // The whole reason, instruction to the model and all, belongs in the event
+  // log; the terminal gets only the part addressed to a person.
+  const onBlock = (attempt: number, reason: string, defects: string) => {
     event({ type: 'blocked', attempt, reason });
-    deps.onBlocked?.(attempt, reason);
+    deps.onBlocked?.(attempt, defects);
+  };
+  const onHookError = (error: Error) => {
+    event({ type: 'hook-error', message: error.message });
+    deps.onHookError?.(error);
   };
 
   try {
@@ -130,6 +139,7 @@ export async function runClaude(
         options: sdkOptions(system, options, controller, {
           onDeny,
           onBlock,
+          onHookError,
           text: () => said.join(''),
         }),
       },
@@ -174,7 +184,7 @@ export async function runClaude(
       usage: result?.usage ?? null,
       turns: result?.turns ?? 0,
       costUsd: result?.costUsd ?? null,
-      incomplete: incompleteReason(result),
+      incomplete: howItEnded(result),
     };
   } finally {
     clearTimeout(timer);
@@ -183,20 +193,10 @@ export async function runClaude(
   }
 }
 
-/**
- * Why a run counts as unfinished. A result can say `success` and still carry
- * an error — a run that could not sign in ends that way, with the refusal as
- * its only text.
- */
-function incompleteReason(result: { subtype: string; isError: boolean } | null): string | null {
-  if (result === null) return 'no result';
-  if (result.subtype !== 'success') return result.subtype;
-  return result.isError ? 'error' : null;
-}
-
 interface RunCallbacks {
   onDeny: (tool: string, input: Record<string, unknown>, reason: string) => void;
-  onBlock: (attempt: number, reason: string) => void;
+  onBlock: (attempt: number, reason: string, defects: string) => void;
+  onHookError: (error: Error) => void;
   /** Everything the model has said so far, for the Stop hook. */
   text: () => string;
 }
@@ -232,6 +232,7 @@ function sdkOptions(
           maxRetries: MAX_VALIDATION_RETRIES,
           text: callbacks.text,
           onBlock: callbacks.onBlock,
+          onError: callbacks.onHookError,
         }),
       ],
     },

@@ -29,15 +29,32 @@ export interface ValidationStopHookOptions {
   maxRetries: number;
   /** Everything the model has said so far, joined. */
   text: () => string;
-  /** Called with each refusal, for the log line a person will look for. */
-  onBlock: (attempt: number, reason: string) => void;
+  /**
+   * Called with each refusal: `reason` is the whole message sent back to the
+   * model, `defects` only the sentences saying what was wrong. They are
+   * separate because the instruction to answer again is addressed to the
+   * model and means nothing to a person reading a terminal.
+   */
+  onBlock: (attempt: number, reason: string, defects: string) => void;
+  /**
+   * The hook threw. A Stop hook that throws is the one failure mode that can
+   * strand a run, so the caller is told and the stop is allowed: an answer
+   * nobody graded is still judged downstream, where a bad one fails the
+   * review rather than hanging it.
+   */
+  onError: (error: Error) => void;
 }
 
 /** Three, because a defect a model cannot fix in three tries it will not fix in ten. */
 export const MAX_VALIDATION_RETRIES = 3;
 
+/**
+ * Deliberately does not spell the tag pair: the model quotes its own
+ * instructions back, and a sentence carrying both tags leaves an empty block
+ * at the end of the transcript for the parser to find.
+ */
 const REDO =
-  'Re-emit the complete <narrative_review>…</narrative_review> block, with every hunk you were shown placed in a chapter. Emit the whole block again, not a fragment of it.';
+  'Write out the complete narrative review block again, inside its tags, not a fragment, with every hunk you were shown placed in a chapter.';
 
 export function validationStopHook(options: ValidationStopHookOptions): HookCallbackMatcher {
   let blocks = 0;
@@ -45,16 +62,22 @@ export function validationStopHook(options: ValidationStopHookOptions): HookCall
   // `stop_hook_active` says only that some hook already blocked once, never
   // how many times, so the budget is counted here.
   const hook = (): Promise<HookJSONOutput> => {
-    const { findings } = validateReview(options.text(), options.grounding);
-    const fatal = fatalFindings(findings);
-    if (fatal.length === 0 || blocks >= options.maxRetries) {
+    try {
+      const { findings } = validateReview(options.text(), options.grounding);
+      const fatal = fatalFindings(findings);
+      if (fatal.length === 0 || blocks >= options.maxRetries) {
+        return Promise.resolve({ continue: true });
+      }
+
+      blocks += 1;
+      const defects = fatal.map((item) => item.message).join(' ');
+      const reason = `${defects} ${REDO}`;
+      options.onBlock(blocks, reason, defects);
+      return Promise.resolve({ decision: 'block', reason });
+    } catch (error) {
+      options.onError(error instanceof Error ? error : new Error(String(error)));
       return Promise.resolve({ continue: true });
     }
-
-    blocks += 1;
-    const reason = `${fatal.map((item) => item.message).join(' ')} ${REDO}`;
-    options.onBlock(blocks, reason);
-    return Promise.resolve({ decision: 'block', reason });
   };
 
   return { hooks: [hook] };

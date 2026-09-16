@@ -5,6 +5,26 @@ import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
 
 /**
+ * The event log of a stub run: one clean result, so the parse stage reads how
+ * this run ended rather than how some earlier one did. It is written every
+ * time, overwriting any real run's log in the same folder, because `--from run
+ * --stub` replaces the answer and the log has to describe the same run the
+ * answer came from.
+ *
+ * The field names are the real result event's, so `parse.ts` reads both with
+ * the one schema.
+ */
+const STUB_RESULT = JSON.stringify({
+  ms: 0,
+  type: 'result',
+  subtype: 'success',
+  isError: false,
+  turns: 0,
+  costUsd: null,
+  usage: null,
+});
+
+/**
  * `--stub`: the run stage without a model. It writes
  * `raw.txt` in the shape the model answers in, one chapter per reviewed file
  * citing every one of its hunks, so parse and render run on a real change
@@ -16,6 +36,7 @@ export async function writeStubRun(context: RunContext, run: RunFiles): Promise<
     run.raw,
     `<narrative_review>\n${JSON.stringify(review, null, 2)}\n</narrative_review>\n`,
   );
+  await writeFile(run.events, `${STUB_RESULT}\n`);
   return review.chapters.length;
 }
 

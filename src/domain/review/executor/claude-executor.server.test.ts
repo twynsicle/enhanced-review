@@ -314,7 +314,7 @@ describe('the validation retry', () => {
 
     expect(blocks).toHaveLength(1);
     expect(blocks[0]).toContain('H0002 (src/a.ts)');
-    expect(blocks[0]).toContain('Re-emit the complete');
+    expect(blocks[0]).toContain('complete narrative review block again');
     expect(out.review.chapters[0]?.diffChunks[0]?.hunks.map((h) => h.id)).toEqual([
       'H0001',
       'H0002',
@@ -324,7 +324,7 @@ describe('the validation retry', () => {
     ]);
   });
 
-  it('gives up after three refusals and fails the review with the last reason', async () => {
+  it('gives up after three refusals and fails the review with what was still wrong', async () => {
     const { queryFn, blocks } = answeringQueryFn([
       answer(['H0001']),
       answer(['H0001']),

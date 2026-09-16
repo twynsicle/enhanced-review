@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fatalFindings } from '../findings.ts';
 import { buildDiffHunkIndex, groundingFor } from './diff-hunk-catalog.ts';
 import { escapeStrayQuotes, parseNarrativeReview, type ParseResult } from './parse-narrative.ts';
 
@@ -6,10 +7,13 @@ function wrap(payload: unknown): string {
   return `Sure, here you go:\n<narrative_review>${JSON.stringify(payload)}</narrative_review>\nDone.`;
 }
 
-/** The reported error of an answer that fails, or null when it parses. */
+/** What a failed parse reports: its first fatal finding. Null when it parses. */
+function firstFatal(result: ParseResult): string | null {
+  return result.ok ? null : (fatalFindings(result.findings)[0]?.message ?? null);
+}
+
 function error(text: string): string | null {
-  const result = parseNarrativeReview(text);
-  return result.ok ? null : result.error;
+  return firstFatal(parseNarrativeReview(text));
 }
 
 const codes = (result: ParseResult) => result.findings.map((f) => f.code);
@@ -175,7 +179,7 @@ describe('parseNarrativeReview', () => {
       grounding,
     );
     expect(result.ok).toBe(false);
-    expect(!result.ok && result.error).toBe(
+    expect(firstFatal(result)).toBe(
       'Chapter "Empty" (empty) cites no hunk that resolved against the diff.',
     );
   });
@@ -400,7 +404,7 @@ describe('prose passages', () => {
   it('fails the review when the overview has no prose at all', () => {
     const result = parse({ prTitle: 't', overviewSummary: { body: '' }, chapters: [] });
     expect(result.ok).toBe(false);
-    expect(!result.ok && result.error).toBe('The narrative review has no overview summary.');
+    expect(firstFatal(result)).toBe('The narrative review has no overview summary.');
   });
 });
 
@@ -504,7 +508,7 @@ describe('a quote the model forgot to escape', () => {
     const result = parseNarrativeReview(`<narrative_review>${beyond}</narrative_review>`);
 
     expect(result.ok).toBe(false);
-    expect(!result.ok && result.error).toContain('not valid JSON');
+    expect(firstFatal(result)).toContain('not valid JSON');
   });
 });
 
@@ -696,7 +700,7 @@ describe('what a repair records', () => {
     ]);
     expect(codes(result)).toEqual(['chapter-no-hunks', 'chapter-no-hunks']);
     expect(result.findings.every((f) => f.severity === 'fatal')).toBe(true);
-    expect(!result.ok && result.error).toContain('"Empty" (empty)');
+    expect(firstFatal(result)).toContain('"Empty" (empty)');
   });
 
   it('disqualifies an answer with no block in it', () => {
@@ -741,5 +745,93 @@ ${block('Second attempt', 'two')}`,
       grounding,
     );
     expect(result.ok && result.data.prTitle).toBe('First attempt');
+  });
+
+  /**
+   * The model talks about what it just did, and the sentence it reaches for
+   * names both tags. Reading the last pair regardless would hand the parser a
+   * few words of prose and disqualify an answer that is perfectly correct.
+   */
+  it('reads past a closing remark that names the tags', () => {
+    const result = parseNarrativeReview(
+      `${block('The answer', 'one')}
+I have re-emitted the complete <narrative_review>…</narrative_review> block as asked.`,
+      grounding,
+    );
+    expect(result.ok && result.data.prTitle).toBe('The answer');
+    expect(fatalFindings(result.findings)).toEqual([]);
+  });
+
+  it('falls back to the last block that parses when a later one is malformed', () => {
+    const result = parseNarrativeReview(
+      `${block('The answer', 'one')}
+<narrative_review>{ "prTitle": "Cut off mid-</narrative_review>`,
+      grounding,
+    );
+    expect(result.ok && result.data.prTitle).toBe('The answer');
+  });
+});
+
+describe('the repairs a reader never sees', () => {
+  const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
+  const parse = (chapters: unknown[], extra: Record<string, unknown> = {}): ParseResult =>
+    parseNarrativeReview(
+      wrap({ prTitle: 't', overviewSummary: { lede: 's' }, chapters, ...extra }),
+      grounding,
+    );
+  const oneChapter = (over: Record<string, unknown> = {}) => ({
+    id: 'c',
+    title: 'C',
+    insights: [],
+    diffChunks: [cite('src/a.ts', ['H0001'])],
+    ...over,
+  });
+
+  it('notes insights that arrived as something other than a list', () => {
+    const result = parse([oneChapter({ insights: 'a paragraph about the code' })]);
+    expect(codes(result)).toEqual(['insight-dropped']);
+    expect(result.findings[0]?.message).toContain('something other than a list');
+    expect(result.ok && result.data.chapters[0]?.insights).toEqual([]);
+  });
+
+  it('drops an insight whose text is nothing but space, as its doc says', () => {
+    const result = parse([oneChapter({ insights: [{ type: 'context', text: '   ' }] })]);
+    expect(codes(result)).toEqual(['insight-dropped']);
+    expect(result.ok && result.data.chapters[0]?.insights).toEqual([]);
+  });
+
+  it('notes a risk rationale that was not text', () => {
+    const result = parse([oneChapter()], {
+      riskAssessment: { score: 3, summary: 'Fine.', rationale: { why: 'nested' }, factors: [] },
+    });
+    expect(codes(result)).toEqual(['risk-part-dropped']);
+    expect(result.ok && result.data.riskAssessment?.rationale).toBe('');
+  });
+
+  it('notes the score it rounded, and what it rounded from', () => {
+    const result = parse([oneChapter()], {
+      riskAssessment: { score: 3.4, summary: 'Fine.', rationale: '', factors: [] },
+    });
+    expect(codes(result)).toEqual(['risk-part-dropped']);
+    expect(result.findings[0]?.message).toBe('The risk score arrived as 3.4 and was rounded to 3.');
+    expect(result.ok && result.data.riskAssessment?.score).toBe(3);
+  });
+
+  it('notes a hunk id a chunk cited twice, and keeps one of it', () => {
+    const result = parse([oneChapter({ diffChunks: [cite('src/a.ts', ['H0001', 'H0001'])] })]);
+    expect(codes(result)).toEqual(['chunks-merged']);
+    expect(result.findings[0]).toMatchObject({ chapterId: 'c', filename: 'src/a.ts' });
+    expect(result.ok && result.data.chapters[0]?.diffChunks[0]?.hunks.map((h) => h.id)).toEqual([
+      'H0001',
+    ]);
+  });
+
+  it('leaves the filename off a dropped hunk id when the chunk named no file', () => {
+    const result = parse([
+      oneChapter({ diffChunks: [cite('', ['H0001']), cite('src/a.ts', ['H0001'])] }),
+    ]);
+    const dropped = result.findings.find((f) => f.code === 'hunk-id-dropped');
+    expect(dropped).toBeDefined();
+    expect(dropped && 'filename' in dropped).toBe(false);
   });
 });

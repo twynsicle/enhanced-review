@@ -295,7 +295,7 @@ describe('the validation retry', () => {
     // Both answers are in raw.txt; the parser reads the last complete block.
     expect(readFileSync(run.raw, 'utf8')).toContain('"H0002"');
     expect(events().filter((event) => event.type === 'blocked')).toMatchObject([
-      { attempt: 1, reason: expect.stringContaining('Re-emit the complete') },
+      { attempt: 1, reason: expect.stringContaining('complete narrative review block again') },
     ]);
   });
 

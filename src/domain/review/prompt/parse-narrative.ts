@@ -1,3 +1,4 @@
+import { plural } from '../../../common/plural.ts';
 import { findingLog, type Finding, type FindingLog } from '../findings.ts';
 import {
   InsightTypeSchema,
@@ -31,8 +32,7 @@ import { sanitizeDiagram } from './parse-diagram.ts';
  * answer is accepted, and what it cost travels with it.
  */
 export type ParseResult =
-  | { ok: true; data: NarrativeReview; findings: Finding[] }
-  | { ok: false; error: string; findings: Finding[] };
+  { ok: true; data: NarrativeReview; findings: Finding[] } | { ok: false; findings: Finding[] };
 
 type Rec = Record<string, unknown>;
 
@@ -41,17 +41,29 @@ function isRecord(value: unknown): value is Rec {
 }
 
 /**
- * Every disqualifying path ends here. `error` is the fatal finding a retry
- * should fix first, which is the first one found rather than the last.
+ * Every disqualifying path ends here, having already recorded why. A caller
+ * reads the reason off the findings, the first fatal one first, so the
+ * sentence a person is shown is the sentence the record holds.
  */
-function fail(log: FindingLog, first: Finding): ParseResult {
-  return { ok: false, error: first.message, findings: log.findings };
+function fail(log: FindingLog): ParseResult {
+  return { ok: false, findings: log.findings };
 }
 
-function toRiskScore(raw: unknown): ReviewRiskScore | null {
+/** A value the model actually sent, as against a field it simply left out. */
+function arrived(raw: unknown): boolean {
+  return raw !== undefined && raw !== null;
+}
+
+function toRiskScore(raw: unknown, log: FindingLog): ReviewRiskScore | null {
   if (typeof raw !== 'number' || !Number.isFinite(raw)) return null;
   const rounded = Math.round(raw);
   if (rounded < 1 || rounded > 5) return null;
+  if (rounded !== raw) {
+    log.add(
+      'risk-part-dropped',
+      `The risk score arrived as ${String(raw)} and was rounded to ${String(rounded)}.`,
+    );
+  }
   return rounded as ReviewRiskScore;
 }
 
@@ -74,7 +86,7 @@ function sanitizeRiskAssessment(raw: unknown, log: FindingLog): ReviewRiskAssess
     log.add('risk-dropped', 'The risk assessment was not an object, so the review has none.');
     return undefined;
   }
-  const score = toRiskScore(raw['score']);
+  const score = toRiskScore(raw['score'], log);
   if (score === null) {
     log.add(
       'risk-dropped',
@@ -91,6 +103,12 @@ function sanitizeRiskAssessment(raw: unknown, log: FindingLog): ReviewRiskAssess
     log.add(
       'risk-part-dropped',
       'The risk assessment had no summary, so the score is the summary.',
+    );
+  }
+  if (arrived(raw['rationale']) && typeof raw['rationale'] !== 'string') {
+    log.add(
+      'risk-part-dropped',
+      'The risk assessment gave a rationale that was not text, so it has none.',
     );
   }
   const rationale = typeof raw['rationale'] === 'string' ? raw['rationale'] : '';
@@ -140,23 +158,33 @@ function resolveHunks(
     );
     return [];
   }
+  const where = { chapterId, ...(filename ? { filename } : {}) };
   const deduped = new Map<string, ResolvedDiffHunk>();
+  let repeated = 0;
   for (const hunkId of rawIds) {
     const hunk = typeof hunkId === 'string' ? grounding.shown.byId[hunkId] : undefined;
     if (!hunk || hunk.filename !== filename) {
       log.add(
         'hunk-id-dropped',
         `Chapter ${chapterId} cited ${typeof hunkId === 'string' ? hunkId : 'a hunk id that is not a string'} for ${filename || 'a chunk with no filename'}, which resolved against nothing.`,
-        { chapterId, filename },
+        where,
       );
       continue;
     }
+    if (deduped.has(hunk.id)) repeated += 1;
     deduped.set(hunk.id, {
       id: hunk.id,
       fileOrder: hunk.fileOrder,
       original: { ...hunk.original },
       modified: { ...hunk.modified },
     });
+  }
+  if (repeated > 0) {
+    log.add(
+      'chunks-merged',
+      `Chapter ${chapterId} cited ${plural(repeated, 'hunk')} twice over in its ${filename} chunk; the repeats were dropped.`,
+      where,
+    );
   }
   return [...deduped.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
 }
@@ -224,9 +252,17 @@ function sanitizeInsights(
   chapterId: string,
   log: FindingLog,
 ): Insight[] {
+  if (arrived(raw) && !Array.isArray(raw)) {
+    log.add(
+      'insight-dropped',
+      `Chapter ${chapterId} gave its insights as something other than a list, so it has none.`,
+      { chapterId },
+    );
+  }
   const rawInsights: unknown[] = Array.isArray(raw) ? raw : [];
   return rawInsights.flatMap((ins) => {
-    if (!isRecord(ins) || typeof ins['text'] !== 'string') {
+    const text = isRecord(ins) && typeof ins['text'] === 'string' ? ins['text'].trim() : '';
+    if (!isRecord(ins) || text.length === 0) {
       log.add('insight-dropped', `An insight in chapter ${chapterId} had no text.`, { chapterId });
       return [];
     }
@@ -259,7 +295,7 @@ function sanitizeInsights(
       {
         type: parsedType.success ? parsedType.data : 'context',
         ...(title !== undefined ? { title } : {}),
-        text: ins['text'],
+        text,
         ...(filename !== undefined ? { filename } : {}),
       },
     ];
@@ -382,19 +418,19 @@ function reportEmptyChapters(
   chapters: SanitizedChapter[],
   grounding: PromptGrounding | undefined,
   log: FindingLog,
-): Finding | null {
-  if (!grounding || grounding.shown.hunks.length === 0) return null;
-  let first: Finding | null = null;
+): boolean {
+  if (!grounding || grounding.shown.hunks.length === 0) return false;
+  let any = false;
   for (const chapter of chapters) {
     if (chapter.diffChunks.length > 0) continue;
-    const recorded = log.add(
+    log.add(
       'chapter-no-hunks',
       `Chapter "${chapter.title}" (${chapter.id}) cites no hunk that resolved against the diff.`,
       { chapterId: chapter.id },
     );
-    first ??= recorded;
+    any = true;
   }
-  return first;
+  return any;
 }
 
 /** A real backslash, kept out of the source the way `terminal.ts` does it. */
@@ -458,67 +494,98 @@ const START_TAG = '<narrative_review>';
 const END_TAG = '</narrative_review>';
 
 /**
- * The body of the LAST complete block in the answer.
+ * The body of every complete block in the answer, in the order written: each
+ * opening tag paired with the first closing tag that follows it.
+ */
+function narrativeBlocks(text: string): string[] {
+  const bodies: string[] = [];
+  for (
+    let at = text.indexOf(START_TAG);
+    at !== -1;
+    at = text.indexOf(START_TAG, at + START_TAG.length)
+  ) {
+    const from = at + START_TAG.length;
+    const endIdx = text.indexOf(END_TAG, from);
+    if (endIdx === -1) break;
+    bodies.push(text.slice(from, endIdx).trim());
+  }
+  return bodies;
+}
+
+/** One block's JSON, and whether escaping stray quotes is what made it parse. */
+function parseBlock(body: string): { value: unknown; repaired: boolean } | null {
+  try {
+    return { value: JSON.parse(body), repaired: false };
+  } catch {
+    try {
+      return { value: JSON.parse(escapeStrayQuotes(body)), repaired: true };
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
+ * The last block that is actually an answer.
  *
  * Last, not first: a run whose stop was blocked for a defect answers again in
  * the same transcript, and the corrected block is the one at the end. Reading
  * from the first would grade the model on the answer it was already told to
- * replace. The search is anchored on the closing tag so a preamble that
- * merely mentions either tag cannot win it.
+ * replace.
+ *
+ * Last *that parses*, rather than simply the last: a model describes its own
+ * output, and a sentence naming the tags after a perfectly good answer leaves
+ * a pair of them around a few words of prose. Taking that for the answer
+ * disqualifies a correct review, three times over, and then fails it.
  */
-function lastNarrativeBlock(text: string): string | null {
-  const endIdx = text.lastIndexOf(END_TAG);
-  if (endIdx === -1) return null;
-  const startIdx = text.lastIndexOf(START_TAG, endIdx);
-  if (startIdx === -1) return null;
-  return text.slice(startIdx + START_TAG.length, endIdx).trim();
+function lastUsableBlock(bodies: string[]): { value: unknown; repaired: boolean } | null {
+  for (let i = bodies.length - 1; i >= 0; i -= 1) {
+    const parsed = parseBlock(bodies[i]!);
+    if (parsed) return parsed;
+  }
+  return null;
 }
 
 export function parseNarrativeReview(text: string, grounding?: PromptGrounding): ParseResult {
   const log = findingLog();
-  const body = lastNarrativeBlock(text);
-  if (body === null) {
-    return fail(
-      log,
-      log.add('answer-missing-block', 'The answer contains no complete <narrative_review> block.'),
+  const bodies = narrativeBlocks(text);
+  if (bodies.length === 0) {
+    log.add('answer-missing-block', 'The answer contains no complete <narrative_review> block.');
+    return fail(log);
+  }
+
+  const block = lastUsableBlock(bodies);
+  if (!block) {
+    log.add('answer-unparseable', 'The <narrative_review> block is not valid JSON.');
+    return fail(log);
+  }
+  if (block.repaired) {
+    log.add(
+      'json-quote-repaired',
+      'The block parsed only after a quote left unescaped inside a string was escaped.',
     );
   }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(body);
-  } catch {
-    try {
-      parsed = JSON.parse(escapeStrayQuotes(body));
-      log.add(
-        'json-quote-repaired',
-        'The block parsed only after a quote left unescaped inside a string was escaped.',
-      );
-    } catch {
-      return fail(
-        log,
-        log.add('answer-unparseable', 'The <narrative_review> block is not valid JSON.'),
-      );
-    }
-  }
+  const parsed = block.value;
 
   if (!isRecord(parsed) || typeof parsed['prTitle'] !== 'string') {
-    return fail(log, log.add('fields-missing', 'The narrative review has no prTitle.'));
+    log.add('fields-missing', 'The narrative review has no prTitle.');
+    return fail(log);
   }
   if (!Array.isArray(parsed['chapters'])) {
-    return fail(log, log.add('fields-missing', 'The narrative review has no chapters array.'));
+    log.add('fields-missing', 'The narrative review has no chapters array.');
+    return fail(log);
   }
 
   const overviewSummary = sanitizeProse(parsed['overviewSummary'], 'The overview summary', log);
   if (!overviewSummary) {
-    return fail(log, log.add('fields-missing', 'The narrative review has no overview summary.'));
+    log.add('fields-missing', 'The narrative review has no overview summary.');
+    return fail(log);
   }
 
   const chapters = parsed['chapters'].map((chapter, index) =>
     sanitizeChapter(isRecord(chapter) ? chapter : {}, index, grounding, log),
   );
-  const emptyChapter = reportEmptyChapters(chapters, grounding, log);
-  if (emptyChapter) return fail(log, emptyChapter);
+  if (reportEmptyChapters(chapters, grounding, log)) return fail(log);
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment'], log);
   const overviewDiagram = sanitizeDiagram(
@@ -537,13 +604,8 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
 
   const validated = NarrativeReviewSchema.safeParse(candidate);
   if (!validated.success) {
-    return fail(
-      log,
-      log.add(
-        'answer-invalid',
-        `The narrative review failed validation: ${validated.error.message}`,
-      ),
-    );
+    log.add('answer-invalid', `The narrative review failed validation: ${validated.error.message}`);
+    return fail(log);
   }
   return { ok: true, data: validated.data, findings: log.findings };
 }

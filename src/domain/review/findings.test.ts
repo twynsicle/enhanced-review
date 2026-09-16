@@ -6,7 +6,8 @@ import {
   findingLog,
   FindingSchema,
   FINDING_SEVERITY,
-  isFatal,
+  passedAfterRetry,
+  runStoppedEarly,
   type FindingCode,
   type FindingSeverity,
 } from './findings.ts';
@@ -89,10 +90,29 @@ describe('a log of findings', () => {
       finding('diff-truncated', 'a warning'),
       finding('chapter-no-hunks', 'another hole'),
     ];
-    expect(isFatal(findings)).toBe(true);
     expect(fatalFindings(findings).map((f) => f.message)).toEqual(['a hole', 'another hole']);
     expect(countBySeverity(findings)).toEqual({ fatal: 2, warning: 1, note: 1 });
-    expect(isFatal([finding('diff-truncated', 'a warning')])).toBe(false);
+    expect(fatalFindings([finding('diff-truncated', 'a warning')])).toEqual([]);
     expect(countBySeverity([])).toEqual({ fatal: 0, warning: 0, note: 0 });
+  });
+});
+
+describe('what a run earns by how it behaved', () => {
+  it('says how it ended, and adds the hint only when there is one', () => {
+    expect(runStoppedEarly('error_max_turns')).toEqual(
+      finding(
+        'run-stopped-early',
+        'The run did not finish cleanly (error_max_turns), so the reviewer stopped short of the change.',
+      ),
+    );
+    expect(runStoppedEarly('no result', 'Run it again.').message).toBe(
+      'The run did not finish cleanly (no result), so the reviewer stopped short of the change. Run it again.',
+    );
+  });
+
+  it('counts the attempts a passing answer took', () => {
+    expect(passedAfterRetry(1).message).toContain('after 1 further attempt.');
+    expect(passedAfterRetry(2).message).toContain('after 2 further attempts.');
+    expect(passedAfterRetry(2).severity).toBe('warning');
   });
 });

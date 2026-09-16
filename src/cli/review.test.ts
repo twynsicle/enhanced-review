@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { HookInput } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { BUNDLE_PLACEHOLDER } from '../domain/review/bundle-html.ts';
+import { finding } from '../domain/review/findings.ts';
 import { runGit } from '../domain/review/clone/git-runner.server.ts';
 import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import type { QueryFn } from './claude-run.ts';
@@ -118,6 +119,7 @@ describe('er review', () => {
       'system.md',
       'prompt.md',
       'raw.txt',
+      'events.jsonl',
       'review.json',
       'findings.json',
       'review.html',
@@ -245,6 +247,23 @@ describe('er review', () => {
 
     expect(runFolders()).toHaveLength(1);
     expect(JSON.parse(readFileSync(path.join(run, 'review.json'), 'utf8')).prTitle).toBe('Edited');
+  });
+
+  /**
+   * Rendering again ships the review again, so it says the same thing about it.
+   * The warnings come off findings.json; the answer is long gone by this stage.
+   */
+  it('repeats the warnings, and the exit code, when only the render stage runs', async () => {
+    await review(options({ open: false }), deps);
+    const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
+    writeFileSync(
+      path.join(run, 'findings.json'),
+      JSON.stringify([finding('diff-truncated', 'Part of the change was never shown.')]),
+    );
+
+    vi.mocked(terminal.warn).mockClear();
+    await expect(review(options({ from: 'render', open: false }), deps)).resolves.toBe(WARNED);
+    expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith('Part of the change was never shown.');
   });
 
   it('refuses to resume a target that has never run', async () => {

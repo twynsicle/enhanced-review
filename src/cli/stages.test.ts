@@ -1,11 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUNDLE_PLACEHOLDER, readEmbeddedBundle } from '../domain/review/bundle-html.ts';
 import { withFileHunks } from '../domain/review/coverage.ts';
 import type { RunContext } from './context.ts';
-import { parseRun, readReview } from './parse.ts';
+import { parseRun, readFindings, readReview } from './parse.ts';
 import { renderRun, viewerShell } from './render.ts';
 import { runFiles, type RunFiles } from './run-folder.ts';
 import { writeStubRun } from './stub-run.ts';
@@ -87,7 +87,7 @@ describe('stub run → parse', () => {
     const { review, findings } = await parseRun(context(), run);
 
     expect(review.prTitle).toBe('Staged changes on main');
-    // A stub run has no event log, so there is nothing about the run to report.
+    // The stub's own event log says the run ended cleanly, so nothing to report.
     expect(findings).toEqual([]);
     expect(JSON.parse(readFileSync(run.findings, 'utf8'))).toEqual([]);
     expect(
@@ -117,11 +117,27 @@ describe('stub run → parse', () => {
   });
 
   it("points at raw.txt when the model's answer does not parse", async () => {
+    await writeStubRun(context(), run);
     writeFileSync(run.raw, 'I could not finish the review.');
     await expect(parseRun(context(), run)).rejects.toThrow(
       `The answer contains no complete <narrative_review> block. The model's answer is in ${run.raw}; ` +
         'fix it there and rerun with --from parse',
     );
+  });
+
+  it('writes the findings of a failed parse, and no review to render from', async () => {
+    await writeStubRun(context(), run);
+    writeFileSync(run.raw, 'I could not finish the review.');
+    await expect(parseRun(context(), run)).rejects.toThrow(/no complete <narrative_review>/);
+
+    expect(JSON.parse(readFileSync(run.findings, 'utf8'))).toEqual([
+      {
+        code: 'answer-missing-block',
+        severity: 'fatal',
+        message: 'The answer contains no complete <narrative_review> block.',
+      },
+    ]);
+    expect(existsSync(run.review)).toBe(false);
   });
 
   it('reads what the run itself cost off events.jsonl, so --from parse reports it too', async () => {
@@ -166,9 +182,47 @@ describe('stub run → parse', () => {
     await expect(parseRun(context(), run)).rejects.toThrow(/did not finish cleanly \(no result\)/);
   });
 
+  /**
+   * An empty findings list and no record of the run are not the same thing,
+   * and a missing event log used to read as the first.
+   */
+  it('fails the review when nothing recorded how the run ended', async () => {
+    await writeStubRun(context(), run);
+    rmSync(run.events);
+
+    await expect(parseRun(context(), run)).rejects.toThrow(
+      /no record of how the run ended.*Run again from the run stage/s,
+    );
+  });
+
   it('says which stage to run when a stage file is missing', async () => {
     await expect(parseRun(context(), run)).rejects.toThrow(/no raw\.txt in .*earlier stage/);
     await expect(readReview(run)).rejects.toThrow(/no review\.json in .*earlier stage/);
+    await expect(readFindings(run)).rejects.toThrow(/no findings\.json in .*run from parse/);
+  });
+
+  it('refuses to hand a render stage the findings of a parse that failed', async () => {
+    await writeStubRun(context(), run);
+    writeFileSync(run.raw, 'I could not finish the review.');
+    await expect(parseRun(context(), run)).rejects.toThrow(/no complete <narrative_review>/);
+
+    await expect(readFindings(run)).rejects.toThrow(
+      /the last parse failed; run from parse\. The answer contains no complete/,
+    );
+  });
+
+  it('hands the render stage what the last parse recorded', async () => {
+    await writeStubRun(context(), run);
+    writeFileSync(
+      run.events,
+      [
+        JSON.stringify({ ms: 1, type: 'denied', tool: 'Bash', detail: 'rm -rf .' }),
+        JSON.stringify({ ms: 3, type: 'result', subtype: 'success', isError: false }),
+      ].join('\n'),
+    );
+    const { findings } = await parseRun(context(), run);
+
+    await expect(readFindings(run)).resolves.toEqual(findings);
   });
 });
 
