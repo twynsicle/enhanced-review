@@ -160,4 +160,31 @@ Let me redo that.`),
       inProgressTitle: null,
     });
   });
+
+  /**
+   * The model says what it just did, and the sentence names the tag. Taking
+   * the last tag in the buffer regardless of what follows it emptied the
+   * checklist at the moment the review finished.
+   */
+  it('keeps the chapters of the answer when a remark names the opening tag', () => {
+    const first = `${PRE}{"id":"c1","title":"First go"}]}</narrative_review>`;
+    expect(
+      extractChapterTitles(`${first}
+That is the complete <narrative_review> block as asked.`),
+    ).toEqual({
+      titles: ['First go'],
+      inProgressTitle: null,
+    });
+  });
+
+  it('keeps them when the remark names both tags', () => {
+    const first = `${PRE}{"id":"c1","title":"First go"}]}</narrative_review>`;
+    expect(
+      extractChapterTitles(`${first}
+I have re-emitted the complete <narrative_review>…</narrative_review> block.`),
+    ).toEqual({
+      titles: ['First go'],
+      inProgressTitle: null,
+    });
+  });
 });

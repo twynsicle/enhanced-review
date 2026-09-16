@@ -96,6 +96,24 @@ describe('validationStopHook', () => {
     );
   });
 
+  /** Reporting the failure must not become the failure it reports. */
+  it('still allows the stop when reporting the failure throws too', async () => {
+    const matcher = validationStopHook({
+      grounding,
+      maxRetries: 3,
+      text: () => {
+        throw new Error('the transcript went missing');
+      },
+      onBlock: vi.fn(),
+      onError: () => {
+        throw new Error('and the terminal is gone as well');
+      },
+    });
+    await expect(
+      matcher.hooks[0]!(STOP, undefined, { signal: new AbortController().signal }),
+    ).resolves.toEqual({ continue: true });
+  });
+
   it('says what is missing when there is no block at all', async () => {
     const { stop } = harness(['I had a look and decided not to.']);
     await expect(stop()).resolves.toMatchObject({

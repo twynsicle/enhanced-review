@@ -535,4 +535,32 @@ describe('a default a diagram fell back to', () => {
       'Diagram d dropped the hunk ids on a node that named no file.',
     ]);
   });
+
+  it('records a filename that arrived as something other than a path', () => {
+    const findings = findingsFrom(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', filename: 12 },
+          { id: 'b', label: 'B', filename: '   ', hunkIds: ['H0001'] },
+        ],
+      }),
+    );
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped a filename on a code node that was not a usable path.',
+      'Diagram d dropped a filename on a code node that was not a usable path.',
+      'Diagram d dropped the hunk ids on a node that named no file.',
+    ]);
+  });
+
+  it('says nothing about a field that arrived as null, which is a field left out', () => {
+    const findings = findingsFrom(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', kind: null, change: null, filename: null, hunkIds: null },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+    );
+    expect(findings).toEqual([]);
+  });
 });

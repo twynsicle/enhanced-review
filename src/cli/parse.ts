@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { plural } from '../common/plural.ts';
 import { withFileHunks } from '../domain/review/coverage.ts';
@@ -47,13 +47,24 @@ export async function parseRun(context: RunContext, run: RunFiles): Promise<Pars
 
   const fatal = fatalFindings(findings);
   if (fatal.length > 0) {
-    // Written before the throw, and `review.json` is not: the record of why
-    // this failed outlives the terminal it was printed to, and the stale
-    // review a later `--from render` would otherwise draw is not there to draw.
+    // The record of why this failed outlives the terminal it was printed to,
+    // and `readFindings` refuses a file carrying a fatal one, so no later
+    // stage can draw on this run without being told. Any `review.json` an
+    // earlier parse left goes with it: `--from render` reads that file, and a
+    // review from some previous answer would be drawn as though it were this
+    // run's.
     await writeFile(run.findings, `${JSON.stringify(findings, null, 2)}\n`);
+    await rm(run.review, { force: true });
+    // Only a defect in the answer itself can be fixed in `raw.txt`. A run that
+    // stopped early is about turns the reviewer never took, and offering an
+    // edit-and-reparse for that contradicts the finding's own instruction.
+    const inTheAnswer = !fatal.some((item) => item.code === 'run-stopped-early');
     throw new Error(
-      `${fatal.map((item) => item.message).join(' ')} The model's answer is in ${run.raw}; ` +
-        'fix it there and rerun with --from parse, or run again for a fresh answer.',
+      fatal.map((item) => item.message).join(' ') +
+        (inTheAnswer
+          ? ` The model's answer is in ${run.raw}; ` +
+            'fix it there and rerun with --from parse, or run again for a fresh answer.'
+          : ''),
     );
   }
   if (!validation.review) {
@@ -169,13 +180,21 @@ async function runFindings(run: RunFiles): Promise<Finding[]> {
  * a warned review is the same silence the findings exist to end.
  */
 export async function readFindings(run: RunFiles): Promise<Finding[]> {
-  let raw: string;
+  let raw: unknown;
   try {
-    raw = await readFile(run.findings, 'utf8');
-  } catch {
-    throw new Error(`no findings.json in ${run.folder}; run from parse`);
+    raw = JSON.parse(await readFile(run.findings, 'utf8'));
+  } catch (error) {
+    // A file cut off mid-write is the same fact about the run as a missing
+    // one — there is no record to draw on — and is worth saying so rather
+    // than raising a bare SyntaxError from a stage that never mentioned JSON.
+    // Anything else is a fact about this machine, not about the run.
+    if (error instanceof SyntaxError) {
+      throw new Error(`${run.findings} was not fully written; run from parse`, { cause: error });
+    }
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    throw new Error(`no findings.json in ${run.folder}; run from parse`, { cause: error });
   }
-  const parsed = FindingsSchema.safeParse(JSON.parse(raw) as unknown);
+  const parsed = FindingsSchema.safeParse(raw);
   if (!parsed.success) {
     throw new Error(`${run.findings} is not a list of findings: ${parsed.error.message}`);
   }

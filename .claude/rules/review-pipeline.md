@@ -59,7 +59,9 @@ src/domain/
                      bundle.ts (ReviewBundle: a review + meta + both sides of each file, for offline rendering;
                      schemaVersion, no back-compat; parseBundle, filePair), bundle-html.ts (the bundle as the text of
                      the report's er-bundle element: injectBundle escapes every <, readEmbeddedBundle),
-                     language-map.ts, partial-narrative-parse.ts (live-view checklist), inline-diff-snippets.ts (reader maths)
+                     language-map.ts, partial-narrative-parse.ts (live-view checklist; scans from the last
+                     <narrative_review> tag that has chapters under it, so a closing remark naming the tag does not
+                     blank the checklist), inline-diff-snippets.ts (reader maths)
     clone/           *.server.ts: git-runner (spawn, non-interactive, the host's system and global gitconfig ignored
                      unless a call asks for `hostConfig`, abort → SIGTERM; argBatches, the path-list split that keeps a
                      command line inside Windows' limit), clone-runner (init + fetch head +
@@ -81,9 +83,13 @@ src/domain/
                      NARRATIVE_SYSTEM_PROMPT, formatFileList, formatHunkCatalog and formatSkippedSection are
                      shared with the local CLI's prompt),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; every repair it makes
-                     is recorded as a Finding, so leniency is not silence; it reads the last complete
-                     <narrative_review> block *that parses*, since a run asked to answer again leaves more than one
-                     and the model then writes a sentence naming the tags, which would otherwise win it;
+                     is recorded as a Finding, so leniency is not silence; it assumes no pairing of the
+                     <narrative_review> tags — opening tags are tried last to first, and for each one every closing
+                     tag after it last to first, taking the first body that parses into a record with a string
+                     prTitle and an array of chapters — since a run asked to answer again leaves more than one
+                     block, the model then writes a sentence naming the tags, and an answer can quote either tag
+                     inside its own JSON (a review of this repository does); when nothing qualifies it reports
+                     against the last opening tag paired with the last closing tag after it;
                      a failed JSON.parse is
                      retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string;
                      fails the whole review — never silently drops or keeps a chapter — when a chapter ends up with no

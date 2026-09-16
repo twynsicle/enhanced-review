@@ -84,12 +84,14 @@ function chainIn(via: Map<string, string | null>, file: string): string {
 }
 
 /**
- * Static imports, with whether the whole statement is type-only. A dynamic
- * `import(…)` has no space before its bracket and so never matches, which is
- * the point: those are the ones that cost nothing until they run.
+ * Every statement that loads a module at import time, with whether it is
+ * type-only. `export { query } from …` loads the module exactly as an import
+ * of it does, so both shapes count. A dynamic `import(…)` has no space before
+ * its bracket and so never matches, which is the point: those are the ones
+ * that cost nothing until they run.
  */
-function staticImports(source: string): { spec: string; typeOnly: boolean }[] {
-  const pattern = /\bimport\s+(type\s+)?(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]/g;
+function staticLoads(source: string): { spec: string; typeOnly: boolean }[] {
+  const pattern = /\b(?:import|export)\s+(type\s+)?(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]/g;
   return [...source.matchAll(pattern)].map((match) => ({
     spec: match[2]!,
     typeOnly: match[1] !== undefined,
@@ -121,12 +123,28 @@ describe('guardrail: cli imports', () => {
     const violations: string[] = [];
     const via = cliGraph();
     for (const file of via.keys()) {
-      for (const { spec, typeOnly } of staticImports(readSource(file))) {
+      for (const { spec, typeOnly } of staticLoads(readSource(file))) {
         if (spec !== AGENT_SDK && !spec.startsWith(`${AGENT_SDK}/`)) continue;
         if (typeOnly) continue;
         violations.push(`${chainIn(via, file)} loads ${spec} at import time`);
       }
     }
     expect(report(violations)).toBe('');
+  });
+
+  it('counts a re-export as a load and a dynamic import as none', () => {
+    expect(staticLoads(`export { query } from '${AGENT_SDK}';`)).toEqual([
+      { spec: AGENT_SDK, typeOnly: false },
+    ]);
+    expect(staticLoads(`export * from '${AGENT_SDK}';`)).toEqual([
+      { spec: AGENT_SDK, typeOnly: false },
+    ]);
+    expect(staticLoads(`export type { Query } from '${AGENT_SDK}';`)).toEqual([
+      { spec: AGENT_SDK, typeOnly: true },
+    ]);
+    expect(staticLoads(`import { query } from '${AGENT_SDK}';`)).toEqual([
+      { spec: AGENT_SDK, typeOnly: false },
+    ]);
+    expect(staticLoads(`const { query } = await import('${AGENT_SDK}');`)).toEqual([]);
   });
 });

@@ -770,6 +770,97 @@ I have re-emitted the complete <narrative_review>…</narrative_review> block as
     );
     expect(result.ok && result.data.prTitle).toBe('The answer');
   });
+
+  it('reads past an empty block written after the answer', () => {
+    const result = parseNarrativeReview(
+      `${block('The answer', 'one')}
+<narrative_review>{}</narrative_review>`,
+      grounding,
+    );
+    expect(result.ok && result.data.prTitle).toBe('The answer');
+  });
+
+  it('takes the one block of three that is an answer', () => {
+    const result = parseNarrativeReview(
+      `<narrative_review>{ "prTitle": "Only a title" }</narrative_review>
+${block('The answer', 'one')}
+<narrative_review>{ "prTitle": "Cut off mid-</narrative_review>`,
+      grounding,
+    );
+    expect(result.ok && result.data.prTitle).toBe('The answer');
+  });
+
+  /**
+   * What this tool reviewing its own repository writes: an insight about the
+   * parser quotes the tags it pairs. Cutting the body at the first closing tag
+   * after the opening one takes a correct answer apart at a tag that was never
+   * a tag, and then fails the review three refusals later.
+   */
+  it('reads a closing tag quoted inside the answer as part of the answer', () => {
+    const text = wrap({
+      prTitle: 'Reviewing the reviewer',
+      overviewSummary: { lede: 's' },
+      chapters: [
+        {
+          id: 'one',
+          title: 'C',
+          insights: [
+            {
+              type: 'context',
+              text: 'The parser pairs <narrative_review> with the </narrative_review> after it.',
+            },
+          ],
+          diffChunks: [cite('src/a.ts', ['H0001'])],
+        },
+      ],
+    });
+    const result = parseNarrativeReview(text, grounding);
+
+    expect(result.ok && result.data.prTitle).toBe('Reviewing the reviewer');
+    expect(result.ok && result.data.chapters[0]?.insights[0]?.text).toContain(
+      '</narrative_review>',
+    );
+    expect(fatalFindings(result.findings)).toEqual([]);
+  });
+
+  it('reads an opening tag quoted inside the answer as part of the answer', () => {
+    const text = wrap({
+      prTitle: 'Reviewing the reviewer',
+      overviewSummary: { lede: 'Every answer opens with <narrative_review>.' },
+      chapters: [
+        { id: 'one', title: 'C', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+      ],
+    });
+    const result = parseNarrativeReview(text, grounding);
+    expect(result.ok && result.data.prTitle).toBe('Reviewing the reviewer');
+  });
+
+  it('reports no block for an opening tag that was never closed', () => {
+    expect(error('<narrative_review>{ "prTitle": "Half a')).toBe(
+      'The answer contains no complete <narrative_review> block.',
+    );
+  });
+
+  it('reports no block for a closing tag that comes before every opening one', () => {
+    expect(error(`</narrative_review>\n<narrative_review>{ "prTitle": "x", "chapters": [] }`)).toBe(
+      'The answer contains no complete <narrative_review> block.',
+    );
+  });
+
+  it('reports an empty block as JSON it cannot read', () => {
+    expect(error('<narrative_review></narrative_review>')).toBe(
+      'The <narrative_review> block is not valid JSON.',
+    );
+  });
+
+  it('reports the missing fields of the only block there is', () => {
+    expect(error(wrap({ prTitle: 'x', overviewSummary: { lede: 's' } }))).toBe(
+      'The narrative review has no chapters array.',
+    );
+    expect(error(wrap({ chapters: [], overviewSummary: { lede: 's' } }))).toBe(
+      'The narrative review has no prTitle.',
+    );
+  });
 });
 
 describe('the repairs a reader never sees', () => {

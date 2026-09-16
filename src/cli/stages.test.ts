@@ -140,6 +140,18 @@ describe('stub run → parse', () => {
     expect(existsSync(run.review)).toBe(false);
   });
 
+  it('takes the review an earlier parse wrote away with it when it fails', async () => {
+    await writeStubRun(context(), run);
+    await parseRun(context(), run);
+    expect(existsSync(run.review)).toBe(true);
+
+    writeFileSync(run.raw, 'I could not finish the review.');
+    await expect(parseRun(context(), run)).rejects.toThrow(/no complete <narrative_review>/);
+
+    // Left there, `--from render` would draw the earlier answer as this run's.
+    expect(existsSync(run.review)).toBe(false);
+  });
+
   it('reads what the run itself cost off events.jsonl, so --from parse reports it too', async () => {
     await writeStubRun(context(), run);
     writeFileSync(
@@ -170,9 +182,16 @@ describe('stub run → parse', () => {
       `${JSON.stringify({ type: 'result', subtype: 'error_max_turns' })}\n`,
     );
 
-    await expect(parseRun(context(), run)).rejects.toThrow(
-      /did not finish cleanly \(error_max_turns\).*Raise --max-turns.*raw\.txt/s,
+    const failure = await parseRun(context(), run).then(
+      () => new Error('the parse did not fail'),
+      (error: unknown) => error as Error,
     );
+    expect(failure.message).toMatch(
+      /did not finish cleanly \(error_max_turns\).*Raise --max-turns/s,
+    );
+    // Editing raw.txt cannot give the reviewer back the turns it never took,
+    // so this failure does not offer it.
+    expect(failure.message).not.toContain(run.raw);
   });
 
   it('fails the review when the run left no result at all', async () => {
@@ -182,10 +201,7 @@ describe('stub run → parse', () => {
     await expect(parseRun(context(), run)).rejects.toThrow(/did not finish cleanly \(no result\)/);
   });
 
-  /**
-   * An empty findings list and no record of the run are not the same thing,
-   * and a missing event log used to read as the first.
-   */
+  /** An empty findings list and no record of the run are not the same thing. */
   it('fails the review when nothing recorded how the run ended', async () => {
     await writeStubRun(context(), run);
     rmSync(run.events);
@@ -209,6 +225,11 @@ describe('stub run → parse', () => {
     await expect(readFindings(run)).rejects.toThrow(
       /the last parse failed; run from parse\. The answer contains no complete/,
     );
+  });
+
+  it('says to run from parse when findings.json was cut off mid-write', async () => {
+    writeFileSync(run.findings, '[{"code":"commands-refused","sev');
+    await expect(readFindings(run)).rejects.toThrow(/was not fully written; run from parse/);
   });
 
   it('hands the render stage what the last parse recorded', async () => {

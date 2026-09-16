@@ -75,7 +75,13 @@ export function validationStopHook(options: ValidationStopHookOptions): HookCall
       options.onBlock(blocks, reason, defects);
       return Promise.resolve({ decision: 'block', reason });
     } catch (error) {
-      options.onError(error instanceof Error ? error : new Error(String(error)));
+      try {
+        options.onError(error instanceof Error ? error : new Error(String(error)));
+      } catch {
+        // Reporting the failure must not become the failure: an `onError` that
+        // throws would strand the run exactly as an ungraded stop does, and
+        // there is nobody left to tell about it.
+      }
       return Promise.resolve({ continue: true });
     }
   };

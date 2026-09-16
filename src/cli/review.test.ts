@@ -4,17 +4,17 @@ import path from 'node:path';
 import type { HookInput } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { BUNDLE_PLACEHOLDER } from '../domain/review/bundle-html.ts';
-import { finding } from '../domain/review/findings.ts';
 import { runGit } from '../domain/review/clone/git-runner.server.ts';
+import { finding } from '../domain/review/findings.ts';
 import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import type { QueryFn } from './claude-run.ts';
 import { Shell } from './git.ts';
+import { runInterruptCleanups } from './interrupts.ts';
 import { review, WARNED, type ReviewDeps, type ReviewOptions } from './review.ts';
 import { RUNS_DIR } from './run-folder.ts';
-import { removeWorktreeSync } from './worktree.ts';
-import { runInterruptCleanups } from './interrupts.ts';
 import * as stubRun from './stub-run.ts';
 import * as terminal from './terminal.ts';
+import { removeWorktreeSync } from './worktree.ts';
 
 // Real git, many spawns per test — see GIT_TEST_TIMEOUT.
 vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT, hookTimeout: GIT_TEST_TIMEOUT });

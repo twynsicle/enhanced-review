@@ -57,9 +57,11 @@ src/cli/
                    result that is missing or not a clean success → a fatal `run-stopped-early`, blocked stops →
                    `passed-after-retry`; no events.jsonl at all is itself a fatal `run-stopped-early`, since an
                    empty findings list and no record of the run must not read alike, and any other read error is
-                   rethrown. A fatal finding fails the stage, having written findings.json and no review.json
-                   first, so the record of the failure survives it. readFindings reads that file back for the
-                   render stage, and refuses one that is missing or fatal
+                   rethrown. A fatal finding fails the stage, having written findings.json and deleted any
+                   review.json first, so the record of the failure survives it and no later --from render draws a
+                   stale review; the failure points at raw.txt only when the defect is in the answer, since a
+                   run-stopped-early is about turns nobody can put back by editing it. readFindings reads that
+                   file back for the render stage, and refuses one that is missing, half-written or fatal
   render.ts        the bundle into the viewer shell → review.html; viewerShell rebuilds build/viewer when stale
   viewer-stamp.ts  hash of the viewer's sources; the viewer build writes it, render compares it
   worktree.ts      a PR's run happens in a detached worktree of its head in the temp dir (er-pr<n>-<pid>-<stamp>),

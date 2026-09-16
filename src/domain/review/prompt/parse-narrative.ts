@@ -493,27 +493,23 @@ function endsString(json: string, from: number): boolean {
 const START_TAG = '<narrative_review>';
 const END_TAG = '</narrative_review>';
 
-/**
- * The body of every complete block in the answer, in the order written: each
- * opening tag paired with the first closing tag that follows it.
- */
-function narrativeBlocks(text: string): string[] {
-  const bodies: string[] = [];
-  for (
-    let at = text.indexOf(START_TAG);
-    at !== -1;
-    at = text.indexOf(START_TAG, at + START_TAG.length)
-  ) {
-    const from = at + START_TAG.length;
-    const endIdx = text.indexOf(END_TAG, from);
-    if (endIdx === -1) break;
-    bodies.push(text.slice(from, endIdx).trim());
+/** Every index at which `tag` occurs, in the order written. */
+function tagPositions(text: string, tag: string): number[] {
+  const found: number[] = [];
+  for (let at = text.indexOf(tag); at !== -1; at = text.indexOf(tag, at + tag.length)) {
+    found.push(at);
   }
-  return bodies;
+  return found;
 }
 
-/** One block's JSON, and whether escaping stray quotes is what made it parse. */
-function parseBlock(body: string): { value: unknown; repaired: boolean } | null {
+interface Block {
+  value: unknown;
+  /** Whether escaping stray quotes is what made it parse. */
+  repaired: boolean;
+}
+
+/** One block's JSON, with one repair attempt. */
+function parseBlock(body: string): Block | null {
   try {
     return { value: JSON.parse(body), repaired: false };
   } catch {
@@ -526,35 +522,69 @@ function parseBlock(body: string): { value: unknown; repaired: boolean } | null 
 }
 
 /**
- * The last block that is actually an answer.
- *
- * Last, not first: a run whose stop was blocked for a defect answers again in
- * the same transcript, and the corrected block is the one at the end. Reading
- * from the first would grade the model on the answer it was already told to
- * replace.
- *
- * Last *that parses*, rather than simply the last: a model describes its own
- * output, and a sentence naming the tags after a perfectly good answer leaves
- * a pair of them around a few words of prose. Taking that for the answer
- * disqualifies a correct review, three times over, and then fails it.
+ * Whether a parsed body is the answer rather than something else that happens
+ * to be JSON. Shape only — the fields themselves are checked downstream, and
+ * a block that has these two is the block whose defects are worth reporting.
  */
-function lastUsableBlock(bodies: string[]): { value: unknown; repaired: boolean } | null {
-  for (let i = bodies.length - 1; i >= 0; i -= 1) {
-    const parsed = parseBlock(bodies[i]!);
-    if (parsed) return parsed;
+function isAnswer(value: unknown): boolean {
+  return (
+    isRecord(value) && typeof value['prTitle'] === 'string' && Array.isArray(value['chapters'])
+  );
+}
+
+/**
+ * The block holding the answer, and the block to report against when none
+ * does.
+ *
+ * Neither tag can be taken at face value. A run whose stop was blocked for a
+ * defect answers again in the same transcript, so the corrected block is the
+ * one at the end and reading from the first would grade the model on the
+ * answer it was already told to replace. The model then describes what it did,
+ * and the sentence it reaches for names both tags, which leaves a pair of them
+ * around a few words of prose. And an answer can quote either tag inside its
+ * own JSON — a review of this repository does exactly that — so an opening tag
+ * paired with the first closing tag after it can cut the body short at a tag
+ * that was never a tag.
+ *
+ * So nothing is assumed about which tag goes with which: opening tags are
+ * tried from last to first, and for each one every closing tag after it from
+ * last to first — widest body first, since a tag quoted inside the JSON is
+ * always narrower than the real one — and the first body that parses into
+ * something shaped like an answer wins. Both counts are tiny; trying every
+ * pair costs nothing.
+ *
+ * `null` when the text holds no opening tag with a closing tag after it. When
+ * it holds one but nothing in it is an answer, the result carries the last
+ * opening tag paired with the last closing tag after it, so the reason a
+ * person is given is drawn from the block the model most likely meant.
+ */
+function usableBlock(text: string): { block: Block | null } | null {
+  const opens = tagPositions(text, START_TAG);
+  const closes = tagPositions(text, END_TAG);
+  let fallback: { block: Block | null } | null = null;
+
+  for (let i = opens.length - 1; i >= 0; i -= 1) {
+    const from = opens[i]! + START_TAG.length;
+    const ends = closes.filter((at) => at >= from);
+    if (ends.length === 0) continue;
+    for (let j = ends.length - 1; j >= 0; j -= 1) {
+      const parsed = parseBlock(text.slice(from, ends[j]!).trim());
+      if (parsed && isAnswer(parsed.value)) return { block: parsed };
+    }
+    fallback ??= { block: parseBlock(text.slice(from, ends.at(-1)!).trim()) };
   }
-  return null;
+  return fallback;
 }
 
 export function parseNarrativeReview(text: string, grounding?: PromptGrounding): ParseResult {
   const log = findingLog();
-  const bodies = narrativeBlocks(text);
-  if (bodies.length === 0) {
+  const found = usableBlock(text);
+  if (!found) {
     log.add('answer-missing-block', 'The answer contains no complete <narrative_review> block.');
     return fail(log);
   }
 
-  const block = lastUsableBlock(bodies);
+  const block = found.block;
   if (!block) {
     log.add('answer-unparseable', 'The <narrative_review> block is not valid JSON.');
     return fail(log);

@@ -44,6 +44,15 @@ function isRecord(value: unknown): value is Rec {
   return typeof value === 'object' && value !== null;
 }
 
+/**
+ * A value the model actually sent, as against a field it simply left out.
+ * One predicate for the whole file, so a `null` means "absent" wherever it
+ * lands rather than being a drop in one check and nothing in the next.
+ */
+function arrived(raw: unknown): boolean {
+  return raw !== undefined && raw !== null;
+}
+
 /** A list field as entries still to be checked, or nothing. */
 function list(raw: unknown): unknown[] {
   return Array.isArray(raw) ? raw : [];
@@ -87,7 +96,7 @@ function capped<T>(items: T[], limit: number, what: string, drop: DropPart): T[]
 function toChange(raw: unknown, whose: string, drop: DropPart): DiagramChange {
   const parsed = DiagramChangeSchema.safeParse(raw);
   if (parsed.success) return parsed.data;
-  if (raw !== undefined) drop(`the change mark on ${whose}, which was read as unchanged`);
+  if (arrived(raw)) drop(`the change mark on ${whose}, which was read as unchanged`);
   return 'unchanged';
 }
 
@@ -105,14 +114,14 @@ function toOneOf<T extends string>(
   drop: DropPart,
 ): T {
   if (typeof raw === 'string' && (allowed as readonly string[]).includes(raw)) return raw as T;
-  if (raw !== undefined && raw !== null) drop(`${whose}, which was read as ${fallback}`);
+  if (arrived(raw)) drop(`${whose}, which was read as ${fallback}`);
   return fallback;
 }
 
 function toNodeKind(raw: unknown, whose: string, drop: DropPart): DiagramNodeKind {
   const parsed = DiagramNodeKindSchema.safeParse(raw);
   if (parsed.success) return parsed.data;
-  if (raw !== undefined) drop(`the kind on ${whose}, which was read as code`);
+  if (arrived(raw)) drop(`the kind on ${whose}, which was read as code`);
   return 'code';
 }
 
@@ -137,13 +146,17 @@ function resolveNodeGrounding(
   // Only code has a path. A table, a service or a person does not, and asking
   // for one is asking the model to make one up.
   if (kind !== 'code') {
-    if (raw['filename'] !== undefined && raw['filename'] !== null) {
+    if (arrived(raw['filename'])) {
       drop(`the filename on a node of kind ${kind}, which links to no file`);
     }
     return {};
   }
   const filename = clamp(raw['filename'], 512, 'filename', drop);
   if (filename === undefined) {
+    // A filename that arrived as a number, or as nothing but space, leaves the
+    // node exactly as unlinked as one that never arrived — but the model meant
+    // to name a file here, so the reader of the findings is told that it did.
+    if (arrived(raw['filename'])) drop('a filename on a code node that was not a usable path');
     if (list(raw['hunkIds']).length > 0) drop('the hunk ids on a node that named no file');
     return {};
   }
