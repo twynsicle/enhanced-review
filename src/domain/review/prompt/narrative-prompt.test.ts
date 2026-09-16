@@ -242,7 +242,7 @@ describe('buildNarrativePrompt', () => {
     const { result, shownId, gapId } = truncatedPrompt();
     const raw = `<narrative_review>${JSON.stringify({
       prTitle: 'Add widgets',
-      overviewSummary: 'Widgets.',
+      overviewSummary: { lede: 'Widgets.' },
       chapters: [
         {
           id: 'widgets',

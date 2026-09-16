@@ -8,18 +8,49 @@ import { DiagramSchema } from './diagram.ts';
  *
  * Zod is the source of truth; the exported types are inferred from it so the
  * schema that parses `reviews.content` at the db boundary and the type the
- * components consume cannot drift apart. The schema is deliberately lenient
- * where older reviews may lack a field (`title` on insights, `description`,
- * `riskAssessment`, `files`).
+ * components consume cannot drift apart. A field is optional here only when a
+ * review that has one is genuinely valid without it — never to accommodate
+ * something an older version wrote, since nothing here has to read that.
  */
+
+/**
+ * A passage of the review's prose: one short sentence, and the detail beneath
+ * it when there is any.
+ *
+ * Two fields rather than one because a single free-text field is what produced
+ * the prose this replaced — 50-word sentences carrying four coordinate clauses,
+ * four-item lists written out inline, and no structure anywhere. The instruction
+ * that governed it budgeted *sentences* ("2-4 sentences"), which caps the wrong
+ * unit: the model settles on what it wants to say and then fits it into the
+ * allowance, so a tighter budget bought longer sentences rather than less text.
+ * A `lede` that must fit one short sentence cannot be crammed, and a `body` that
+ * is explicitly Markdown is free to be the list most of that prose wanted to be.
+ */
+export const ProseSchema = z.object({
+  lede: z.string(),
+  body: z.string().optional(),
+});
+export type Prose = z.infer<typeof ProseSchema>;
+
 export const InsightTypeSchema = z.enum(['context', 'rationale', 'highlight', 'reference']);
 export type InsightType = z.infer<typeof InsightTypeSchema>;
 
 export const InsightSchema = z.object({
   type: InsightTypeSchema,
-  /** Short headline (4–10 words) naming the takeaway. Absent on older reviews. */
+  /** Short headline (4–10 words) naming the takeaway. Optional because the model sometimes omits it. */
   title: z.string().optional(),
   text: z.string(),
+  /**
+   * The file this insight is about, when it is about one in particular.
+   *
+   * An insight only makes sense where its subject is: a note on why a constant
+   * is 14 and not 3 is an interruption above the diff and an answer beside it.
+   * So an anchored insight is drawn on that file's diff card instead of in the
+   * chapter's list. Only a path the chapter itself cites survives parsing —
+   * anchoring to a card that is not on the page would lose the insight
+   * altogether, and it is better unanchored than gone.
+   */
+  filename: z.string().optional(),
 });
 export type Insight = z.infer<typeof InsightSchema>;
 
@@ -72,8 +103,8 @@ export const ReviewFileSchema = z.object({
   /**
    * Every hunk of this file the model was given to cite, so the review
    * records what was reviewable and not only what the chapters chose —
-   * `coverage.ts` finds the difference. Absent on skipped files and on
-   * reviews stored before the catalog travelled with the file.
+   * `coverage.ts` finds the difference. Absent on a skipped file, which had no
+   * hunks to offer, and on every file when the executor returned no catalog.
    */
   hunks: z.array(ResolvedDiffHunkSchema).optional(),
 });
@@ -103,7 +134,7 @@ export type ReviewRiskAssessment = z.infer<typeof ReviewRiskAssessmentSchema>;
 export const NarrativeChapterSchema = z.object({
   id: z.string(),
   title: z.string(),
-  description: z.string().optional(),
+  description: ProseSchema.optional(),
   insights: z.array(InsightSchema),
   diffChunks: z.array(DiffChunkSchema),
   /**
@@ -117,7 +148,7 @@ export type NarrativeChapter = z.infer<typeof NarrativeChapterSchema>;
 
 export const NarrativeReviewSchema = z.object({
   prTitle: z.string(),
-  overviewSummary: z.string(),
+  overviewSummary: ProseSchema,
   riskAssessment: ReviewRiskAssessmentSchema.optional(),
   files: z.array(ReviewFileSchema).optional(),
   /**

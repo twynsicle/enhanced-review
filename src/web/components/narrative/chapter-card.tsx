@@ -1,12 +1,12 @@
 import { Group, Stack, Text, Title } from '@mantine/core';
 import { plural } from '@/common/plural';
-import type { NarrativeChapter } from '@/domain/review/narrative';
+import type { DiffChunk, Insight, NarrativeChapter } from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
 import classes from '@/web/components/narrative/article.module.css';
 import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
 import { DiagramFigure } from '@/web/components/narrative/diagram/diagram-figure';
 import { InsightCallout } from '@/web/components/narrative/insight-callout';
-import { LeadMarkdown } from '@/web/components/narrative/lead-markdown';
+import { ProsePassage } from '@/web/components/narrative/prose-passage';
 import { sectionCardId, sectionHeadingId } from '@/web/components/narrative/sections';
 import { DISPLAY_SIZE, token } from '@/web/theme/tokens';
 
@@ -28,6 +28,53 @@ const ORDINALS = [
 
 function chapterEyebrow(index: number): string {
   return `Chapter ${ORDINALS[index] ?? `#${index}`}`;
+}
+
+const TEST_PATH_SEGMENT = /^(__tests__|tests?|specs?)$/i;
+
+function isTestFile(filename: string): boolean {
+  const segments = filename.split('/');
+  const base = segments[segments.length - 1] ?? filename;
+  return (
+    /\.(test|spec)\.[^./]+$/i.test(base) ||
+    /_test\.[^./]+$/i.test(base) ||
+    /^test_/i.test(base) ||
+    segments.some((segment) => TEST_PATH_SEGMENT.test(segment))
+  );
+}
+
+/**
+ * Insights that name a file, keyed by it. An insight only reaches here with a
+ * path the chapter cites — `parse-narrative.ts` drops any other anchor — so
+ * every key has a diff card to land on.
+ */
+export function groupInsightsByFile(insights: readonly Insight[]): {
+  anchored: Map<string, Insight[]>;
+  unanchored: Insight[];
+} {
+  const anchored = new Map<string, Insight[]>();
+  const unanchored: Insight[] = [];
+  for (const insight of insights) {
+    if (insight.filename === undefined) {
+      unanchored.push(insight);
+      continue;
+    }
+    const existing = anchored.get(insight.filename);
+    if (existing) existing.push(insight);
+    else anchored.set(insight.filename, [insight]);
+  }
+  return { anchored, unanchored };
+}
+
+/** Non-test files first, so a reviewer reads the change before its tests; stable within each group. */
+export function orderChunksTestsLast(chunks: readonly DiffChunk[]): DiffChunk[] {
+  return chunks
+    .map((chunk, index) => ({ chunk, index }))
+    .toSorted((a, b) => {
+      const rank = Number(isTestFile(a.chunk.filename)) - Number(isTestFile(b.chunk.filename));
+      return rank !== 0 ? rank : a.index - b.index;
+    })
+    .map(({ chunk }) => chunk);
 }
 
 /** Ruled section header: small-caps label on the left, a mono count on the right. */
@@ -62,6 +109,7 @@ export function ChapterCard({
 }) {
   const fileCount = chapter.diffChunks.length;
   const insightCount = chapter.insights.length;
+  const { anchored, unanchored } = groupInsightsByFile(chapter.insights);
   return (
     <article
       className={classes.article}
@@ -86,9 +134,7 @@ export function ChapterCard({
         </Text>
       </Stack>
 
-      {chapter.description && chapter.description.trim().length > 0 && (
-        <LeadMarkdown text={chapter.description} />
-      )}
+      {chapter.description && <ProsePassage prose={chapter.description} />}
 
       {/*
        * Orientation before detail: the diagram sits between the passage and
@@ -100,9 +146,15 @@ export function ChapterCard({
         <DiagramFigure diagram={chapter.diagram} {...(onSelectFile ? { onSelectFile } : {})} />
       )}
 
-      {insightCount > 0 && (
+      {/*
+       * Only the insights that are about the chapter rather than about one
+       * file. An anchored one is drawn on its diff below, where its subject
+       * is; hoisting it here as well would say the same thing twice, once too
+       * early.
+       */}
+      {unanchored.length > 0 && (
         <Stack component="section" gap={16}>
-          <SectionRule label="Insights" count={insightCount} />
+          <SectionRule label="Insights" count={unanchored.length} />
           {/*
            * One column, not two. At the reading measure a two-up grid gave
            * each callout ~328px, and widening the grid alone would have put a
@@ -112,7 +164,7 @@ export function ChapterCard({
            * than the doubled count suggests.
            */}
           <Stack gap={16}>
-            {chapter.insights.map((insight, i) => (
+            {unanchored.map((insight, i) => (
               <InsightCallout key={i} insight={insight} />
             ))}
           </Stack>
@@ -127,8 +179,12 @@ export function ChapterCard({
       {fileCount > 0 && (
         <Stack component="section" gap={20} data-bleed>
           <SectionRule label="Files in this chapter" count={fileCount} />
-          {chapter.diffChunks.map((chunk, i) => (
-            <InlineDiffChunk key={`${chunk.filename}-${i}`} chunk={chunk} />
+          {orderChunksTestsLast(chapter.diffChunks).map((chunk, i) => (
+            <InlineDiffChunk
+              key={`${chunk.filename}-${i}`}
+              chunk={chunk}
+              insights={anchored.get(chunk.filename) ?? []}
+            />
           ))}
         </Stack>
       )}

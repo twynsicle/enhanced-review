@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { extractChapterTitles } from './partial-narrative-parse.ts';
 
-const PRE = '<narrative_review>{"prTitle":"Test","overviewSummary":"sum","chapters":[';
+const PRE = '<narrative_review>{"prTitle":"Test","overviewSummary":{"lede":"sum"},"chapters":[';
 
 describe('extractChapterTitles', () => {
   it('returns empty for the empty buffer', () => {
@@ -20,7 +20,9 @@ describe('extractChapterTitles', () => {
   });
 
   it('returns empty when chapters key has not appeared yet', () => {
-    expect(extractChapterTitles('<narrative_review>{"prTitle":"x","overviewSummary":"y"')).toEqual({
+    expect(
+      extractChapterTitles('<narrative_review>{"prTitle":"x","overviewSummary":{"lede":"y"}'),
+    ).toEqual({
       titles: [],
       inProgressTitle: null,
     });

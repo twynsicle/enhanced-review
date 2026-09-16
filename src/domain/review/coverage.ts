@@ -137,7 +137,11 @@ export function citedChunk(
   return { filename, language, hunks: hunks.toSorted((a, b) => a.fileOrder - b.fileOrder) };
 }
 
-/** Null when the file carries no catalog, so an older review reports nothing rather than everything. */
+/**
+ * Null when the file carries no catalog — it was skipped, or the executor
+ * returned none (the stub does not). Nothing to report beats reporting every
+ * hunk as uncited when there is no list of hunks to have cited.
+ */
 export function fileCoverage(file: ReviewFile, cited: ReadonlySet<string>): FileCoverage | null {
   if (!file.hunks) return null;
   const uncited = file.hunks

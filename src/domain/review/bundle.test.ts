@@ -14,7 +14,11 @@ const bundle: ReviewBundle = {
     description: null,
     stats: null,
   },
-  review: { prTitle: 'Scheduled reviews', overviewSummary: 'Adds a scheduler.', chapters: [] },
+  review: {
+    prTitle: 'Scheduled reviews',
+    overviewSummary: { lede: 'Adds a scheduler.' },
+    chapters: [],
+  },
   files: {
     'src/changed.ts': {
       base: { kind: 'content', content: 'one\n' },

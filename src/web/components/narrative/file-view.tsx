@@ -167,8 +167,8 @@ export function FileView({
  * a mode flip, a rename — or the diff the reviewer was given did not carry
  * this file's patch. Claiming "no text diff" over a file with a line count
  * beside it on the same page is the one thing this must not do. A file with
- * no catalog comes from an older review, where whether the reviewer chose
- * hunks is all that can be said.
+ * no catalog at all — the executor returned none — supports no such claim,
+ * so all that can be said is whether the reviewer chose any hunks.
  */
 function emptyNote(fileMeta: ReviewFile | null): string {
   if (fileMeta?.skipped) return SKIP_REASON_TEXT[fileMeta.skipped];

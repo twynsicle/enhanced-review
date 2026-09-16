@@ -5,6 +5,14 @@
  */
 .editor {
   overflow: hidden;
+  /*
+   * Monaco stacks its own furniture well above the card — the split-pane sash
+   * is z-index 35 — and without a stacking context of its own here those
+   * numbers compete with the card's, so the sash took both the paint and the
+   * pointer over the filename header stuck above it: a col-resize cursor and a
+   * live drag on a bar the reader is only reading.
+   */
+  isolation: isolate;
   background: var(--er-hljs-bg);
 }
 

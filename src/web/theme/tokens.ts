@@ -264,6 +264,12 @@ export const SIDEBAR_WIDTHS = { default: 256, min: 208, max: 420 } as const;
 export const PAGE_MAX_WIDTH = '92rem';
 
 /**
+ * The topbar's height in pixels. Shared with anything that sticks below it —
+ * a diff's own filename header, say — so the two can never drift apart.
+ */
+export const TOPBAR_HEIGHT = 56;
+
+/**
  * Corner radius scale. The base radius is 0.75rem, with sm/md/lg/xl derived
  * from it by 0.6× / 0.8× / 1× / 1.4× multipliers — the same five stops the
  * previous UI used, so `radius="lg"` reproduces the same cards.

@@ -167,8 +167,10 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
   },
   review: {
     prTitle: 'Add hourly and paused review schedules',
-    overviewSummary:
-      'Scheduling moves from one nightly cron job to a **cadence table**. A schedule can now run hourly, daily or weekly, and can be paused without losing its cadence. A new queue collects whatever has come due, oldest first.\n\nThe cron job is deleted outright rather than kept behind a flag, so anything else that imported it breaks at build time rather than silently running twice.',
+    overviewSummary: {
+      lede: 'Scheduling moves from one nightly cron job to a cadence table.',
+      body: 'A schedule can now run hourly, daily or weekly, and can be paused without losing its cadence. A new queue collects whatever has come due, oldest first.\n\nThe cron job is deleted outright rather than kept behind a flag, so anything else that imported it breaks at build time rather than silently running twice.',
+    },
     riskAssessment: {
       score: 3,
       summary: 'Moderate: every scheduled review now goes through new code.',
@@ -302,8 +304,10 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
       {
         id: 'cadence-table',
         title: 'Cadence becomes a table',
-        description:
-          'Due-date maths used to be a ternary between two cadences. It is now a lookup, which is what makes the third cadence a one-line change.',
+        description: {
+          lede: 'Due-date maths becomes a lookup table instead of a ternary.',
+          body: 'That is what makes the third cadence a one-line change rather than another branch.',
+        },
         insights: [
           {
             type: 'rationale',
@@ -314,6 +318,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
             type: 'highlight',
             title: 'Check the hourly interval',
             text: 'Hourly reviews on a busy repo run 24 times as often as before. Worth confirming the runner can take it.',
+            filename: 'src/scheduler/cadence.ts',
           },
         ],
         diffChunks: [chunk('src/scheduler/cadence.ts', 'typescript', [H.intervals, H.lookup])],
@@ -321,8 +326,10 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
       {
         id: 'pausing',
         title: 'Pausing and the due queue',
-        description:
-          'A paused schedule keeps its cadence but never comes due. The new queue asks each schedule whether it is due and orders the answers.',
+        description: {
+          lede: 'A paused schedule keeps its cadence but never comes due.',
+          body: 'The new queue asks each schedule whether it is due, then orders the answers oldest first.',
+        },
         insights: [
           {
             type: 'context',
@@ -333,6 +340,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
             type: 'reference',
             title: 'Never-run schedules sort first',
             text: 'A repo with no last run counts as having run at time zero.',
+            filename: 'src/scheduler/queue.ts',
           },
         ],
         diffChunks: [
@@ -417,8 +425,10 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
       {
         id: 'clean-up',
         title: 'The cron job goes',
-        description:
-          'The nightly job is deleted rather than disabled. The generated schema grows with the new field, and the docs change is described but was not captured.',
+        description: {
+          lede: 'The nightly job is deleted rather than disabled.',
+          body: 'The generated schema grows the new field alongside it, and the docs change is described but was not captured.',
+        },
         insights: [
           {
             type: 'context',

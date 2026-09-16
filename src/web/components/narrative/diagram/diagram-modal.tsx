@@ -17,6 +17,34 @@ import classes from './diagram.module.css';
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 4;
 
+/** What one line and one page of wheel delta are worth in pixels. */
+const LINE_PX = 16;
+const PAGE_PX = 400;
+const DELTA_MODE_PX: Record<number, number> = { 0: 1, 1: LINE_PX, 2: PAGE_PX };
+
+/** The most zoom one event may ask for: 200px of delta is about 35%. */
+const MAX_WHEEL_PX = 200;
+const WHEEL_RATE = 1.0015;
+
+/**
+ * The zoom factor one wheel event asks for.
+ *
+ * A trackpad fling fires many small wheel events per gesture, so a fixed
+ * per-event step compounds fast; scaling by the event's own deltaY keeps a
+ * light touch light and a hard scroll fast, instead of one gesture jumping
+ * from 20% to 100%. That only holds while deltaY is in pixels, which is not
+ * something a wheel event promises: Firefox reports a mouse wheel in lines
+ * (`deltaMode` 1, about ±3 a tick), which at this rate is half a percent of
+ * zoom and reads as a control that does nothing. The clamp covers the other
+ * end, where a page-mode or high-resolution event crosses the whole range in
+ * one tick.
+ */
+export function wheelZoomFactor(deltaY: number, deltaMode: number): number {
+  if (!Number.isFinite(deltaY)) return 1;
+  const px = deltaY * (DELTA_MODE_PX[deltaMode] ?? 1);
+  return Math.pow(WHEEL_RATE, -Math.min(MAX_WHEEL_PX, Math.max(-MAX_WHEEL_PX, px)));
+}
+
 interface View {
   x: number;
   y: number;
@@ -144,7 +172,7 @@ export function DiagramModal({
             setPanning(false);
           }}
           onWheel={(event) => {
-            zoomBy(event.deltaY < 0 ? 1.1 : 1 / 1.1);
+            zoomBy(wheelZoomFactor(event.deltaY, event.deltaMode));
           }}
         >
           {children}

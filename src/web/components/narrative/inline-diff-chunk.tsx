@@ -18,8 +18,9 @@ import {
   type InlineDiffSnippet,
 } from '@/domain/review/inline-diff-snippets';
 import { detectLanguage } from '@/domain/review/language-map';
-import type { DiffChunk } from '@/domain/review/narrative';
+import type { DiffChunk, Insight } from '@/domain/review/narrative';
 import { useFilePair } from '@/web/components/narrative/file-source';
+import { InsightCallout } from '@/web/components/narrative/insight-callout';
 import { MONACO_VS_URL } from '@/web/components/narrative/monaco-cdn';
 import { useHydrated } from '@/web/lib/use-hydrated';
 import {
@@ -30,7 +31,7 @@ import {
   type DiffView,
 } from '@/web/stores/diff-view';
 import { useDiffWrap, type DiffWrap } from '@/web/stores/diff-wrap';
-import { token } from '@/web/theme/tokens';
+import { token, TOPBAR_HEIGHT } from '@/web/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
 
 /**
@@ -104,6 +105,9 @@ const EDITOR_HEIGHT_PADDING = 12;
  * that a reader who lets go does not watch the diff catch up.
  */
 const COLUMN_SETTLE_MS = 120;
+
+/** How long a pointerdown's scroll offset stays good for the focus it expects. */
+const PENDING_SCROLL_MS = 300;
 
 interface FileData {
   original: string;
@@ -428,6 +432,34 @@ function SnippetEditor({
     center.querySelector<HTMLElement>('a[role="button"]')?.click();
   }, []);
 
+  /*
+   * Monaco's hidden input carries the caret wherever the mouse puts it, but it
+   * starts a click at wherever it was left, and the browser's own "scroll the
+   * newly-focused element into view" runs before it catches up — on a page
+   * this long, that yanks the whole window to the input's stale position.
+   * Capturing the scroll offset on the preceding pointerdown and putting it
+   * straight back once focus lands undoes that in the same task, before the
+   * browser paints, so the reader never sees the jump. Keyed off pointerdown
+   * rather than firing on every focus so a genuine keyboard Tab into the
+   * editor keeps the browser's own scroll-into-view.
+   *
+   * The offset expires because only the focus that follows its own pointerdown
+   * may spend it. A press that never lands focus — Monaco still loading behind
+   * the skeleton, or a drag released elsewhere — otherwise leaves the offset
+   * sitting there, and the next keyboard Tab into this editor scrolls the page
+   * back to wherever the reader clicked earlier: the very jump this prevents,
+   * on the path it means to leave alone.
+   */
+  const pendingScroll = useRef<{ x: number; y: number; at: number } | null>(null);
+  const onPointerDown = useCallback(() => {
+    pendingScroll.current = { x: window.scrollX, y: window.scrollY, at: performance.now() };
+  }, []);
+  const onFocus = useCallback(() => {
+    const pos = pendingScroll.current;
+    pendingScroll.current = null;
+    if (pos && performance.now() - pos.at < PENDING_SCROLL_MS) window.scrollTo(pos.x, pos.y);
+  }, []);
+
   // Memoised so the library only re-applies options when `expanded` or the
   // view flips; a fresh object each render would reset the per-side line
   // numbers set by `applySnippetLayout` on every height measurement.
@@ -485,7 +517,13 @@ function SnippetEditor({
 
   const fallback = <Skeleton height={MIN_EDITOR_HEIGHT} radius={0} />;
   return (
-    <div className={classes.editor} style={{ height: editorHeight }} onClick={onClick}>
+    <div
+      className={classes.editor}
+      style={{ height: editorHeight }}
+      onClick={onClick}
+      onPointerDown={onPointerDown}
+      onFocus={onFocus}
+    >
       {hydrated ? (
         <Suspense fallback={fallback}>
           <DiffEditor
@@ -512,12 +550,52 @@ function SnippetEditor({
 }
 
 /**
+ * The insights anchored to this file, between the card's header and its diff.
+ *
+ * Capped at the reading measure even though the card itself bleeds to the full
+ * column. The diff is what earns the extra width; a sentence set across 1700px
+ * does not, and the reader's rule is that prose keeps the measure wherever it
+ * appears.
+ *
+ * Above the diff rather than beside a line: a Monaco view zone would push the
+ * lines apart and cost the diff the even rhythm that makes it scannable, which
+ * is the whole reason a diff is a diff. This is close enough to be an answer
+ * and far enough to leave the code alone.
+ */
+function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {
+  return (
+    <Box
+      px={12}
+      py={12}
+      maw="var(--er-measure)"
+      style={{ borderBottom: `1px solid ${token('border')}` }}
+    >
+      <Box style={{ display: 'grid', rowGap: 16 }}>
+        {insights.map((insight, i) => (
+          <InsightCallout key={i} insight={insight} />
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+/**
  * One file's reviewer-selected hunks: both sides come from the surrounding
  * `FileSource` (GitHub or an embedded bundle), are sliced to the lines around
  * each hunk group (`buildInlineDiffSnippets`) and shown in one Monaco
  * `DiffEditor` per group; "Show full file" swaps in the whole pair.
+ *
+ * `insights` are the chapter's insights that named this file. The other places
+ * a diff appears — the file view, the undiscussed backstop — pass none, since
+ * an insight belongs to the chapter that wrote it.
  */
-export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
+export function InlineDiffChunk({
+  chunk,
+  insights = [],
+}: {
+  chunk: DiffChunk;
+  insights?: readonly Insight[];
+}) {
   const pair = useFilePair(chunk.filename);
   const stored = useDiffView((s) => s.view);
   const wrap = useDiffWrap((s) => s.wrap);
@@ -549,7 +627,14 @@ export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
       role="figure"
       aria-label={`Diff for ${chunk.filename}`}
       style={{
-        overflow: 'hidden',
+        /*
+         * `clip`, not `hidden`: both round the card's corners, but `hidden`
+         * makes this box a scroll container, and the header below sticks to
+         * the nearest one. Against a card that cannot scroll, its offset
+         * resolved to "56px down from the top of the card" and it sat over
+         * the first lines of the diff for good.
+         */
+        overflow: 'clip',
         borderRadius: 8,
         boxShadow: `0 0 0 1px ${token('border')}`,
         background: token('card'),
@@ -561,8 +646,11 @@ export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
         py={8}
         fz="sm"
         style={{
+          position: 'sticky',
+          top: TOPBAR_HEIGHT,
+          zIndex: 10,
           borderBottom: `1px solid ${token('border')}`,
-          background: `color-mix(in oklab, ${token('muted')} 30%, transparent)`,
+          background: `color-mix(in oklab, ${token('muted')} 30%, ${token('card')})`,
         }}
       >
         <Text
@@ -605,6 +693,8 @@ export function InlineDiffChunk({ chunk }: { chunk: DiffChunk }) {
           </UnstyledButton>
         )}
       </Group>
+
+      {insights.length > 0 && <AnchoredInsights insights={insights} />}
 
       {state.kind === 'loading' && (
         <Text px={12} py={16} fz="sm" c="dimmed">

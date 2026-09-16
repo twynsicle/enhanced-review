@@ -1,4 +1,6 @@
+import { rename } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
+import path from 'node:path';
 import { plural } from '../common/plural.ts';
 import {
   describeCoverageGap,
@@ -16,7 +18,7 @@ import { openFile } from './platform.ts';
 import { startProgress } from './progress.ts';
 import { writePrompt } from './prompt.ts';
 import { HOST_RENDER_DEPS, renderRun, type RenderDeps } from './render.ts';
-import { createRunFolder, latestRunFolder, type RunFiles } from './run-folder.ts';
+import { createRunFolder, latestRunFolder, reportFileName, type RunFiles } from './run-folder.ts';
 import { writeStubRun } from './stub-run.ts';
 import { locateTarget, resolveTarget, type Target, type TargetRequest } from './targets.ts';
 import { note, stage, warn } from './terminal.ts';
@@ -157,9 +159,11 @@ export async function review(
 
   const started = performance.now();
   const bytes = await renderRun(context, parsed, run, deps.render);
-  stage('render', `review.html, ${megabytes(bytes)}`, performance.now() - started);
-  note(`  ${run.html}`);
-  if (options.open) deps.open(run.html);
+  const reportPath = path.join(path.dirname(run.html), reportFileName(context.meta));
+  if (reportPath !== run.html) await rename(run.html, reportPath);
+  stage('render', `${path.basename(reportPath)}, ${megabytes(bytes)}`, performance.now() - started);
+  note(`  ${reportPath}`);
+  if (options.open) deps.open(reportPath);
   return 0;
 }
 

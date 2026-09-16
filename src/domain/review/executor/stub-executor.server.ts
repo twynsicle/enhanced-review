@@ -15,8 +15,10 @@ import {
  */
 export const STUB_REVIEW: NarrativeReview = {
   prTitle: 'Stub review',
-  overviewSummary:
-    'This is a stub review produced by the dev-mode executor. The streaming path emits this payload across multiple chunks so the partial parser has something to react to.',
+  overviewSummary: {
+    lede: 'A canned review, produced without reading the diff.',
+    body: 'The dev-mode executor emits this payload across several chunks, so the partial parser and the chunk pipeline have something to react to. Set `REVIEW_EXECUTOR=claude` for a real one.',
+  },
   riskAssessment: {
     score: 2,
     summary:
@@ -46,8 +48,10 @@ export const STUB_REVIEW: NarrativeReview = {
     {
       id: 'stub-chapter-1',
       title: 'Shape of the change',
-      description:
-        'The stub review stands in for a real model response while the app exercises the job and streaming flow. It keeps the chapter structure realistic enough for UI testing without pretending to inspect the patch.',
+      description: {
+        lede: 'A stand-in for a real model response, with the chapter structure intact.',
+        body: 'Realistic enough to exercise the job and streaming flow, without pretending to have inspected the patch.',
+      },
       insights: [
         {
           type: 'context',
@@ -65,8 +69,10 @@ export const STUB_REVIEW: NarrativeReview = {
     {
       id: 'stub-chapter-2',
       title: 'Risks and follow-ups',
-      description:
-        'This chapter represents the kind of tradeoff-focused explanation the real reviewer provides. In stub mode there is no underlying analysis, so the section is intentionally generic.',
+      description: {
+        lede: 'Where the tradeoff-focused explanation would go.',
+        body: 'There is no underlying analysis in stub mode, so this section is deliberately generic.',
+      },
       insights: [
         {
           type: 'rationale',
@@ -79,8 +85,10 @@ export const STUB_REVIEW: NarrativeReview = {
     {
       id: 'stub-chapter-3',
       title: 'Inline review',
-      description:
-        'Inline diffs are empty in the stub response because there are no model-selected hunks. Real reviews attach selected changed hunks so the reader can inspect the code next to the narrative.',
+      description: {
+        lede: 'No inline diffs, because the stub selects no hunks.',
+        body: 'A real review attaches the hunks it chose, so the reader can read the code beside the narrative.',
+      },
       insights: [
         {
           type: 'context',
@@ -137,7 +145,7 @@ export function buildFragments(review: NarrativeReview): string[] {
     if (idx > 0) fragments.push(',');
     fragments.push(`{"id":${JSON.stringify(chapter.id)},`);
     fragments.push(`"title":${JSON.stringify(chapter.title)},`);
-    fragments.push(`"description":${JSON.stringify(chapter.description ?? '')},`);
+    fragments.push(`"description":${JSON.stringify(chapter.description ?? { lede: '' })},`);
     fragments.push(`"insights":${JSON.stringify(chapter.insights)},`);
     fragments.push(`"diffChunks":${JSON.stringify(chapter.diffChunks)}}`);
   });

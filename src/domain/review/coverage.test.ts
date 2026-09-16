@@ -51,7 +51,7 @@ const FILES: ReviewFile[] = [
 function review(cites: Record<string, string[]>): NarrativeReview {
   return {
     prTitle: 'A change',
-    overviewSummary: 'It changes things.',
+    overviewSummary: { lede: 'It changes things.' },
     files: withFileHunks(FILES, HUNKS),
     chapters: [
       {
@@ -125,8 +125,8 @@ describe('reviewCoverage', () => {
     expect(coverage).toMatchObject({ total: 5, cited: 5, uncited: [] });
   });
 
-  it('reports nothing for a review stored without a catalog', () => {
-    // An older review's files carry no hunks: silence, not "everything is uncited".
+  it('reports nothing for a review whose files carry no catalog', () => {
+    // No list of hunks to have cited, so silence — not "everything is uncited".
     const coverage = reviewCoverage({ ...review({}), files: FILES });
     expect(coverage).toMatchObject({ total: 0, cited: 0, uncited: [] });
     expect(coverage.byFile.size).toBe(0);

@@ -9,6 +9,7 @@ import type { DiffChunk } from '@/domain/review/narrative';
 import { EmbeddedFileSource, GithubFileSource } from '@/web/components/narrative/file-source';
 import type { FileResponse } from '@/web/lib/github-api';
 import { render, screen, waitFor } from '@/web/test/render';
+import { TOPBAR_HEIGHT } from '@/web/theme/tokens';
 import { InlineDiffChunk } from './inline-diff-chunk';
 
 vi.mock('@monaco-editor/react', () => ({
@@ -82,7 +83,7 @@ function renderFromBundle(files: ReviewBundle['files']) {
       description: null,
       stats: null,
     },
-    review: { prTitle: 't', overviewSummary: '', chapters: [] },
+    review: { prTitle: 't', overviewSummary: { lede: '' }, chapters: [] },
     files,
   };
   // A router with no file route: an embedded source must never fetch.
@@ -162,5 +163,68 @@ describe('<InlineDiffChunk /> from embedded', () => {
     renderFromBundle({});
     expect(screen.queryByText('Loading…')).toBeNull();
     expect(screen.getByText(/isn't available at either commit/i)).toBeDefined();
+  });
+});
+
+/*
+ * The header follows the reader down a long diff, and what it sticks to is the
+ * nearest scroll container. A card clipped with `overflow: hidden` is one, and
+ * one that cannot scroll — so the offset resolved against the top of the card
+ * instead of the viewport and parked the header over the first lines of the
+ * diff. Nothing but a real layout can see that, hence the assertion on the
+ * property rather than on a position.
+ */
+describe('<InlineDiffChunk /> sticky header', () => {
+  it('sticks below the topbar, from a card that is not a scroll container', () => {
+    renderFromGithub(new Promise<never>(() => {}));
+    const card = screen.getByRole('figure', { name: 'Diff for src/main.ts' }) as HTMLElement;
+    const header = card.firstElementChild as HTMLElement;
+
+    expect(card.style.overflow).toBe('clip');
+    expect(header.style.position).toBe('sticky');
+    expect(header.style.top).toBe(`${TOPBAR_HEIGHT}px`);
+  });
+});
+
+describe('<InlineDiffChunk /> with anchored insights', () => {
+  it('draws them above the diff, and none when the chapter sent none', () => {
+    const insight = {
+      type: 'highlight' as const,
+      title: 'Why this constant is 14',
+      text: 'Business days have no fixed calendar width.',
+      filename: chunk.filename,
+    };
+    const Stub = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <EmbeddedFileSource
+            bundle={{
+              schemaVersion: BUNDLE_SCHEMA_VERSION,
+              generatedAt: '2026-09-11T10:00:00.000Z',
+              meta: {
+                repo: 'a/r',
+                title: 't',
+                prNumber: null,
+                baseRefName: null,
+                headRefName: null,
+                authorLogin: null,
+                description: null,
+                stats: null,
+              },
+              review: { prTitle: 't', overviewSummary: { lede: '' }, chapters: [] },
+              files: {},
+            }}
+          >
+            <InlineDiffChunk chunk={chunk} insights={[insight]} />
+            <InlineDiffChunk chunk={chunk} />
+          </EmbeddedFileSource>
+        ),
+      },
+    ]);
+    render(<Stub initialEntries={['/']} />);
+
+    expect(screen.getAllByText('Why this constant is 14')).toHaveLength(1);
+    expect(screen.getAllByText(/Risk/)).toHaveLength(1);
   });
 });

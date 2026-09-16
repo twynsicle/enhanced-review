@@ -33,3 +33,9 @@ npm-debug.log*
 
 # er review runs (they ignore themselves; listed for Prettier, which reads only this file)
 /er-reviews/
+
+# A report copied to the root to look at. 2 MB of inlined build output, not source.
+/review.html
+
+# this machine's JetBrains project config
+.idea/
