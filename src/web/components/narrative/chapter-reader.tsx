@@ -9,7 +9,8 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useSearchParams } from 'react-router';
-import { reviewCoverage, type ReviewCoverage } from '@/domain/review/coverage';
+import { reviewCoverage } from '@/domain/review/coverage';
+import type { Finding } from '@/domain/review/findings';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/domain/review/narrative';
 import type { ReviewMeta } from '@/domain/review/review-meta';
 import { ChapterCard } from '@/web/components/narrative/chapter-card';
@@ -22,7 +23,6 @@ import {
   type ReaderSection,
 } from '@/web/components/narrative/sections';
 import { SummaryCard } from '@/web/components/narrative/summary-card';
-import { UndiscussedCard } from '@/web/components/narrative/undiscussed-card';
 import { useNarrativeKeyboard } from '@/web/components/narrative/use-narrative-keyboard';
 import { useReaderColumn } from '@/web/stores/diff-view';
 import {
@@ -88,8 +88,8 @@ export interface ChapterReaderProps {
   initialActiveId: string;
   /** Summary-header actions (the hosted app's rerun button). */
   actions?: ReactNode;
-  /** Whether the reviewer's diff was trimmed to fit; the backstop section says so. */
-  diffTruncated?: boolean;
+  /** What validating this review found; empty in the local report, which carries none. */
+  findings: readonly Finding[];
 }
 
 /**
@@ -104,7 +104,7 @@ export function ChapterReader({
   meta,
   initialActiveId,
   actions,
-  diffTruncated = false,
+  findings,
 }: ChapterReaderProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const sidebarWidth = useSidebarWidth((state) => state.width);
@@ -113,7 +113,7 @@ export function ChapterReader({
   const mainRef = useRef<HTMLElement | null>(null);
   useReportedColumnWidth(mainRef);
   const coverage = useMemo(() => reviewCoverage(review), [review]);
-  const sections = useMemo(() => readerSections(review, coverage), [review, coverage]);
+  const sections = useMemo(() => readerSections(review), [review]);
   const urlActive = searchParams.get('ch');
   const urlFile = searchParams.get('file');
   const activeFile = urlFile && fileExists(urlFile, review) ? urlFile : null;
@@ -262,8 +262,7 @@ export function ChapterReader({
             section={activeSection}
             review={review}
             meta={meta}
-            coverage={coverage}
-            diffTruncated={diffTruncated}
+            findings={findings}
             chapterIndex={activeIndex}
             actions={actions}
             onSelectFile={onSelectFile}
@@ -277,17 +276,15 @@ export function ChapterReader({
 /**
  * The one card the reader shows for the active section. `sections` is already
  * the authority on which sections this review has — the risk section is only
- * in the list when there is an assessment, the backstop only when a chapter
- * left a hunk uncited — so the kind alone decides which card to draw. Where a
- * case still tests its data, it is narrowing an optional field for the type
- * system, not asking whether the section can be reached.
+ * in the list when there is an assessment — so the kind alone decides which
+ * card to draw. Where a case still tests its data, it is narrowing an optional
+ * field for the type system, not asking whether the section can be reached.
  */
 function SectionCard({
   section,
   review,
   meta,
-  coverage,
-  diffTruncated,
+  findings,
   chapterIndex,
   actions,
   onSelectFile,
@@ -295,8 +292,7 @@ function SectionCard({
   section: ReaderSection;
   review: NarrativeReview;
   meta: ReviewMeta;
-  coverage: ReviewCoverage;
-  diffTruncated: boolean;
+  findings: readonly Finding[];
   chapterIndex: number;
   actions?: ReactNode;
   onSelectFile: (filename: string) => void;
@@ -304,14 +300,6 @@ function SectionCard({
   switch (section.kind) {
     case 'risk':
       return review.riskAssessment ? <RiskCard assessment={review.riskAssessment} /> : null;
-    case 'undiscussed':
-      return (
-        <UndiscussedCard
-          coverage={coverage}
-          chapters={review.chapters}
-          diffTruncated={diffTruncated}
-        />
-      );
     case 'chapter': {
       const chapter = review.chapters.find((ch) => ch.id === section.id);
       return chapter ? (
@@ -320,7 +308,13 @@ function SectionCard({
     }
     case 'summary':
       return (
-        <SummaryCard review={review} meta={meta} actions={actions} onSelectFile={onSelectFile} />
+        <SummaryCard
+          review={review}
+          meta={meta}
+          findings={findings}
+          actions={actions}
+          onSelectFile={onSelectFile}
+        />
       );
   }
 }

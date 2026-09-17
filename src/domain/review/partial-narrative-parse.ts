@@ -35,12 +35,39 @@ const EMPTY: ChapterTitleSnapshot = { titles: [], inProgressTitle: null };
 export function extractChapterTitles(buffer: string): ChapterTitleSnapshot {
   if (buffer.length === 0) return EMPTY;
   try {
-    return doExtract(buffer);
+    return doExtract(fromLastBlock(buffer));
   } catch {
     // The UI never has to handle a throw: any unexpected scanner state
     // collapses to "no titles yet".
     return EMPTY;
   }
+}
+
+/**
+ * The tail of the buffer from the last `<narrative_review>` opening tag that
+ * has chapters under it.
+ *
+ * A run whose stop was blocked for a defect writes a second block after the
+ * first, and scanning from the top would list both sets of chapters — the
+ * checklist would grow past the review's real length and repeat titles the
+ * model had already withdrawn. But the model also writes about what it just
+ * did, and the sentence it reaches for names the tag: the last tag in the
+ * buffer is then a remark, the checklist behind it goes blank, and a reader
+ * watching a finished review sees it empty out. A tag with no chapters after
+ * it is never the answer, so the search carries on back through the earlier
+ * ones. Text with no usable tag at all is scanned whole, since there is
+ * nothing better to go on.
+ */
+function fromLastBlock(buffer: string): string {
+  const tag = '<narrative_review>';
+  let at = buffer.lastIndexOf(tag);
+  while (at !== -1) {
+    const tail = buffer.slice(at);
+    if (findChaptersArrayStart(tail) !== -1) return tail;
+    if (at === 0) break;
+    at = buffer.lastIndexOf(tag, at - 1);
+  }
+  return buffer;
 }
 
 function doExtract(buffer: string): ChapterTitleSnapshot {

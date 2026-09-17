@@ -1,8 +1,9 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { HookInput, Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { groundingFor } from '../domain/review/prompt/diff-hunk-catalog.ts';
 import { runClaude, type QueryFn } from './claude-run.ts';
 import { runFiles, type RunFiles } from './run-folder.ts';
 
@@ -51,13 +52,72 @@ function fakeQuery(messages: SDKMessage[]): QueryFn & { options: () => Options }
   });
 }
 
-const options = { cwd: 'C:/repo', model: 'test-model', maxTurns: 5, timeoutMs: 60_000 };
+const hunk = (id: string) => ({
+  id,
+  filename: 'src/a.ts',
+  header: '@@ -1,3 +1,4 @@',
+  fileOrder: 1,
+  original: { startLine: 1, lineCount: 3 },
+  modified: { startLine: 1, lineCount: 4 },
+});
+
+const options = {
+  cwd: 'C:/repo',
+  model: 'test-model',
+  maxTurns: 5,
+  timeoutMs: 60_000,
+  grounding: groundingFor([]),
+};
 
 const events = () =>
   readFileSync(run.events, 'utf8')
     .split('\n')
     .filter((line) => line !== '')
     .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+/** A review of the one reviewed file, citing exactly the hunks named. */
+const answer = (hunkIds: string[]) =>
+  `<narrative_review>${JSON.stringify({
+    prTitle: 'One file',
+    overviewSummary: { lede: 'A summary.' },
+    chapters: [
+      {
+        id: 'c1',
+        title: 'The change',
+        insights: [],
+        diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds }],
+      },
+    ],
+  })}</narrative_review>`;
+
+/**
+ * A query that answers, then submits to the Stop hook the way the SDK does: a
+ * refusal sends it back for the next answer in the list, and the last answer
+ * stands whatever the hook says of it.
+ */
+function answeringQuery(answers: string[]): QueryFn {
+  return ({ options: sdkOptions }) =>
+    (async function* () {
+      for (const [index, value] of answers.entries()) {
+        yield text(value);
+        const hook = sdkOptions.hooks?.Stop?.[0]?.hooks[0];
+        if (!hook) throw new Error('no Stop hook was registered');
+        const out = (await hook(
+          {
+            hook_event_name: 'Stop',
+            stop_hook_active: index > 0,
+            session_id: 's',
+            transcript_path: 't',
+            cwd: '.',
+          } as HookInput,
+          undefined,
+          { signal: new AbortController().signal },
+        )) as { decision?: string };
+        if (out.decision !== 'block') break;
+      }
+      yield result({ subtype: 'success', total_cost_usd: 0 });
+    })();
+}
 
 describe('the model run', () => {
   it('writes what the model said to raw.txt and how it went to events.jsonl', async () => {
@@ -69,7 +129,6 @@ describe('the model run', () => {
 
     await expect(runClaude(run, options, { query })).resolves.toEqual({
       characters: 39,
-      denied: 0,
       usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
       turns: 7,
       costUsd: 0.42,
@@ -153,7 +212,7 @@ describe('the model run', () => {
       })();
     };
 
-    await expect(runClaude(run, options, { query: asking })).resolves.toMatchObject({ denied: 1 });
+    await runClaude(run, options, { query: asking });
     expect(events().filter((event) => event.type === 'denied')).toMatchObject([
       { tool: 'Bash', detail: 'rm -rf .', reason: expect.stringContaining('read-only') },
     ]);
@@ -219,5 +278,35 @@ describe('the model run', () => {
       /stopped after 0 minutes; raise it with --timeout\..*raw\.txt/s,
     );
     expect(readFileSync(run.raw, 'utf8')).toBe('a start');
+  });
+});
+
+describe('the validation retry', () => {
+  const grounded = { ...options, grounding: groundingFor([hunk('H0001'), hunk('H0002')]) };
+
+  it('asks the model again when a hunk it was shown is cited by no chapter', async () => {
+    const onBlocked = vi.fn<(attempt: number, reason: string) => void>();
+    const query = answeringQuery([answer(['H0001']), answer(['H0001', 'H0002'])]);
+
+    await runClaude(run, grounded, { query, onBlocked });
+
+    expect(onBlocked.mock.calls.map(([attempt]) => attempt)).toEqual([1]);
+    expect(onBlocked.mock.calls[0]?.[1]).toContain('H0002 (src/a.ts)');
+    // Both answers are in raw.txt; the parser reads the last complete block.
+    expect(readFileSync(run.raw, 'utf8')).toContain('"H0002"');
+    expect(events().filter((event) => event.type === 'blocked')).toMatchObject([
+      { attempt: 1, reason: expect.stringContaining('complete narrative review block again') },
+    ]);
+  });
+
+  it('lets a complete first answer stop without asking anything', async () => {
+    const onBlocked = vi.fn<(attempt: number, reason: string) => void>();
+    await runClaude(run, grounded, {
+      query: answeringQuery([answer(['H0001', 'H0002'])]),
+      onBlocked,
+    });
+
+    expect(onBlocked).not.toHaveBeenCalled();
+    expect(events().filter((event) => event.type === 'blocked')).toEqual([]);
   });
 });

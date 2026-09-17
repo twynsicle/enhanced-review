@@ -4,10 +4,10 @@ import { reviewCoverage } from '@/domain/review/coverage';
 import { SAMPLE_BUNDLE, SAMPLE_MISSING_FILE } from './sample-bundle';
 
 const coverage = reviewCoverage(SAMPLE_BUNDLE.review);
-/** Every chunk the reader draws: the chapters' own, and the leftovers under "Not discussed". */
+/** Every chunk the reader draws: the chapters' own, and each file's leftovers. */
 const chunks = [
   ...SAMPLE_BUNDLE.review.chapters.flatMap((chapter) => chapter.diffChunks),
-  ...coverage.uncited.map((file) => file.chunk),
+  ...[...coverage.byFile.values()].map((file) => file.chunk).filter((chunk) => chunk !== null),
 ];
 
 /**
@@ -89,8 +89,12 @@ describe('the sample report bundle', () => {
     expect(skipped.filter((file) => cited.has(file.filename))).toEqual([]);
   });
 
-  it('leaves one file undiscussed and one discussed in part, so the report shows the backstop', () => {
-    expect(coverage.uncited.map((c) => [c.file.filename, c.cited, c.total])).toEqual([
+  it('leaves one file undiscussed and one discussed in part, so the file view draws both', () => {
+    expect(
+      [...coverage.byFile.values()]
+        .filter((file) => file.chunk !== null)
+        .map((file) => [file.file.filename, file.cited, file.total]),
+    ).toEqual([
       ['src/scheduler/cadence.ts', 4, 5],
       ['src/scheduler/index.ts', 0, 1],
     ]);

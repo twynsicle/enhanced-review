@@ -135,3 +135,56 @@ describe('extractChapterTitles', () => {
     expect(extractChapterTitles(buf)).toEqual({ titles: ['Done'], inProgressTitle: 'Mid' });
   });
 });
+
+describe('a run that was asked to answer again', () => {
+  it('lists only the chapters of the last block, not both attempts', () => {
+    const first = `${PRE}{"id":"c1","title":"First go"},{"id":"c2","title":"Also first go"}]}</narrative_review>`;
+    const second = `${PRE}{"id":"c1","title":"Second go"},{"id":"c2","title":"Still writ`;
+    expect(
+      extractChapterTitles(`${first}
+One moment.
+${second}`),
+    ).toEqual({
+      titles: ['Second go'],
+      inProgressTitle: 'Still writ',
+    });
+  });
+
+  it('keeps showing the finished block until the next one opens', () => {
+    const first = `${PRE}{"id":"c1","title":"First go"}]}</narrative_review>`;
+    expect(
+      extractChapterTitles(`${first}
+Let me redo that.`),
+    ).toEqual({
+      titles: ['First go'],
+      inProgressTitle: null,
+    });
+  });
+
+  /**
+   * The model says what it just did, and the sentence names the tag. Taking
+   * the last tag in the buffer regardless of what follows it emptied the
+   * checklist at the moment the review finished.
+   */
+  it('keeps the chapters of the answer when a remark names the opening tag', () => {
+    const first = `${PRE}{"id":"c1","title":"First go"}]}</narrative_review>`;
+    expect(
+      extractChapterTitles(`${first}
+That is the complete <narrative_review> block as asked.`),
+    ).toEqual({
+      titles: ['First go'],
+      inProgressTitle: null,
+    });
+  });
+
+  it('keeps them when the remark names both tags', () => {
+    const first = `${PRE}{"id":"c1","title":"First go"}]}</narrative_review>`;
+    expect(
+      extractChapterTitles(`${first}
+I have re-emitted the complete <narrative_review>…</narrative_review> block.`),
+    ).toEqual({
+      titles: ['First go'],
+      inProgressTitle: null,
+    });
+  });
+});

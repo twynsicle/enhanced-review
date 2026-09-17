@@ -3,7 +3,6 @@ import { reviewCoverage } from '@/domain/review/coverage';
 import {
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
-  UNDISCUSSED_SECTION_ID,
   type NarrativeChapter,
   type ReviewFile,
   type ReviewRiskAssessment,
@@ -327,30 +326,6 @@ describe('<ChapterSidebar />', () => {
     const done = screen.getByText('done.ts').closest('button')!;
     expect(done.hasAttribute('title')).toBe(false);
     expect(done.textContent).not.toMatch(/[○◐]/);
-  });
-
-  it('gives the "Not discussed" section a dash where a chapter has its number', () => {
-    render(
-      <ChapterSidebar
-        sections={[
-          ...sections,
-          {
-            id: UNDISCUSSED_SECTION_ID,
-            kind: 'undiscussed',
-            label: 'Not discussed',
-            chapterNumber: null,
-            hasDiagram: false,
-          },
-        ]}
-        chapters={chapters}
-        activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
-        onSelect={noop}
-        onSelectFile={noop}
-      />,
-    );
-    const row = screen.getByText('Not discussed').closest('button')!;
-    expect(row.textContent).toMatch(/^—/);
   });
 
   it('marks the active file row with aria-current', () => {

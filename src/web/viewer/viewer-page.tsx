@@ -52,10 +52,16 @@ export function ViewerPage({ result }: { result: EmbeddedBundleResult }) {
       >
         <title>{`${bundle.review.prTitle || bundle.meta.title} · enhanced-review`}</title>
         <EmbeddedFileSource bundle={bundle}>
+          {/*
+           * The local report carries no findings. Whoever ran `er` is told
+           * what validating the review found, in the terminal and in
+           * findings.json, so the report is kept to the review itself.
+           */}
           <ChapterReader
             review={bundle.review}
             meta={bundle.meta}
             initialActiveId={SUMMARY_SECTION_ID}
+            findings={[]}
           />
         </EmbeddedFileSource>
       </PageShell>

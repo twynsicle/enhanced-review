@@ -41,7 +41,7 @@ const JOB = {
 } as unknown as ReviewJob;
 const REVIEW: Review = {
   jobId: 'j1',
-  diffTruncated: true,
+  findings: [],
   createdAt: new Date(),
   content: {
     prTitle: 'Feature',
@@ -100,7 +100,6 @@ describe('/reviews/:id loader', () => {
     expect(result).toMatchObject({
       job: { id: 'j1' },
       review: { prTitle: 'Feature' },
-      diffTruncated: true,
       meta: { authorLogin: 'alice', stats: null, description: null },
       isStale: false,
       commitsAhead: 0,
@@ -112,6 +111,14 @@ describe('/reviews/:id loader', () => {
       headSha: 'aaaa',
       githubLogin: 'alice',
     });
+  });
+
+  it('hands the reader the findings stored with the review', async () => {
+    const findings = [
+      { code: 'diff-truncated', severity: 'warning', message: 'Part of the change was not shown.' },
+    ];
+    jobs.getReview.mockResolvedValue({ ...REVIEW, findings } as Review);
+    expect((await load('http://localhost/reviews/j1')).findings).toEqual(findings);
   });
 
   it('honours a known ?ch= and falls back to the summary for an unknown one', async () => {

@@ -1,10 +1,18 @@
 import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
 import { logger } from '../../../common/logger.ts';
 import { pickHostEnv } from '../../../config/host-env.ts';
+import {
+  fatalFindings,
+  finding,
+  passedAfterRetry,
+  runStoppedEarly,
+  type Finding,
+} from '../findings.ts';
 import { SERVER_WORKING_TREE } from '../prompt/instructions.ts';
 import { buildNarrativePrompt } from '../prompt/narrative-prompt.ts';
-import { parseNarrativeReview } from '../prompt/parse-narrative.ts';
-import { runSdkLoop } from './sdk-loop.server.ts';
+import { validateReview } from '../validate-review.ts';
+import { howItEnded, runSdkLoop } from './sdk-loop.server.ts';
+import { MAX_VALIDATION_RETRIES, validationStopHook } from './validation-stop-hook.server.ts';
 import {
   abortError,
   ExecutorParseError,
@@ -21,7 +29,15 @@ import {
  * MCP servers) and no persisted transcript. Only an allowlist of host
  * variables reaches the SDK subprocess.
  */
-const MAX_TURNS = 30;
+
+/**
+ * Measured on the local CLI, which shares this prompt: an 88-file, 138-hunk
+ * review took 32 turns, so this leaves a change about twice that size room to
+ * finish. Room matters more than it looks: a run that ends on `error_max_turns`
+ * fails the review outright, and every refused stop costs another full
+ * re-emission of the block on top of the reading.
+ */
+const MAX_TURNS = 60;
 const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep'] as const;
 
 /** Host variables forwarded to the SDK subprocess: credentials, proxies, paths. */
@@ -72,6 +88,16 @@ export class ClaudeExecutor implements ReviewExecutor {
     const env = this.#deps.env ?? pickHostEnv(CLAUDE_ENV_KEYS);
     const log = logger.child({ job_id: input.jobId, executor: this.name });
 
+    // The executor keeps its own copy of what the model has said: the loop
+    // accumulates privately, and the Stop hook has to grade an answer that is
+    // still being written.
+    const said: string[] = [];
+    let retries = 0;
+    const onText = (text: string): void => {
+      said.push(text);
+      input.onChunk?.(text);
+    };
+
     const options: Options = {
       cwd: input.cloneDir,
       model: input.model,
@@ -94,15 +120,28 @@ export class ClaudeExecutor implements ReviewExecutor {
       persistSession: false,
       abortController,
       maxTurns: MAX_TURNS,
+      hooks: {
+        Stop: [
+          validationStopHook({
+            grounding,
+            maxRetries: MAX_VALIDATION_RETRIES,
+            text: () => said.join(''),
+            onBlock: (attempt, reason) => {
+              retries = attempt;
+              log.warn({ attempt, reason }, 'review validation blocked stop');
+            },
+            onError: (err) => {
+              log.error({ err }, 'review validation hook failed');
+            },
+          }),
+        ],
+      },
       env,
     };
 
-    const outcome = await runSdkLoop(queryFn, { prompt: user, options }, { onText: input.onChunk });
+    const outcome = await runSdkLoop(queryFn, { prompt: user, options }, { onText });
     const raw = outcome.raw;
-    const resultError =
-      outcome.result && outcome.result.subtype !== 'success'
-        ? `claude SDK result subtype=${outcome.result.subtype}`
-        : null;
+    const ended = howItEnded(outcome.result);
 
     if (outcome.callbackError) throw outcome.callbackError;
     if (outcome.sdkError) {
@@ -118,13 +157,40 @@ export class ClaudeExecutor implements ReviewExecutor {
     // not a confusing parse failure.
     if (input.signal.aborted) throw abortError('claude executor aborted');
 
-    // Parse first: a complete narrative followed by a non-success result
-    // (error_max_turns during cleanup, say) is still a usable review.
-    const parsed = parseNarrativeReview(raw, grounding);
-    if (!parsed.ok) {
-      if (resultError) throw new ExecutorProcessError(resultError, '', null, raw);
-      throw new ExecutorParseError(parsed.error, raw);
+    const validation = validateReview(raw, grounding);
+    const findings: Finding[] = [...validation.findings];
+    if (wasTruncated) {
+      findings.push(
+        finding(
+          'diff-truncated',
+          'The diff was too large for the prompt, so part of the change was never shown to the reviewer.',
+        ),
+      );
     }
-    return { review: parsed.data, wasTruncated, rawText: raw, hunks: catalog };
+    // A run that ended on anything but a clean success reviewed less than it
+    // was asked to, whatever its answer looks like: the turns it never took
+    // are files it never read, and a review that reads well on half the
+    // change is the most misleading thing this can produce.
+    if (ended !== null) findings.push(runStoppedEarly(ended));
+
+    const fatal = fatalFindings(findings);
+    if (fatal.length > 0) {
+      // The thrown message is one sentence and the job's error column holds
+      // 500 characters, so the whole list goes to the log first: whoever looks
+      // at why a job errored sees everything the answer was judged on.
+      log.error({ findings, ended }, 'review validation failed');
+      // How the run ended outranks what it said: a run cut short stays a
+      // process error even when the text it managed to emit parsed.
+      if (ended !== null) {
+        throw new ExecutorProcessError(`claude SDK result: ${ended}`, '', null, raw);
+      }
+      throw new ExecutorParseError(fatal[0]!.message, raw);
+    }
+    if (!validation.review) {
+      // Unreachable: an answer that did not parse carries a fatal finding.
+      throw new ExecutorParseError('The answer was not a usable review.', raw);
+    }
+    if (retries > 0) findings.push(passedAfterRetry(retries));
+    return { review: validation.review, rawText: raw, hunks: catalog, findings };
   }
 }

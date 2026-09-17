@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { GitRunner, GitRunOptions } from './clone/git-runner.server.ts';
 import { STUB_REVIEW, StubExecutor } from './executor/stub-executor.server.ts';
+import { finding, type Finding } from './findings.ts';
 import {
   ExecutorParseError,
   type ReviewExecutor,
@@ -121,7 +122,7 @@ function capturingExecutor(
       exec.input = i;
       await onRun(i);
       if (result instanceof Error) throw result;
-      return { review: STUB_REVIEW, wasTruncated: false, rawText: '' };
+      return { review: STUB_REVIEW, rawText: '', findings: [] };
     },
   };
   return exec;
@@ -156,14 +157,30 @@ describe('runJob', () => {
     expect(store.finalizeDone).toHaveBeenCalledTimes(1);
     const [, finalizeInput] = vi.mocked(store.finalizeDone).mock.calls[0] ?? [];
     expect(finalizeInput).toMatchObject({
-      diffTruncated: false,
       riskScore: 2,
+      findings: [],
       content: {
         prTitle: 'Stub review',
         files: [{ filename: 'f.txt', status: 'modified', additions: 1, deletions: 1 }],
       },
     });
     expect(store.markErrored).not.toHaveBeenCalled();
+  });
+
+  it('stores what validating the answer found, beside the review itself', async () => {
+    const findings: Finding[] = [
+      finding('diff-truncated', 'Part of the change was never shown to the reviewer.'),
+    ];
+    const executor: ReviewExecutor = {
+      name: 'fake',
+      run: async () => ({ review: STUB_REVIEW, rawText: '', findings }),
+    };
+    const { store } = fakeStore();
+
+    await expect(runJob(input(BRANCH), deps({ store, executor }))).resolves.toBe('done');
+
+    const [, finalizeInput] = vi.mocked(store.finalizeDone).mock.calls[0] ?? [];
+    expect(finalizeInput).toMatchObject({ findings });
   });
 
   it('records why the prompt left a file out, rather than storing it as unmentioned', async () => {

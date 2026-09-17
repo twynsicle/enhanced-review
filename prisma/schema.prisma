@@ -100,7 +100,9 @@ model Review {
   id            String   @id @default(uuid(7)) @db.Uuid
   jobId         String   @unique @map("job_id") @db.Uuid
   content       Json
-  diffTruncated Boolean  @default(false) @map("diff_truncated")
+  /// Finding[]: what validating the model's answer turned up. Never fatal —
+  /// a fatal finding fails the job, so no review row is written at all.
+  findings      Json     @default("[]")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   job ReviewJob @relation(fields: [jobId], references: [id], onDelete: Cascade)

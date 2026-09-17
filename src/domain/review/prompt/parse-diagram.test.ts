@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { isGraphDiagram } from '../diagram.ts';
-import { buildDiffHunkIndex, groundingFor } from './diff-hunk-catalog.ts';
+import { DIAGRAM_LIMITS, isGraphDiagram, type Diagram } from '../diagram.ts';
+import { findingLog, type Finding } from '../findings.ts';
+import { buildDiffHunkIndex, groundingFor, type PromptGrounding } from './diff-hunk-catalog.ts';
 import { sanitizeDiagram } from './parse-diagram.ts';
 
 const DIFF = `diff --git a/src/a.ts b/src/a.ts
@@ -20,6 +21,22 @@ diff --git a/src/b.ts b/src/b.ts
 
 const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
 
+/** The diagram alone, for the tests that are about what survives. */
+function diagramFrom(
+  raw: unknown,
+  fallbackId: string,
+  g: PromptGrounding | undefined,
+): Diagram | undefined {
+  return sanitizeDiagram(raw, fallbackId, g, findingLog());
+}
+
+/** What the same call recorded, for the tests that are about what it cost. */
+function findingsFrom(raw: unknown): Finding[] {
+  const log = findingLog();
+  sanitizeDiagram(raw, 'd', grounding, log);
+  return log.findings;
+}
+
 /** A minimum viable graph: two nodes, one edge, a caption. */
 function graph(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -37,22 +54,22 @@ function graph(overrides: Record<string, unknown> = {}): Record<string, unknown>
 
 describe('sanitizeDiagram', () => {
   it('drops a diagram with no caption', () => {
-    expect(sanitizeDiagram({ ...graph(), caption: '   ' }, 'd', grounding)).toBeUndefined();
+    expect(diagramFrom({ ...graph(), caption: '   ' }, 'd', grounding)).toBeUndefined();
   });
 
   it('drops a diagram whose kind is not one of the four', () => {
-    expect(sanitizeDiagram(graph({ kind: 'gantt' }), 'd', grounding)).toBeUndefined();
+    expect(diagramFrom(graph({ kind: 'gantt' }), 'd', grounding)).toBeUndefined();
   });
 
   it('falls back to a per-kind title but keeps the caption verbatim', () => {
-    const result = sanitizeDiagram(graph({ title: '', kind: 'state' }), 'd', grounding);
+    const result = diagramFrom(graph({ title: '', kind: 'state' }), 'd', grounding);
     expect(result?.title).toBe('States');
     expect(result?.caption).toBe('What the prose cannot say.');
     expect(result?.id).toBe('d');
   });
 
   it('drops edges whose endpoints are not nodes', () => {
-    const result = sanitizeDiagram(
+    const result = diagramFrom(
       graph({
         edges: [
           { from: 'a', to: 'b' },
@@ -66,7 +83,7 @@ describe('sanitizeDiagram', () => {
   });
 
   it('keeps parallel edges between the same pair, each with its own label', () => {
-    const result = sanitizeDiagram(
+    const result = diagramFrom(
       graph({
         edges: [
           { from: 'a', to: 'b', label: 'launched' },
@@ -82,7 +99,7 @@ describe('sanitizeDiagram', () => {
   });
 
   it('clears a group reference that names no group', () => {
-    const result = sanitizeDiagram(
+    const result = diagramFrom(
       graph({
         groups: [{ id: 'web', label: 'Web' }],
         nodes: [
@@ -99,7 +116,7 @@ describe('sanitizeDiagram', () => {
   });
 
   it('clears a filename the diff does not contain, keeping the node', () => {
-    const result = sanitizeDiagram(
+    const result = diagramFrom(
       graph({
         nodes: [
           { id: 'a', label: 'A', filename: 'src/a.ts' },
@@ -120,7 +137,7 @@ describe('sanitizeDiagram', () => {
     // took the name from, and a node grounded on one of them is right: it
     // loses the hunks it cannot name, not the page it links to.
     const truncated = groundingFor(buildDiffHunkIndex(DIFF).hunks, ['src/a.ts', 'src/cut.ts']);
-    const result = sanitizeDiagram(
+    const result = diagramFrom(
       graph({
         nodes: [
           { id: 'a', label: 'A', filename: 'src/cut.ts', hunkIds: ['H0001'] },
@@ -136,7 +153,7 @@ describe('sanitizeDiagram', () => {
   });
 
   it('keeps only hunk ids that belong to the node file', () => {
-    const result = sanitizeDiagram(
+    const result = diagramFrom(
       graph({
         nodes: [
           { id: 'a', label: 'A', filename: 'src/a.ts', hunkIds: ['H0001', 'H0003', 'H9999'] },
@@ -151,7 +168,7 @@ describe('sanitizeDiagram', () => {
   });
 
   it('ignores grounding on nodes that are not code', () => {
-    const result = sanitizeDiagram(
+    const result = diagramFrom(
       graph({
         nodes: [
           { id: 'a', label: 'Postgres', kind: 'data', filename: 'src/a.ts', hunkIds: ['H0001'] },
@@ -167,7 +184,7 @@ describe('sanitizeDiagram', () => {
   });
 
   it('keeps one initial state, and only on a state machine', () => {
-    const asState = sanitizeDiagram(
+    const asState = diagramFrom(
       graph({
         kind: 'state',
         nodes: [
@@ -182,7 +199,7 @@ describe('sanitizeDiagram', () => {
     expect(stateNodes[0]?.initial).toBe(true);
     expect(stateNodes[1]?.initial).toBeUndefined();
 
-    const asArchitecture = sanitizeDiagram(
+    const asArchitecture = diagramFrom(
       graph({
         nodes: [
           { id: 'a', label: 'A', initial: true },
@@ -198,7 +215,7 @@ describe('sanitizeDiagram', () => {
 
   it('drops the diagram when fewer than two nodes survive', () => {
     expect(
-      sanitizeDiagram(
+      diagramFrom(
         graph({
           nodes: [
             { id: 'a', label: 'A' },
@@ -213,7 +230,7 @@ describe('sanitizeDiagram', () => {
 
   it('truncates an over-long label instead of dropping the node', () => {
     const long = 'A'.repeat(80);
-    const result = sanitizeDiagram(
+    const result = diagramFrom(
       graph({
         nodes: [
           { id: 'a', label: long },
@@ -229,7 +246,7 @@ describe('sanitizeDiagram', () => {
   });
 
   it('defaults kind, change and direction', () => {
-    const result = sanitizeDiagram(graph(), 'd', grounding);
+    const result = diagramFrom(graph(), 'd', grounding);
     const nodes = result && isGraphDiagram(result) ? result.nodes : [];
     expect(nodes[0]?.kind).toBe('code');
     expect(nodes[0]?.change).toBe('unchanged');
@@ -252,7 +269,7 @@ function sequence(steps: unknown[]): Record<string, unknown> {
 
 describe('sanitizeDiagram (sequence)', () => {
   it('drops messages that name an unknown participant', () => {
-    const result = sanitizeDiagram(
+    const result = diagramFrom(
       sequence([
         { type: 'message', from: 'loop', to: 'db', label: 'claim' },
         { type: 'message', from: 'loop', to: 'ghost', label: 'vanish' },
@@ -264,7 +281,7 @@ describe('sanitizeDiagram (sequence)', () => {
   });
 
   it('keeps two levels of grouping and drops the third', () => {
-    const result = sanitizeDiagram(
+    const result = diagramFrom(
       sequence([
         {
           type: 'group',
@@ -309,11 +326,241 @@ describe('sanitizeDiagram (sequence)', () => {
 
   it('drops the diagram when no steps survive', () => {
     expect(
-      sanitizeDiagram(
+      diagramFrom(
         sequence([{ type: 'message', from: 'ghost', to: 'db', label: 'nope' }]),
         'd',
         grounding,
       ),
     ).toBeUndefined();
+  });
+});
+
+describe('what a diagram repair records', () => {
+  const codes = (raw: unknown) => findingsFrom(raw).map((f) => f.code);
+
+  it('records nothing when the whole diagram is well formed', () => {
+    expect(findingsFrom(graph())).toEqual([]);
+  });
+
+  it('warns once when the diagram goes whole', () => {
+    const findings = findingsFrom({ ...graph(), caption: '  ' });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ code: 'diagram-dropped', severity: 'warning' });
+    expect(findings[0]?.message).toContain('no caption');
+  });
+
+  it('notes an edge that names a node the diagram does not have', () => {
+    const findings = findingsFrom(graph({ edges: [{ from: 'a', to: 'ghost' }] }));
+    expect(findings).toEqual([
+      expect.objectContaining({ code: 'diagram-part-dropped', severity: 'note' }),
+    ]);
+    expect(findings[0]?.message).toContain('a → ghost');
+  });
+
+  it('notes a filename the change does not contain, and a hunk id that resolves to nothing', () => {
+    expect(
+      codes(
+        graph({
+          nodes: [
+            { id: 'a', label: 'A', filename: 'src/ghost.ts' },
+            { id: 'b', label: 'B', filename: 'src/a.ts', hunkIds: ['H0003', 'H9999'] },
+          ],
+        }),
+      ),
+    ).toEqual(['diagram-part-dropped', 'diagram-part-dropped', 'diagram-part-dropped']);
+  });
+
+  it('notes a node with no label and a group nothing declares', () => {
+    expect(
+      codes(
+        graph({
+          nodes: [{ id: 'a', label: 'A', group: 'nowhere' }, { id: 'b', label: 'B' }, { id: 'c' }],
+        }),
+      ),
+    ).toEqual(['diagram-part-dropped', 'diagram-part-dropped']);
+  });
+
+  it('records both the parts and the whole when a diagram empties out', () => {
+    const findings = findingsFrom(
+      sequence([{ type: 'message', from: 'ghost', to: 'db', label: 'nope' }]),
+    );
+    expect(findings.map((f) => f.code)).toEqual(['diagram-part-dropped', 'diagram-dropped']);
+  });
+});
+
+describe('a part of a diagram that was never an object', () => {
+  it('notes a group, a node and an edge that arrived as something else', () => {
+    const findings = findingsFrom(
+      graph({
+        groups: [null, { id: 'web', label: 'Web' }],
+        nodes: ['a node', { id: 'a', label: 'A' }, { id: 'b', label: 'B' }],
+        edges: [7, { from: 'a', to: 'b' }],
+      }),
+    );
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped a group that was not an object.',
+      'Diagram d dropped a node that was not an object.',
+      'Diagram d dropped an edge that was not an object.',
+    ]);
+    expect(findings.every((f) => f.code === 'diagram-part-dropped')).toBe(true);
+  });
+
+  it('notes a participant, a step and a branch that arrived as something else', () => {
+    const findings = findingsFrom({
+      ...sequence([
+        'not a step',
+        {
+          type: 'group',
+          style: 'alt',
+          branches: [
+            null,
+            {
+              label: 'claimed',
+              steps: [{ type: 'message', from: 'loop', to: 'db', label: 'claim' }],
+            },
+          ],
+        },
+      ]),
+      participants: [
+        42,
+        { id: 'loop', label: 'Loop' },
+        { id: 'db', label: 'Schedules', kind: 'data' },
+      ],
+    });
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped a participant that was not an object.',
+      'Diagram d dropped a step that was not an object.',
+      'Diagram d dropped a branch that was not an object.',
+    ]);
+  });
+});
+
+describe('a value a diagram had coerced or cut to fit', () => {
+  it('notes a change mark and a kind it could not read', () => {
+    const findings = findingsFrom(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', kind: 'cloud', change: 'sideways' },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+    );
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped the kind on node a, which was read as code.',
+      'Diagram d dropped the change mark on node a, which was read as unchanged.',
+    ]);
+  });
+
+  it('notes a caption, a label and a note cut to their limit', () => {
+    const findings = findingsFrom(
+      graph({
+        caption: 'c'.repeat(DIAGRAM_LIMITS.captionChars + 12),
+        nodes: [
+          {
+            id: 'a',
+            label: 'l'.repeat(DIAGRAM_LIMITS.labelChars + 1),
+            note: 'n'.repeat(DIAGRAM_LIMITS.noteChars + 3),
+          },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+    );
+    expect(findings.map((f) => f.message)).toEqual([
+      `Diagram d dropped 12 characters past the ${String(DIAGRAM_LIMITS.captionChars)} a caption allows.`,
+      `Diagram d dropped 1 character past the ${String(DIAGRAM_LIMITS.labelChars)} a node label allows.`,
+      `Diagram d dropped 3 characters past the ${String(DIAGRAM_LIMITS.noteChars)} a note allows.`,
+    ]);
+  });
+});
+
+describe('a diagram that never became one', () => {
+  it('says nothing when the field was never sent', () => {
+    expect(findingsFrom(undefined)).toEqual([]);
+    expect(findingsFrom(null)).toEqual([]);
+  });
+
+  it('records a diagram that arrived as something other than an object', () => {
+    expect(findingsFrom('a picture of the flow')).toEqual([
+      {
+        code: 'diagram-dropped',
+        severity: 'warning',
+        message: 'The diagram for d arrived as string rather than an object, so there is none.',
+      },
+    ]);
+  });
+});
+
+describe('a default a diagram fell back to', () => {
+  it('notes a direction it could not read, and says nothing when none was sent', () => {
+    expect(findingsFrom(graph({ direction: 'widdershins' })).map((f) => f.message)).toEqual([
+      'Diagram d dropped the direction, which was read as down.',
+    ]);
+    expect(findingsFrom(graph())).toEqual([]);
+  });
+
+  it('notes a group style and a message style it could not read', () => {
+    const findings = findingsFrom({
+      kind: 'sequence',
+      caption: 'What the prose cannot say.',
+      participants: [
+        { id: 'a', label: 'A' },
+        { id: 'b', label: 'B' },
+      ],
+      steps: [
+        { type: 'message', from: 'a', to: 'b', label: 'call', style: 'shout' },
+        {
+          type: 'group',
+          style: 'maybe',
+          branches: [{ steps: [{ type: 'message', from: 'a', to: 'b', label: 'inner' }] }],
+        },
+      ],
+    });
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped the style on the message a → b, which was read as call.',
+      'Diagram d dropped the style on a group, which was read as alt.',
+    ]);
+  });
+
+  it('records grounding a node could not keep', () => {
+    const findings = findingsFrom(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', kind: 'external', filename: 'src/a.ts' },
+          { id: 'b', label: 'B', hunkIds: ['H0001'] },
+        ],
+      }),
+    );
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped the filename on a node of kind external, which links to no file.',
+      'Diagram d dropped the hunk ids on a node that named no file.',
+    ]);
+  });
+
+  it('records a filename that arrived as something other than a path', () => {
+    const findings = findingsFrom(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', filename: 12 },
+          { id: 'b', label: 'B', filename: '   ', hunkIds: ['H0001'] },
+        ],
+      }),
+    );
+    expect(findings.map((f) => f.message)).toEqual([
+      'Diagram d dropped a filename on a code node that was not a usable path.',
+      'Diagram d dropped a filename on a code node that was not a usable path.',
+      'Diagram d dropped the hunk ids on a node that named no file.',
+    ]);
+  });
+
+  it('says nothing about a field that arrived as null, which is a field left out', () => {
+    const findings = findingsFrom(
+      graph({
+        nodes: [
+          { id: 'a', label: 'A', kind: null, change: null, filename: null, hunkIds: null },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+    );
+    expect(findings).toEqual([]);
   });
 });

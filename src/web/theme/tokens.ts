@@ -307,6 +307,20 @@ export const FONT_SIZES = {
   xl: '28px',
 } as const;
 
+/**
+ * The tinted panel: a staleness banner, a findings notice. One tone drives
+ * the rail, the wash and nothing else, so two panels of different tones are
+ * recognisably the same object.
+ */
+export function bannerStyle(tone: TokenName) {
+  return {
+    borderRadius: 6,
+    border: `1px solid color-mix(in oklab, ${token(tone)} 40%, transparent)`,
+    background: `color-mix(in oklab, ${token(tone)} 10%, transparent)`,
+    color: token('foreground'),
+  };
+}
+
 /** Page- and chapter-title size; above Mantine's `xl` step. */
 export const DISPLAY_SIZE = 40;
 

@@ -25,6 +25,8 @@ export interface RunFiles {
   /** One line per SDK message from a model run: tools used, how it ended. */
   events: string;
   review: string;
+  /** Finding[]: what validating the answer, and the run behind it, turned up. */
+  findings: string;
   html: string;
 }
 
@@ -39,6 +41,7 @@ export function runFiles(folder: string): RunFiles {
     raw: path.join(folder, 'raw.txt'),
     events: path.join(folder, 'events.jsonl'),
     review: path.join(folder, 'review.json'),
+    findings: path.join(folder, 'findings.json'),
     html: path.join(folder, 'review.html'),
   };
 }

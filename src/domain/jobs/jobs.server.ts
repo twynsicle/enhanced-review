@@ -1,6 +1,7 @@
 import * as reviewChunks from '../../db/review-chunks.ts';
 import * as reviewJobs from '../../db/review-jobs.ts';
 import * as reviews from '../../db/reviews.ts';
+import { FindingsSchema, type Finding } from '../review/findings.ts';
 import { NarrativeReviewSchema, type NarrativeReview } from '../review/narrative.ts';
 import { ReviewTargetSchema, type ReviewTarget } from '../review/target.ts';
 import type { ChunkView, JobView } from './job-view.ts';
@@ -19,7 +20,7 @@ export interface ReviewJob extends Omit<reviewJobs.ReviewJobRecord, 'target'> {
 export interface Review {
   jobId: string;
   content: NarrativeReview;
-  diffTruncated: boolean;
+  findings: Finding[];
   createdAt: Date;
 }
 
@@ -36,10 +37,16 @@ export function parseReview(record: reviews.ReviewRecord): Review {
   if (!content.success) {
     throw new Error(`reviews.content is invalid for job ${record.jobId}: ${content.error.message}`);
   }
+  const findings = FindingsSchema.safeParse(record.findings);
+  if (!findings.success) {
+    throw new Error(
+      `reviews.findings is invalid for job ${record.jobId}: ${findings.error.message}`,
+    );
+  }
   return {
     jobId: record.jobId,
     content: content.data,
-    diffTruncated: record.diffTruncated,
+    findings: findings.data,
     createdAt: record.createdAt,
   };
 }

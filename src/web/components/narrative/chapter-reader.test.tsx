@@ -30,7 +30,12 @@ function renderReader(withReview: NarrativeReview = review) {
     {
       path: '/',
       Component: () => (
-        <ChapterReader review={withReview} meta={meta} initialActiveId={SUMMARY_SECTION_ID} />
+        <ChapterReader
+          review={withReview}
+          meta={meta}
+          initialActiveId={SUMMARY_SECTION_ID}
+          findings={[]}
+        />
       ),
     },
   ]);

@@ -12,7 +12,7 @@ import { readGithubToken } from '@/web/auth/cookies.server';
 import { AppError } from '@/web/components/app-error';
 import { JobNotFound } from '@/web/components/jobs/job-not-found';
 import { RerunButton } from '@/web/components/jobs/rerun-button';
-import { StalenessBanner, TruncationBanner } from '@/web/components/jobs/review-banners';
+import { StalenessBanner } from '@/web/components/jobs/review-banners';
 import { ChapterReader } from '@/web/components/narrative/chapter-reader';
 import { GithubFileSource } from '@/web/components/narrative/file-source';
 import { PageShell } from '@/web/components/page-shell';
@@ -70,7 +70,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   return {
     job: toJobView(job),
     review: review.content,
-    diffTruncated: review.diffTruncated,
+    findings: review.findings,
     meta: reviewMetaFromJob(job.target, metadata.pullMetadata, job.githubLogin),
     isStale: metadata.currentHeadSha !== null && metadata.currentHeadSha !== headSha,
     commitsAhead: metadata.commitsAhead,
@@ -108,7 +108,6 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {
       width="reader"
       style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: '100%' }}
     >
-      {loaderData.diffTruncated && <TruncationBanner />}
       {loaderData.isStale && (
         <StalenessBanner jobId={job.id} commitsAhead={loaderData.commitsAhead} />
       )}
@@ -123,7 +122,7 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {
           review={review}
           meta={loaderData.meta}
           initialActiveId={loaderData.initialActiveId}
-          diffTruncated={loaderData.diffTruncated}
+          findings={loaderData.findings}
           actions={<RerunButton jobId={job.id} />}
         />
       </GithubFileSource>

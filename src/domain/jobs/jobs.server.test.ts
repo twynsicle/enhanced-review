@@ -47,11 +47,15 @@ describe('parseReview', () => {
       id: 'r1',
       jobId: 'job-1',
       content: STUB_REVIEW,
-      diffTruncated: false,
+      findings: [
+        { code: 'diff-truncated', severity: 'warning', message: 'Part of the change was cut.' },
+      ],
       createdAt: new Date(0),
     });
     expect(review.content.prTitle).toBe('Stub review');
-    expect(review.diffTruncated).toBe(false);
+    expect(review.findings).toEqual([
+      { code: 'diff-truncated', severity: 'warning', message: 'Part of the change was cut.' },
+    ]);
   });
 
   it('names the job when the stored content is invalid', () => {
@@ -60,9 +64,21 @@ describe('parseReview', () => {
         id: 'r1',
         jobId: 'job-1',
         content: { nope: true },
-        diffTruncated: false,
+        findings: [],
         createdAt: new Date(0),
       }),
     ).toThrow(/reviews\.content is invalid for job job-1/);
+  });
+
+  it('names the job when the stored findings are invalid', () => {
+    expect(() =>
+      parseReview({
+        id: 'r1',
+        jobId: 'job-1',
+        content: STUB_REVIEW,
+        findings: [{ code: 'invented-code', severity: 'fatal', message: 'x' }],
+        createdAt: new Date(0),
+      }),
+    ).toThrow(/reviews\.findings is invalid for job job-1/);
   });
 });

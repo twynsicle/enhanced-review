@@ -41,17 +41,16 @@ src/web/
                      jobs/ (job-list-row, status-badge, job-live-view (fetch-polls api/jobs/:id, cancel fetcher),
                      job-timeline (+ .module.css: rail/markers), live-phases (pure derivePhases/eyebrow/heading),
                      what-now, rerun-button, job-not-found (404 page shared with the reader), review-banners (the
-                     hosted reader's truncation + staleness banners)), history/ (filter-chips,
+                     hosted reader's staleness banner; a truncated diff is a finding, drawn by findings-notice)), history/ (filter-chips,
                      empty-history), home/ (review-composer, target-combobox, recent-reviews, sparkline),
                      narrative/ (the reader, shared by the hosted route and the local report — nothing here may import
                      jobs/, ReviewTarget or PullMetadata: chapter-reader (+ .module.css grid, resizable sidebar,
-                     ?ch=/?file= state; takes review + ReviewMeta + an `actions` slot),
+                     ?ch=/?file= state; takes review + ReviewMeta + the review's findings + an `actions` slot),
                      sections.ts (readerSections: the one ordered list of sections — summary, risk when there is an
-                     assessment, the chapters, then "Not discussed" when a chapter left a hunk uncited — that the
-                     sidebar renders and the keyboard walks),
-                     undiscussed-card (the backstop section: every uncited hunk, file by file, through the inline
-                     diff; built from domain/review/coverage.ts, which chapter-reader computes once for it, the
-                     sidebar and the sections),
+                     assessment, then the chapters — that the sidebar renders and the keyboard walks),
+                     findings-notice (the review's warning-severity findings, drawn in the summary card above
+                     everything the reviewer said; nothing when there are none, and never anything in the local
+                     report, which carries no findings),
                      chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, a row carrying
                      a diagram is marked, a skipped file is dimmed, a file the chapters left out carries ○ (none of
                      its hunks cited) or ◐ (some) beside its stats with the reason in its title and hidden text;
@@ -62,7 +61,7 @@ src/web/
                      file-tree.ts (pure, no rendering: ReviewFile[] → the directory tree, single-child directory
                      chains collapsed into one row), chapter-card (groupInsightsByFile splits the chapter's
                      insights: an anchored one goes down to its diff card, the rest stay in the Insights
-                     section above them), summary-card (title/meta, overview
+                     section above them), summary-card (title/meta, the findings notice, overview
                      diagram, AI overview, author's description collapsed last), risk-card, file-view (one diff over
                      every hunk the chapters cited, merged by coverage.ts's citedChunk so neighbouring hunks are not
                      sliced twice, then its uncited hunks under their own label — coverage.byFile's entry is passed
@@ -117,7 +116,8 @@ src/web/
                      toggle disables and inline-diff-chunk forces unified. A per-frame measurement is kept off the
                      persisted store because persist writes its slice after every set, unconditionally
   theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours + FONT_SIZES/DISPLAY_SIZE/
-                     CAPTION_TYPE, the type scale) → theme.ts (Mantine ramps, fontSizes, sans + mono),
+                     CAPTION_TYPE, the type scale + bannerStyle, the one tinted panel the staleness banner and the
+                     findings notice share) → theme.ts (Mantine ramps, fontSizes, sans + mono),
                      css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules)
   lib/               parse.server.ts (Zod parseParams / parseSearchParams / parseFormData), github.server.ts (requireGithubToken,
                      withGithub → /relink, githubFailure), github-api.ts (resource-route body types, GITHUB_ERROR_STATUS),

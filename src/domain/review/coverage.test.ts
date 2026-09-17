@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  citedChunk,
-  describeCoverageGap,
-  fileCoverage,
-  reviewCoverage,
-  withFileHunks,
-} from './coverage.ts';
+import { citedChunk, fileCoverage, reviewCoverage, withFileHunks } from './coverage.ts';
 import type {
   NarrativeChapter,
   NarrativeReview,
@@ -84,29 +78,32 @@ describe('withFileHunks', () => {
 });
 
 describe('reviewCoverage', () => {
-  it('counts hunks, not files, and lists every file with leftovers by name', () => {
+  it('counts hunks, not files, and keeps each file’s leftovers under its name', () => {
     const coverage = reviewCoverage(
       review({ 'src/a.ts': ['H0001', 'H0003'], 'src/b.ts': ['H0004'] }),
     );
     expect(coverage.total).toBe(5);
     expect(coverage.cited).toBe(3);
-    expect(coverage.uncited.map((c) => [c.file.filename, c.cited, c.total])).toEqual([
+    expect(
+      [...coverage.byFile.values()]
+        .filter((file) => file.chunk !== null)
+        .map((file) => [file.file.filename, file.cited, file.total]),
+    ).toEqual([
       ['docs/c.md', 0, 1],
       ['src/a.ts', 2, 3],
     ]);
-    // A file with nothing to cite is not listed: there was nothing to leave out.
+    // A file with nothing to cite still has an entry; one with no catalog has none.
     expect(coverage.byFile.get('src/mode-only.sh')).toMatchObject({ cited: 0, total: 0 });
     expect(coverage.byFile.has('yarn.lock')).toBe(false);
   });
 
-  it('turns the uncited hunks into one chunk per file, by filename, with a detected language', () => {
+  it('turns a file’s uncited hunks into one chunk, with a detected language', () => {
     const coverage = reviewCoverage(review({ 'src/a.ts': ['H0002'] }));
     expect(
-      coverage.uncited.map(({ chunk }) => [
-        chunk.filename,
-        chunk.language,
-        chunk.hunks.map((hunk) => hunk.id),
-      ]),
+      [...coverage.byFile.values()]
+        .map(({ chunk }) => chunk)
+        .filter((chunk) => chunk !== null)
+        .map((chunk) => [chunk.filename, chunk.language, chunk.hunks.map((hunk) => hunk.id)]),
     ).toEqual([
       ['docs/c.md', 'markdown', ['H0005']],
       ['src/a.ts', 'typescript', ['H0001', 'H0003']],
@@ -114,7 +111,7 @@ describe('reviewCoverage', () => {
     ]);
   });
 
-  it('is empty when every hunk is cited', () => {
+  it('leaves no file with leftovers when every hunk is cited', () => {
     const coverage = reviewCoverage(
       review({
         'src/a.ts': ['H0001', 'H0002', 'H0003'],
@@ -122,13 +119,14 @@ describe('reviewCoverage', () => {
         'docs/c.md': ['H0005'],
       }),
     );
-    expect(coverage).toMatchObject({ total: 5, cited: 5, uncited: [] });
+    expect(coverage).toMatchObject({ total: 5, cited: 5 });
+    expect([...coverage.byFile.values()].every((file) => file.chunk === null)).toBe(true);
   });
 
   it('reports nothing for a review whose files carry no catalog', () => {
     // No list of hunks to have cited, so silence — not "everything is uncited".
     const coverage = reviewCoverage({ ...review({}), files: FILES });
-    expect(coverage).toMatchObject({ total: 0, cited: 0, uncited: [] });
+    expect(coverage).toMatchObject({ total: 0, cited: 0 });
     expect(coverage.byFile.size).toBe(0);
     expect(fileCoverage(FILES[0]!, new Set())).toBeNull();
   });
@@ -230,25 +228,5 @@ describe('citedChunk', () => {
       chapter('ch2', [resolved('H0002', 2)], { language: 'typescript' }),
     ]);
     expect(chunk?.language).toBe('tsx');
-  });
-});
-
-describe('describeCoverageGap', () => {
-  it('names both halves of the gap, or only the half there is', () => {
-    expect(describeCoverageGap(reviewCoverage(review({ 'src/a.ts': ['H0001'] })))).toBe(
-      '2 files not discussed in any chapter, and 1 file discussed only in part',
-    );
-    expect(
-      describeCoverageGap(
-        reviewCoverage(review({ 'src/a.ts': ['H0001', 'H0002', 'H0003'], 'docs/c.md': ['H0005'] })),
-      ),
-    ).toBe('1 file not discussed in any chapter');
-    expect(
-      describeCoverageGap(
-        reviewCoverage(
-          review({ 'src/a.ts': ['H0001'], 'src/b.ts': ['H0004'], 'docs/c.md': ['H0005'] }),
-        ),
-      ),
-    ).toBe('1 file discussed only in part');
   });
 });

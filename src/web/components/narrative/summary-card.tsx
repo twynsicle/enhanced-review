@@ -1,10 +1,12 @@
 import { Box, Collapse, Group, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { useState, type ReactNode } from 'react';
+import type { Finding } from '@/domain/review/findings';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/domain/review/narrative';
 import type { ReviewMeta } from '@/domain/review/review-meta';
 import { Caption } from '@/web/components/caption';
 import classes from '@/web/components/narrative/article.module.css';
 import { DiagramFigure } from '@/web/components/narrative/diagram/diagram-figure';
+import { FindingsNotice } from '@/web/components/narrative/findings-notice';
 import { MarkdownText } from '@/web/components/narrative/markdown-text';
 import { ProsePassage } from '@/web/components/narrative/prose-passage';
 import { sectionCardId, sectionHeadingId } from '@/web/components/narrative/sections';
@@ -28,11 +30,14 @@ import { DISPLAY_SIZE } from '@/web/theme/tokens';
 export function SummaryCard({
   review,
   meta,
+  findings,
   actions,
   onSelectFile,
 }: {
   review: NarrativeReview;
   meta: ReviewMeta;
+  /** What validating this review found; empty in the local report, which carries none. */
+  findings: readonly Finding[];
   /** Header action (the hosted app's rerun button). */
   actions?: ReactNode;
   /** Threaded down so a grounded diagram node can open its file. */
@@ -136,6 +141,8 @@ export function SummaryCard({
           )}
         </Group>
       </Stack>
+
+      <FindingsNotice findings={findings} />
 
       <Stack component="section" gap={12}>
         <Caption component="h3">Review summary</Caption>

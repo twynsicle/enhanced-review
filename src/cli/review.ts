@@ -2,18 +2,16 @@ import { rename } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import path from 'node:path';
 import { plural } from '../common/plural.ts';
-import {
-  describeCoverageGap,
-  reviewCoverage,
-  type ReviewCoverage,
-} from '../domain/review/coverage.ts';
+import { reviewCoverage } from '../domain/review/coverage.ts';
+import { MAX_VALIDATION_RETRIES } from '../domain/review/executor/validation-stop-hook.server.ts';
+import type { Finding } from '../domain/review/findings.ts';
 import type { NarrativeReview } from '../domain/review/narrative.ts';
 import type { ReviewMeta } from '../domain/review/review-meta.ts';
 import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
 import { gather, readContext, type RunContext } from './context.ts';
 import { Shell } from './git.ts';
 import { onInterrupt } from './interrupts.ts';
-import { parseRun, readReview } from './parse.ts';
+import { groundingForRun, parseRun, readFindings, readReview } from './parse.ts';
 import { openFile } from './platform.ts';
 import { startProgress } from './progress.ts';
 import { writePrompt } from './prompt.ts';
@@ -21,7 +19,7 @@ import { HOST_RENDER_DEPS, renderRun, type RenderDeps } from './render.ts';
 import { createRunFolder, latestRunFolder, reportFileName, type RunFiles } from './run-folder.ts';
 import { writeStubRun } from './stub-run.ts';
 import { locateTarget, resolveTarget, type Target, type TargetRequest } from './targets.ts';
-import { note, stage, warn } from './terminal.ts';
+import { clearStatus, note, stage, warn } from './terminal.ts';
 import {
   addWorktree,
   removeWorktree,
@@ -35,11 +33,21 @@ import {
  * printing one line when it finishes. `--from` picks up the newest run folder
  * for the same target and starts at a later stage, reading what the earlier
  * ones left on disk.
+ *
+ * The exit code says what the review is worth: 0 clean, `WARNED` when it
+ * shipped with warnings — something around the chapters was lost, and whoever
+ * ran it has been told what — and 1 when there is no review at all. A script
+ * that treats anything non-zero as failure therefore stops on a review it
+ * should still read, which is the right way round: the two can be told apart
+ * by anyone who cares to, and are conflated safely by anyone who does not.
  */
 export const STAGES = ['gather', 'prompt', 'run', 'parse', 'render'] as const;
 export type Stage = (typeof STAGES)[number];
 /** Gather starts a run, so it is not a place to resume from. */
 export const RESUMABLE_STAGES = STAGES.slice(1) as Exclude<Stage, 'gather'>[];
+
+/** The exit code for a review that was written but carries warnings. */
+export const WARNED = 2;
 
 export interface ReviewOptions {
   request: TargetRequest;
@@ -116,23 +124,20 @@ export async function review(
               model: options.model,
               maxTurns: options.maxTurns,
               timeoutMs: options.timeoutMs,
+              grounding: groundingForRun(context),
             },
             {
               onActivity: progress.activity,
               onText: progress.text,
+              onBlocked: blockedNote,
+              onHookError: hookErrorNote,
               ...deps.claude,
             },
           );
         } finally {
           progress.stop();
         }
-        if (result.incomplete !== null) warn(incompleteWarning(result));
         stage('run', `${describeRun(result)}${where}`, performance.now() - started);
-        // A refusal costs the model a turn, so it is worth knowing about even
-        // though the review still finished: the gate may be too tight.
-        if (result.denied > 0) {
-          note(`  ${plural(result.denied, 'command')} refused; see ${run.events}`);
-        }
       }
     } finally {
       await worktree?.close();
@@ -140,22 +145,29 @@ export async function review(
   }
 
   let parsed: NarrativeReview;
+  let findings: Finding[];
   if (runs('parse')) {
     const started = performance.now();
-    parsed = await parseRun(context, run);
-    const coverage = reviewCoverage(parsed);
+    const result = await parseRun(context, run);
+    parsed = result.review;
+    findings = result.findings;
     stage(
       'parse',
-      `${plural(parsed.chapters.length, 'chapter')}, ${describeCoverage(coverage)}`,
+      `${plural(parsed.chapters.length, 'chapter')}, ${plural(reviewCoverage(parsed).total, 'hunk')}`,
       performance.now() - started,
     );
-    // Not an error: the report carries the leftovers under "Not discussed".
-    // But a run that skipped a third of the change is worth knowing about
-    // before the report is opened, not after the chapters run out.
-    if (coverage.uncited.length > 0) warn(coverageWarning(coverage));
   } else {
+    // Rendering again is still shipping the review, so it still says what the
+    // review cost. The answer is not in front of this stage; what the parse
+    // made of it is, in findings.json.
     parsed = await readReview(run);
+    findings = await readFindings(run);
   }
+  // The review still ships: each of these is something around the chapters
+  // that was lost, not a hole in them. Said before the report opens, because
+  // afterwards nobody comes back to the terminal.
+  const warnings = findings.filter((item) => item.severity === 'warning');
+  for (const warning of warnings) warn(warning.message);
 
   const started = performance.now();
   const bytes = await renderRun(context, parsed, run, deps.render);
@@ -164,7 +176,27 @@ export async function review(
   stage('render', `${path.basename(reportPath)}, ${megabytes(bytes)}`, performance.now() - started);
   note(`  ${reportPath}`);
   if (options.open) deps.open(reportPath);
-  return 0;
+  return warnings.length > 0 ? WARNED : 0;
+}
+
+/**
+ * A disqualified answer, as it happens. Only what was wrong with it: the rest
+ * of what the model was sent is an instruction addressed to the model, and it
+ * is in `events.jsonl` for anyone who wants it. The progress line is redrawn
+ * every second, so it is taken down first rather than left with a note written
+ * across it.
+ */
+function blockedNote(attempt: number, defects: string): void {
+  clearStatus();
+  note(
+    `  answer disqualified, asking again (${String(attempt)} of ${String(MAX_VALIDATION_RETRIES)}): ${defects}`,
+  );
+}
+
+/** The run carried on ungraded; whatever it wrote is judged at the parse stage. */
+function hookErrorNote(error: Error): void {
+  clearStatus();
+  warn(`the answer could not be checked while the model was still writing: ${error.message}`);
 }
 
 /**
@@ -234,10 +266,15 @@ export function describeTarget(target: Target, meta: ReviewMeta): string {
   return `${meta.repo} ${what} (${range})`;
 }
 
-/** What the model cost and how hard it worked, for the stage line. */
+/**
+ * What the model cost and how hard it worked, for the stage line. A run that
+ * did not end cleanly says so here and nothing more: the parse stage is where
+ * that becomes the finding which fails the review.
+ */
 function describeRun(result: ClaudeRunResult): string {
   const cost = result.costUsd === null ? '' : `, $${result.costUsd.toFixed(2)}`;
-  return `${plural(result.turns, 'turn')}, ~${approxTokens(result.characters)} tokens of review${cost}${describeUsage(result.usage)}`;
+  const ended = result.incomplete === null ? '' : `, ended ${result.incomplete}`;
+  return `${plural(result.turns, 'turn')}, ~${approxTokens(result.characters)} tokens of review${cost}${describeUsage(result.usage)}${ended}`;
 }
 
 /**
@@ -252,22 +289,6 @@ function describeUsage(usage: ClaudeRunResult['usage']): string {
   if (total === 0) return '';
   const cached = Math.round((usage.cacheReadTokens / total) * 100);
   return ` (${approxCount(total)} tokens in, ${String(cached)}% cached)`;
-}
-
-function incompleteWarning(result: ClaudeRunResult): string {
-  return (
-    `the model stopped early (${result.incomplete ?? 'unknown'}); the review may be partial. ` +
-    'Raise --max-turns, or edit raw.txt and use --from parse.'
-  );
-}
-
-function describeCoverage(coverage: ReviewCoverage): string {
-  if (coverage.total === 0) return 'no hunks to cite';
-  return `${String(coverage.cited)} of ${plural(coverage.total, 'hunk')} cited`;
-}
-
-export function coverageWarning(coverage: ReviewCoverage): string {
-  return `${describeCoverageGap(coverage)}; the report shows their hunks under "Not discussed"`;
 }
 
 function describeGather(context: RunContext): string {

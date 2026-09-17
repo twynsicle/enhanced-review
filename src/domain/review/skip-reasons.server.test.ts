@@ -5,7 +5,7 @@ import { runGit, runGitOrThrow } from './clone/git-runner.server.ts';
 import { skipReasons, toReviewFiles, type RunGit } from './skip-reasons.server.ts';
 
 // Real git, a spawn per batch — see GIT_TEST_TIMEOUT.
-vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT });
+vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT, hookTimeout: GIT_TEST_TIMEOUT });
 
 let repo: TempRepo;
 

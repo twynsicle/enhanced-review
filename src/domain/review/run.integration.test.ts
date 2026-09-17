@@ -160,7 +160,7 @@ describeDb('runJob (stub executor against a local git repository)', () => {
     expect(replayed.ok && replayed.data.prTitle).toBe('Stub review');
 
     const review = await findReviewByJobId(job.id);
-    expect(review?.diffTruncated).toBe(false);
+    expect(review?.findings).toEqual([]);
     const content = NarrativeReviewSchema.parse(review?.content);
     expect(content.chapters.map((c) => c.id)).toEqual([
       'stub-chapter-1',

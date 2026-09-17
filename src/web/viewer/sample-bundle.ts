@@ -198,8 +198,8 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
      * Each file carries its share of the hunk catalog, as the parse stage
      * attaches it. Two hunks are cited by no chapter on purpose — the widened
      * Cadence union, so `cadence.ts` is discussed only in part, and the whole
-     * of `index.ts` — to give the report its "Not discussed" section and the
-     * sidebar its marks.
+     * of `index.ts` — so the file view has leftovers to draw under their own
+     * label and the sidebar has files to mark.
      */
     files: [
       {

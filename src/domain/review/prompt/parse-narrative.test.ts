@@ -1,10 +1,28 @@
 import { describe, expect, it } from 'vitest';
+import { fatalFindings } from '../findings.ts';
 import { buildDiffHunkIndex, groundingFor } from './diff-hunk-catalog.ts';
-import { escapeStrayQuotes, parseNarrativeReview } from './parse-narrative.ts';
+import { escapeStrayQuotes, parseNarrativeReview, type ParseResult } from './parse-narrative.ts';
 
 function wrap(payload: unknown): string {
   return `Sure, here you go:\n<narrative_review>${JSON.stringify(payload)}</narrative_review>\nDone.`;
 }
+
+/** What a failed parse reports: its first fatal finding. Null when it parses. */
+function firstFatal(result: ParseResult): string | null {
+  return result.ok ? null : (fatalFindings(result.findings)[0]?.message ?? null);
+}
+
+function error(text: string): string | null {
+  return firstFatal(parseNarrativeReview(text));
+}
+
+const codes = (result: ParseResult) => result.findings.map((f) => f.code);
+
+const cite = (filename: string, hunkIds: string[]) => ({
+  filename,
+  language: 'typescript',
+  hunkIds,
+});
 
 const DIFF = `diff --git a/src/a.ts b/src/a.ts
 --- a/src/a.ts
@@ -45,26 +63,23 @@ describe('parseNarrativeReview', () => {
       }),
     );
 
-    expect(result).toEqual({
-      ok: true,
-      data: {
-        prTitle: 'Risk test',
-        overviewSummary: { lede: 'Summary' },
-        riskAssessment: {
-          score: 4,
-          summary: 'High risk because data can be affected.',
-          rationale: 'The change touches persistence and lacks visible rollback detail.',
-          factors: [
-            { name: 'Data safety', impact: 'raises', detail: 'Persistence behavior changed.' },
-            {
-              name: 'Unknown',
-              impact: 'neutral',
-              detail: 'Unexpected impact values fall back to neutral.',
-            },
-          ],
-        },
-        chapters: [],
+    expect(result.ok && result.data).toEqual({
+      prTitle: 'Risk test',
+      overviewSummary: { lede: 'Summary' },
+      riskAssessment: {
+        score: 4,
+        summary: 'High risk because data can be affected.',
+        rationale: 'The change touches persistence and lacks visible rollback detail.',
+        factors: [
+          { name: 'Data safety', impact: 'raises', detail: 'Persistence behavior changed.' },
+          {
+            name: 'Unknown',
+            impact: 'neutral',
+            detail: 'Unexpected impact values fall back to neutral.',
+          },
+        ],
       },
+      chapters: [],
     });
   });
 
@@ -163,10 +178,10 @@ describe('parseNarrativeReview', () => {
       }),
       grounding,
     );
-    expect(result).toEqual({
-      ok: false,
-      error: 'Chapter "Empty" (empty) cites no hunk that resolved against the diff',
-    });
+    expect(result.ok).toBe(false);
+    expect(firstFatal(result)).toBe(
+      'Chapter "Empty" (empty) cites no hunk that resolved against the diff.',
+    );
   });
 
   it('does not fail an empty chapter when the diff showed no hunks at all', () => {
@@ -261,18 +276,12 @@ describe('parseNarrativeReview', () => {
   });
 
   it('rejects missing tags, malformed JSON and missing required fields', () => {
-    expect(parseNarrativeReview('no tags here')).toEqual({
-      ok: false,
-      error: 'Response did not contain expected <narrative_review> tags',
-    });
-    expect(parseNarrativeReview('<narrative_review>{oops</narrative_review>')).toEqual({
-      ok: false,
-      error: 'Failed to parse narrative review JSON from response',
-    });
-    expect(parseNarrativeReview(wrap({ prTitle: 'x' }))).toEqual({
-      ok: false,
-      error: 'Narrative review JSON is missing required fields',
-    });
+    expect(error('no tags here')).toBe('The answer contains no complete <narrative_review> block.');
+    expect(error('<narrative_review>{oops</narrative_review>')).toBe(
+      'The <narrative_review> block is not valid JSON.',
+    );
+    expect(error(wrap({ prTitle: 'x' }))).toBe('The narrative review has no chapters array.');
+    expect(error(wrap({ chapters: [] }))).toBe('The narrative review has no prTitle.');
   });
 
   it('ignores a closing tag mentioned in the preamble before the real block', () => {
@@ -394,10 +403,8 @@ describe('prose passages', () => {
 
   it('fails the review when the overview has no prose at all', () => {
     const result = parse({ prTitle: 't', overviewSummary: { body: '' }, chapters: [] });
-    expect(result).toEqual({
-      ok: false,
-      error: 'Narrative review JSON is missing required fields',
-    });
+    expect(result.ok).toBe(false);
+    expect(firstFatal(result)).toBe('The narrative review has no overview summary.');
   });
 });
 
@@ -501,6 +508,421 @@ describe('a quote the model forgot to escape', () => {
     const result = parseNarrativeReview(`<narrative_review>${beyond}</narrative_review>`);
 
     expect(result.ok).toBe(false);
-    expect(!result.ok && result.error).toContain('Failed to parse');
+    expect(firstFatal(result)).toContain('not valid JSON');
+  });
+});
+
+describe('what a repair records', () => {
+  const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
+  const parse = (chapters: unknown[], extra: Record<string, unknown> = {}): ParseResult =>
+    parseNarrativeReview(
+      wrap({ prTitle: 't', overviewSummary: { lede: 's' }, chapters, ...extra }),
+      grounding,
+    );
+
+  it('records nothing for an answer that needed no repair', () => {
+    const result = parse([
+      { id: 'c', title: 'C', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+    ]);
+    expect(result.findings).toEqual([]);
+  });
+
+  it('notes a synthesised id and title against the chapter they were given to', () => {
+    const result = parse([{ insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] }]);
+    expect(result.findings).toEqual([
+      expect.objectContaining({
+        code: 'chapter-id-synthesised',
+        severity: 'note',
+        chapterId: 'chapter-1',
+      }),
+      expect.objectContaining({ code: 'chapter-title-synthesised', chapterId: 'chapter-1' }),
+    ]);
+  });
+
+  it('notes prose that arrived as a bare string, and prose that arrived with no lede', () => {
+    const result = parse([
+      {
+        id: 'c',
+        title: 'C',
+        description: 'a bare string',
+        insights: [],
+        diffChunks: [cite('src/a.ts', ['H0001'])],
+      },
+      {
+        id: 'd',
+        title: 'D',
+        description: { body: 'only the detail' },
+        insights: [],
+        diffChunks: [cite('src/b.ts', ['H0003'])],
+      },
+    ]);
+    expect(codes(result)).toEqual(['prose-promoted', 'prose-promoted']);
+    expect(result.findings[0]?.chapterId).toBe('c');
+    expect(result.findings[1]?.chapterId).toBe('d');
+  });
+
+  it('notes the stray-quote repair the parse depended on', () => {
+    const stray = `{ "prTitle": "T", "overviewSummary": { "lede": "a ${DQ}no hunks${DQ} message" }, "chapters": [] }`;
+    const result = parseNarrativeReview(`<narrative_review>${stray}</narrative_review>`);
+    expect(codes(result)).toEqual(['json-quote-repaired']);
+  });
+
+  it('notes chunks merged by file, and hunk ids that resolved against nothing', () => {
+    const result = parse([
+      {
+        id: 'c',
+        title: 'C',
+        insights: [],
+        diffChunks: [cite('src/a.ts', ['H0001', 'H9999']), cite('src/a.ts', ['H0002'])],
+      },
+    ]);
+    expect(codes(result)).toEqual(['hunk-id-dropped', 'chunks-merged']);
+    expect(result.findings[0]).toMatchObject({ chapterId: 'c', filename: 'src/a.ts' });
+  });
+
+  it('notes an unknown insight type and an insight with no text', () => {
+    const result = parse([
+      {
+        id: 'c',
+        title: 'C',
+        insights: [{ type: 'bogus', text: 'kept' }, { type: 'context' }],
+        diffChunks: [cite('src/a.ts', ['H0001'])],
+      },
+    ]);
+    expect(codes(result)).toEqual(['insight-type-unknown', 'insight-dropped']);
+  });
+
+  it('warns when an insight loses the file it was anchored to', () => {
+    const result = parse([
+      {
+        id: 'c',
+        title: 'C',
+        insights: [{ type: 'context', text: 'still worth saying', filename: 'src/b.ts' }],
+        diffChunks: [cite('src/a.ts', ['H0001'])],
+      },
+    ]);
+    expect(result.findings).toEqual([
+      expect.objectContaining({
+        code: 'insight-anchor-dropped',
+        severity: 'warning',
+        chapterId: 'c',
+        filename: 'src/b.ts',
+      }),
+    ]);
+  });
+
+  it('warns when the risk assessment goes, and notes what it patched up', () => {
+    const dropped = parse([{ id: 'c', title: 'C', diffChunks: [cite('src/a.ts', ['H0001'])] }], {
+      riskAssessment: { score: 9 },
+    });
+    expect(dropped.findings).toEqual([
+      expect.objectContaining({ code: 'risk-dropped', severity: 'warning' }),
+    ]);
+
+    const patched = parse([{ id: 'c', title: 'C', diffChunks: [cite('src/a.ts', ['H0001'])] }], {
+      riskAssessment: { score: 3, factors: [{ name: 'no detail' }] },
+    });
+    expect(codes(patched)).toEqual(['risk-part-dropped', 'risk-part-dropped']);
+  });
+
+  it('notes a chunk that names no file, and one with no hunk id to resolve', () => {
+    const result = parse([
+      {
+        id: 'c',
+        title: 'C',
+        insights: [],
+        diffChunks: [
+          'src/a.ts',
+          { language: 'typescript', hunkIds: ['H0001'] },
+          { filename: 'src/b.ts', language: 'typescript', hunkIds: 'H0003' },
+          { filename: 'src/a.ts', language: 'typescript', hunkIds: [] },
+          cite('src/a.ts', ['H0001']),
+        ],
+      },
+    ]);
+    expect(codes(result)).toEqual([
+      'chunk-dropped',
+      'chunk-dropped',
+      'chunk-dropped',
+      'chunk-dropped',
+    ]);
+    expect(result.findings[2]).toMatchObject({
+      severity: 'note',
+      chapterId: 'c',
+      filename: 'src/b.ts',
+    });
+    expect(result.findings[2]?.message).toContain('no hunk id to resolve');
+    // The one usable chunk keeps the chapter, so nothing here is fatal.
+    expect(result.ok).toBe(true);
+  });
+
+  it('notes prose that arrived with nothing readable in it, and nothing for prose that never came', () => {
+    const result = parse([
+      {
+        id: 'c',
+        title: 'C',
+        description: '   ',
+        insights: [],
+        diffChunks: [cite('src/a.ts', ['H0001'])],
+      },
+      {
+        id: 'd',
+        title: 'D',
+        description: { lede: '', body: '  ' },
+        insights: [],
+        diffChunks: [cite('src/b.ts', ['H0003'])],
+      },
+      {
+        id: 'e',
+        title: 'E',
+        description: 7,
+        insights: [],
+        diffChunks: [cite('src/a.ts', ['H0002'])],
+      },
+      { id: 'f', title: 'F', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+    ]);
+    expect(codes(result)).toEqual(['prose-dropped', 'prose-dropped', 'prose-dropped']);
+    expect(result.findings[0]).toMatchObject({ severity: 'note', chapterId: 'c' });
+  });
+
+  it('notes a risk assessment that gave its factors as something other than a list', () => {
+    const result = parse([{ id: 'c', title: 'C', diffChunks: [cite('src/a.ts', ['H0001'])] }], {
+      riskAssessment: { score: 3, summary: 'Fine.', rationale: '', factors: 'none' },
+    });
+    expect(codes(result)).toEqual(['risk-part-dropped']);
+  });
+
+  it('disqualifies the answer, once per empty chapter, and reports the first', () => {
+    const result = parse([
+      { id: 'empty', title: 'Empty', insights: [], diffChunks: [] },
+      { id: 'alsoEmpty', title: 'Also empty', insights: [], diffChunks: [] },
+      { id: 'real', title: 'Real', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+    ]);
+    expect(codes(result)).toEqual(['chapter-no-hunks', 'chapter-no-hunks']);
+    expect(result.findings.every((f) => f.severity === 'fatal')).toBe(true);
+    expect(firstFatal(result)).toContain('"Empty" (empty)');
+  });
+
+  it('disqualifies an answer with no block in it', () => {
+    const result = parseNarrativeReview('I had a look but I would rather not.');
+    expect(result.findings).toEqual([
+      expect.objectContaining({ code: 'answer-missing-block', severity: 'fatal' }),
+    ]);
+  });
+});
+
+describe('an answer that contains more than one block', () => {
+  const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
+  const block = (prTitle: string, chapterId: string) =>
+    wrap({
+      prTitle,
+      overviewSummary: { lede: 's' },
+      chapters: [
+        {
+          id: chapterId,
+          title: 'C',
+          insights: [],
+          diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
+        },
+      ],
+    });
+
+  it('takes the last complete one, since that is the corrected answer', () => {
+    const result = parseNarrativeReview(
+      `${block('First attempt', 'one')}
+Let me do that again.
+${block('Second attempt', 'two')}`,
+      grounding,
+    );
+    expect(result.ok && result.data.prTitle).toBe('Second attempt');
+    expect(result.ok && result.data.chapters.map((c) => c.id)).toEqual(['two']);
+  });
+
+  it('ignores a second block that has not been closed yet', () => {
+    const result = parseNarrativeReview(
+      `${block('First attempt', 'one')}
+<narrative_review>{"prTitle":"Half a`,
+      grounding,
+    );
+    expect(result.ok && result.data.prTitle).toBe('First attempt');
+  });
+
+  /**
+   * The model talks about what it just did, and the sentence it reaches for
+   * names both tags. Reading the last pair regardless would hand the parser a
+   * few words of prose and disqualify an answer that is perfectly correct.
+   */
+  it('reads past a closing remark that names the tags', () => {
+    const result = parseNarrativeReview(
+      `${block('The answer', 'one')}
+I have re-emitted the complete <narrative_review>…</narrative_review> block as asked.`,
+      grounding,
+    );
+    expect(result.ok && result.data.prTitle).toBe('The answer');
+    expect(fatalFindings(result.findings)).toEqual([]);
+  });
+
+  it('falls back to the last block that parses when a later one is malformed', () => {
+    const result = parseNarrativeReview(
+      `${block('The answer', 'one')}
+<narrative_review>{ "prTitle": "Cut off mid-</narrative_review>`,
+      grounding,
+    );
+    expect(result.ok && result.data.prTitle).toBe('The answer');
+  });
+
+  it('reads past an empty block written after the answer', () => {
+    const result = parseNarrativeReview(
+      `${block('The answer', 'one')}
+<narrative_review>{}</narrative_review>`,
+      grounding,
+    );
+    expect(result.ok && result.data.prTitle).toBe('The answer');
+  });
+
+  it('takes the one block of three that is an answer', () => {
+    const result = parseNarrativeReview(
+      `<narrative_review>{ "prTitle": "Only a title" }</narrative_review>
+${block('The answer', 'one')}
+<narrative_review>{ "prTitle": "Cut off mid-</narrative_review>`,
+      grounding,
+    );
+    expect(result.ok && result.data.prTitle).toBe('The answer');
+  });
+
+  /**
+   * What this tool reviewing its own repository writes: an insight about the
+   * parser quotes the tags it pairs. Cutting the body at the first closing tag
+   * after the opening one takes a correct answer apart at a tag that was never
+   * a tag, and then fails the review three refusals later.
+   */
+  it('reads a closing tag quoted inside the answer as part of the answer', () => {
+    const text = wrap({
+      prTitle: 'Reviewing the reviewer',
+      overviewSummary: { lede: 's' },
+      chapters: [
+        {
+          id: 'one',
+          title: 'C',
+          insights: [
+            {
+              type: 'context',
+              text: 'The parser pairs <narrative_review> with the </narrative_review> after it.',
+            },
+          ],
+          diffChunks: [cite('src/a.ts', ['H0001'])],
+        },
+      ],
+    });
+    const result = parseNarrativeReview(text, grounding);
+
+    expect(result.ok && result.data.prTitle).toBe('Reviewing the reviewer');
+    expect(result.ok && result.data.chapters[0]?.insights[0]?.text).toContain(
+      '</narrative_review>',
+    );
+    expect(fatalFindings(result.findings)).toEqual([]);
+  });
+
+  it('reads an opening tag quoted inside the answer as part of the answer', () => {
+    const text = wrap({
+      prTitle: 'Reviewing the reviewer',
+      overviewSummary: { lede: 'Every answer opens with <narrative_review>.' },
+      chapters: [
+        { id: 'one', title: 'C', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+      ],
+    });
+    const result = parseNarrativeReview(text, grounding);
+    expect(result.ok && result.data.prTitle).toBe('Reviewing the reviewer');
+  });
+
+  it('reports no block for an opening tag that was never closed', () => {
+    expect(error('<narrative_review>{ "prTitle": "Half a')).toBe(
+      'The answer contains no complete <narrative_review> block.',
+    );
+  });
+
+  it('reports no block for a closing tag that comes before every opening one', () => {
+    expect(error(`</narrative_review>\n<narrative_review>{ "prTitle": "x", "chapters": [] }`)).toBe(
+      'The answer contains no complete <narrative_review> block.',
+    );
+  });
+
+  it('reports an empty block as JSON it cannot read', () => {
+    expect(error('<narrative_review></narrative_review>')).toBe(
+      'The <narrative_review> block is not valid JSON.',
+    );
+  });
+
+  it('reports the missing fields of the only block there is', () => {
+    expect(error(wrap({ prTitle: 'x', overviewSummary: { lede: 's' } }))).toBe(
+      'The narrative review has no chapters array.',
+    );
+    expect(error(wrap({ chapters: [], overviewSummary: { lede: 's' } }))).toBe(
+      'The narrative review has no prTitle.',
+    );
+  });
+});
+
+describe('the repairs a reader never sees', () => {
+  const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
+  const parse = (chapters: unknown[], extra: Record<string, unknown> = {}): ParseResult =>
+    parseNarrativeReview(
+      wrap({ prTitle: 't', overviewSummary: { lede: 's' }, chapters, ...extra }),
+      grounding,
+    );
+  const oneChapter = (over: Record<string, unknown> = {}) => ({
+    id: 'c',
+    title: 'C',
+    insights: [],
+    diffChunks: [cite('src/a.ts', ['H0001'])],
+    ...over,
+  });
+
+  it('notes insights that arrived as something other than a list', () => {
+    const result = parse([oneChapter({ insights: 'a paragraph about the code' })]);
+    expect(codes(result)).toEqual(['insight-dropped']);
+    expect(result.findings[0]?.message).toContain('something other than a list');
+    expect(result.ok && result.data.chapters[0]?.insights).toEqual([]);
+  });
+
+  it('drops an insight whose text is nothing but space, as its doc says', () => {
+    const result = parse([oneChapter({ insights: [{ type: 'context', text: '   ' }] })]);
+    expect(codes(result)).toEqual(['insight-dropped']);
+    expect(result.ok && result.data.chapters[0]?.insights).toEqual([]);
+  });
+
+  it('notes a risk rationale that was not text', () => {
+    const result = parse([oneChapter()], {
+      riskAssessment: { score: 3, summary: 'Fine.', rationale: { why: 'nested' }, factors: [] },
+    });
+    expect(codes(result)).toEqual(['risk-part-dropped']);
+    expect(result.ok && result.data.riskAssessment?.rationale).toBe('');
+  });
+
+  it('notes the score it rounded, and what it rounded from', () => {
+    const result = parse([oneChapter()], {
+      riskAssessment: { score: 3.4, summary: 'Fine.', rationale: '', factors: [] },
+    });
+    expect(codes(result)).toEqual(['risk-part-dropped']);
+    expect(result.findings[0]?.message).toBe('The risk score arrived as 3.4 and was rounded to 3.');
+    expect(result.ok && result.data.riskAssessment?.score).toBe(3);
+  });
+
+  it('notes a hunk id a chunk cited twice, and keeps one of it', () => {
+    const result = parse([oneChapter({ diffChunks: [cite('src/a.ts', ['H0001', 'H0001'])] })]);
+    expect(codes(result)).toEqual(['chunks-merged']);
+    expect(result.findings[0]).toMatchObject({ chapterId: 'c', filename: 'src/a.ts' });
+    expect(result.ok && result.data.chapters[0]?.diffChunks[0]?.hunks.map((h) => h.id)).toEqual([
+      'H0001',
+    ]);
+  });
+
+  it('leaves the filename off a dropped hunk id when the chunk named no file', () => {
+    const result = parse([
+      oneChapter({ diffChunks: [cite('', ['H0001']), cite('src/a.ts', ['H0001'])] }),
+    ]);
+    const dropped = result.findings.find((f) => f.code === 'hunk-id-dropped');
+    expect(dropped).toBeDefined();
+    expect(dropped && 'filename' in dropped).toBe(false);
   });
 });

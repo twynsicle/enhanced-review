@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Finding } from '@/domain/review/findings';
 import type { NarrativeReview } from '@/domain/review/narrative';
 import type { ReviewMeta } from '@/domain/review/review-meta';
 import { REAL_ARCHITECTURE } from '@/web/test/diagram-fixtures';
@@ -26,8 +27,14 @@ function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
   };
 }
 
-function renderCard(overrides: Partial<NarrativeReview> = {}, meta: Partial<ReviewMeta> = {}) {
-  return render(<SummaryCard review={review(overrides)} meta={{ ...baseMeta, ...meta }} />);
+function renderCard(
+  overrides: Partial<NarrativeReview> = {},
+  meta: Partial<ReviewMeta> = {},
+  findings: Finding[] = [],
+) {
+  return render(
+    <SummaryCard review={review(overrides)} meta={{ ...baseMeta, ...meta }} findings={findings} />,
+  );
 }
 
 describe('<SummaryCard />', () => {
@@ -91,6 +98,32 @@ describe('<SummaryCard />', () => {
   it("uses the meta's title when the review has none", () => {
     renderCard({ prTitle: '' }, { title: 'feat/scheduler' });
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('feat/scheduler');
+  });
+
+  it('shows a warning from validating the review, above what the reviewer said', () => {
+    renderCard({}, {}, [
+      {
+        code: 'diff-truncated',
+        severity: 'warning',
+        message: 'Part of the change was never shown to the reviewer.',
+      },
+    ]);
+    const notice = screen.getByText('Part of the change was never shown to the reviewer.');
+    const summary = screen.getByText('Review summary');
+    expect(notice.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('draws no notice for a review that found nothing to report', () => {
+    renderCard();
+    expect(screen.queryByText('What this review cost')).toBeNull();
+  });
+
+  it('draws no notice for notes, which cost the reader nothing', () => {
+    renderCard({}, {}, [
+      { code: 'chunks-merged', severity: 'note', message: 'Two chunks became one.' },
+    ]);
+    expect(screen.queryByText('What this review cost')).toBeNull();
+    expect(screen.queryByText('Two chunks became one.')).toBeNull();
   });
 
   it('falls back to the meta stats for a review with no files list', () => {
