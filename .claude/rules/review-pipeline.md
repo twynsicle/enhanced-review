@@ -24,7 +24,12 @@ src/domain/
                      ProseSchema — overviewSummary and chapter.description are a `{ lede, body? }`, the lede one
                      short sentence and the body Markdown, because one free-text field is what produced the
                      50-word sentences this replaced; Insight.filename? — the file an insight is about, drawn on
-                     that diff card rather than above all of them;
+                     that diff card rather than above all of them; three insight types, not four — a pointer to
+                     related code or docs is `context` with a link, which is what `reference` was;
+                     JudgementCall / judgementCalls? / MAX_JUDGEMENT_CALLS — the questions only a human can
+                     answer, review-wide rather than per chapter so the cap is review-wide too, and anchored
+                     (filename + hunkIds both required) because a question is answerable only beside the lines
+                     that raised it;
                      ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
                      ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
                      reviewable and not only what was cited; SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's
@@ -96,6 +101,10 @@ src/domain/
                      diffChunks after hunk-id resolution and the prompt showed at least one hunk to cite, since prose
                      with nothing to show for it is a generation defect, not a valid review; a diff with nothing
                      reviewable at all is exempt, since then no chapter could have cited anything;
+                     a judgement call is held to the chapters' own cited paths, not the change's file list, and
+                     dropped whole — never hoisted — when its filename is not one of them or none of its hunk
+                     ids resolve to that file, since it is drawn beside those lines or nowhere; the cap is
+                     applied here rather than by the schema, which could only refuse the whole review;
                      sanitizeProse takes a `{ lede, body? }` object or a bare string, which is promoted to the
                      lede, as is a body that arrived without one; a chapter's diffChunks are merged to one per
                      filename, since the reader keys a file's insights and its count on the name; and an insight's

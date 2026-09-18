@@ -1,8 +1,9 @@
 # enhanced-review
 
 AI code review: a chaptered narrative with an overview, a risk assessment,
-insights, diagrams of what changed, and inline diffs you can open beside the
-prose. Run it as [**local mode**](#local-mode), one command inside the
+insights, diagrams of what changed, inline diffs you can open beside the prose,
+and — where the code cannot settle it — a question or two put back to you.
+Run it as [**local mode**](#local-mode), one command inside the
 repository you want reviewed, or as [**hosted mode**](#hosted-mode), a
 multi-user web app you sign in to with GitHub — currently parked, see that
 section for why.

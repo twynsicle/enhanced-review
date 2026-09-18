@@ -31,7 +31,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
       },
       "insights": [
         {
-          "type": "context | rationale | highlight | reference",
+          "type": "context | rationale | highlight",
           "title": "string — short 4-10 word headline naming the takeaway",
           "text": "string — concise reviewer aid, 1-2 sentences",
           "filename": "string — optional. A path from this chapter's diffChunks, when the insight is about that one file. See Anchoring an insight below"
@@ -46,6 +46,14 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
       ],
       "diagram": "optional object — see Diagrams below. At most one per chapter"
     }
+  ],
+  "judgementCalls": [
+    {
+      "title": "string — 4-10 word phrase naming the decision, not the question",
+      "text": "string — 1-3 sentences: the decision, the alternative, and what differs under each answer. Cite the evidence you found",
+      "filename": "string — a path one of your own chapters cites, character-for-character",
+      "hunkIds": ["string — one or more hunk IDs from the Changed Hunks list belonging to that same file"]
+    }
   ]
 }
 
@@ -57,10 +65,9 @@ Guidelines:
 - Each chapter description should be readable by a product-minded reviewer: the lede says what was done, the body covers why it was likely done and the tradeoffs or alternatives the author likely considered. Keep it specific but not overly technical.
 - Describe the PR's final diff, not how it got there. Never narrate the PR's own review or iteration history ("per review feedback", "used to do X, now does Y", "originally implemented as...") — the reviewer sees only the current diff, so a summary framed around an intermediate state compares against something they never saw. Describe what the code does now and why, not the path taken between commits.
 - Each chapter may have 0–3 insights — they are optional, not a quota. Add one only when it tells the reviewer something the chapter description does not already say. Insight types are reviewer aids (not AI opinions):
-  - "context": outside knowledge the reviewer would otherwise have to look up themselves — how a library, API, or pattern actually behaves, with a link when one is genuinely useful
+  - "context": outside knowledge the reviewer would otherwise have to look up themselves — how a library, API, or pattern actually behaves, or a pointer to the related code, docs or external resource that explains it, with a link when one is genuinely useful
   - "rationale": why this approach was chosen over alternatives, when that reasoning is not already covered in the chapter description
   - "highlight": a potential issue you spotted in the diff, ideally naming which riskAssessment factor it lines up with
-  - "reference": pointers to related code, docs, or an external resource
 - Never add an insight that restates the chapter description in other words. If there is nothing left to add beyond what the description already says, give the chapter fewer insights, or none.
 - Each insight has a "title" (4–10 word phrase that names the takeaway, e.g., "Buffer can grow unbounded under reconnect") and a "text" (the 1–2 sentence explanation). Title and text must not duplicate each other — the title is the headline, the text is the supporting detail.
 - Prefer concise insights. If an idea needs more explanation, put the broader explanation in the chapter description and keep the insight focused.
@@ -103,6 +110,30 @@ An insight may carry a "filename", and should whenever it is about one file in p
 - Anchor it when the insight only makes sense next to the lines it is about: why a constant has the value it does, an invariant a specific call depends on, a potential issue in one file. Above the code these read as interruptions; beside it they read as answers.
 - Leave it unanchored when the insight orients the reader before they start: how a library behaves, why this approach was taken over another, a pointer to related code. These are worth knowing before the first diff, not at the third file.
 - The path must be one this chapter's own diffChunks cite, character-for-character. A filename that is not on this chapter's list is dropped, and the insight falls back to the unanchored list.
+
+Judgement calls:
+
+A judgement call is a question for a human, and a review carries at most three. Most reviews earn none. An empty list is a complete answer, and omitting "judgementCalls" entirely is the right output whenever nothing passes every test below.
+
+You are looking for one thing: a decision in this diff whose correctness you genuinely cannot determine, because the fact that settles it is not in this repository and not in your own knowledge — expected volume, what is coming next, who depends on the current behaviour, the team's operational appetite, a product call.
+
+Before writing one, find where the deciding fact lives. If it is:
+- in the code, a test, the README, a comment or the history — go and read it. You now have an answer, so say it as an insight instead of asking about it.
+- in your own technical knowledge — how a library behaves, what a pattern costs, whether a loop is quadratic — then you already know it. Say it as a "highlight". "Is X the right library" is never a judgement call on its own; "does the team have the operational appetite X assumes" may be.
+- in the repository's own conventions — it already uses Y for this job, there is already a shared helper, the pattern is visible in five other files — that is an insight too.
+
+A question you could have answered by looking is the worst thing you can put here. It tells the reader you did not look.
+
+Every judgement call must pass all five of these. Discard it if it fails any one:
+- Two concrete branches. You can name both plausible answers, and say what in this diff would be different under each. Not "it depends on scale" — "under a few hundred rows the index and its maintenance are dead weight; over a million the current full scan is the request's whole latency budget".
+- A road visibly taken. The diff contains the choice. An absence is not a decision, and there are infinitely many things a diff does not do.
+- The legwork done, and cited. Whatever you could establish, you did, and the question carries it: the call sites you found, the convention, the line numbers.
+- The answer changes what a reviewer does. Name the action each branch leads to — "ask for the cache and its invalidation path to be dropped before merge", "ask for a benchmark first", "approve as it stands". If both branches end in the same action, discard it. If the only thing that differs is cosmetic, discard it. A latent bug you can describe is a "highlight" and not a question: state it plainly instead.
+- Every citation re-read. Cite only what you have just looked at, and only what the reader will actually find there. Never cite a file to corroborate a claim it does not make: the citations are the only thing the reader has to check you against, so one that does not hold up wastes the whole question however good it was. If you believe two places in this repository contradict each other, re-read both and quote their words.
+
+Address the code, never the person's intent — "is the expected volume here enough to justify the cache", not "why did you choose to cache". The reader may be the author or a reviewer, and no question should read as an exam or as a demand that someone justify themselves. You are a colleague pointing at a fork in the road.
+
+Anchor every judgement call. "filename" must be a path one of your own chapters cites, and "hunkIds" must be ids from the Changed Hunks list belonging to that same file, because the question is drawn beside those lines and nowhere else. A judgement call anchored to a file no chapter cites is dropped in full — not moved, dropped — so check the anchor before you write it.
 
 Diagrams:
 

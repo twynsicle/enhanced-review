@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@/web/test/render';
-import { InsightCallout } from './insight-callout';
+import { InsightCallout, JudgementCallout } from './insight-callout';
 
 describe('<InsightCallout />', () => {
   it('renders the editorial label and the insight text', () => {
@@ -14,7 +14,6 @@ describe('<InsightCallout />', () => {
       { type: 'context', label: /Context/ },
       { type: 'rationale', label: /Reasoning/ },
       { type: 'highlight', label: /Risk/ },
-      { type: 'reference', label: /Suggestion/ },
     ] as const;
 
     for (const { type, label } of cases) {
@@ -33,5 +32,25 @@ describe('<InsightCallout />', () => {
     );
     expect(screen.getByRole('heading', { name: 'Buffer can grow unbounded' })).toBeDefined();
     expect(screen.getByText('Long story…')).toBeDefined();
+  });
+});
+
+describe('<JudgementCallout />', () => {
+  it('labels the question and renders its title and text', () => {
+    render(
+      <JudgementCallout
+        call={{
+          title: 'Hourly cadence offered to every repo',
+          text: 'Cheap if few choose it, 24x the work if most do.',
+          filename: 'src/scheduler/cadence.ts',
+          hunkIds: ['H0003'],
+        }}
+      />,
+    );
+    expect(screen.getByText(/Judgement call/)).toBeDefined();
+    expect(
+      screen.getByRole('heading', { name: 'Hourly cadence offered to every repo' }),
+    ).toBeDefined();
+    expect(screen.getByText('Cheap if few choose it, 24x the work if most do.')).toBeDefined();
   });
 });

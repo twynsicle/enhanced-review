@@ -2,10 +2,12 @@ import { plural } from '../../../common/plural.ts';
 import { findingLog, type Finding, type FindingLog } from '../findings.ts';
 import {
   InsightTypeSchema,
+  MAX_JUDGEMENT_CALLS,
   NarrativeReviewSchema,
   ReviewRiskFactorImpactSchema,
   type DiffChunk,
   type Insight,
+  type JudgementCall,
   type NarrativeReview,
   type Prose,
   type ResolvedDiffHunk,
@@ -13,7 +15,7 @@ import {
   type ReviewRiskFactorImpact,
   type ReviewRiskScore,
 } from '../narrative.ts';
-import type { PromptGrounding } from './diff-hunk-catalog.ts';
+import type { DiffHunk, PromptGrounding } from './diff-hunk-catalog.ts';
 import { sanitizeDiagram } from './parse-diagram.ts';
 
 /**
@@ -300,6 +302,118 @@ function sanitizeInsights(
       },
     ];
   });
+}
+
+/** The hunks of one file a judgement call points at, in file order. */
+function resolveJudgementHunks(
+  raw: unknown,
+  filename: string,
+  title: string,
+  grounding: PromptGrounding | undefined,
+  log: FindingLog,
+): DiffHunk[] {
+  const rawIds: unknown[] = Array.isArray(raw) ? raw : [];
+  const deduped = new Map<string, DiffHunk>();
+  for (const hunkId of rawIds) {
+    const hunk = typeof hunkId === 'string' ? grounding?.shown.byId[hunkId] : undefined;
+    if (!hunk || hunk.filename !== filename) {
+      log.add(
+        'judgement-hunk-id-dropped',
+        `The judgement call "${title}" cited ${typeof hunkId === 'string' ? hunkId : 'a hunk id that is not a string'} for ${filename}, which resolved against nothing.`,
+        { filename },
+      );
+      continue;
+    }
+    deduped.set(hunk.id, hunk);
+  }
+  return [...deduped.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
+}
+
+/**
+ * The review's judgement calls, each held to the one place it can be drawn.
+ *
+ * `cited` are the paths the chapters ended up showing, so the check is against
+ * the diff cards that exist on the page rather than against the change: a
+ * question anchored to a file no chapter shows has no card to sit beside, and
+ * it is dropped rather than hoisted somewhere the reader meets it before any
+ * code. That is the opposite call to the one an insight gets — an insight that
+ * loses its anchor still says something on its own, while a question about
+ * lines the reader cannot see is a question about nothing.
+ *
+ * The cap is applied here and not left to the schema, because the schema can
+ * only refuse the whole review, and a model that asks five good questions has
+ * not produced an invalid answer.
+ */
+function sanitizeJudgementCalls(
+  raw: unknown,
+  cited: ReadonlySet<string>,
+  grounding: PromptGrounding | undefined,
+  log: FindingLog,
+): JudgementCall[] {
+  if (arrived(raw) && !Array.isArray(raw)) {
+    log.add(
+      'judgement-call-dropped',
+      'The judgement calls arrived as something other than a list, so the review asks nothing.',
+    );
+  }
+  const rawCalls: unknown[] = Array.isArray(raw) ? raw : [];
+  const kept = rawCalls.flatMap<JudgementCall>((call) => {
+    if (!isRecord(call)) {
+      log.add(
+        'judgement-call-dropped',
+        'A judgement call arrived as something other than an object.',
+      );
+      return [];
+    }
+    const title = typeof call['title'] === 'string' ? call['title'].trim() : '';
+    const text = typeof call['text'] === 'string' ? call['text'].trim() : '';
+    if (title.length === 0 || text.length === 0) {
+      log.add(
+        'judgement-call-dropped',
+        `A judgement call arrived with no ${title.length === 0 ? 'title' : 'text'}, so there is no question to ask.`,
+      );
+      return [];
+    }
+    const filename = typeof call['filename'] === 'string' ? call['filename'] : '';
+    if (!cited.has(filename)) {
+      log.add(
+        'judgement-call-dropped',
+        `The judgement call "${title}" is anchored to ${filename || 'no file'}, which no chapter shows, so there is nowhere to ask it.`,
+        filename ? { filename } : {},
+      );
+      return [];
+    }
+    const [first, ...rest] = resolveJudgementHunks(
+      call['hunkIds'],
+      filename,
+      title,
+      grounding,
+      log,
+    );
+    if (first === undefined) {
+      log.add(
+        'judgement-call-dropped',
+        `The judgement call "${title}" cites no hunk of ${filename} that resolved against the diff.`,
+        { filename },
+      );
+      return [];
+    }
+    return [
+      {
+        title,
+        text,
+        filename,
+        hunkIds: [first.id, ...rest.map((hunk) => hunk.id)] as [string, ...string[]],
+      },
+    ];
+  });
+
+  if (kept.length <= MAX_JUDGEMENT_CALLS) return kept;
+  log.add(
+    'judgement-call-dropped',
+    `The review asked ${plural(kept.length, 'judgement call')}; only the first ${String(MAX_JUDGEMENT_CALLS)} are shown.`,
+  );
+  return kept.slice(0, MAX_JUDGEMENT_CALLS);
 }
 
 /**
@@ -624,12 +738,19 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     grounding,
     log,
   );
+  const judgementCalls = sanitizeJudgementCalls(
+    parsed['judgementCalls'],
+    new Set(chapters.flatMap((chapter) => chapter.diffChunks.map((chunk) => chunk.filename))),
+    grounding,
+    log,
+  );
   const candidate = {
     prTitle: parsed['prTitle'],
     overviewSummary,
     ...(riskAssessment ? { riskAssessment } : {}),
     ...(overviewDiagram ? { overviewDiagram } : {}),
     chapters,
+    ...(judgementCalls.length > 0 ? { judgementCalls } : {}),
   };
 
   const validated = NarrativeReviewSchema.safeParse(candidate);

@@ -18,9 +18,9 @@ import {
   type InlineDiffSnippet,
 } from '@/domain/review/inline-diff-snippets';
 import { detectLanguage } from '@/domain/review/language-map';
-import type { DiffChunk, Insight } from '@/domain/review/narrative';
+import type { DiffChunk, Insight, JudgementCall } from '@/domain/review/narrative';
 import { useFilePair } from '@/web/components/narrative/file-source';
-import { InsightCallout } from '@/web/components/narrative/insight-callout';
+import { InsightCallout, JudgementCallout } from '@/web/components/narrative/insight-callout';
 import { MONACO_VS_URL } from '@/web/components/narrative/monaco-cdn';
 import { useHydrated } from '@/web/lib/use-hydrated';
 import {
@@ -550,7 +550,12 @@ function SnippetEditor({
 }
 
 /**
- * The insights anchored to this file, between the card's header and its diff.
+ * The asides anchored to this file, between the card's header and its diff:
+ * the judgement calls first, then the insights.
+ *
+ * Judgement calls lead because they are the only thing on the page addressed
+ * to the reader, and there are at most three in a whole review. Set below a
+ * chapter's insights they read as a footnote to them, which is backwards.
  *
  * Capped at the reading measure even though the card itself bleeds to the full
  * column. The diff is what earns the extra width; a sentence set across 1700px
@@ -562,7 +567,13 @@ function SnippetEditor({
  * is the whole reason a diff is a diff. This is close enough to be an answer
  * and far enough to leave the code alone.
  */
-function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {
+function AnchoredAsides({
+  insights,
+  judgementCalls,
+}: {
+  insights: readonly Insight[];
+  judgementCalls: readonly JudgementCall[];
+}) {
   return (
     <Box
       px={12}
@@ -571,8 +582,11 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {
       style={{ borderBottom: `1px solid ${token('border')}` }}
     >
       <Box style={{ display: 'grid', rowGap: 16 }}>
+        {judgementCalls.map((call, i) => (
+          <JudgementCallout key={`judgement-${String(i)}`} call={call} />
+        ))}
         {insights.map((insight, i) => (
-          <InsightCallout key={i} insight={insight} />
+          <InsightCallout key={`insight-${String(i)}`} insight={insight} />
         ))}
       </Box>
     </Box>
@@ -585,16 +599,20 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {
  * each hunk group (`buildInlineDiffSnippets`) and shown in one Monaco
  * `DiffEditor` per group; "Show full file" swaps in the whole pair.
  *
- * `insights` are the chapter's insights that named this file. The other places
- * a diff appears — the file view, the undiscussed backstop — pass none, since
- * an insight belongs to the chapter that wrote it.
+ * `insights` are the chapter's insights that named this file, and
+ * `judgementCalls` the review's questions this chapter draws for it. The other
+ * places a diff appears — the file view, the undiscussed backstop — pass
+ * neither: an insight belongs to the chapter that wrote it, and a question is
+ * drawn once, by the chapter that owns it.
  */
 export function InlineDiffChunk({
   chunk,
   insights = [],
+  judgementCalls = [],
 }: {
   chunk: DiffChunk;
   insights?: readonly Insight[];
+  judgementCalls?: readonly JudgementCall[];
 }) {
   const pair = useFilePair(chunk.filename);
   const stored = useDiffView((s) => s.view);
@@ -694,7 +712,9 @@ export function InlineDiffChunk({
         )}
       </Group>
 
-      {insights.length > 0 && <AnchoredInsights insights={insights} />}
+      {(insights.length > 0 || judgementCalls.length > 0) && (
+        <AnchoredAsides insights={insights} judgementCalls={judgementCalls} />
+      )}
 
       {state.kind === 'loading' && (
         <Text px={12} py={16} fz="sm" c="dimmed">

@@ -337,7 +337,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
             text: 'isDue returns early for a paused schedule, so the clock is never read for it.',
           },
           {
-            type: 'reference',
+            type: 'context',
             title: 'Never-run schedules sort first',
             text: 'A repo with no last run counts as having run at time zero.',
             filename: 'src/scheduler/queue.ts',
@@ -441,6 +441,20 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
           chunk('src/generated/schedule.schema.json', 'json', [H.schema]),
           chunk('docs/scheduling.md', 'markdown', [H.docs]),
         ],
+      },
+    ],
+    judgementCalls: [
+      {
+        title: 'Hourly cadence offered to every repo',
+        text: 'INTERVALS exposes hourly to any schedule, and isDue reads the clock per schedule per pass, so a repo on hourly runs 24 reviews a day where nightly ran one. If few repos will choose it, the table is the cheaper shape either way; if most will, the queue does this work 24 times over and wants a cap before the cadence ships.',
+        filename: 'src/scheduler/cadence.ts',
+        hunkIds: ['H0003', 'H0004'],
+      },
+      {
+        title: 'The cron job is deleted, not disabled',
+        text: 'startNightlyReviews is removed outright rather than flagged off, so a rollback of the scheduler leaves nothing running the nightly pass. Whether that matters depends on whether anything outside this repo still calls it — nothing here does — and on whether a bad deploy can be rolled back within a night.',
+        filename: 'src/legacy/cron.ts',
+        hunkIds: ['H0007'],
       },
     ],
   },

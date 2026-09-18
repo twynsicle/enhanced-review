@@ -3,9 +3,9 @@
  *
  * Cobalt (hue 240/245) is the "before / current state" accent and the primary
  * chrome colour; mint (hue 165) is the "after / new state / approved"
- * counterpart. Insight kinds (risk / praise / suggestion / question) each pick
- * a hue, and each comes as a triple: the base for text and rails, `-soft` for
- * a tinted background, `-ink` for text sitting on that `-soft`.
+ * counterpart. The reader's asides (risk / praise / suggestion / question) each
+ * pick a hue, and each comes as a triple: the base for text and rails, `-soft`
+ * for a tinted background, `-ink` for text sitting on that `-soft`.
  *
  * **Every token that carries text clears WCAG AA (4.5:1) against both
  * `background` and `card` in its own scheme**, and every value is inside the

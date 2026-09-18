@@ -32,7 +32,7 @@ export const ProseSchema = z.object({
 });
 export type Prose = z.infer<typeof ProseSchema>;
 
-export const InsightTypeSchema = z.enum(['context', 'rationale', 'highlight', 'reference']);
+export const InsightTypeSchema = z.enum(['context', 'rationale', 'highlight']);
 export type InsightType = z.infer<typeof InsightTypeSchema>;
 
 export const InsightSchema = z.object({
@@ -53,6 +53,37 @@ export const InsightSchema = z.object({
   filename: z.string().optional(),
 });
 export type Insight = z.infer<typeof InsightSchema>;
+
+/** At most three judgement calls in a review, and most reviews earn none. */
+export const MAX_JUDGEMENT_CALLS = 3;
+
+/**
+ * A decision in the change whose correctness needs a human, because the fact
+ * that settles it is not in the repository: expected volume, what is coming
+ * next, who depends on the current behaviour, a product call.
+ *
+ * Not an `Insight`, for two reasons. An insight tells the reviewer something;
+ * this asks them something, and the two read differently enough that sharing a
+ * type would blur both. More practically, insights are budgeted per chapter,
+ * so a twelve-chapter review may hold thirty of them — right for a reviewer
+ * aid and wrong for a question, which is worth reading precisely because there
+ * are two of them and not thirty. The budget therefore has to be review-wide,
+ * and a review-wide cap cannot be enforced on a chapter-scoped array.
+ *
+ * `filename` and `hunkIds` are required rather than optional: a question is
+ * only answerable beside the lines that prompted it, and one the reader meets
+ * before any code is a question about nothing in particular. The path must be
+ * one a chapter cites, so there is a diff card for the question to sit on.
+ */
+export const JudgementCallSchema = z.object({
+  /** Short headline naming the decision, not the question. */
+  title: z.string(),
+  text: z.string(),
+  filename: z.string(),
+  /** Ids from the prompt's catalog, all belonging to `filename`. */
+  hunkIds: z.array(z.string()).nonempty(),
+});
+export type JudgementCall = z.infer<typeof JudgementCallSchema>;
 
 export const DiffLineSpanSchema = z.object({
   startLine: z.number().int(),
@@ -158,6 +189,12 @@ export const NarrativeReviewSchema = z.object({
    */
   overviewDiagram: DiagramSchema.optional(),
   chapters: z.array(NarrativeChapterSchema),
+  /**
+   * Review-wide rather than per chapter, and capped: see `JudgementCallSchema`.
+   * Absent and empty mean the same thing — no decision here needed a human —
+   * which is the common case and not a defect.
+   */
+  judgementCalls: z.array(JudgementCallSchema).max(MAX_JUDGEMENT_CALLS).optional(),
 });
 export type NarrativeReview = z.infer<typeof NarrativeReviewSchema>;
 
