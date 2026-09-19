@@ -125,6 +125,24 @@ er review --staged
 
 What you have staged, against `HEAD` — a review before the commit.
 
+### Every option
+
+| Flag                  | Applies to   | What it does                                                                              |
+| --------------------- | ------------ | ----------------------------------------------------------------------------------------- |
+| `--base <ref>`        | branch, PR   | compare against `<ref>` instead of the PR's base or the default branch                    |
+| `--model <name>`      | every review | review with `<name>` (default: `claude-sonnet-5[1m]`)                                     |
+| `--max-turns <n>`     | every review | let the model take at most `<n>` turns (default: `120`)                                   |
+| `--timeout <minutes>` | every review | give up on the model run after `<minutes>` (default: `15`)                                |
+| `--stub`              | every review | write a mechanical review instead of running a model — see below                          |
+| `--from <stage>`      | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below |
+| `--no-open`           | every review | write the report without opening it                                                       |
+| `--keep-worktree`     | PR reviews   | leave the PR's temporary worktree in place instead of removing it                         |
+| `-h`, `--help`        | —            | show usage and exit                                                                       |
+| `-v`, `--version`     | —            | show the installed version and exit                                                       |
+
+`--staged` (a target, not an option) and `--base` cannot be combined: the
+staged tree has no branch to compare against but `HEAD`.
+
 ### What it costs, and how long
 
 The model run is the only stage that costs anything.
@@ -187,9 +205,8 @@ saying what it may run instead. Refusals are recorded in `events.jsonl` and
 reported as one warning when the review finishes; a review is never failed by
 one.
 
-`--model`, `--max-turns` and `--timeout` override the defaults
-(`claude-sonnet-5`, 120 turns, 15 minutes). `er review --help` lists
-everything.
+`--model`, `--max-turns` and `--timeout` override the defaults it runs with —
+see "Every option" above.
 
 ### Diagrams
 
