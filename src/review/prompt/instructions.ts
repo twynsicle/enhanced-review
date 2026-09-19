@@ -3,7 +3,7 @@ import { DIAGRAM_LIMITS } from '../diagram.ts';
 /**
  * What the model is asked to do: the review instructions and output schema,
  * then a closing paragraph saying where the agent is standing — the
- * engineer's own repository, and a folder of hunk files.
+ * engineer's own repository, and a diff file on disk.
  */
 
 /** The review instructions and output schema; the local CLI writes them out as `system.md`. */
@@ -209,8 +209,8 @@ Rules for diagrams:
 - Draw only what the diff and the PR description support. Where the description explains a flow, a lifecycle, a rollout or a decision, that is the best material for a diagram — but do not invent structure you cannot see in either.
 - Output ONLY the <narrative_review> JSON tags — no other text.`;
 
-/** Appended to the instructions: the engineer's own repository, hunk files on disk. */
+/** Appended to the instructions: the engineer's own repository, a diff file on disk. */
 export const LOCAL_WORKING_TREE = `
 
 ---
-You are running inside the repository this change belongs to, at the working directory described in the user prompt. The hunk files named there are the source of truth for what changed; everything else in the tree is context, and may hold edits that are not part of this review. You may use Read, Glob and Grep freely, and Bash for read-only history (git log, git show, git blame, git diff). Bash already starts in that working directory, so use relative paths rather than cd; commands may be chained with | or && as long as every one of them only reads. Anything that writes is refused. Output only the <narrative_review> JSON block — no preamble, no closing remarks.`;
+You are running inside the repository this change belongs to, at the working directory described in the user prompt. The diff file named there is the source of truth for what changed; everything else in the tree is context, and may hold edits that are not part of this review. You may use Read, Glob and Grep freely, and Bash for read-only history (git log, git show, git blame, git diff). Bash already starts in that working directory, so use relative paths rather than cd; commands may be chained with | or && as long as every one of them only reads. Anything that writes is refused. When you already know several files or lookups you need, request them in the same turn rather than one at a time — each turn you spend reading costs one you don't have for writing the review. Output only the <narrative_review> JSON block — no preamble, no closing remarks.`;

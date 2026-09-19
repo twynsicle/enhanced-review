@@ -62,7 +62,7 @@ export async function skipReasons(
 
 /**
  * The changed files as a review records them, each one it leaves out carrying
- * why. The prompt writes no hunk file for them, so without the reason here the
+ * why. The diff file carries no patch for them, so without the reason here the
  * file looks reviewed-but-unmentioned: the sidebar lists it undimmed,
  * and the coverage backstop counts a lockfile against the model's chapters.
  */

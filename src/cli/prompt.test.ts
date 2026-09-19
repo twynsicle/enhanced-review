@@ -66,7 +66,7 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
 }
 
 describe('the local prompt', () => {
-  it('delivers a PR with its header, files, hunks and where the hunk files are', () => {
+  it('delivers a PR with its header, files, hunks and where the diff file is', () => {
     const prompt = buildPrompt(context(), run);
 
     expect(prompt).toMatch(/^# Pull Request #7: Add a login form\n/);
@@ -84,7 +84,7 @@ describe('the local prompt', () => {
     expect(prompt).toContain(
       '  H0001  src/login.ts  @@ -0,0 +1,10 @@  original L1 (+0)  modified L1-10',
     );
-    expect(prompt).toContain(`\`${run.diffDir.replaceAll('\\', '/')}/<path>.diff\``);
+    expect(prompt).toContain(`\`${run.diff.replaceAll('\\', '/')}\``);
     expect(prompt).toContain('a temporary checkout of the pull request’s head commit (2222222)');
     expect(prompt).toContain(
       `except for this run’s own folder, \`${run.folder.replaceAll('\\', '/')}\``,

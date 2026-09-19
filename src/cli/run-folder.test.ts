@@ -3,13 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GIT_TEST_TIMEOUT, createTempRepo } from '../test/git-repo.ts';
-import {
-  createRunFolder,
-  hunkFileName,
-  latestRunFolder,
-  RUNS_DIR,
-  runStamp,
-} from './run-folder.ts';
+import { createRunFolder, latestRunFolder, RUNS_DIR, runStamp } from './run-folder.ts';
 
 // Real git, many spawns per test — see GIT_TEST_TIMEOUT.
 vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT, hookTimeout: GIT_TEST_TIMEOUT });
@@ -52,15 +46,5 @@ describe('run folders', () => {
     } finally {
       repo.cleanup();
     }
-  });
-});
-
-describe('hunkFileName', () => {
-  it.each([
-    ['src/app.ts', 'src/app.ts.diff'],
-    ['docs/what: why?.md', 'docs/what_ why_.md.diff'],
-    ['a<b>|c*"d".txt', 'a_b__c__d_.txt.diff'],
-  ])('%s → %s', (filename, expected) => {
-    expect(hunkFileName(filename)).toBe(expected);
   });
 });

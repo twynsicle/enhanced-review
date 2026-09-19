@@ -46,7 +46,7 @@ describe('the review instructions', () => {
 
   it('close by saying where the agent is standing, and to answer with the block only', () => {
     expect(LOCAL_WORKING_TREE).toContain('the repository this change belongs to');
-    expect(LOCAL_WORKING_TREE).toContain('hunk files');
+    expect(LOCAL_WORKING_TREE).toContain('diff file');
     expect(LOCAL_WORKING_TREE).toContain('git blame');
     expect(LOCAL_WORKING_TREE).toContain('Output only the <narrative_review> JSON block');
   });

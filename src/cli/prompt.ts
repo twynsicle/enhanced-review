@@ -9,8 +9,8 @@ import type { RunFiles } from './run-folder.ts';
  * The prompt stage: `system.md` is the shared review instructions plus the
  * paragraph that says where a local run is standing; `prompt.md` is this
  * change. Rather than inlining the diff, the prompt points the agent at one
- * hunk file per reviewed file, and it can open anything else in its working
- * directory.
+ * diff file for the whole change, and it can open anything else in its
+ * working directory.
  */
 
 /** A description longer than this stays in `context/pr.md`, with a pointer. */
@@ -46,9 +46,9 @@ export function buildPrompt(context: RunContext, run: RunFiles): string {
     `## Files Changed (${String(reviewed.length)})\n${formatFileList(reviewed)}${renames(context)}`,
     formatSkippedSection(files),
     `## Changed Hunks (Use These IDs in diffChunks.hunkIds)\n${formatHunkCatalog(hunks)}`,
-    '## Hunk Files\n' +
-      `The patch for each file in Files Changed is at \`${display(run.diffDir)}/<path>.diff\`, ` +
-      'with each hunk’s id on a `# H0001` line directly above its `@@` header. Read those for the ' +
+    '## Diff\n' +
+      `The full patch for this change is at \`${display(run.diff)}\`, ` +
+      'with each hunk’s id on a `# H0001` line directly above its `@@` header. Read that for the ' +
       'change itself, and the files in your working directory for the code around it.',
   ];
   return `${sections.filter((section) => section !== null).join('\n\n')}\n`;
@@ -94,8 +94,8 @@ function workingDirectory({ target, dirty }: RunContext, run: RunFiles): string 
     target.kind === 'pr'
       ? `Your working directory is a temporary checkout of the pull request’s head commit (${target.headSha.slice(0, 7)}). Every file in it is as the pull request leaves it.`
       : target.kind === 'branch'
-        ? `Your working directory is the repository itself, at ${target.headLabel}. The hunk files below are the source of truth for what changed.`
-        : 'Your working directory is the repository itself. Only the staged changes are under review, and the hunk files below are the source of truth for them.';
+        ? `Your working directory is the repository itself, at ${target.headLabel}. The diff file below is the source of truth for what changed.`
+        : 'Your working directory is the repository itself. Only the staged changes are under review, and the diff file below is the source of truth for them.';
   const extra =
     dirty.length > 0
       ? `\n\nThese paths hold changes on disk that are not part of this review, so what you read there may differ from the reviewed version:\n${dirty.map((name) => `  ${name}`).join('\n')}`

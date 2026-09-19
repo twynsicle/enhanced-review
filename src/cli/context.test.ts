@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -144,18 +144,18 @@ describe('gather', () => {
     expect(JSON.stringify(context.contents['src/keep.ts']?.head)).toContain('keep two');
   });
 
-  it('writes one hunk file per reviewed file, each hunk id above its header', async () => {
+  it('writes one diff file for the whole change, each hunk id above its header', async () => {
     branchOfEveryKind();
     const { context, run } = await gatherFor({ kind: 'branch', base: 'main' });
 
-    const text = readFileSync(path.join(run.diffDir, 'src', 'keep.ts.diff'), 'utf8').split('\n');
+    const text = readFileSync(run.diff, 'utf8').split('\n');
     const keep = context.hunks.filter((hunk) => hunk.filename === 'src/keep.ts');
     for (const hunk of keep) {
       const at = text.indexOf(`# ${hunk.id}`);
       expect(at).toBeGreaterThan(-1);
       expect(text[at + 1]).toBe(hunk.header);
     }
-    expect(existsSync(path.join(run.diffDir, 'package-lock.json.diff'))).toBe(false);
+    expect(text.join('\n')).not.toContain('package-lock.json');
   });
 
   it('records the commits and the working-tree changes the review leaves out', async () => {

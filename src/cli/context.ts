@@ -9,15 +9,15 @@ import { buildDiffHunkIndex, type DiffHunk } from '../review/prompt/diff-hunk-ca
 import { ReviewMetaSchema, type ReviewMeta } from '../review/review-meta.ts';
 import { skipReasons, toReviewFiles } from './skip-reasons.ts';
 import type { Shell } from './git.ts';
-import { hunkFileName, RUNS_DIR, type RunFiles } from './run-folder.ts';
+import { RUNS_DIR, type RunFiles } from './run-folder.ts';
 import { TargetSchema, type Target } from './targets.ts';
 
 /**
  * The gather stage: everything later stages need, read from git once and
  * written to `context.json`, so the prompt, parse and render stages (and a
- * `--from` rerun) never touch git again. Beside it, one hunk file per
- * reviewed file for the agent to read, and the PR description when there is
- * one.
+ * `--from` rerun) never touch git again. Beside it, one diff file carrying
+ * every reviewed file's patch for the agent to read, and the PR description
+ * when there is one.
  */
 export const DiffHunkSchema = z.object({
   id: z.string(),
@@ -100,7 +100,7 @@ export async function gather(
   };
 
   await writeFile(run.context, `${JSON.stringify(context, null, 2)}\n`);
-  await writeHunkFiles(run, reviewed, diffs, hunks);
+  await writeDiffFile(run, reviewed, diffs, hunks);
   if (meta.description) {
     await mkdir(path.dirname(run.pr), { recursive: true });
     await writeFile(run.pr, `# ${meta.title}\n\n${meta.description}\n`);
@@ -157,8 +157,8 @@ function numberHunks(files: readonly ChangedFile[], diffs: readonly string[]): D
   return hunks;
 }
 
-/** `context/diff/<path>.diff`, with each hunk's id on the line above its header. */
-async function writeHunkFiles(
+/** `context/diff.patch`: every reviewed file's patch, in file order, each hunk's id on the line above its header. */
+async function writeDiffFile(
   run: RunFiles,
   files: readonly ChangedFile[],
   diffs: readonly string[],
@@ -167,18 +167,17 @@ async function writeHunkFiles(
   const idsByFile = new Map<string, string[]>();
   for (const hunk of hunks)
     idsByFile.set(hunk.filename, [...(idsByFile.get(hunk.filename) ?? []), hunk.id]);
-  await mapLimit(files, PARALLEL_GIT, async (file, index) => {
+  const patches = files.map((file, index) => {
     const ids = idsByFile.get(file.filename) ?? [];
     let next = 0;
-    const text = diffs[index]!.split('\n')
+    return diffs[index]!.split('\n')
       .flatMap((line) =>
         line.startsWith('@@ ') && next < ids.length ? [`# ${ids[next++]!}`, line] : [line],
       )
       .join('\n');
-    const target = path.join(run.diffDir, hunkFileName(file.filename));
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, text);
   });
+  await mkdir(path.dirname(run.diff), { recursive: true });
+  await writeFile(run.diff, patches.join('\n'));
 }
 
 interface TreeEntry {
