@@ -12,12 +12,7 @@ export const REPO_ROOT = process.cwd();
 
 // Written by a build, not by a person: never a subject of a rule, and never
 // stale when a comment names one — it is absent on a clean checkout.
-export const GENERATED_OUTPUT = [
-  'node_modules/**',
-  'build/**',
-  '.react-router/**',
-  'src/db/generated/**',
-];
+export const GENERATED_OUTPUT = ['node_modules/**', 'build/**'];
 
 // Guardrail sources mention the very patterns they police, so they are never
 // subjects themselves.

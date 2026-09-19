@@ -1,17 +1,15 @@
 # dependencies
 /node_modules
 
-# build output (react-router build, jobs bundle) and generated route types
+# build output (the report shell)
 /build
-/.react-router
 
 # tests
 /coverage
 
-# env files — .env.example is the committed template
+# env files
 .env
 .env.*
-!.env.example
 
 # misc
 .DS_Store
@@ -25,11 +23,8 @@ npm-debug.log*
 # playwright mcp runtime artifacts (console logs + page snapshots)
 .playwright-mcp/
 
-# local UI baseline + phase screenshots for the RR migration
+# local UI baseline + before/after screenshots
 /screenshots/
-
-# Prisma client output (npm run db:generate / postinstall)
-/src/db/generated/
 
 # er review runs (they ignore themselves; listed for Prettier, which reads only this file)
 /er-reviews/

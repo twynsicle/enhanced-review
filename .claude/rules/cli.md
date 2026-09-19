@@ -8,8 +8,7 @@ paths:
 
 Loaded when you open a CLI file. `er review` runs inside the repository under
 review and writes one `review.html` — everything inlined but the Monaco editor,
-which the page fetches — that renders the same reader as the hosted app. It runs on an engineer's laptop with none
-of the server's configuration, so the `cli-imports` guardrail keeps its whole
+which the page fetches. It runs on an engineer's laptop, so the `cli-imports` guardrail keeps its whole
 import graph clear of `env.ts`, the logger, the db layer and server-only
 packages, and holds the Agent SDK to type-only or dynamic imports so nothing
 but a real run loads it. Output goes through `terminal.ts` (stdout/stderr,
@@ -50,7 +49,7 @@ src/cli/
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks; no model. It also
                    overwrites events.jsonl with one clean result event, so the parse stage reads how this run
                    ended and never an earlier run's log
-  parse.ts         raw.txt → validateReview (the same verdict the hosted run uses) → review.json + findings.json,
+  parse.ts         raw.txt → validateReview (the same verdict the Stop hook uses) → review.json + findings.json,
                    files taken from context, each carrying its share of the hunk catalog; what the run itself cost
                    is read back off events.jsonl rather than passed down, so --from parse reports the same
                    findings without paying for the model again: refusals → one `commands-refused` warning, a
@@ -106,13 +105,10 @@ it decided, kept here because changing any of it is a decision to re-make and
 not an accident to fix:
 
 - **Local mode is the primary product** until roughly early 2027, because the
-  organisation cannot install a GitHub App. The hosted app is parked: it stays
-  green in CI and shares the reader, the prompt and the parser, but it gets no
-  new features while this is the way the tool is used.
-- **There is never a second reader.** The report renders
-  `src/web/components/narrative/` — the same components the hosted app serves.
-  A change to the reader has to work for both, which is what `FileSource` and
-  the bundle contract are for.
+  organisation cannot install a GitHub App. The hosted app was removed; it is
+  kept at the git tag `hosted-app-final`.
+- **There is one reader.** The report renders `src/web/components/narrative/`
+  over the bundle contract.
 - **One `review.html`**, opened from disk: every script, style and font
   inlined, and Monaco fetched from a CDN when a diff is opened. That last part
   is a decision, not a gap — bundling the editor would cost 24 MB and the file
@@ -120,8 +116,7 @@ not an accident to fix:
   going to be. Chromium only; Firefox is out of scope.
 - **The prompt is agentic, not inline.** It carries the file list and a compact
   hunk table, and the hunks themselves are files on disk the agent opens. This
-  is the opposite of the hosted path, which pastes the diff in, and it is why
-  the local run gets `Bash` and a working directory it can explore.
+  is why the local run gets `Bash` and a working directory it can explore.
 - **A PR review runs in a throwaway worktree** of the PR's head, so the
   engineer's checkout is never touched and never has to be clean. Branch and
   staged reviews run where the engineer already is, and warn about edits that
@@ -133,8 +128,7 @@ not an accident to fix:
 - **Five stages, each resumable**, because the model run is the only one that
   costs money: `gather → prompt → run → parse → render`. Nothing should ever
   have to be paid for twice.
-- **Local and hosted reviews never meet.** No import, no upload, no hosting a
-  report anywhere.
+- **A report stays local.** No upload, no hosting a report anywhere.
 - **Windows and macOS.** `platform.ts` is the single seam every OS difference
   goes through — where the tool root is, how it runs its own npm scripts, the
   temp dir a PR worktree lives in, and how a report is opened. A third OS

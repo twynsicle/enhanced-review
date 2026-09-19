@@ -1,13 +1,8 @@
 import { Box, Group, Text } from '@mantine/core';
 import type { ReactNode } from 'react';
-import { Link } from 'react-router';
 import { BrandMark } from '@/web/components/brand-mark';
 import { shellMaxWidth, SHELL_PX, type ShellWidth } from '@/web/components/page-shell';
-import { useIsReader } from '@/web/lib/reader-route';
 import { token, TOPBAR_HEIGHT } from '@/web/theme/tokens';
-import { DisplayMenu } from './display-menu';
-import { TopbarNav } from './topbar-nav';
-import { UserMenu, type TopbarUser } from './user-menu';
 
 /** The mark and the name, as the header shows them. */
 export function BrandLockup() {
@@ -33,8 +28,7 @@ const BRAND_STYLE = {
  * Sticky, translucent header bar. Its inner bar takes its width and gutter
  * from `PageShell`, so the header always lines up with the page beneath it —
  * which means it has to be told which of the two page widths that page took,
- * and over the reader it follows the width toggle along with it. The app's
- * `Topbar` and the local report's header fill its two sides.
+ * and over the reader it follows the width toggle along with it.
  */
 export function TopbarFrame({
   start,
@@ -75,35 +69,6 @@ export function TopbarFrame({
         </Group>
       </Group>
     </Box>
-  );
-}
-
-/**
- * The header shared by every page inside the app shell. The display menu is
- * always offered — every page has a colour scheme — but it only carries the
- * reader's own preferences over the reader, where they do something; every
- * other page is a fixed width and has no use for them.
- */
-export function Topbar({ user }: { user: TopbarUser | null }) {
-  const reader = useIsReader();
-  return (
-    <TopbarFrame
-      width={reader ? 'reader' : 'page'}
-      start={
-        <>
-          <Box component={Link} to="/" aria-label="Enhanced Review — home" style={BRAND_STYLE}>
-            <BrandLockup />
-          </Box>
-          <TopbarNav />
-        </>
-      }
-      end={
-        <>
-          <DisplayMenu reader={reader} />
-          {user ? <UserMenu user={user} /> : null}
-        </>
-      }
-    />
   );
 }
 

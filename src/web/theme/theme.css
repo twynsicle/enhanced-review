@@ -4,7 +4,6 @@
 
 /* Mantine */
 @import '@mantine/core/styles.css';
-@import '@mantine/notifications/styles.css';
 
 /* The only global CSS. Everything else is theme or component-level. */
 :root {

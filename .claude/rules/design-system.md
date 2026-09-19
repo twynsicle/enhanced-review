@@ -9,7 +9,7 @@ paths:
 
 # Design system
 
-Loaded when you open a component, route, stylesheet or theme file. The
+Loaded when you open a component, stylesheet or theme file. The
 `palette` guardrail enforces most of what follows, and `diagram-colour` holds
 SVG attributes to `token()` only (no literal, no raw `var(--er-`, no colour
 word).
@@ -51,12 +51,11 @@ beneath it and moves with it. Which width a page takes is a `ShellWidth`:
   side-by-side diff splits its column in two, so every pixel it is given is
   worth having, and at the old 92rem default a reviewer scrolled sideways more
   than they read.
-- `page`, the default, is a fixed `PAGE_MAX_WIDTH` (92rem). A composer field or
-  a history row stretched across a 3400px monitor is worse, not better.
+- `page`, the default, is a fixed `PAGE_MAX_WIDTH` (92rem). A form field or a
+  list row stretched across a 3400px monitor is worse, not better.
 
-A page declares itself the reader through the route `handle` in
-`lib/reader-route.ts`, which is also what tells the topbar to offer the width,
-diff-view and wrap toggles at all — a control that visibly does nothing is worse
+The topbar offers the width, diff-view and wrap toggles only over the reader
+(`DisplayMenu`'s `reader` prop) — a control that visibly does nothing is worse
 than no control. The same principle runs one level deeper: below
 `SIDE_BY_SIDE_MIN_WIDTH` the column cannot carry two panes, so the diff toggle
 shows the stacked state and disables rather than claiming a view the page is not
@@ -66,8 +65,8 @@ all come off one number and cannot disagree. The measurement lives in its own
 un-persisted store beside the preference — it arrives once per frame while the
 sidebar is dragged, and only a preference belongs in storage. Widening the shell
 is still not the same as widening the text: prose keeps its own measure in `ch`,
-and a page whose content gains nothing from the extra room (the job timeline)
-caps itself and stays left-aligned so the left edge never jumps between pages.
+and a page whose content gains nothing from the extra room caps itself and
+stays left-aligned so the left edge never jumps between pages.
 Do not reintroduce a per-route
 `Container size={...}` — that is what made the toggle look broken everywhere
 outside the reader. `PageShell` pads the bottom more than the top (`SHELL_PB`):

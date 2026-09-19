@@ -10,27 +10,6 @@ jobs:
   check:
     runs-on: ubuntu-latest
 
-    # Postgres for the integration project. Locally `npm run check` needs no
-    # database; CI runs `check:all` so the integration tests are guaranteed to
-    # execute rather than self-skip.
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: enhanced_review
-          POSTGRES_PASSWORD: enhanced_review
-          POSTGRES_DB: enhanced_review
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U enhanced_review"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-
-    env:
-      DATABASE_URL: postgresql://enhanced_review:enhanced_review@127.0.0.1:5432/enhanced_review
-
     steps:
       - uses: actions/checkout@v4
 
@@ -40,75 +19,7 @@ jobs:
           node-version-file: package.json
           cache: npm
 
-      # postinstall runs `prisma generate`.
       - run: npm ci
 
-      - run: npm run db:deploy
-
-      # typecheck + build + unit/web/guardrails tests + lint + format, then integration
-      - run: npm run check:all
-
-  # Proves the container, not just the code: an earlier image built happily
-  # and died at startup on a file the runtime stage never copied, so a build
-  # alone is not evidence.
-  image:
-    runs-on: ubuntu-latest
-
-    # Same service as the check job; the container reaches it on the runner's
-    # loopback because it runs with --network host.
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: enhanced_review
-          POSTGRES_PASSWORD: enhanced_review
-          POSTGRES_DB: enhanced_review
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U enhanced_review"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-
-    env:
-      # Not a secret: this database exists for the length of the job. The app
-      # only requires SESSION_SECRET to be at least 32 characters.
-      APP_ENV: >-
-        -e DATABASE_URL=postgresql://enhanced_review:enhanced_review@127.0.0.1:5432/enhanced_review
-        -e SESSION_SECRET=ci-session-secret-that-is-long-enough
-        -e GITHUB_CLIENT_ID=ci
-        -e GITHUB_CLIENT_SECRET=ci
-        -e APP_ORIGIN=http://localhost:3000
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build
-        run: docker build --build-arg APP_VERSION="${GITHUB_SHA::7}" -t enhanced-review:ci .
-
-      - name: Start (entrypoint migrates, recovers, then serves)
-        run: docker run -d --name er-ci --network host ${{ env.APP_ENV }} enhanced-review:ci
-
-      - name: Wait for /api/health
-        run: |
-          for _ in $(seq 1 60); do
-            if curl -fsS http://localhost:3000/api/health | grep -q '"ok":true'; then
-              curl -sS http://localhost:3000/api/health
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "health check never passed" >&2
-          exit 1
-
-      - name: Run a one-off job in the image
-        run: docker run --rm --network host ${{ env.APP_ENV }} enhanced-review:ci node src/jobs/cli.ts recover-jobs
-
-      - name: Container log
-        if: failure()
-        run: docker logs er-ci
-
-      - name: Stop
-        if: always()
-        run: docker rm -f er-ci
+      # typecheck + viewer:build + unit/web/guardrails tests + lint + format
+      - run: npm run check

@@ -30,13 +30,5 @@
     "eslint/eqeqeq": "error",
     "import/no-cycle": "error"
   },
-  "ignorePatterns": [
-    "build/**",
-    ".react-router/**",
-    "node_modules/**",
-    "coverage/**",
-    "screenshots/**",
-    "public/**",
-    "src/db/generated/**"
-  ]
+  "ignorePatterns": ["build/**", "node_modules/**", "coverage/**", "screenshots/**"]
 }
