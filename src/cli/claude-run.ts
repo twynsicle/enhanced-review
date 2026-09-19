@@ -32,12 +32,15 @@ import type { RunFiles } from './run-folder.ts';
  */
 export const DEFAULT_MODEL = 'claude-sonnet-5[1m]';
 /**
- * Measured: an 88-file, 138-hunk review took 32 turns and 7m 36s, so both of
- * these leave a change about twice that size room to finish. A review that
- * runs out says so and keeps what it wrote, and `--max-turns` / `--timeout`
- * raise them for the change that needs it.
+ * Measured: an 88-file, 138-hunk review took 32 turns and 7m 36s. The turn
+ * limit is set well above that because the cost of hitting it is not "try
+ * again with more room" — it is the whole run's effort thrown away, so the
+ * cap is meant to catch a run that has genuinely gone wrong, not one that is
+ * merely a large but ordinary review. A review that runs out says so and
+ * keeps what it wrote, and `--max-turns` / `--timeout` raise them for the
+ * change that needs it.
  */
-export const DEFAULT_MAX_TURNS = 60;
+export const DEFAULT_MAX_TURNS = 120;
 export const DEFAULT_TIMEOUT_MINUTES = 15;
 
 /** Read-only. Read, Glob and Grep run without asking; Bash is gated. */
