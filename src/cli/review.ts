@@ -19,7 +19,7 @@ import { HOST_RENDER_DEPS, renderRun, type RenderDeps } from './render.ts';
 import { createRunFolder, latestRunFolder, reportFileName, type RunFiles } from './run-folder.ts';
 import { writeStubRun } from './stub-run.ts';
 import { locateTarget, resolveTarget, type Target, type TargetRequest } from './targets.ts';
-import { clearStatus, note, stage, warn } from './terminal.ts';
+import { note, stage, warn } from './terminal.ts';
 import {
   addWorktree,
   removeWorktree,
@@ -115,28 +115,23 @@ export async function review(
         );
       } else {
         const progress = startProgress();
-        let result;
-        try {
-          result = await runClaude(
-            run,
-            {
-              cwd: worktree?.path ?? context.target.repoRoot,
-              model: options.model,
-              maxTurns: options.maxTurns,
-              timeoutMs: options.timeoutMs,
-              grounding: groundingForRun(context),
-            },
-            {
-              onActivity: progress.activity,
-              onText: progress.text,
-              onBlocked: blockedNote,
-              onHookError: hookErrorNote,
-              ...deps.claude,
-            },
-          );
-        } finally {
-          progress.stop();
-        }
+        const result = await runClaude(
+          run,
+          {
+            cwd: worktree?.path ?? context.target.repoRoot,
+            model: options.model,
+            maxTurns: options.maxTurns,
+            timeoutMs: options.timeoutMs,
+            grounding: groundingForRun(context),
+          },
+          {
+            onActivity: progress.activity,
+            onText: progress.text,
+            onBlocked: blockedNote,
+            onHookError: hookErrorNote,
+            ...deps.claude,
+          },
+        );
         stage('run', `${describeRun(result)}${where}`, performance.now() - started);
       }
     } finally {
@@ -182,12 +177,9 @@ export async function review(
 /**
  * A disqualified answer, as it happens. Only what was wrong with it: the rest
  * of what the model was sent is an instruction addressed to the model, and it
- * is in `events.jsonl` for anyone who wants it. The progress line is redrawn
- * every second, so it is taken down first rather than left with a note written
- * across it.
+ * is in `events.jsonl` for anyone who wants it.
  */
 function blockedNote(attempt: number, defects: string): void {
-  clearStatus();
   note(
     `  answer disqualified, asking again (${String(attempt)} of ${String(MAX_VALIDATION_RETRIES)}): ${defects}`,
   );
@@ -195,7 +187,6 @@ function blockedNote(attempt: number, defects: string): void {
 
 /** The run carried on ungraded; whatever it wrote is judged at the parse stage. */
 function hookErrorNote(error: Error): void {
-  clearStatus();
   warn(`the answer could not be checked while the model was still writing: ${error.message}`);
 }
 

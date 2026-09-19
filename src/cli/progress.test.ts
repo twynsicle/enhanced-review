@@ -1,19 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { elapsed, startProgress, type ProgressDeps } from './progress.ts';
 
 function harness() {
   const lines: string[] = [];
   let clock = 0;
-  let tick: (() => void) | null = null;
-  const stop = vi.fn();
   const deps: ProgressDeps = {
-    status: (text) => lines.push(text),
-    clear: () => lines.push('<cleared>'),
+    print: (text) => lines.push(text),
     now: () => clock,
-    every: (callback) => {
-      tick = callback;
-      return { stop };
-    },
   };
   return {
     deps,
@@ -21,26 +14,40 @@ function harness() {
     last: () => lines.at(-1) ?? '',
     advance: (ms: number) => {
       clock += ms;
-      tick?.();
     },
-    stopped: stop,
   };
 }
 
-describe('the live line during a model run', () => {
-  it('starts showing the clock before the agent has done anything', () => {
+describe('the run log', () => {
+  it('prints a line when the run starts, stamped with elapsed time', () => {
     const h = harness();
     startProgress(h.deps);
     expect(h.last()).toContain('0s');
-    h.advance(65_000);
-    expect(h.last()).toContain('1m 05s');
+    expect(h.last()).toContain('starting the agent');
   });
 
-  it('shows what the agent is reading', () => {
+  it('numbers each turn and stamps it with elapsed time', () => {
     const h = harness();
     const progress = startProgress(h.deps);
+
+    h.advance(4_000);
     progress.activity('Read src/cli/review.ts');
-    expect(h.last()).toContain('Read src/cli/review.ts');
+    expect(h.last()).toContain('[1] Read src/cli/review.ts');
+    expect(h.last()).toContain('4s');
+
+    h.advance(65_000);
+    progress.activity('Grep addWorktree');
+    expect(h.last()).toContain('[2] Grep addWorktree');
+    expect(h.last()).toContain('1m 09s');
+  });
+
+  it('keeps every turn as its own line rather than overwriting the last', () => {
+    const h = harness();
+    const progress = startProgress(h.deps);
+    progress.activity('Read a.ts');
+    progress.activity('Read b.ts');
+    expect(h.lines.some((line) => line.includes('[1] Read a.ts'))).toBe(true);
+    expect(h.lines.some((line) => line.includes('[2] Read b.ts'))).toBe(true);
   });
 
   it('follows the chapters as the answer streams in, ignoring insight titles', () => {
@@ -59,13 +66,6 @@ describe('the live line during a model run', () => {
 
     progress.text('{"id":"the-gate","title":"Bash gate","insights":[]}]}');
     expect(h.last()).toContain('writing chapter 2: Bash gate');
-  });
-
-  it('takes the line down and stops redrawing when the run ends', () => {
-    const h = harness();
-    startProgress(h.deps).stop();
-    expect(h.last()).toBe('<cleared>');
-    expect(h.stopped).toHaveBeenCalled();
   });
 });
 

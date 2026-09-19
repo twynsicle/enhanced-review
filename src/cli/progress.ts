@@ -1,69 +1,54 @@
-import { clearStatus, status } from './terminal.ts';
+import { note } from './terminal.ts';
 
 /**
- * What the terminal shows while the model works: how
- * long it has been going, and either the file it is reading or the chapter
- * it is writing. A review takes minutes, so a still screen is the difference
- * between "working" and "hung".
+ * What the terminal shows while the model works: one line per turn, numbered
+ * and stamped with elapsed time, plus a line for each chapter title as the
+ * answer streams in. A review can run to the turn limit, so the log is the
+ * only record of how it got there — and worth the length, since the cost of
+ * a run failing on `error_max_turns` is the whole run's effort, not a
+ * scrollback.
  *
  * Chapter titles are picked out of the answer as it streams, before there is
  * enough JSON to parse: a chapter is the only object that carries an `id`
  * immediately followed by a `title`, which is what separates it from the
- * insights inside it. Missing one costs nothing — the line simply does not
- * change — so this stays a regex rather than a streaming parser.
+ * insights inside it. Missing one costs nothing — no line for it — so this
+ * stays a regex rather than a streaming parser.
  */
 const CHAPTER_TITLE = /"id"\s*:\s*"[^"]*"\s*,\s*"title"\s*:\s*"([^"]*)"/g;
 
 export interface RunProgress {
-  /** A tool the agent used. */
+  /** A tool the agent used, one per turn. */
   activity(what: string): void;
   /** A block of the answer, as it arrives. */
   text(chunk: string): void;
-  /** Take the line down; the stage line goes where it was. */
-  stop(): void;
 }
 
 export interface ProgressDeps {
-  status: (text: string) => void;
-  clear: () => void;
+  print: (text: string) => void;
   now: () => number;
-  /** Redraw every second, so the clock moves while the agent thinks. */
-  every: (tick: () => void, ms: number) => { stop: () => void };
 }
 
 export const HOST_PROGRESS_DEPS: ProgressDeps = {
-  status,
-  clear: clearStatus,
+  print: note,
   now: () => Date.now(),
-  every: (tick, ms) => {
-    const timer = setInterval(tick, ms);
-    // Never hold the process open for the sake of a progress line.
-    timer.unref();
-    return {
-      stop: () => {
-        clearInterval(timer);
-      },
-    };
-  },
 };
 
 export function startProgress(deps: ProgressDeps = HOST_PROGRESS_DEPS): RunProgress {
   const startedAt = deps.now();
-  let doing = 'starting the agent';
+  let turn = 0;
   let answer = '';
   let scanned = 0;
   let chapters = 0;
 
-  const draw = () => {
-    deps.status(`  run     ${elapsed(deps.now() - startedAt)}  ${doing}`);
+  const print = (text: string) => {
+    deps.print(`  run     ${elapsed(deps.now() - startedAt)}  ${text}`);
   };
-  const ticker = deps.every(draw, 1000);
-  draw();
+  print('starting the agent');
 
   return {
     activity(what: string) {
-      doing = what;
-      draw();
+      turn += 1;
+      print(`[${String(turn)}] ${what}`);
     },
     text(chunk: string) {
       answer += chunk;
@@ -74,13 +59,8 @@ export function startProgress(deps: ProgressDeps = HOST_PROGRESS_DEPS): RunProgr
       while ((match = CHAPTER_TITLE.exec(tail)) !== null) {
         chapters += 1;
         scanned += match.index + match[0].length;
-        doing = `writing chapter ${String(chapters)}: ${match[1] ?? ''}`;
+        print(`writing chapter ${String(chapters)}: ${match[1] ?? ''}`);
       }
-      draw();
-    },
-    stop() {
-      ticker.stop();
-      deps.clear();
     },
   };
 }

@@ -64,8 +64,8 @@ src/cli/
                    than stranding the run; SDK types only
   bash-gate.ts     which Bash commands a review may run: the line is split at | && ||, every part must be a known
                    read-only invocation; no redirection (bar 2>/dev/null), substitution or launcher flags
-  progress.ts      the live line during the run: elapsed time, the file being read, chapter titles picked out of the
-                   answer as it streams; drawn only on a terminal
+  progress.ts      the run log: one numbered, elapsed-time-stamped line per turn, plus a line per chapter title
+                   picked out of the answer as it streams
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks; no model. It also
                    overwrites events.jsonl with one clean result event, so the parse stage reads how this run
                    ended and never an earlier run's log

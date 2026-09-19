@@ -27,8 +27,6 @@ vi.mock('./terminal.ts', () => ({
   stage: vi.fn(),
   warn: vi.fn(),
   fail: vi.fn(),
-  status: vi.fn(),
-  clearStatus: vi.fn(),
 }));
 
 let repo: TempRepo;
