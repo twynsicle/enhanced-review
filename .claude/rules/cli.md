@@ -41,10 +41,11 @@ src/cli/
                    ignores itself
   context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons, hunks numbered
                    across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
-                   one diff file carrying every reviewed file's annotated patch; pr.md
+                   one diff file carrying every reviewed file's annotated patch, its line count carried as
+                   `diffLines` so the prompt can ask the agent to Read it in one call; pr.md
   prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
                    commits, where the agent is, Files Changed, Not Reviewed, the hunk table, and where the diff
-                   file is
+                   file is, with its length
   claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl
                    (tool uses, refusals, blocked stops, and a result event carrying turns, cost and the token
                    usage); validationStopHook registered on Stop over the run's own copy of the answer,

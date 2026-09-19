@@ -50,6 +50,8 @@ export const RunContextSchema = z.object({
   commits: z.array(CommitSchema),
   /** Working-tree changes that are not part of the review. */
   dirty: z.array(z.string()),
+  /** Lines in `context/diff.patch`, so the prompt can ask for it in one `Read`. */
+  diffLines: z.number().int().nonnegative(),
 });
 export type RunContext = z.infer<typeof RunContextSchema>;
 
@@ -74,6 +76,7 @@ export async function gather(
 
   const diffs = await mapLimit(reviewed, PARALLEL_GIT, (file) => fileDiff(shell, target, file));
   const hunks = numberHunks(reviewed, diffs);
+  const diffFile = annotatedDiffFile(reviewed, diffs, hunks);
   const contents = await embedContents(shell, target, reviewed);
   const renamedFrom = Object.fromEntries(
     changed.flatMap((file) =>
@@ -97,10 +100,12 @@ export async function gather(
     contents,
     commits: target.kind === 'staged' ? [] : await listCommits(shell, baseSha, headSha),
     dirty: target.kind === 'pr' ? [] : await dirtyPaths(shell, target.kind),
+    diffLines: diffFile.split('\n').length,
   };
 
   await writeFile(run.context, `${JSON.stringify(context, null, 2)}\n`);
-  await writeDiffFile(run, reviewed, diffs, hunks);
+  await mkdir(path.dirname(run.diff), { recursive: true });
+  await writeFile(run.diff, diffFile);
   if (meta.description) {
     await mkdir(path.dirname(run.pr), { recursive: true });
     await writeFile(run.pr, `# ${meta.title}\n\n${meta.description}\n`);
@@ -157,13 +162,12 @@ function numberHunks(files: readonly ChangedFile[], diffs: readonly string[]): D
   return hunks;
 }
 
-/** `context/diff.patch`: every reviewed file's patch, in file order, each hunk's id on the line above its header. */
-async function writeDiffFile(
-  run: RunFiles,
+/** `context/diff.patch`'s text: every reviewed file's patch, in file order, each hunk's id on the line above its header. */
+function annotatedDiffFile(
   files: readonly ChangedFile[],
   diffs: readonly string[],
   hunks: readonly DiffHunk[],
-): Promise<void> {
+): string {
   const idsByFile = new Map<string, string[]>();
   for (const hunk of hunks)
     idsByFile.set(hunk.filename, [...(idsByFile.get(hunk.filename) ?? []), hunk.id]);
@@ -176,8 +180,7 @@ async function writeDiffFile(
       )
       .join('\n');
   });
-  await mkdir(path.dirname(run.diff), { recursive: true });
-  await writeFile(run.diff, patches.join('\n'));
+  return patches.join('\n');
 }
 
 interface TreeEntry {

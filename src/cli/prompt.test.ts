@@ -61,6 +61,7 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
     contents: {},
     commits: [{ sha: '2222222bbbb', subject: 'Add the login form', body: 'With validation.' }],
     dirty: [],
+    diffLines: 42,
     ...overrides,
   };
 }
@@ -84,7 +85,8 @@ describe('the local prompt', () => {
     expect(prompt).toContain(
       '  H0001  src/login.ts  @@ -0,0 +1,10 @@  original L1 (+0)  modified L1-10',
     );
-    expect(prompt).toContain(`\`${run.diff.replaceAll('\\', '/')}\``);
+    expect(prompt).toContain(`\`${run.diff.replaceAll('\\', '/')}\`, 42 lines`);
+    expect(prompt).toContain('a limit of at least 42');
     expect(prompt).toContain('a temporary checkout of the pull request’s head commit (2222222)');
     expect(prompt).toContain(
       `except for this run’s own folder, \`${run.folder.replaceAll('\\', '/')}\``,

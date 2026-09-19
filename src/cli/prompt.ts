@@ -25,7 +25,7 @@ export async function writePrompt(context: RunContext, run: RunFiles): Promise<s
 }
 
 export function buildPrompt(context: RunContext, run: RunFiles): string {
-  const { target, meta, files, hunks } = context;
+  const { target, meta, files, hunks, diffLines } = context;
   const reviewed = files.filter((file) => !file.skipped);
 
   const sections = [
@@ -47,9 +47,11 @@ export function buildPrompt(context: RunContext, run: RunFiles): string {
     formatSkippedSection(files),
     `## Changed Hunks (Use These IDs in diffChunks.hunkIds)\n${formatHunkCatalog(hunks)}`,
     '## Diff\n' +
-      `The full patch for this change is at \`${display(run.diff)}\`, ` +
-      'with each hunk’s id on a `# H0001` line directly above its `@@` header. Read that for the ' +
-      'change itself, and the files in your working directory for the code around it.',
+      `The full patch for this change is at \`${display(run.diff)}\`, ${String(diffLines)} lines. ` +
+      `Pass Read a limit of at least ${String(diffLines)} so you get the whole file in one call ` +
+      'instead of paging through it. Each hunk’s id is on a `# H0001` line directly above its `@@` ' +
+      'header. Read that for the change itself, and the files in your working directory for the ' +
+      'code around it.',
   ];
   return `${sections.filter((section) => section !== null).join('\n\n')}\n`;
 }

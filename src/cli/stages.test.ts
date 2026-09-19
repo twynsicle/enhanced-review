@@ -77,6 +77,7 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
     },
     commits: [],
     dirty: [],
+    diffLines: 0,
     ...overrides,
   };
 }
