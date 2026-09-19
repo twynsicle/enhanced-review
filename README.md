@@ -102,6 +102,16 @@ The current branch, against its pull request's base if one is open, and the
 default branch otherwise. It works before a PR exists, which is how you check work an agent wrote for you.
 
 ```bash
+er review --base lemon/trickle/parent-branch
+```
+
+Compares against `<ref>` instead of the PR's base or the default branch.
+Reach for this when the current branch is stacked on another branch rather
+than on `main` — without it, "against the default branch" pulls in every
+commit from every branch underneath it too, which stops being a review of
+just your branch once the stack gets more than one deep.
+
+```bash
 er review 42
 ```
 
@@ -178,7 +188,7 @@ reported as one warning when the review finishes; a review is never failed by
 one.
 
 `--model`, `--max-turns` and `--timeout` override the defaults
-(`claude-sonnet-5`, 60 turns, 15 minutes). `er review --help` lists
+(`claude-sonnet-5`, 120 turns, 15 minutes). `er review --help` lists
 everything.
 
 ### Diagrams
