@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
-import { plural } from '../common/plural.ts';
-import { detectLanguage } from '../domain/review/language-map.ts';
+import { plural } from '../review/plural.ts';
+import { detectLanguage } from '../review/language-map.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
 

@@ -21,5 +21,5 @@ jobs:
 
       - run: npm ci
 
-      # typecheck + viewer:build + unit/web/guardrails tests + lint + format
+      # typecheck + report:build + unit/report/guardrails tests + lint + format
       - run: npm run check

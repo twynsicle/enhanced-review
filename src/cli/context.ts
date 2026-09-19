@@ -1,20 +1,13 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
-import {
-  EmbeddedFileSchema,
-  type EmbeddedFile,
-  type EmbeddedSide,
-} from '../domain/review/bundle.ts';
-import {
-  listChangedFileDetails,
-  type ChangedFile,
-} from '../domain/review/clone/diff-files.server.ts';
-import { argBatches } from '../domain/review/clone/git-runner.server.ts';
-import { DiffLineSpanSchema, ReviewFileSchema } from '../domain/review/narrative.ts';
-import { buildDiffHunkIndex, type DiffHunk } from '../domain/review/prompt/diff-hunk-catalog.ts';
-import { ReviewMetaSchema, type ReviewMeta } from '../domain/review/review-meta.ts';
-import { skipReasons, toReviewFiles } from '../domain/review/skip-reasons.server.ts';
+import { EmbeddedFileSchema, type EmbeddedFile, type EmbeddedSide } from '../review/bundle.ts';
+import { listChangedFileDetails, type ChangedFile } from './diff-files.ts';
+import { argBatches } from './git-runner.ts';
+import { DiffLineSpanSchema, ReviewFileSchema } from '../review/narrative.ts';
+import { buildDiffHunkIndex, type DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
+import { ReviewMetaSchema, type ReviewMeta } from '../review/review-meta.ts';
+import { skipReasons, toReviewFiles } from './skip-reasons.ts';
 import type { Shell } from './git.ts';
 import { hunkFileName, RUNS_DIR, type RunFiles } from './run-folder.ts';
 import { TargetSchema, type Target } from './targets.ts';
@@ -60,7 +53,7 @@ export const RunContextSchema = z.object({
 });
 export type RunContext = z.infer<typeof RunContextSchema>;
 
-/** Either side of a file over this is embedded as `too-large`, as the hosted reader does. */
+/** Either side of a file over this is embedded as `too-large`, and the report says so instead of a diff. */
 export const MAX_EMBED_BYTES = 1_000_000;
 
 const MAX_COMMITS = 200;

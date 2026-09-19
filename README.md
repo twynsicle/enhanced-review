@@ -25,6 +25,24 @@ is nothing beside it to keep or to send. The diff editor is the exception — it
 is fetched from a CDN when a diff is opened, which keeps the file small enough
 to email. Reading the review needs no network; reading a diff does.
 
+### What reaches the network
+
+`er` has no server of its own, opens no port and uploads nothing. What it
+reaches, and why:
+
+- **GitHub**, through your own `git` and `gh`: fetching the branch or the pull
+  request under review, and reading a pull request's title, description and
+  base.
+- **Anthropic**, through the Claude Agent SDK, which runs as you with your own
+  sign-in: the prompt, and whatever the agent reads from the repository while
+  it reviews. The agent's tools are read-only — Read, Glob, Grep, and Bash
+  limited to read-only git history (`src/cli/bash-gate.ts`).
+- **cdn.jsdelivr.net**, from the report in your browser: the Monaco diff
+  editor, pinned to the version in `package.json`, fetched when a diff is
+  first shown (`src/report/reader/monaco-cdn.ts`). Nothing about the review is
+  sent with that request.
+- **npm**, once, when you install `er`.
+
 ### Prerequisites
 
 | Tool                                          | Version | Why                                                                                      |
@@ -99,7 +117,7 @@ What you have staged, against `HEAD` — a review before the commit.
 
 ### What it costs, and how long
 
-The model run is the only stage that costs anything or needs the network.
+The model run is the only stage that costs anything.
 Measured on this repository, an 88-file, 138-hunk change:
 
 |           |                                         |
@@ -168,7 +186,7 @@ everything.
 The model may attach a diagram to the review and to any chapter: an
 architecture map, a state machine, a before/after of one procedure, or a
 sequence. It does not write mermaid. It writes a small JSON schema
-(`src/domain/review/diagram.ts`) in which every node and edge says what the
+(`src/review/diagram.ts`) in which every node and edge says what the
 pull request did to it — added, removed, modified or unchanged — because a
 review diagram describes a change, not a system. A code node can point at a
 file and hunks from the diff, and the parser drops any path or hunk the diff
@@ -193,35 +211,33 @@ rather than CI.
 - **Node 24** (Volta-pinned). `er` is TypeScript that Node runs directly via
   type stripping — no build step for `src/cli/`.
 - **React 19** + **Mantine 9** (theme-driven, minimal per-component CSS) on
-  **Vite 8**, Tabler icons, Zustand for persisted client preferences, **Zod 4**
-  at every boundary. This is the reader `er review` renders its report into.
+  **Vite 8**, Tabler icons, Zustand for persisted reader preferences, **Zod 4**
+  at every boundary. This is the report `er review` renders into: one
+  client-rendered page, no router, no server.
 - **oxlint**, Prettier, **Vitest 4**.
 
 ### Repo layout
 
-| Path              | What                                                          |
-| ----------------- | ------------------------------------------------------------- |
-| `src/config/`     | Host environment for the subprocesses `er` spawns             |
-| `src/common/`     | Small shared helpers                                          |
-| `src/domain/`     | The review model, prompt and parser. Shared with the browser  |
-| `src/web/`        | The report's React code: reader components, theme, the viewer |
-| `src/cli/`        | `er`, the local review CLI, and its stages                    |
-| `src/guardrails/` | Tests that read the repo and enforce its conventions          |
+| Path              | What                                                                |
+| ----------------- | ------------------------------------------------------------------- |
+| `src/cli/`        | `er`, the local review CLI, and its stages. Node only               |
+| `src/review/`     | What a review is: schemas, validation, prompt, parser. Read by both |
+| `src/report/`     | The report: the reader, its chrome, theme and stores. Browser only  |
+| `src/guardrails/` | Tests that read the repo and enforce its conventions                |
 
-`AGENTS.md` has the tree, the layering rules the guardrails enforce, and the
-`*.server.ts` convention that keeps Node-only code out of the browser
-bundle; `.claude/rules/` holds the file-by-file detail for each area.
+`AGENTS.md` has the tree and the layering rules the guardrails enforce;
+`.claude/rules/` holds the file-by-file detail for each area.
 
 ### Scripts
 
 | Script                            | What                                                                |
 | --------------------------------- | ------------------------------------------------------------------- |
 | `npm run typecheck`               | `tsc --noEmit`                                                      |
-| `npm test` / `npm run test:watch` | Vitest: unit + web + guardrails                                     |
+| `npm test` / `npm run test:watch` | Vitest: unit + report + guardrails                                  |
 | `npm run lint` / `format`         | oxlint / Prettier                                                   |
-| `npm run check`                   | **The gate**: typecheck + viewer:build + test + lint + format:check |
-| `npm run viewer:dev`              | The local report's reader, against sample data                      |
-| `npm run viewer:build`            | The local report shell `er review` renders into                     |
+| `npm run check`                   | **The gate**: typecheck + report:build + test + lint + format:check |
+| `npm run report:dev`              | The report, against sample data                                     |
+| `npm run report:build`            | The report shell `er review` renders into                           |
 
 ### Testing
 

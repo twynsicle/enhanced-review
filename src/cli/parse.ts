@@ -1,8 +1,8 @@
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
-import { plural } from '../common/plural.ts';
-import { withFileHunks } from '../domain/review/coverage.ts';
-import { howItEnded } from '../domain/review/executor/sdk-loop.server.ts';
+import { plural } from '../review/plural.ts';
+import { withFileHunks } from '../review/coverage.ts';
+import { howItEnded } from './sdk-loop.ts';
 import {
   fatalFindings,
   finding,
@@ -10,15 +10,15 @@ import {
   runStoppedEarly,
   FindingsSchema,
   type Finding,
-} from '../domain/review/findings.ts';
-import { NarrativeReviewSchema, type NarrativeReview } from '../domain/review/narrative.ts';
-import { groundingFor, type PromptGrounding } from '../domain/review/prompt/diff-hunk-catalog.ts';
-import { validateReview } from '../domain/review/validate-review.ts';
+} from '../review/findings.ts';
+import { NarrativeReviewSchema, type NarrativeReview } from '../review/narrative.ts';
+import { groundingFor, type PromptGrounding } from '../review/prompt/diff-hunk-catalog.ts';
+import { validateReview } from '../review/validate-review.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
 
 /**
- * The parse stage: `raw.txt` through the same verdict the hosted review uses,
+ * The parse stage: `raw.txt` through the same verdict the run's Stop hook gave,
  * with hunk ids resolved against the catalog gather wrote, and the changed
  * file list attached from context rather than trusted from the model. Each
  * file carries its share of that catalog, so the report knows what was
@@ -162,9 +162,7 @@ async function runFindings(run: RunFiles): Promise<Finding[]> {
   if (ended !== null) {
     // Nothing the parse stage can be told to do clears this: the finding is
     // about turns the reviewer never took, so the only fix is another run.
-    findings.push(
-      runStoppedEarly(ended, 'Raise --max-turns or --timeout and run again from the run stage.'),
-    );
+    findings.push(runStoppedEarly(ended));
     return findings;
   }
 

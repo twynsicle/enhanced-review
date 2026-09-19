@@ -1,8 +1,8 @@
 ---
 paths:
-  - 'src/web/**/*.tsx'
-  - 'src/web/**/*.css'
-  - 'src/web/theme/**'
+  - 'src/report/**/*.tsx'
+  - 'src/report/**/*.css'
+  - 'src/report/theme/**'
   - 'src/guardrails/palette.guard.test.ts'
   - 'src/guardrails/diagram-colour.guard.test.ts'
 ---
@@ -20,7 +20,7 @@ reader growing twelve font sizes and nine near-identical label styles:
 - **Six font sizes, no more.** `FONT_SIZES` (Mantine's `xs`–`xl`: 11/13/15/19/28)
   plus `DISPLAY_SIZE` (40) for page and chapter titles. Use `fz="sm"` or
   `var(--mantine-font-size-sm)`, never a literal `fz={13}` or `font-size: 13px`.
-- **One uppercase label.** `components/caption.tsx`; it varies only by `tone`.
+- **One uppercase label.** `chrome/caption.tsx`; it varies only by `tone`.
   A component that needs the treatment without the component (a Mantine
   `Badge`, say) reads `CAPTION_TYPE` rather than respelling the values.
 
@@ -41,22 +41,14 @@ real review, stacking cost 131px on six risk factors and _saved_ 96px on the
 insights, because a full-measure card wraps to fewer lines and a two-up grid
 equalises its rows to the tallest cell.
 
-**Two page widths, and the reader gets the choice.** Every page inside the
-shell renders through `components/page-shell.tsx`, which is also where the
-topbar's inner bar gets its `maw` and `px`, so the header lines up with the page
-beneath it and moves with it. Which width a page takes is a `ShellWidth`:
+**The reader chooses its width.** The page renders through
+`chrome/page-shell.tsx`, which is also where the topbar's inner bar gets its
+`maw` and `px`, so the header lines up with the page beneath it and moves with
+it. Both follow `--review-max-width`, the display menu's `full` (the window) ⇄
+`wide` (110rem): a side-by-side diff splits its column in two, so every pixel
+it is given is worth having.
 
-- `reader` follows `--review-max-width`, the topbar toggle's `full` (the
-  window) ⇄ `wide` (110rem). The reader is the only page that earns it: a
-  side-by-side diff splits its column in two, so every pixel it is given is
-  worth having, and at the old 92rem default a reviewer scrolled sideways more
-  than they read.
-- `page`, the default, is a fixed `PAGE_MAX_WIDTH` (92rem). A form field or a
-  list row stretched across a 3400px monitor is worse, not better.
-
-The topbar offers the width, diff-view and wrap toggles only over the reader
-(`DisplayMenu`'s `reader` prop) — a control that visibly does nothing is worse
-than no control. The same principle runs one level deeper: below
+A control that visibly does nothing is worse than no control: below
 `SIDE_BY_SIDE_MIN_WIDTH` the column cannot carry two panes, so the diff toggle
 shows the stacked state and disables rather than claiming a view the page is not
 in. `chapter-reader.tsx` measures that column once and `selectSpaceLimited`
@@ -64,13 +56,9 @@ derives it, so the icon, the disabled state and the editors' `renderSideBySide`
 all come off one number and cannot disagree. The measurement lives in its own
 un-persisted store beside the preference — it arrives once per frame while the
 sidebar is dragged, and only a preference belongs in storage. Widening the shell
-is still not the same as widening the text: prose keeps its own measure in `ch`,
-and a page whose content gains nothing from the extra room caps itself and
-stays left-aligned so the left edge never jumps between pages.
-Do not reintroduce a per-route
-`Container size={...}` — that is what made the toggle look broken everywhere
-outside the reader. `PageShell` pads the bottom more than the top (`SHELL_PB`):
-a page that ends flush with its last element reads as cut off.
+is still not the same as widening the text: prose keeps its own measure in `ch`.
+`PageShell` pads the bottom more than the top (`SHELL_PB`): a page that ends
+flush with its last element reads as cut off.
 
 Two text families: sans for everything, mono for identifiers, paths, SHAs and
 code. There is no display serif.

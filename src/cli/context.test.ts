@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runGit } from '../domain/review/clone/git-runner.server.ts';
+import { runGit } from './git-runner.ts';
 import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import { gather, MAX_EMBED_BYTES, readContext } from './context.ts';
 import { Shell } from './git.ts';

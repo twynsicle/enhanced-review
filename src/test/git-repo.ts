@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { hostEnv } from '../config/host-env.ts';
+import { hostEnv } from '../cli/host-env.ts';
 
 /**
  * How long a test that drives this helper is given.

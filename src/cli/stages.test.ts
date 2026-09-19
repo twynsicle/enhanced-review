@@ -2,14 +2,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BUNDLE_PLACEHOLDER, readEmbeddedBundle } from '../domain/review/bundle-html.ts';
-import { withFileHunks } from '../domain/review/coverage.ts';
+import { BUNDLE_PLACEHOLDER, readEmbeddedBundle } from '../review/bundle-html.ts';
+import { withFileHunks } from '../review/coverage.ts';
 import type { RunContext } from './context.ts';
 import { parseRun, readFindings, readReview } from './parse.ts';
-import { renderRun, viewerShell } from './render.ts';
+import { renderRun, reportShell } from './render.ts';
 import { runFiles, type RunFiles } from './run-folder.ts';
 import { writeStubRun } from './stub-run.ts';
-import { VIEWER_STAMP_FILE, viewerSourceStamp } from './viewer-stamp.ts';
+import { SHELL_STAMP_FILE, shellSourceStamp } from './shell-stamp.ts';
 
 vi.mock('./terminal.ts', () => ({ note: vi.fn() }));
 
@@ -250,12 +250,12 @@ describe('stub run → parse', () => {
 describe('render', () => {
   const shellHtml = `<!doctype html><title>r</title>${BUNDLE_PLACEHOLDER}<div id="root"></div>`;
 
-  it('packs the review, header and file contents into the viewer page', async () => {
+  it('packs the review, header and file contents into the report shell', async () => {
     await writeStubRun(context(), run);
     const { review } = await parseRun(context(), run);
     const at = new Date('2026-09-11T10:00:00.000Z');
 
-    await renderRun(context(), review, run, { viewerShell: async () => shellHtml }, at);
+    await renderRun(context(), review, run, { reportShell: async () => shellHtml }, at);
 
     const html = readFileSync(run.html, 'utf8');
     expect(html).not.toContain('</script>\n');
@@ -272,19 +272,19 @@ describe('render', () => {
   });
 });
 
-/** What a viewer build leaves in a tool clone: the page and its stamp. */
+/** What a shell build leaves in a tool clone: the page and its stamp. */
 function built(clone: string, html: string): void {
-  const dir = path.join(clone, 'build', 'viewer');
+  const dir = path.join(clone, 'build', 'report');
   mkdirSync(dir, { recursive: true });
-  writeFileSync(path.join(dir, 'viewer.html'), html);
-  writeFileSync(path.join(dir, VIEWER_STAMP_FILE), viewerSourceStamp(clone));
+  writeFileSync(path.join(dir, 'shell.html'), html);
+  writeFileSync(path.join(dir, SHELL_STAMP_FILE), shellSourceStamp(clone));
 }
 
-describe('the viewer shell', () => {
+describe('the report shell', () => {
   function toolClone(): string {
     const clone = path.join(root, 'tool');
-    mkdirSync(path.join(clone, 'src', 'web'), { recursive: true });
-    writeFileSync(path.join(clone, 'src', 'web', 'page.tsx'), 'export {};\n');
+    mkdirSync(path.join(clone, 'src', 'report'), { recursive: true });
+    writeFileSync(path.join(clone, 'src', 'report', 'page.tsx'), 'export {};\n');
     return clone;
   }
 
@@ -292,24 +292,24 @@ describe('the viewer shell', () => {
     const clone = toolClone();
     built(clone, 'fresh');
     const build = vi.fn(async () => undefined);
-    await expect(viewerShell(clone, build)).resolves.toBe('fresh');
+    await expect(reportShell(clone, build)).resolves.toBe('fresh');
     expect(build).not.toHaveBeenCalled();
   });
 
   it('rebuilds when the page is missing or its sources changed', async () => {
     const clone = toolClone();
     const build = vi.fn(async (at: string) => built(at, 'rebuilt'));
-    await expect(viewerShell(clone, build)).resolves.toBe('rebuilt');
+    await expect(reportShell(clone, build)).resolves.toBe('rebuilt');
 
-    writeFileSync(path.join(clone, 'src', 'web', 'page.tsx'), 'export const changed = 1;\n');
-    await expect(viewerShell(clone, build)).resolves.toBe('rebuilt');
+    writeFileSync(path.join(clone, 'src', 'report', 'page.tsx'), 'export const changed = 1;\n');
+    await expect(reportShell(clone, build)).resolves.toBe('rebuilt');
     expect(build).toHaveBeenCalledTimes(2);
   });
 
   it('ignores test files when stamping', () => {
     const clone = toolClone();
-    const before = viewerSourceStamp(clone);
-    writeFileSync(path.join(clone, 'src', 'web', 'page.test.tsx'), 'test\n');
-    expect(viewerSourceStamp(clone)).toBe(before);
+    const before = shellSourceStamp(clone);
+    writeFileSync(path.join(clone, 'src', 'report', 'page.test.tsx'), 'test\n');
+    expect(shellSourceStamp(clone)).toBe(before);
   });
 });

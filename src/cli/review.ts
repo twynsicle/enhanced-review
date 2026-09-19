@@ -1,12 +1,12 @@
 import { rename } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import path from 'node:path';
-import { plural } from '../common/plural.ts';
-import { reviewCoverage } from '../domain/review/coverage.ts';
-import { MAX_VALIDATION_RETRIES } from '../domain/review/executor/validation-stop-hook.server.ts';
-import type { Finding } from '../domain/review/findings.ts';
-import type { NarrativeReview } from '../domain/review/narrative.ts';
-import type { ReviewMeta } from '../domain/review/review-meta.ts';
+import { plural } from '../review/plural.ts';
+import { reviewCoverage } from '../review/coverage.ts';
+import { MAX_VALIDATION_RETRIES } from './validation-stop-hook.ts';
+import type { Finding } from '../review/findings.ts';
+import type { NarrativeReview } from '../review/narrative.ts';
+import type { ReviewMeta } from '../review/review-meta.ts';
 import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
 import { gather, readContext, type RunContext } from './context.ts';
 import { Shell } from './git.ts';
@@ -308,7 +308,7 @@ function dirtyWarning(context: RunContext): string {
   );
 }
 
-/** A rough count at four characters a token, the hosted prompt's own estimate. */
+/** A rough count at four characters a token. */
 function tokens(text: string): string {
   return approxTokens(text.length);
 }

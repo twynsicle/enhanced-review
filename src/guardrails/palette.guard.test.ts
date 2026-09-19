@@ -5,8 +5,8 @@ import {
   TOKEN_NAMES,
   type TokenMap,
   type TokenName,
-} from '@/web/theme/tokens';
-import { listFiles, readSource, report } from './helpers';
+} from '../report/theme/tokens.ts';
+import { listFiles, readSource, report } from './helpers.ts';
 
 /**
  * Guardrail — the palette keeps its contrast promises, and the UI keeps
@@ -210,8 +210,8 @@ describe('guardrail: palette', () => {
     // is left to review. An unconditional fill has no such excuse: every
     // colour under it is on the tint.
     const files = listFiles(
-      ['src/web/**/*.{tsx,css}'],
-      ['src/web/theme/**', 'src/web/**/*.test.tsx'],
+      ['src/report/**/*.{tsx,css}'],
+      ['src/report/theme/**', 'src/report/**/*.test.tsx'],
     );
     const violations: string[] = [];
 
@@ -242,7 +242,7 @@ describe('guardrail: palette', () => {
     // and meter took `token()` colours from `risk-score.tsx`, so nothing in
     // either file said the two met. A rule that changes the ground under its
     // children owns their foreground: declare it, or do not tint.
-    const violations = listFiles(['src/web/**/*.module.css'], ['src/web/theme/**']).flatMap(
+    const violations = listFiles(['src/report/**/*.module.css'], ['src/report/theme/**']).flatMap(
       (file) =>
         [...readSource(file).matchAll(CSS_RULE)].flatMap((rule) => {
           const [, selector = '', body = ''] = rule;
@@ -308,7 +308,7 @@ function colourValues(line: string): string[] {
 
 describe('guardrail: type scale', () => {
   it('no component sets a font size off the scale', () => {
-    const files = listFiles(['src/web/**/*.{tsx,css}'], ['src/web/theme/**']);
+    const files = listFiles(['src/report/**/*.{tsx,css}'], ['src/report/theme/**']);
     const violations = files.filter((file) => {
       const source = readSource(file);
       // `fz={13}` in TSX, `font-size: 13px` in a CSS Module. Both should be a
@@ -320,8 +320,8 @@ describe('guardrail: type scale', () => {
 
   it('uppercase labels go through the Caption component', () => {
     const files = listFiles(
-      ['src/web/**/*.tsx'],
-      ['src/web/components/caption.tsx', 'src/web/**/*.test.tsx'],
+      ['src/report/**/*.tsx'],
+      ['src/report/chrome/caption.tsx', 'src/report/**/*.test.tsx'],
     );
     // Positive tracking is the small-caps label signature — `tt="uppercase"`
     // alone is legitimate elsewhere (avatar initials, a capitalised status),

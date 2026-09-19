@@ -10,7 +10,7 @@ This file is the map of the tree for anyone changing it, cut to what every
 change needs. The detail for each area lives beside it (see "Where the rest
 lives"). `README.md` is the product-and-setup document.
 
-Library APIs here (React Router 8, Mantine 9, Vite 8, Vitest 4, Zod 4,
+Library APIs here (Mantine 9, Vite 8, Vitest 4, Zod 4,
 TypeScript 7, oxlint, the Claude Agent SDK) may be newer than your training
 data. Check the package's docs in `node_modules/<pkg>` or the current online
 docs before writing code against them; heed deprecation notices.
@@ -20,49 +20,46 @@ docs before writing code against them; heed deprecation notices.
 - Node 24 (Volta-pinned, `engines >=24`). `er` runs TypeScript directly via
   Node's type stripping — no build step for `src/cli/`.
 - The report is a client-rendered React 19 page built by Vite 8 into one
-  inlined HTML file; React Router 8 (library only) gives it a hash data
-  router. Mantine 9 (core/hooks), Tabler icons, Zustand for persisted reader
-  preferences, Zod 4 at every boundary. Monaco loads from a CDN at runtime.
+  inlined HTML file, with no router: the reader keeps `?ch=` / `?file=` in the
+  hash itself. Mantine 9 (core/hooks), Tabler icons, Zustand for persisted
+  reader preferences, Zod 4 at every boundary. Monaco loads from a CDN at
+  runtime.
+- `dependencies` are what `er` needs to run and to build the report — `er`
+  rebuilds the report shell on the engineer's machine, so Vite and the
+  report's packages are runtime; `devDependencies` are tests, lint, format and
+  types.
 - TypeScript 7 (native compiler) strict, `verbatimModuleSyntax`,
   `erasableSyntaxOnly`. Linting is **oxlint** (`.oxlintrc.json`) — TS 7 has
   no JS API, so typescript-eslint cannot run against it. Prettier formats.
-- Vitest 4 projects: `unit` (node), `web` (happy-dom), `guardrails`
-  (repo-reading convention tests).
+- Vitest 4 projects: `unit` (node: `src/cli`, `src/review`), `report`
+  (happy-dom), `guardrails` (repo-reading convention tests).
 
 ## Repo layout
 
 ```
-vite.viewer.config.ts  the report: src/web/viewer/ → one build/viewer/viewer.html, all inlined but Monaco
+vite.config.ts         the report: src/report/ → one build/report/shell.html, all inlined but Monaco
 src/
   cli/                 `er`, the local review CLI: the package `bin`, put on PATH by `npm link`;
-                       runs in the repo under review
-  domain/              the review model, shared by `er` and the report; *.server.ts marks the Node-only modules
-    github/            types.ts (result and file shapes the bundle reuses)
-    review/            narrative + diagram schemas, bundle, coverage, findings, validation; clone/ (git runner,
-                       changed files), prompt/, executor/ (the SDK loop and the validation Stop hook)
-  common/              plural.ts
-  config/              host-env.ts — hostEnv()/pickHostEnv(), the only process.env reader
-  guardrails/          *.guard.test.ts — layering, env-access, no-console, server-only, palette (token contrast,
-                       type scale, one label), diagram-colour (SVG takes token() only), cli-imports (the SDK
-                       imported only where a run happens), comment-paths (a repo path named in a comment still
-                       exists — see Comments), monaco-version (the Monaco the reader loads is the one it is
-                       typechecked against)
+                       runs in the repo under review. Node only
+  review/              what a review is: the narrative and diagram schemas, the bundle, coverage, findings,
+                       validation, the prompt instructions and the answer parsers. Read by both sides
+  report/              the report: a React page, the reader over an embedded bundle. Browser only
+  guardrails/          *.guard.test.ts — layering, env-access, no-console, sdk-import (the SDK imported only
+                       where a run happens), palette (token contrast, type scale, one label), diagram-colour
+                       (SVG takes token() only), comment-paths (a repo path named in a comment still exists —
+                       see Comments), monaco-version (the Monaco the reader loads is the one it is typechecked
+                       against)
   test/                git-repo.ts (a throwaway repository with a bare origin, for tests that drive real git)
-  web/                 the report's React code: components/ (the reader), stores/ (Zustand, persisted), theme/,
-                       lib/, viewer/ (the page entry), test/
 .github/workflows/ci.yml  npm ci → npm run check
 .claude/rules/         area detail, loaded when you open a file in that area (see below)
 .claude/skills/        workflows loaded on demand (see below)
 ```
 
-Layering (enforced by `src/guardrails`): `web → domain, common, config`;
-`domain → common, config`; `cli → domain, common, config`;
-`common → config`; `config` imports nothing from `src/`. Only `src/web/` may
-import React or `react-router`. `config` is Node-only; `domain` is **shared**
-between Node and the browser, and a domain module that imports `config`, a
-`node:` builtin, the Claude SDK or another `.server` module must be named
-`*.server.ts` — rule of thumb: name it `.server.ts` unless the browser is
-meant to import it. Nothing in `web` may import a `.server` module.
+Layering (enforced by `src/guardrails`): `cli → review`, `report → review`,
+and `review` imports nothing outside itself. `review` runs in Node and in the
+browser, so it may not import a `node:` builtin, the Claude SDK or a UI
+package; `report` ships to the browser and may not import Node or the SDK
+either. Only `src/report/` imports React, Mantine or the icons.
 
 ## Where the rest lives
 
@@ -70,14 +67,15 @@ Each file in `.claude/rules/` declares `paths:` globs, and Claude Code loads it
 the first time you read a matching file. Other tools and people can open them
 directly.
 
-- `web.md` — file-by-file map of `src/web/`. Loads for `src/web/**`.
-- `design-system.md` — type scale, the one label, the reading measure, page
-  width, colour tokens and contrast. Loads for components, CSS, the theme and
-  the colour guardrails.
-- `review-pipeline.md` — file-by-file map of `src/domain/` and how an answer
-  is validated. Loads for `src/domain/**`.
 - `cli.md` — file-by-file map of `src/cli/` (`er review` and its stages).
-  Loads for `src/cli/**` and `vite.viewer.config.ts`.
+  Loads for `src/cli/**`.
+- `review.md` — file-by-file map of `src/review/` and how an answer is
+  validated. Loads for `src/review/**`.
+- `report.md` — file-by-file map of `src/report/` and its build. Loads for
+  `src/report/**` and `vite.config.ts`.
+- `design-system.md` — type scale, the one label, the reading measure, page
+  width, colour tokens and contrast. Loads for the report's components, CSS,
+  the theme and the colour guardrails.
 
 Skills in `.claude/skills/`, loaded when the task calls for them:
 
@@ -85,13 +83,13 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
 
 ## Conventions
 
-- Path alias `@/*` → `src/*` is used in `src/web/` (bundled by Vite).
-  Everything Node loads natively — `src/cli`, `src/config`, `src/common`,
-  `src/domain` — uses relative imports with explicit `.ts` extensions.
-- `process.env` is read only in `src/config`. Code that spawns a subprocess
-  gets the environment from `src/config/host-env.ts`.
+- Path alias `@/*` → `src/*` is used in `src/report/` (bundled by Vite).
+  Everything Node loads natively — `src/cli`, `src/review` — uses relative
+  imports with explicit `.ts` extensions.
+- `process.env` is read only in `src/cli/host-env.ts`, which is also where a
+  spawned subprocess gets its environment.
 - No barrel `index.ts` files. Import the module you need
-  (`@/web/theme/theme`, not `@/web/theme`).
+  (`@/report/theme/theme`, not `@/report/theme`).
 - **Fail loudly on a review.** Prefer failing to generate a review over
   shipping one that is incomplete or misleading — never patch over a
   generation defect by silently dropping or hiding part of the model's
@@ -142,11 +140,11 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
 
 | Script                                     | What                                                                |
 | ------------------------------------------ | ------------------------------------------------------------------- |
-| `npm run viewer:dev` / `viewer:build`      | the report: Vite dev server on the sample / one-file build          |
+| `npm run report:dev` / `report:build`      | the report: Vite dev server on the sample / one-file build          |
 | `npm run typecheck`                        | `tsc --noEmit`                                                      |
-| `npm test` / `test:watch`                  | Vitest `unit` + `web` + `guardrails`                                |
+| `npm test` / `test:watch`                  | Vitest `unit` + `report` + `guardrails`                             |
 | `npm run lint` / `format` / `format:check` | oxlint / Prettier                                                   |
-| `npm run check`                            | **The gate**: typecheck + viewer:build + test + lint + format:check |
+| `npm run check`                            | **The gate**: typecheck + report:build + test + lint + format:check |
 
 `er` needs no environment of its own: the model runs as the engineer, with
 their own Claude credentials and the reviewed repository's own Claude config.

@@ -1,6 +1,6 @@
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { ReviewMeta } from '../domain/review/review-meta.ts';
+import type { ReviewMeta } from '../review/review-meta.ts';
 
 /**
  * Where a run keeps its stage files:

@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { listFiles, readSource, report } from './helpers';
+import { listFiles, readSource, report } from './helpers.ts';
 
 /**
- * Guardrail — all output goes through the pino logger
- * (`src/common/logger.ts`); `console.*` is never used directly.
+ * Guardrail — `console.*` is never used. Everything `er` prints goes through
+ * `src/cli/terminal.ts`, which knows stdout from stderr and when to colour;
+ * the report has nobody reading its console.
  */
 describe('guardrail: no console', () => {
-  it('console.* appears only in src/common/logger.ts', () => {
-    const files = listFiles(['src/**/*.{ts,tsx}', 'server/**/*.ts'], ['src/common/logger.ts']);
+  it('console.* appears nowhere', () => {
+    const files = listFiles(['src/**/*.{ts,tsx}']);
     const violations = files.filter((file) => /\bconsole\.[a-z]+\(/.test(readSource(file)));
     expect(report(violations)).toBe('');
   });

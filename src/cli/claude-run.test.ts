@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { HookInput, Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { groundingFor } from '../domain/review/prompt/diff-hunk-catalog.ts';
+import { groundingFor } from '../review/prompt/diff-hunk-catalog.ts';
 import { runClaude, type QueryFn } from './claude-run.ts';
 import { runFiles, type RunFiles } from './run-folder.ts';
 

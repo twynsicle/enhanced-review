@@ -1,22 +1,16 @@
 import { writeFile } from 'node:fs/promises';
-import {
-  LOCAL_WORKING_TREE,
-  NARRATIVE_SYSTEM_PROMPT,
-} from '../domain/review/prompt/instructions.ts';
-import {
-  formatFileList,
-  formatHunkCatalog,
-  formatSkippedSection,
-} from '../domain/review/prompt/narrative-prompt.ts';
+import { LOCAL_WORKING_TREE, NARRATIVE_SYSTEM_PROMPT } from '../review/prompt/instructions.ts';
+import type { DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
+import type { ReviewFile, ReviewFileSkipReason } from '../review/narrative.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
 
 /**
  * The prompt stage: `system.md` is the shared review instructions plus the
  * paragraph that says where a local run is standing; `prompt.md` is this
- * change, delivered the local way. The hosted prompt inlines the diff; here
- * the agent reads one hunk file per reviewed file, and can open anything
- * else in its working directory.
+ * change. Rather than inlining the diff, the prompt points the agent at one
+ * hunk file per reviewed file, and it can open anything else in its working
+ * directory.
  */
 
 /** A description longer than this stays in `context/pr.md`, with a pointer. */
@@ -121,4 +115,59 @@ function renames({ renamedFrom }: RunContext): string {
 /** Paths in the prompt use forward slashes, which every tool accepts. */
 function display(file: string): string {
   return file.replaceAll('\\', '/');
+}
+
+/** What each skip reason is called where the model reads it. */
+const SKIP_NOTE: Record<ReviewFileSkipReason, string> = {
+  generated: 'marked linguist-generated',
+  vendored: 'marked linguist-vendored',
+  'built-in': 'lockfile, bundle or snapshot',
+  binary: 'binary',
+};
+
+type SkippedFile = ReviewFile & { skipped: ReviewFileSkipReason };
+
+const isSkipped = (file: ReviewFile): file is SkippedFile => file.skipped !== undefined;
+
+/**
+ * The Not Reviewed block, or null when every changed file is reviewed. The
+ * model sees these paths in the change it is describing either way — a commit
+ * message, an import, a test name — so leaving them unmentioned invites it to
+ * cite hunks that do not exist for them.
+ */
+function formatSkippedSection(files: readonly ReviewFile[]): string | null {
+  const skipped = files.filter(isSkipped);
+  if (skipped.length === 0) return null;
+  return (
+    `## Not Reviewed (${String(skipped.length)})\n` +
+    'These files changed but are left out of the review. They have no hunks; do not cite them.\n' +
+    skipped.map((file) => `  ${file.filename}  (${SKIP_NOTE[file.skipped]})`).join('\n')
+  );
+}
+
+/** The Files Changed list: status, counts, path. */
+function formatFileList(files: readonly ReviewFile[]): string {
+  return files
+    .map(
+      (f) =>
+        `  ${f.status.padEnd(10)} +${String(f.additions)}/-${String(f.deletions)}  ${f.filename}`,
+    )
+    .join('\n');
+}
+
+/** The Changed Hunks list the model cites ids from. */
+function formatHunkCatalog(hunks: readonly DiffHunk[]): string {
+  if (hunks.length === 0) return '  (No patch hunks were detected in the provided diff.)';
+  return hunks
+    .map(
+      (hunk) =>
+        `  ${hunk.id}  ${hunk.filename}  ${hunk.header}  original ${formatLineSpan(hunk.original.startLine, hunk.original.lineCount)}  modified ${formatLineSpan(hunk.modified.startLine, hunk.modified.lineCount)}`,
+    )
+    .join('\n');
+}
+
+function formatLineSpan(startLine: number, lineCount: number): string {
+  if (lineCount === 0) return `L${String(startLine)} (+0)`;
+  if (lineCount === 1) return `L${String(startLine)}`;
+  return `L${String(startLine)}-${String(startLine + lineCount - 1)}`;
 }

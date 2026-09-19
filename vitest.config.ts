@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config';
 
 // Three projects:
 //   unit         the CLI and the review model, Node environment
-//   web          the report's React components under happy-dom
+//   report       the report's React components under happy-dom
 //   guardrails   repo-reading convention tests
 
 // Mirrors tsconfig `paths`. Vitest does not pick up Vite's
@@ -27,16 +27,16 @@ export default defineConfig({
           name: 'unit',
           environment: 'node',
           include: ['src/**/*.test.ts'],
-          exclude: ['src/web/**', 'src/guardrails/**'],
+          exclude: ['src/report/**', 'src/guardrails/**'],
         },
       },
       {
         extends: true,
         test: {
-          name: 'web',
+          name: 'report',
           environment: 'happy-dom',
-          include: ['src/web/**/*.test.{ts,tsx}'],
-          setupFiles: ['src/web/test/setup.ts'],
+          include: ['src/report/**/*.test.{ts,tsx}'],
+          setupFiles: ['src/report/test/setup.ts'],
         },
       },
       {

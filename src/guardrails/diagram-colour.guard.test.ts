@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listFiles, readSource, report } from './helpers';
+import { listFiles, readSource, report } from './helpers.ts';
 
 /**
  * Diagrams are painted in SVG, where it is unusually easy to type a colour
@@ -13,7 +13,7 @@ import { listFiles, readSource, report } from './helpers';
  * hand. `none`, `transparent` and `currentColor` are not colours in this
  * sense and are allowed.
  */
-const DIAGRAM_SOURCES = ['src/web/components/narrative/diagram/**/*.{ts,tsx}'];
+const DIAGRAM_SOURCES = ['src/report/diagram/**/*.{ts,tsx}'];
 
 describe('guardrail: diagram colour', () => {
   it('never writes a literal colour', () => {

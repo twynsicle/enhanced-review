@@ -2,17 +2,9 @@ import { createWriteStream, type WriteStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
-import {
-  howItEnded,
-  runSdkLoop,
-  type SdkQueryFn,
-  type SdkUsage,
-} from '../domain/review/executor/sdk-loop.server.ts';
-import {
-  MAX_VALIDATION_RETRIES,
-  validationStopHook,
-} from '../domain/review/executor/validation-stop-hook.server.ts';
-import type { PromptGrounding } from '../domain/review/prompt/diff-hunk-catalog.ts';
+import { howItEnded, runSdkLoop, type SdkQueryFn, type SdkUsage } from './sdk-loop.ts';
+import { MAX_VALIDATION_RETRIES, validationStopHook } from './validation-stop-hook.ts';
+import type { PromptGrounding } from '../review/prompt/diff-hunk-catalog.ts';
 import { reviewBashCommand } from './bash-gate.ts';
 import { onInterrupt } from './interrupts.ts';
 import type { RunFiles } from './run-folder.ts';
@@ -25,15 +17,14 @@ import type { RunFiles } from './run-folder.ts';
  * `events.jsonl`.
  *
  * The engineer's own environment is what authenticates: the SDK subprocess
- * inherits it, and this CLI reads none of it itself — it has to run on a
- * laptop with none of the server's configuration. The reviewed repository's
- * own Claude configuration loads as it would in a normal session, which is
- * why `settingSources` is not empty here as it is on the server, where the
- * repo under review is someone else's code and must not register hooks.
+ * inherits it, and this CLI reads none of it itself, so it needs no
+ * configuration of its own. The reviewed repository's own Claude
+ * configuration loads as it would in a normal session: it is the engineer's
+ * own repository, so its hooks and settings are theirs to trust.
  */
 
 /**
- * Spelled out rather than read from `env.ts`, which the CLI must not import.
+ * Spelled out here because `er` has no configuration of its own.
  * The `[1m]` suffix asks for the 1M-token context window explicitly: without
  * it, a large review can autocompact mid-run, and autocompact repeatedly
  * refilling the context within a few turns of the previous compact aborts
@@ -49,7 +40,7 @@ export const DEFAULT_MODEL = 'claude-sonnet-5[1m]';
 export const DEFAULT_MAX_TURNS = 60;
 export const DEFAULT_TIMEOUT_MINUTES = 15;
 
-/** Read-only. The three the hosted executor uses run without asking; Bash is gated. */
+/** Read-only. Read, Glob and Grep run without asking; Bash is gated. */
 const TOOLS = ['Read', 'Glob', 'Grep', 'Bash'] as const;
 const PRE_APPROVED = ['Read', 'Glob', 'Grep'] as const;
 
@@ -223,8 +214,8 @@ function sdkOptions(
     persistSession: false,
     abortController: controller,
     maxTurns: options.maxTurns,
-    // The same verdict the hosted run uses, in the same place: a disqualified
-    // answer costs one more turn here rather than a whole second run.
+    // The same verdict the parse stage gives, while the model can still act on
+    // it: a disqualified answer costs one more turn rather than a whole second run.
     hooks: {
       Stop: [
         validationStopHook({

@@ -1,6 +1,6 @@
 import { globSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GENERATED_OUTPUT, REPO_ROOT, listFiles, readSource, report, toPosix } from './helpers';
+import { GENERATED_OUTPUT, REPO_ROOT, listFiles, readSource, report, toPosix } from './helpers.ts';
 
 /**
  * Guardrail — a repo path named in a comment still points at something. A
@@ -26,7 +26,7 @@ const COMMENT_LINE = /^\s*\{?(?:\/\/|\/\*|\*)/;
 const BACKTICKED = /`([^`\n]+)`/g;
 const PLAIN_PATH = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*\/?$/;
 const REPO_EXTENSION =
-  /\.(?:tsx?|jsx?|[cm]js|[cm]ts|css|scss|json|ya?ml|mdx?|sh|sql|html|svg|png|ico|txt|toml|prisma|example)$/;
+  /\.(?:tsx?|jsx?|[cm]js|[cm]ts|css|scss|json|ya?ml|mdx?|sh|sql|html|svg|png|ico|txt|toml)$/;
 
 const GENERATED_ROOTS = GENERATED_OUTPUT.map((pattern) => pattern.replace(/\/\*\*$/, ''));
 

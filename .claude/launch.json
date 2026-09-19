@@ -2,21 +2,21 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "viewer",
+      "name": "report",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "viewer:dev", "--", "--port", "5180", "--strictPort"],
+      "runtimeArgs": ["run", "report:dev", "--", "--port", "5180", "--strictPort"],
       "port": 5180
     },
     {
-      "name": "viewer-5181",
+      "name": "report-5181",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "viewer:dev", "--", "--port", "5181", "--strictPort"],
+      "runtimeArgs": ["run", "report:dev", "--", "--port", "5181", "--strictPort"],
       "port": 5181
     },
     {
-      "name": "viewer-5182",
+      "name": "report-5182",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "viewer:dev", "--", "--port", "5182", "--strictPort"],
+      "runtimeArgs": ["run", "report:dev", "--", "--port", "5182", "--strictPort"],
       "port": 5182
     }
   ]
