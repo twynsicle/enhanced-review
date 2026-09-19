@@ -6,7 +6,10 @@ import type { DiffChunk, ResolvedDiffHunk } from '@/domain/review/narrative';
  * shaped so one page exercises every state the reader has: an overview
  * diagram, a risk assessment, a chapter diagram, Monaco diffs for a modified,
  * an added and a removed file, a file too large to embed, a line far too long
- * for its column, and a chunk whose file the bundle does not carry.
+ * for its column, and a chunk whose file the bundle does not carry. Its paths
+ * put a directory between files of its parent (the scheduler's `fixtures`
+ * sorts between `cadence.ts` and `index.ts`), the tree view's hardest case to read:
+ * a file below the nested directory could belong to either level.
  * `npm run viewer:dev` renders it by default, so a UI change never needs a
  * Claude run.
  *
@@ -113,6 +116,29 @@ const INDEX_HEAD = lines(
   "export { collectDue, type QueuedReview } from './queue';",
 );
 
+const FAKE_CLOCK_HEAD = lines(
+  "import type { Clock } from '../clock';",
+  '',
+  '/** A clock a test moves by hand, so a cadence can come due without waiting for it. */',
+  'export function fakeClock(start = 0): Clock & { advance(ms: number): void } {',
+  '  let now = start;',
+  '  return {',
+  '    now: () => now,',
+  '    advance(ms) {',
+  '      now += ms;',
+  '    },',
+  '  };',
+  '}',
+);
+
+const SCHEDULES_HEAD = lines(
+  "import type { Schedule } from '../cadence';",
+  '',
+  "export const HOURLY: Schedule = { repo: 'acme/api', cadence: 'hourly', paused: false };",
+  "export const DAILY: Schedule = { repo: 'acme/web', cadence: 'daily', paused: false };",
+  "export const PAUSED: Schedule = { repo: 'acme/docs', cadence: 'weekly', paused: true };",
+);
+
 function hunk(
   id: string,
   fileOrder: number,
@@ -143,6 +169,8 @@ const H = {
   schema: hunk('H0008', 0, [1, 4], [1, 2400]),
   docs: hunk('H0009', 0, [12, 3], [12, 9]),
   index: hunk('H0010', 0, [1, 1], [1, 2]),
+  fakeClock: hunk('H0011', 0, [0, 0], [1, 12]),
+  schedules: hunk('H0012', 0, [0, 0], [1, 5]),
 };
 
 const chunk = (filename: string, language: string, hunks: ResolvedDiffHunk[]): DiffChunk => ({
@@ -222,6 +250,20 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         additions: 2,
         deletions: 1,
         hunks: [H.index],
+      },
+      {
+        filename: 'src/scheduler/fixtures/fake-clock.ts',
+        status: 'added',
+        additions: 12,
+        deletions: 0,
+        hunks: [H.fakeClock],
+      },
+      {
+        filename: 'src/scheduler/fixtures/schedules.ts',
+        status: 'added',
+        additions: 5,
+        deletions: 0,
+        hunks: [H.schedules],
       },
       {
         filename: 'src/legacy/cron.ts',
@@ -346,6 +388,8 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         diffChunks: [
           chunk('src/scheduler/cadence.ts', 'typescript', [H.paused, H.pausedGuard]),
           chunk('src/scheduler/queue.ts', 'typescript', [H.queue]),
+          chunk('src/scheduler/fixtures/schedules.ts', 'typescript', [H.schedules]),
+          chunk('src/scheduler/fixtures/fake-clock.ts', 'typescript', [H.fakeClock]),
         ],
         diagram: {
           id: 'due-check',
@@ -470,6 +514,14 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
     'src/scheduler/index.ts': {
       base: { kind: 'content', content: INDEX_BASE },
       head: { kind: 'content', content: INDEX_HEAD },
+    },
+    'src/scheduler/fixtures/fake-clock.ts': {
+      base: { kind: 'absent' },
+      head: { kind: 'content', content: FAKE_CLOCK_HEAD },
+    },
+    'src/scheduler/fixtures/schedules.ts': {
+      base: { kind: 'absent' },
+      head: { kind: 'content', content: SCHEDULES_HEAD },
     },
     'src/legacy/cron.ts': {
       base: { kind: 'content', content: CRON_BASE },
