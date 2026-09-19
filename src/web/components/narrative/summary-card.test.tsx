@@ -4,6 +4,7 @@ import type { NarrativeReview } from '@/domain/review/narrative';
 import type { ReviewMeta } from '@/domain/review/review-meta';
 import { REAL_ARCHITECTURE } from '@/web/test/diagram-fixtures';
 import { fireEvent, render, screen } from '@/web/test/render';
+import type { AnchoredJudgementCall } from './judgement-calls';
 import { SummaryCard } from './summary-card';
 
 const baseMeta: ReviewMeta = {
@@ -130,5 +131,55 @@ describe('<SummaryCard />', () => {
     renderCard({ files: [] }, { stats: { changedFiles: 3, additions: 40, deletions: 2 } });
     expect(screen.getByText('3 files')).toBeDefined();
     expect(screen.getByText('+40')).toBeDefined();
+  });
+});
+
+describe('<SummaryCard /> and the judgement calls', () => {
+  const anchored: AnchoredJudgementCall[] = [
+    {
+      call: {
+        title: 'Hourly cadence offered to every repo',
+        text: 'Cheap if few choose it, 24x the work if most do.',
+        filename: 'src/scheduler/cadence.ts',
+        hunkIds: ['H0003'],
+      },
+      chapterId: 'cadence-table',
+    },
+  ];
+
+  function renderIndex(onSelectChapter: (chapterId: string) => void) {
+    return render(
+      <SummaryCard
+        review={review()}
+        meta={baseMeta}
+        findings={[]}
+        judgementCalls={anchored}
+        onSelectChapter={onSelectChapter}
+      />,
+    );
+  }
+
+  it('lists each title with the file it sits on', () => {
+    renderIndex(() => {});
+    expect(screen.getByText('Judgement calls')).toBeDefined();
+    expect(screen.getByText('Hourly cadence offered to every repo')).toBeDefined();
+    expect(screen.getByText('src/scheduler/cadence.ts')).toBeDefined();
+  });
+
+  it('lists the title only, leaving the question itself beside its code', () => {
+    renderIndex(() => {});
+    expect(screen.queryByText('Cheap if few choose it, 24x the work if most do.')).toBeNull();
+  });
+
+  it('sends the reader to the chapter that draws the question', () => {
+    const selected: string[] = [];
+    renderIndex((chapterId) => selected.push(chapterId));
+    fireEvent.click(screen.getByRole('button', { name: 'Hourly cadence offered to every repo' }));
+    expect(selected).toEqual(['cadence-table']);
+  });
+
+  it('draws nothing at all for a review that asked nothing', () => {
+    renderCard();
+    expect(screen.queryByText('Judgement calls')).toBeNull();
   });
 });

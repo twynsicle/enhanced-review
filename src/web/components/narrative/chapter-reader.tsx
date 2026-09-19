@@ -16,6 +16,11 @@ import type { ReviewMeta } from '@/domain/review/review-meta';
 import { ChapterCard } from '@/web/components/narrative/chapter-card';
 import { ChapterSidebar } from '@/web/components/narrative/chapter-sidebar';
 import { FileView } from '@/web/components/narrative/file-view';
+import {
+  anchorJudgementCalls,
+  judgementCallsByFile,
+  type AnchoredJudgementCall,
+} from '@/web/components/narrative/judgement-calls';
 import { RiskCard } from '@/web/components/narrative/risk-card';
 import {
   findSection,
@@ -114,6 +119,7 @@ export function ChapterReader({
   useReportedColumnWidth(mainRef);
   const coverage = useMemo(() => reviewCoverage(review), [review]);
   const sections = useMemo(() => readerSections(review), [review]);
+  const judgementCalls = useMemo(() => anchorJudgementCalls(review), [review]);
   const urlActive = searchParams.get('ch');
   const urlFile = searchParams.get('file');
   const activeFile = urlFile && fileExists(urlFile, review) ? urlFile : null;
@@ -263,9 +269,11 @@ export function ChapterReader({
             review={review}
             meta={meta}
             findings={findings}
+            judgementCalls={judgementCalls}
             chapterIndex={activeIndex}
             actions={actions}
             onSelectFile={onSelectFile}
+            onSelect={onSelect}
           />
         )}
       </section>
@@ -285,17 +293,21 @@ function SectionCard({
   review,
   meta,
   findings,
+  judgementCalls,
   chapterIndex,
   actions,
   onSelectFile,
+  onSelect,
 }: {
   section: ReaderSection;
   review: NarrativeReview;
   meta: ReviewMeta;
   findings: readonly Finding[];
+  judgementCalls: readonly AnchoredJudgementCall[];
   chapterIndex: number;
   actions?: ReactNode;
   onSelectFile: (filename: string) => void;
+  onSelect: (id: string) => void;
 }) {
   switch (section.kind) {
     case 'risk':
@@ -303,7 +315,12 @@ function SectionCard({
     case 'chapter': {
       const chapter = review.chapters.find((ch) => ch.id === section.id);
       return chapter ? (
-        <ChapterCard chapter={chapter} chapterIndex={chapterIndex} onSelectFile={onSelectFile} />
+        <ChapterCard
+          chapter={chapter}
+          chapterIndex={chapterIndex}
+          judgementCalls={judgementCallsByFile(judgementCalls, chapter.id)}
+          onSelectFile={onSelectFile}
+        />
       ) : null;
     }
     case 'summary':
@@ -312,8 +329,10 @@ function SectionCard({
           review={review}
           meta={meta}
           findings={findings}
+          judgementCalls={judgementCalls}
           actions={actions}
           onSelectFile={onSelectFile}
+          onSelectChapter={onSelect}
         />
       );
   }

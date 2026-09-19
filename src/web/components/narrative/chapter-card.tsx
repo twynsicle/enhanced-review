@@ -1,6 +1,11 @@
 import { Group, Stack, Text, Title } from '@mantine/core';
 import { plural } from '@/common/plural';
-import type { DiffChunk, Insight, NarrativeChapter } from '@/domain/review/narrative';
+import type {
+  DiffChunk,
+  Insight,
+  JudgementCall,
+  NarrativeChapter,
+} from '@/domain/review/narrative';
 import { Caption } from '@/web/components/caption';
 import classes from '@/web/components/narrative/article.module.css';
 import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
@@ -99,11 +104,18 @@ export function SectionRule({ label, count }: { label: string; count: number }) 
 export function ChapterCard({
   chapter,
   chapterIndex,
+  judgementCalls,
   onSelectFile,
 }: {
   chapter: NarrativeChapter;
   /** 1-based index for the eyebrow ("Chapter Two"). */
   chapterIndex: number;
+  /**
+   * The review's judgement calls this chapter draws, keyed by the file each
+   * sits on. Review-wide rather than the chapter's own, since a question
+   * belongs to a decision and is anchored to a file rather than to a chapter.
+   */
+  judgementCalls?: ReadonlyMap<string, JudgementCall[]>;
   /** Threaded down so a grounded diagram node can open its file. */
   onSelectFile?: (filename: string) => void;
 }) {
@@ -184,6 +196,7 @@ export function ChapterCard({
               key={`${chunk.filename}-${i}`}
               chunk={chunk}
               insights={anchored.get(chunk.filename) ?? []}
+              judgementCalls={judgementCalls?.get(chunk.filename) ?? []}
             />
           ))}
         </Stack>

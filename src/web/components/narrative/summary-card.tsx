@@ -7,6 +7,7 @@ import { Caption } from '@/web/components/caption';
 import classes from '@/web/components/narrative/article.module.css';
 import { DiagramFigure } from '@/web/components/narrative/diagram/diagram-figure';
 import { FindingsNotice } from '@/web/components/narrative/findings-notice';
+import type { AnchoredJudgementCall } from '@/web/components/narrative/judgement-calls';
 import { MarkdownText } from '@/web/components/narrative/markdown-text';
 import { ProsePassage } from '@/web/components/narrative/prose-passage';
 import { sectionCardId, sectionHeadingId } from '@/web/components/narrative/sections';
@@ -31,17 +32,23 @@ export function SummaryCard({
   review,
   meta,
   findings,
+  judgementCalls = [],
   actions,
   onSelectFile,
+  onSelectChapter,
 }: {
   review: NarrativeReview;
   meta: ReviewMeta;
   /** What validating this review found; empty in the local report, which carries none. */
   findings: readonly Finding[];
+  /** The review's questions and the chapter each is drawn in. */
+  judgementCalls?: readonly AnchoredJudgementCall[];
   /** Header action (the hosted app's rerun button). */
   actions?: ReactNode;
   /** Threaded down so a grounded diagram node can open its file. */
   onSelectFile?: (filename: string) => void;
+  /** How a judgement call in the index reaches the chapter that draws it. */
+  onSelectChapter?: (chapterId: string) => void;
 }) {
   const { baseRefName: baseRef, headRefName: headRef, authorLogin: author, prNumber } = meta;
   const title = review.prTitle || meta.title;
@@ -156,8 +163,59 @@ export function SummaryCard({
         />
       )}
 
+      {judgementCalls.length > 0 && onSelectChapter && (
+        <JudgementCallIndex anchored={judgementCalls} onSelectChapter={onSelectChapter} />
+      )}
+
       {meta.description && <AuthorDescription body={meta.description} />}
     </article>
+  );
+}
+
+/**
+ * The review's judgement calls as an index, not as the questions themselves.
+ *
+ * Each one is drawn in full beside the lines that raised it, which is the only
+ * place it can be answered — but the reader sees one section at a time, so a
+ * question in the seventh chapter is a question nobody meets. A title and a
+ * link cost the summary four lines at most and make the set visible from the
+ * top, while the question itself stays where its evidence is.
+ */
+function JudgementCallIndex({
+  anchored,
+  onSelectChapter,
+}: {
+  anchored: readonly AnchoredJudgementCall[];
+  onSelectChapter: (chapterId: string) => void;
+}) {
+  return (
+    <Stack component="section" gap={12}>
+      <Caption component="h3" tone="suggestion">
+        Judgement calls
+      </Caption>
+      <Text fz="sm" c="dimmed">
+        {anchored.length === 1
+          ? 'One decision here needs context the code does not carry.'
+          : `${String(anchored.length)} decisions here need context the code does not carry.`}
+      </Text>
+      <Stack component="ol" gap={8} m={0} pl={0} style={{ listStyle: 'none' }}>
+        {anchored.map((entry, i) => (
+          <Box component="li" key={`${entry.chapterId}-${String(i)}`}>
+            <UnstyledButton
+              fz="md"
+              ta="left"
+              onClick={() => onSelectChapter(entry.chapterId)}
+              style={{ textWrap: 'pretty', textDecoration: 'underline' }}
+            >
+              {entry.call.title}
+            </UnstyledButton>
+            <Text fz="sm" c="dimmed" ff="monospace" style={{ wordBreak: 'break-all' }}>
+              {entry.call.filename}
+            </Text>
+          </Box>
+        ))}
+      </Stack>
+    </Stack>
   );
 }
 

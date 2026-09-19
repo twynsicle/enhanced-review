@@ -61,17 +61,26 @@ src/web/
                      file-tree.ts (pure, no rendering: ReviewFile[] → the directory tree, single-child directory
                      chains collapsed into one row), chapter-card (groupInsightsByFile splits the chapter's
                      insights: an anchored one goes down to its diff card, the rest stay in the Insights
-                     section above them), summary-card (title/meta, the findings notice, overview
-                     diagram, AI overview, author's description collapsed last), risk-card, file-view (one diff over
+                     section above them; the review's judgement calls for this chapter arrive already keyed
+                     by file and go down the same way), judgement-calls.ts (pure: anchorJudgementCalls pairs
+                     each of the review's questions with the first chapter citing its file, so the summary's
+                     index and the chapter that draws it cannot disagree, and judgementCallsByFile keys one
+                     chapter's share by file), summary-card (title/meta, the findings notice, overview
+                     diagram, AI overview, the judgement-call index — titles linking to the chapter that draws
+                     each, since the reader shows one section at a time and a question in chapter seven is
+                     otherwise never met — author's description collapsed last), risk-card, file-view (one diff over
                      every hunk the chapters cited, merged by coverage.ts's citedChunk so neighbouring hunks are not
                      sliced twice, then its uncited hunks under their own label — coverage.byFile's entry is passed
                      in, never recomputed — or why it has none), skipped-file.ts (the copy for
-                     ReviewFile.skipped reasons), insight-callout,
+                     ReviewFile.skipped reasons), insight-callout (InsightCallout and JudgementCallout over one
+                     marginalia treatment; the judgement call takes amber `suggestion` rather than the token
+                     named `question`, which is also the chapter eyebrow),
                      article.module.css (the reading measure + the diff bleed lane),
                      prose-passage (a Prose: the lede one step up the scale, the body as Markdown beneath),
                      markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group,
-                     the chapter's insights that named this file above the diff, capped at the measure,
+                     the asides for this file above the diff and capped at the measure — judgement calls first,
+                     then the chapter's insights that named it,
                      lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme; the wrap preference
                      goes to the live widget as diffWordWrap, never through its construction options, so a flip
                      reflows in place instead of remounting; its lazy factory is also the one place that imports

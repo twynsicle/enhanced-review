@@ -53,6 +53,12 @@ const SEVERITY_BY_CODE = {
   'diagram-dropped': 'warning',
   /** An insight anchored to a file its chapter does not cite lost the anchor. */
   'insight-anchor-dropped': 'warning',
+  /**
+   * A judgement call the reviewer will never be asked. Unlike an insight, it
+   * has nowhere else to go: it is drawn beside the lines it is about or not at
+   * all, so an anchor that resolved against nothing costs the whole question.
+   */
+  'judgement-call-dropped': 'warning',
   /** The diff did not fit the prompt, so part of the change was never shown. */
   'diff-truncated': 'warning',
   /** The sandbox refused commands the reviewer asked to run (`er` only). */
@@ -74,8 +80,10 @@ const SEVERITY_BY_CODE = {
   'json-quote-repaired': 'note',
   /** A chapter showed one file twice — two chunks, or one hunk cited twice — and the repeat went. */
   'chunks-merged': 'note',
-  /** An insight's type is not one of the four, and fell back to `context`. */
+  /** An insight's type is not one of the three, and fell back to `context`. */
   'insight-type-unknown': 'note',
+  /** A hunk id a surviving judgement call cited that resolved against nothing. */
+  'judgement-hunk-id-dropped': 'note',
   /** An insight with no text to show was dropped. */
   'insight-dropped': 'note',
   /** Part of a diagram went: a node, an edge, a group, a filename, a hunk id. */

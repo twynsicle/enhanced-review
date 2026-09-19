@@ -1,7 +1,12 @@
 import { createRoutesStub } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/domain/review/bundle';
-import type { DiffChunk, Insight, NarrativeChapter } from '@/domain/review/narrative';
+import type {
+  DiffChunk,
+  Insight,
+  JudgementCall,
+  NarrativeChapter,
+} from '@/domain/review/narrative';
 import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
 import { render, screen, within } from '@/web/test/render';
 import { ChapterCard, groupInsightsByFile, orderChunksTestsLast } from './chapter-card';
@@ -19,7 +24,7 @@ describe('groupInsightsByFile', () => {
   const orient: Insight = { type: 'context', text: 'read this first' };
   const onA: Insight = { type: 'highlight', text: 'about a', filename: 'src/a.ts' };
   const alsoOnA: Insight = { type: 'rationale', text: 'also about a', filename: 'src/a.ts' };
-  const onB: Insight = { type: 'reference', text: 'about b', filename: 'src/b.ts' };
+  const onB: Insight = { type: 'context', text: 'about b', filename: 'src/b.ts' };
 
   it('sends an anchored insight to its file and leaves the rest above the diffs', () => {
     const { anchored, unanchored } = groupInsightsByFile([orient, onA, onB]);
@@ -57,7 +62,7 @@ describe('<ChapterCard /> with a mix of insights', () => {
     diffChunks: [chunk('src/pipeline.ts'), chunk('src/constants.ts')],
   };
 
-  function renderCard() {
+  function renderCard(judgementCalls?: ReadonlyMap<string, JudgementCall[]>) {
     const bundle: ReviewBundle = {
       schemaVersion: BUNDLE_SCHEMA_VERSION,
       generatedAt: '2026-09-11T10:00:00.000Z',
@@ -79,7 +84,11 @@ describe('<ChapterCard /> with a mix of insights', () => {
         path: '/',
         Component: () => (
           <EmbeddedFileSource bundle={bundle}>
-            <ChapterCard chapter={chapter} chapterIndex={1} />
+            <ChapterCard
+              chapter={chapter}
+              chapterIndex={1}
+              {...(judgementCalls ? { judgementCalls } : {})}
+            />
           </EmbeddedFileSource>
         ),
       },
@@ -115,6 +124,34 @@ describe('<ChapterCard /> with a mix of insights', () => {
     const { container } = renderCard();
     expect(screen.getByText('Late cancellations stop counting against a tech.')).toBeDefined();
     expect(container.querySelectorAll('li')).toHaveLength(2);
+  });
+
+  it('draws a judgement call on its own file, above the insights anchored there', () => {
+    const call: JudgementCall = {
+      title: 'The margin is a business-rules constant',
+      text: 'Fourteen days suits the current SLA; a shorter one makes this a config value.',
+      filename: 'src/constants.ts',
+      hunkIds: ['H0001'],
+    };
+    renderCard(new Map([['src/constants.ts', [call]]]));
+
+    const constants = screen.getByRole('figure', { name: 'Diff for src/constants.ts' });
+    const pipeline = screen.getByRole('figure', { name: 'Diff for src/pipeline.ts' });
+    expect(within(constants).getByText(/Judgement call/)).toBeDefined();
+    expect(within(pipeline).queryByText(/Judgement call/)).toBeNull();
+
+    // Ahead of the insight anchored to the same file: the question is the only
+    // thing on the page addressed to the reader.
+    const question = within(constants).getByText(call.title);
+    const insight = within(constants).getByText('Why the margin is 14 days');
+    expect(
+      question.compareDocumentPosition(insight) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('draws no judgement calls when the chapter owns none', () => {
+    renderCard();
+    expect(screen.queryByText(/Judgement call/)).toBeNull();
   });
 });
 

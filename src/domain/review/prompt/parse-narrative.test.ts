@@ -478,6 +478,107 @@ describe('an insight anchored to a file', () => {
   });
 });
 
+const call = (over: Record<string, unknown> = {}) => ({
+  title: 'Hourly cadence offered to every repo',
+  text: 'Cheap if few choose it, expensive if most do.',
+  filename: 'src/a.ts',
+  hunkIds: ['H0001'],
+  ...over,
+});
+
+describe('a judgement call', () => {
+  const parse = (judgementCalls: unknown) =>
+    parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          { id: 'c', title: 'C', insights: [], diffChunks: [cite('src/a.ts', ['H0001', 'H0002'])] },
+          { id: 'd', title: 'D', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+        ],
+        judgementCalls,
+      }),
+      groundingFor(buildDiffHunkIndex(DIFF).hunks),
+    );
+
+  it('survives with the hunks it named, in file order', () => {
+    const result = parse([call({ hunkIds: ['H0002', 'H0001'] })]);
+    expect(result.ok && result.data.judgementCalls).toEqual([
+      call({ hunkIds: ['H0001', 'H0002'] }),
+    ]);
+  });
+
+  it('is absent, not empty, when the model asked nothing', () => {
+    const result = parse(undefined);
+    expect(result.ok && 'judgementCalls' in result.data).toBe(false);
+    expect(codes(result)).not.toContain('judgement-call-dropped');
+  });
+
+  it('is dropped in full when no chapter cites its file, since it has no card to sit on', () => {
+    const result = parse([call({ filename: 'src/c.ts', hunkIds: ['H0001'] })]);
+    expect(result.ok && result.data.judgementCalls).toBeUndefined();
+    expect(codes(result)).toContain('judgement-call-dropped');
+  });
+
+  it('is dropped when every hunk it cites belongs to another file', () => {
+    // src/a.ts is cited by a chapter, so the anchor stands; H0003 is src/b.ts,
+    // so the question points at lines this card does not show.
+    const result = parse([call({ hunkIds: ['H0003'] })]);
+    expect(result.ok && result.data.judgementCalls).toBeUndefined();
+    expect(codes(result)).toContain('judgement-hunk-id-dropped');
+    expect(codes(result)).toContain('judgement-call-dropped');
+  });
+
+  it('keeps the hunks that resolved and records the one that did not', () => {
+    const result = parse([call({ hunkIds: ['H0001', 'H9999'] })]);
+    expect(result.ok && result.data.judgementCalls).toEqual([call({ hunkIds: ['H0001'] })]);
+    expect(codes(result)).toContain('judgement-hunk-id-dropped');
+    expect(codes(result)).not.toContain('judgement-call-dropped');
+  });
+
+  it('keeps only the hunks of the chapter that draws it, when two chapters split its file', () => {
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          { id: 'c', title: 'C', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+          { id: 'd', title: 'D', insights: [], diffChunks: [cite('src/a.ts', ['H0002'])] },
+          { id: 'e', title: 'E', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+        ],
+        judgementCalls: [call({ hunkIds: ['H0002', 'H0001'] })],
+      }),
+      groundingFor(buildDiffHunkIndex(DIFF).hunks),
+    );
+    // Drawn in chapter c, the first showing one of its hunks; H0002 is on
+    // chapter d's card, where the question will not be.
+    expect(result.ok && result.data.judgementCalls).toEqual([call({ hunkIds: ['H0001'] })]);
+    expect(codes(result)).toContain('judgement-hunk-id-dropped');
+    expect(codes(result)).not.toContain('judgement-call-dropped');
+  });
+
+  it('is dropped without a title or without text, either of which leaves no question', () => {
+    expect(parse([call({ title: '  ' })]).ok).toBe(true);
+    expect(codes(parse([call({ title: '  ' })]))).toContain('judgement-call-dropped');
+    expect(codes(parse([call({ text: undefined })]))).toContain('judgement-call-dropped');
+  });
+
+  it('is capped at three, however many the model asked', () => {
+    const result = parse([
+      call({ title: 'one' }),
+      call({ title: 'two' }),
+      call({ title: 'three' }),
+      call({ title: 'four' }),
+    ]);
+    expect(result.ok && result.data.judgementCalls?.map((c) => c.title)).toEqual([
+      'one',
+      'two',
+      'three',
+    ]);
+    expect(codes(result)).toContain('judgement-call-dropped');
+  });
+});
+
 describe('a quote the model forgot to escape', () => {
   // What a real review sent, and what it used to cost: one unescaped pair
   // inside a 37 KB answer, and the whole run thrown away.
