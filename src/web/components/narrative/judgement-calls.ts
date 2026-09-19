@@ -1,4 +1,4 @@
-import { chaptersCiting } from '@/domain/review/coverage';
+import { judgementCallOwner } from '@/domain/review/coverage';
 import type { JudgementCall, NarrativeReview } from '@/domain/review/narrative';
 
 /**
@@ -15,21 +15,21 @@ export interface AnchoredJudgementCall {
 
 /**
  * Each judgement call paired with the one chapter that draws it: the first
- * citing its file.
+ * whose card for its file shows one of its hunks.
  *
  * A file two chapters both cite has a diff card in each, and a question drawn
  * on both is the same question asked twice. First wins because that is where
  * the reader meets those lines earliest, so the question arrives with them
  * rather than after.
  *
- * A call no chapter cites the file for is left out. The parser drops those
+ * A call no chapter shows the lines for is left out. The parser drops those
  * before they are ever stored, so this is not a second policy — there is
  * simply no card here for one to sit on, and inventing a home for it is how
  * a question ends up somewhere it reads as an interruption.
  */
 export function anchorJudgementCalls(review: NarrativeReview): AnchoredJudgementCall[] {
   return (review.judgementCalls ?? []).flatMap((call) => {
-    const owner = chaptersCiting(call.filename, review.chapters)[0];
+    const owner = judgementCallOwner(call, review.chapters);
     return owner ? [{ call, chapterId: owner.id }] : [];
   });
 }

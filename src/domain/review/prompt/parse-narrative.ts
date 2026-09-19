@@ -1,4 +1,5 @@
 import { plural } from '../../../common/plural.ts';
+import { judgementCallOwner } from '../coverage.ts';
 import { findingLog, type Finding, type FindingLog } from '../findings.ts';
 import {
   InsightTypeSchema,
@@ -332,13 +333,17 @@ function resolveJudgementHunks(
 /**
  * The review's judgement calls, each held to the one place it can be drawn.
  *
- * `cited` are the paths the chapters ended up showing, so the check is against
- * the diff cards that exist on the page rather than against the change: a
- * question anchored to a file no chapter shows has no card to sit beside, and
- * it is dropped rather than hoisted somewhere the reader meets it before any
- * code. That is the opposite call to the one an insight gets — an insight that
- * loses its anchor still says something on its own, while a question about
- * lines the reader cannot see is a question about nothing.
+ * The check is against the diff cards that exist on the page rather than
+ * against the change: a question anchored to a file no chapter shows has no
+ * card to sit beside, and it is dropped rather than hoisted somewhere the
+ * reader meets it before any code. That is the opposite call to the one an
+ * insight gets — an insight that loses its anchor still says something on its
+ * own, while a question about lines the reader cannot see is a question about
+ * nothing.
+ *
+ * A call is drawn on one card, its `judgementCallOwner`'s, so its hunk ids are
+ * narrowed to the ones that card shows: a hunk of the same file that another
+ * chapter shows is somewhere the reader will not find the question.
  *
  * The cap is applied here and not left to the schema, because the schema can
  * only refuse the whole review, and a model that asks five good questions has
@@ -346,10 +351,13 @@ function resolveJudgementHunks(
  */
 function sanitizeJudgementCalls(
   raw: unknown,
-  cited: ReadonlySet<string>,
+  chapters: readonly SanitizedChapter[],
   grounding: PromptGrounding | undefined,
   log: FindingLog,
 ): JudgementCall[] {
+  const cited = new Set(
+    chapters.flatMap((chapter) => chapter.diffChunks.map((chunk) => chunk.filename)),
+  );
   if (arrived(raw) && !Array.isArray(raw)) {
     log.add(
       'judgement-call-dropped',
@@ -383,14 +391,8 @@ function sanitizeJudgementCalls(
       );
       return [];
     }
-    const [first, ...rest] = resolveJudgementHunks(
-      call['hunkIds'],
-      filename,
-      title,
-      grounding,
-      log,
-    );
-    if (first === undefined) {
+    const resolved = resolveJudgementHunks(call['hunkIds'], filename, title, grounding, log);
+    if (resolved.length === 0) {
       log.add(
         'judgement-call-dropped',
         `The judgement call "${title}" cites no hunk of ${filename} that resolved against the diff.`,
@@ -398,6 +400,34 @@ function sanitizeJudgementCalls(
       );
       return [];
     }
+    const owner = judgementCallOwner(
+      { filename, hunkIds: resolved.map((hunk) => hunk.id) },
+      chapters,
+    );
+    if (!owner) {
+      log.add(
+        'judgement-call-dropped',
+        `The judgement call "${title}" cites hunks of ${filename} that no chapter shows, so there is nowhere to ask it.`,
+        { filename },
+      );
+      return [];
+    }
+    const shown = new Set(
+      owner.diffChunks
+        .filter((chunk) => chunk.filename === filename)
+        .flatMap((chunk) => chunk.hunks.map((hunk) => hunk.id)),
+    );
+    const [first, ...rest] = resolved.filter((hunk) => {
+      if (shown.has(hunk.id)) return true;
+      log.add(
+        'judgement-hunk-id-dropped',
+        `The judgement call "${title}" cited ${hunk.id}, which chapter ${owner.id} does not show beside it.`,
+        { filename, chapterId: owner.id },
+      );
+      return false;
+    });
+    // `owner` was chosen for showing one of these, so at least one survives.
+    if (first === undefined) return [];
     return [
       {
         title,
@@ -738,12 +768,7 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     grounding,
     log,
   );
-  const judgementCalls = sanitizeJudgementCalls(
-    parsed['judgementCalls'],
-    new Set(chapters.flatMap((chapter) => chapter.diffChunks.map((chunk) => chunk.filename))),
-    grounding,
-    log,
-  );
+  const judgementCalls = sanitizeJudgementCalls(parsed['judgementCalls'], chapters, grounding, log);
   const candidate = {
     prTitle: parsed['prTitle'],
     overviewSummary,

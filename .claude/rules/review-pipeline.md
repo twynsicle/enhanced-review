@@ -46,7 +46,9 @@ src/domain/
                      coverage.ts (what the chapters left out, per file: withFileHunks attaches the catalog to the
                      files — the local CLI at parse, the hosted runner at finalize; reviewCoverage subtracts what
                      the chapters cite, per hunk, and returns the totals and byFile, one FileCoverage per
-                     catalogued file carrying its leftovers and their DiffChunk; plus chaptersCiting and
+                     catalogued file carrying its leftovers and their DiffChunk; plus chaptersCiting,
+                     judgementCallOwner (the first chapter whose card for the call's file shows one of its hunks —
+                     the parser and the reader must agree on it) and
                      citedChunk (every chapter's hunks for one file merged into a single chunk, deduplicated and in
                      file order, so the file view draws one diff rather than one per citing chapter); a file
                      without a catalog reports nothing. A shown hunk no chapter cites is fatal, so leftovers
@@ -103,7 +105,9 @@ src/domain/
                      reviewable at all is exempt, since then no chapter could have cited anything;
                      a judgement call is held to the chapters' own cited paths, not the change's file list, and
                      dropped whole — never hoisted — when its filename is not one of them or none of its hunk
-                     ids resolve to that file, since it is drawn beside those lines or nowhere; the cap is
+                     ids resolve to that file, since it is drawn beside those lines or nowhere; it is drawn on
+                     its judgementCallOwner's card (coverage.ts), so its hunk ids are narrowed to the ones that
+                     card shows, and the reader picks the owner the same way; the cap is
                      applied here rather than by the schema, which could only refuse the whole review;
                      sanitizeProse takes a `{ lede, body? }` object or a bare string, which is promoted to the
                      lede, as is a body that arrived without one; a chapter's diffChunks are merged to one per

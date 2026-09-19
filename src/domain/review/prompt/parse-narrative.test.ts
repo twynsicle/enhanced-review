@@ -536,6 +536,27 @@ describe('a judgement call', () => {
     expect(codes(result)).not.toContain('judgement-call-dropped');
   });
 
+  it('keeps only the hunks of the chapter that draws it, when two chapters split its file', () => {
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          { id: 'c', title: 'C', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+          { id: 'd', title: 'D', insights: [], diffChunks: [cite('src/a.ts', ['H0002'])] },
+          { id: 'e', title: 'E', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+        ],
+        judgementCalls: [call({ hunkIds: ['H0002', 'H0001'] })],
+      }),
+      groundingFor(buildDiffHunkIndex(DIFF).hunks),
+    );
+    // Drawn in chapter c, the first showing one of its hunks; H0002 is on
+    // chapter d's card, where the question will not be.
+    expect(result.ok && result.data.judgementCalls).toEqual([call({ hunkIds: ['H0001'] })]);
+    expect(codes(result)).toContain('judgement-hunk-id-dropped');
+    expect(codes(result)).not.toContain('judgement-call-dropped');
+  });
+
   it('is dropped without a title or without text, either of which leaves no question', () => {
     expect(parse([call({ title: '  ' })]).ok).toBe(true);
     expect(codes(parse([call({ title: '  ' })]))).toContain('judgement-call-dropped');

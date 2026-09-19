@@ -89,6 +89,25 @@ export function chaptersCiting(
 }
 
 /**
+ * The chapter a judgement call is drawn in: the first whose chunk for its file
+ * shows one of the hunks it cites. Matching the file alone is not enough — two
+ * chapters can each show different hunks of one file, and a question drawn on
+ * the card that lacks its lines asks about code the reader cannot see there.
+ */
+export function judgementCallOwner<C extends Pick<NarrativeChapter, 'diffChunks'>>(
+  call: { filename: string; hunkIds: readonly string[] },
+  chapters: readonly C[],
+): C | undefined {
+  const wanted = new Set(call.hunkIds);
+  return chapters.find((chapter) =>
+    chapter.diffChunks.some(
+      (chunk) =>
+        chunk.filename === call.filename && chunk.hunks.some((hunk) => wanted.has(hunk.id)),
+    ),
+  );
+}
+
+/**
  * Every hunk the chapters cited from one file, as a single chunk. The file
  * view draws this rather than a chunk per chapter: slicing the file around
  * each chapter's hunks separately repeats the lines between two neighbouring

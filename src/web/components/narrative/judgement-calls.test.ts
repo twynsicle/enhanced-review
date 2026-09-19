@@ -2,17 +2,32 @@ import { describe, expect, it } from 'vitest';
 import type { JudgementCall, NarrativeChapter, NarrativeReview } from '@/domain/review/narrative';
 import { anchorJudgementCalls, judgementCallsByFile } from './judgement-calls';
 
-function chapter(id: string, filenames: string[]): NarrativeChapter {
+const hunk = (id: string) => ({
+  id,
+  fileOrder: 0,
+  original: { startLine: 1, lineCount: 1 },
+  modified: { startLine: 1, lineCount: 1 },
+});
+
+/** A chapter showing each file for H0001 unless the entry names its hunks. */
+function chapter(id: string, files: (string | [string, string[]])[]): NarrativeChapter {
   return {
     id,
     title: id.toUpperCase(),
     insights: [],
-    diffChunks: filenames.map((filename) => ({ filename, language: 'typescript', hunks: [] })),
+    diffChunks: files.map((entry) => {
+      const [filename, hunkIds] = typeof entry === 'string' ? [entry, ['H0001']] : entry;
+      return { filename, language: 'typescript', hunks: hunkIds.map(hunk) };
+    }),
   };
 }
 
-function call(filename: string, title: string): JudgementCall {
-  return { title, text: `about ${filename}`, filename, hunkIds: ['H0001'] };
+function call(
+  filename: string,
+  title: string,
+  hunkIds: [string, ...string[]] = ['H0001'],
+): JudgementCall {
+  return { title, text: `about ${filename}`, filename, hunkIds };
 }
 
 function review(chapters: NarrativeChapter[], judgementCalls: JudgementCall[]): NarrativeReview {
@@ -41,6 +56,16 @@ describe('anchorJudgementCalls', () => {
       ),
     );
     expect(anchored.map((entry) => entry.chapterId)).toEqual(['one']);
+  });
+
+  it('gives a file two chapters show different hunks of to the one showing its lines', () => {
+    const anchored = anchorJudgementCalls(
+      review(
+        [chapter('one', [['src/a.ts', ['H0001']]]), chapter('two', [['src/a.ts', ['H0002']]])],
+        [call('src/a.ts', 'about the second hunk', ['H0002'])],
+      ),
+    );
+    expect(anchored.map((entry) => entry.chapterId)).toEqual(['two']);
   });
 
   it('leaves out a call whose file no chapter shows, having nowhere to draw it', () => {
