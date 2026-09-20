@@ -108,13 +108,14 @@ function NodeShape({
   const { lineHeight } = DIAGRAM_TYPE.node;
   const firstY = node.y + node.height / 2 - ((node.lines.length - 1) * lineHeight) / 2;
   const marks = [style.text, node.filename].filter(Boolean).join(', ');
+  const spoken = node.fullLabel ?? node.lines.join(' ');
 
   return (
     <g
       className={clickable ? classes.clickable : undefined}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
-      aria-label={clickable ? `${node.lines.join(' ')} — ${marks}` : undefined}
+      aria-label={clickable ? `${spoken} — ${marks}` : undefined}
       onClick={clickable ? () => onSelectFile(node.filename as string) : undefined}
       onKeyDown={
         clickable
@@ -127,6 +128,13 @@ function NodeShape({
           : undefined
       }
     >
+      {/*
+       * The label in full for a pointer, since the box could only hold part of
+       * it. A node named after a file is where this matters: two files in one
+       * diagram can differ only in the part that was cut, which leaves the
+       * diagram drawing the comparison and unable to say which side is which.
+       */}
+      {node.fullLabel !== undefined && <title>{node.fullLabel}</title>}
       <rect
         x={node.x}
         y={node.y}
@@ -217,6 +225,7 @@ export function GraphSvg({
                 letterSpacing={CAPTION_TYPE.tracking}
                 fill={token('muted-foreground')}
               >
+                {group.fullLabel !== undefined && <title>{group.fullLabel}</title>}
                 {group.label.toUpperCase()}
               </text>
             </g>

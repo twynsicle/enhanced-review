@@ -15,6 +15,42 @@ describe('layoutSequence', () => {
     expect(xs).toEqual([...xs].toSorted((a, b) => a - b));
   });
 
+  /*
+   * A head is 190px wide and a label may be 48 characters, so a participant
+   * named after a file is routinely cut — and two files under one directory
+   * differ only in the part that goes, leaving the diagram drawing a
+   * comparison it cannot say the sides of. The whole label is kept so the
+   * painter can hang it on a hover.
+   */
+  it('keeps the whole label of a participant it had to cut', () => {
+    const paths: SequenceDiagram = {
+      ...sequence,
+      participants: [
+        {
+          id: 'paused',
+          label: 'src/scheduler/queue/paused-schedule-queue.ts',
+          kind: 'code',
+          change: 'modified',
+        },
+        {
+          id: 'hourly',
+          label: 'src/scheduler/queue/hourly-schedule-queue.ts',
+          kind: 'code',
+          change: 'added',
+        },
+        { id: 'cron', label: 'Cron', kind: 'code', change: 'unchanged' },
+      ],
+      steps: [],
+    };
+    const byId = new Map(layoutSequence(paths).participants.map((p) => [p.id, p]));
+
+    expect(byId.get('paused')?.lines.join('')).toMatch(/…$/);
+    expect(byId.get('paused')?.fullLabel).toBe('src/scheduler/queue/paused-schedule-queue.ts');
+    expect(byId.get('hourly')?.fullLabel).toBe('src/scheduler/queue/hourly-schedule-queue.ts');
+    // A label that fits needs no hover, and would only get in the way of one.
+    expect(byId.get('cron')?.fullLabel).toBeUndefined();
+  });
+
   it('runs lifelines from below the heads to below the last row', () => {
     const layout = layoutSequence(sequence);
     const headBottom = Math.max(...layout.participants.map((p) => p.y + p.height));

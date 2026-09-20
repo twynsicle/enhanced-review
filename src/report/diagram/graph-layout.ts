@@ -5,7 +5,14 @@ import {
   type DiagramNodeKind,
   type GraphDiagram,
 } from '@/review/diagram';
-import { DIAGRAM_TYPE, estimateTextWidth, fitCaption, widestLine, wrapLabel } from './text-metrics';
+import {
+  cutFrom,
+  DIAGRAM_TYPE,
+  estimateTextWidth,
+  fitCaption,
+  widestLine,
+  wrapLabel,
+} from './text-metrics';
 
 /**
  * Turns a graph diagram into coordinates. Pure: no DOM, no measurement, so it
@@ -57,6 +64,8 @@ export interface Point {
 export interface LaidOutNode {
   id: string;
   lines: string[];
+  /** The whole label when `lines` is a cut-down version of it; see `cutFrom`. */
+  fullLabel?: string;
   x: number;
   y: number;
   width: number;
@@ -84,6 +93,8 @@ export interface LaidOutGroup {
   id: string;
   /** Fitted to the box: ellipsised when the group is narrower than its name. */
   label: string;
+  /** The whole label when `label` is a cut-down version of it; see `cutFrom`. */
+  fullLabel?: string;
   x: number;
   y: number;
   width: number;
@@ -111,6 +122,7 @@ export interface GraphLayout {
 
 interface NodeBox {
   lines: string[];
+  fullLabel?: string;
   width: number;
   height: number;
 }
@@ -124,7 +136,13 @@ function measureNode(label: string): NodeBox {
     NODE_MAX_W,
     Math.max(NODE_MIN_W, Math.ceil(widestLine(lines, size)) + NODE_PAD_X * 2),
   );
-  return { lines, width, height: lines.length * lineHeight + NODE_PAD_Y * 2 };
+  const fullLabel = cutFrom(label, lines);
+  return {
+    lines,
+    ...(fullLabel !== undefined ? { fullLabel } : {}),
+    width,
+    height: lines.length * lineHeight + NODE_PAD_Y * 2,
+  };
 }
 
 /** Which panel a node belongs to, for `beforeAfter`. */
@@ -216,11 +234,14 @@ function layoutPanel(
       width: number;
       height: number;
     };
+    // dagre sizes a group from its members, never from its name, so a long
+    // name on a one-node group would run past its own border.
+    const label = fitCaption(group.label, g.width - GROUP_LABEL_INSET * 2);
+    const fullLabel = cutFrom(group.label, [label]);
     laidOutGroups.push({
       id: group.id,
-      // dagre sizes a group from its members, never from its name, so a long
-      // name on a one-node group would run past its own border.
-      label: fitCaption(group.label, g.width - GROUP_LABEL_INSET * 2),
+      label,
+      ...(fullLabel !== undefined ? { fullLabel } : {}),
       x: g.x - g.width / 2,
       y: g.y - g.height / 2,
       width: g.width,
@@ -234,6 +255,7 @@ function layoutPanel(
     return {
       id: node.id,
       lines: box.lines,
+      ...(box.fullLabel !== undefined ? { fullLabel: box.fullLabel } : {}),
       x: placed.x - box.width / 2,
       y: placed.y - box.height / 2,
       width: box.width,

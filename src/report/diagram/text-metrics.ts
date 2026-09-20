@@ -24,6 +24,9 @@ export const DIAGRAM_TYPE = {
   edge: { size: px(FONT_SIZES.xs), lineHeight: 14 },
 } as const;
 
+/** What a cut label ends in, and so how a painter knows one was cut. */
+const ELLIPSIS = '…';
+
 const NARROW = new Set(`ijltfrI.,:;'"|!()[]{}\`-`);
 const WIDE = new Set('MWmw@%');
 
@@ -88,10 +91,10 @@ export function wrapLabel(
     const mustCut = position === lines.length - 1 && truncated;
     if (!mustCut && estimateTextWidth(entry, size) <= maxWidth) return entry;
     let out = entry;
-    while (out.length > 0 && estimateTextWidth(`${out}…`, size) > maxWidth) {
+    while (out.length > 0 && estimateTextWidth(`${out}${ELLIPSIS}`, size) > maxWidth) {
       out = out.slice(0, -1);
     }
-    return `${out.trimEnd()}…`;
+    return `${out.trimEnd()}${ELLIPSIS}`;
   });
 }
 
@@ -111,8 +114,24 @@ export function estimateCaptionWidth(text: string): number {
 export function fitCaption(text: string, maxWidth: number): string {
   if (estimateCaptionWidth(text) <= maxWidth) return text;
   let out = text;
-  while (out.length > 0 && estimateCaptionWidth(`${out}…`) > maxWidth) out = out.slice(0, -1);
-  return `${out.trimEnd()}…`;
+  while (out.length > 0 && estimateCaptionWidth(`${out}${ELLIPSIS}`) > maxWidth) {
+    out = out.slice(0, -1);
+  }
+  return `${out.trimEnd()}${ELLIPSIS}`;
+}
+
+/**
+ * The whole of `label` when `drawn` is only part of it, and undefined when the
+ * two say the same thing. A painter hands this to an SVG `<title>`, so the cut
+ * is recoverable by hovering.
+ *
+ * An ellipsis tells a reader a label was cut but not what it was cut from,
+ * which is no help at all where it costs the most: a node named after a file
+ * can differ from its neighbour only in the part that went, and a diagram
+ * comparing two files then labels both of them the same.
+ */
+export function cutFrom(label: string, drawn: readonly string[]): string | undefined {
+  return drawn.some((line) => line.endsWith(ELLIPSIS)) ? label : undefined;
 }
 
 /** The width a wrapped label actually occupies. */

@@ -5,7 +5,7 @@ import {
   type SequenceDiagram,
   type SequenceStep,
 } from '@/review/diagram';
-import { DIAGRAM_TYPE, estimateTextWidth, widestLine, wrapLabel } from './text-metrics';
+import { cutFrom, DIAGRAM_TYPE, estimateTextWidth, widestLine, wrapLabel } from './text-metrics';
 
 /**
  * Sequence layout, done by hand rather than by an engine.
@@ -42,6 +42,8 @@ const SELF_LABEL_W = 160;
 export interface LaidOutParticipant {
   id: string;
   lines: string[];
+  /** The whole label when `lines` is a cut-down version of it; see `cutFrom`. */
+  fullLabel?: string;
   x: number;
   y: number;
   width: number;
@@ -58,8 +60,9 @@ export interface LaidOutMessage {
   fromX: number;
   toX: number;
   y: number;
-  label: string;
   lines: string[];
+  /** The whole label when `lines` is a cut-down version of it; see `cutFrom`. */
+  fullLabel?: string;
   style: 'call' | 'return';
   change: DiagramChange;
   selfCall: boolean;
@@ -96,7 +99,12 @@ export interface SequenceLayout {
   lifelineBottom: number;
 }
 
-function measureHead(label: string): { lines: string[]; width: number; height: number } {
+function measureHead(label: string): {
+  lines: string[];
+  fullLabel?: string;
+  width: number;
+  height: number;
+} {
   const { size, lineHeight } = DIAGRAM_TYPE.node;
   const inner = HEAD_MAX_W - HEAD_PAD_X * 2;
   const lines =
@@ -107,7 +115,13 @@ function measureHead(label: string): { lines: string[]; width: number; height: n
     HEAD_MAX_W,
     Math.max(HEAD_MIN_W, Math.ceil(widestLine(lines, size)) + HEAD_PAD_X * 2),
   );
-  return { lines, width, height: lines.length * lineHeight + HEAD_PAD_Y * 2 };
+  const fullLabel = cutFrom(label, lines);
+  return {
+    lines,
+    ...(fullLabel !== undefined ? { fullLabel } : {}),
+    width,
+    height: lines.length * lineHeight + HEAD_PAD_Y * 2,
+  };
 }
 
 /** Rows and group frames, walked in document order. */
@@ -147,13 +161,14 @@ function walk(
         );
       }
       cursor.counter += 1;
+      const fullLabel = cutFrom(step.label, lines);
       cursor.messages.push({
         key: `m${String(cursor.counter)}`,
         fromX,
         toX,
         y: cursor.y + ROW_H / 2,
-        label: step.label,
         lines,
+        ...(fullLabel !== undefined ? { fullLabel } : {}),
         style: step.style,
         change: step.change,
         selfCall,
@@ -212,6 +227,7 @@ export function layoutSequence(diagram: SequenceDiagram): SequenceLayout {
     participants.push({
       id: participant.id,
       lines: box.lines,
+      ...(box.fullLabel !== undefined ? { fullLabel: box.fullLabel } : {}),
       x,
       y: MARGIN,
       width: box.width,

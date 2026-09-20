@@ -125,6 +125,7 @@ describe('layoutGraph', () => {
     };
     const group = layoutGraph(narrow).panels[0]?.groups[0];
     expect(group?.label).toMatch(/…$/);
+    expect(group?.fullLabel).toBe('An improbably long name for a group of one small node');
     expect(estimateCaptionWidth(group?.label ?? '')).toBeLessThanOrEqual(
       (group?.width ?? 0) - GROUP_LABEL_INSET * 2,
     );

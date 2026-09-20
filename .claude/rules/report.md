@@ -72,7 +72,9 @@ src/report/
                      use-reading-file.ts (which file's diff card is pinned under the topbar, re-read on scroll and
                      on the column's own resize, for the sidebar's mark; every card carries data-diff-file),
                      use-narrative-keyboard
-  diagram/           SVG: text-metrics (estimated widths), change-style (change → token; nodes are outlined,
+  diagram/           SVG: text-metrics (estimated widths, and cutFrom: the whole of a label the fit had to cut,
+                     which every painter hangs on an SVG <title>, so a hover recovers a path two nodes share the
+                     drawn half of), change-style (change → token; nodes are outlined,
                      never filled), graph-layout (dagre, compound + multigraph; beforeAfter splits into two panels
                      off the change marks), sequence-layout (hand-rolled columns × rows), graph-svg / sequence-svg
                      (painters), diagram-figure (the `data-bleed` figure: 1:1 with horizontal scroll, legend,

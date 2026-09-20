@@ -34,7 +34,9 @@ function Head({
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
       aria-label={
-        clickable ? `${participant.lines.join(' ')} — ${participant.filename ?? ''}` : undefined
+        clickable
+          ? `${participant.fullLabel ?? participant.lines.join(' ')} — ${participant.filename ?? ''}`
+          : undefined
       }
       onClick={clickable ? () => onSelectFile(participant.filename as string) : undefined}
       onKeyDown={
@@ -48,6 +50,14 @@ function Head({
           : undefined
       }
     >
+      {/*
+       * The label in full for a pointer, since the head could only hold part
+       * of it. A participant named after a file is where this matters: two
+       * files in one diagram can differ only in the part that was cut, which
+       * leaves the diagram drawing the comparison and unable to say which side
+       * is which.
+       */}
+      {participant.fullLabel !== undefined && <title>{participant.fullLabel}</title>}
       <rect
         x={participant.x}
         y={participant.y}
@@ -89,12 +99,15 @@ function Message({ message, uniform }: { message: LaidOutMessage; uniform: boole
    */
   const labelTop = message.y - LABEL_LIFT - (message.lines.length - 1) * lineHeight;
 
+  const fullLabel = message.fullLabel !== undefined && <title>{message.fullLabel}</title>;
+
   if (message.selfCall) {
     const x = message.fromX;
     const top = message.y - 10;
     const bottom = message.y + 10;
     return (
       <g>
+        {fullLabel}
         <path
           d={`M${String(x)},${String(top)} L${String(x + 30)},${String(top)} L${String(x + 30)},${String(bottom)} L${String(x + 6)},${String(bottom)}`}
           fill="none"
@@ -126,6 +139,7 @@ function Message({ message, uniform }: { message: LaidOutMessage; uniform: boole
   const tip = message.toX + (forward ? -1 : 1);
   return (
     <g>
+      {fullLabel}
       <line
         x1={message.fromX}
         y1={message.y}
@@ -188,14 +202,7 @@ export function SequenceSvg({
             fill="none"
             stroke={token('border')}
           />
-          <rect
-            x={group.x}
-            y={group.y}
-            width={44 + (group.label ? 0 : 0)}
-            height={18}
-            rx={8}
-            fill={token('surface-2')}
-          />
+          <rect x={group.x} y={group.y} width={44} height={18} rx={8} fill={token('surface-2')} />
           <text
             x={group.x + 10}
             y={group.y + 9}
