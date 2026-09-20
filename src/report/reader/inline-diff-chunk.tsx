@@ -623,6 +623,8 @@ export function InlineDiffChunk({
     <Box
       role="figure"
       aria-label={`Diff for ${chunk.filename}`}
+      /* Read back by `use-reading-file.ts` to mark this file in the sidebar. */
+      data-diff-file={chunk.filename}
       style={{
         /*
          * `clip`, not `hidden`: both round the card's corners, but `hidden`

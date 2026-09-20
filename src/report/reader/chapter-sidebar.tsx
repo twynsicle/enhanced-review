@@ -27,6 +27,12 @@ interface ChapterSidebarProps {
   activeId: string;
   /** Filename currently shown in the file-only view, or null. */
   activeFile?: string | null;
+  /**
+   * File whose diff the reader has scrolled to in the chapter they are on, or
+   * null. Deliberately not `activeFile`: one is a file they navigated to, the
+   * other one they happen to be looking at, and the list marks them apart.
+   */
+  readingFile?: string | null;
   /** Sidebar entries are buttons, not links: the URL strategy lives a layer up. */
   onSelect: (id: string) => void;
   onSelectFile: (filename: string) => void;
@@ -51,6 +57,7 @@ export function ChapterSidebar({
   chapters,
   activeId,
   activeFile = null,
+  readingFile = null,
   onSelect,
   onSelectFile,
   files,
@@ -104,6 +111,7 @@ export function ChapterSidebar({
             files={reviewFiles}
             coverage={coverage?.byFile}
             activeFile={activeFile}
+            readingFile={readingFile}
             onSelectFile={onSelectFile}
           />
         </section>
@@ -271,11 +279,17 @@ function coverageNote(coverage: FileCoverage | undefined): string | null {
  * A file the chapters left out is marked, not dimmed: dimming is what a
  * skipped file gets, and it says "not worth your time", which is the opposite
  * of what an undiscussed change is.
+ *
+ * `reading` carries no `aria-current`. Where the reader has scrolled to is a
+ * property of a viewport, which a screen reader does not have one of, and
+ * announcing a "current" item that changes under the wheel would be noise in
+ * place of the navigation `active` genuinely reports.
  */
 function FileRow({
   file,
   coverage,
   active,
+  reading,
   depth,
   showDirname,
   onSelectFile,
@@ -283,6 +297,7 @@ function FileRow({
   file: ReviewFile;
   coverage: FileCoverage | undefined;
   active: boolean;
+  reading: boolean;
   depth: number;
   showDirname: boolean;
   onSelectFile: (filename: string) => void;
@@ -299,6 +314,7 @@ function FileRow({
       style={indentStyle(depth)}
       aria-current={active ? 'true' : undefined}
       data-active={active || undefined}
+      data-reading={reading || undefined}
       data-skipped={skipped ? true : undefined}
       title={note ?? undefined}
       onClick={() => onSelectFile(file.filename)}
@@ -327,6 +343,7 @@ interface FileListProps {
   files: readonly ReviewFile[];
   coverage: ReadonlyMap<string, FileCoverage> | undefined;
   activeFile: string | null;
+  readingFile: string | null;
   onSelectFile: (filename: string) => void;
 }
 
@@ -335,7 +352,7 @@ function FileList(props: FileListProps) {
   return view === 'tree' ? <FileTreeList {...props} /> : <FlatFileList {...props} />;
 }
 
-function FlatFileList({ files, coverage, activeFile, onSelectFile }: FileListProps) {
+function FlatFileList({ files, coverage, activeFile, readingFile, onSelectFile }: FileListProps) {
   return (
     <ul className={classes.fileList} aria-label="Changed files">
       {files.map((file) => (
@@ -344,6 +361,7 @@ function FlatFileList({ files, coverage, activeFile, onSelectFile }: FileListPro
             file={file}
             coverage={coverage?.get(file.filename)}
             active={file.filename === activeFile}
+            reading={file.filename === readingFile}
             depth={0}
             showDirname
             onSelectFile={onSelectFile}
@@ -361,6 +379,7 @@ interface TreeContext {
   onToggle: (path: string) => void;
   coverage: ReadonlyMap<string, FileCoverage> | undefined;
   activeFile: string | null;
+  readingFile: string | null;
   onSelectFile: (filename: string) => void;
 }
 
@@ -382,7 +401,7 @@ interface TreeContext {
  * lands, and that button is named by its own contents — the folded path, not
  * the subtree under it.
  */
-function FileTreeList({ files, coverage, activeFile, onSelectFile }: FileListProps) {
+function FileTreeList({ files, coverage, activeFile, readingFile, onSelectFile }: FileListProps) {
   const nodes = useMemo(() => buildFileTree(files), [files]);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set<string>());
   const onToggle = useCallback((path: string) => {
@@ -395,7 +414,14 @@ function FileTreeList({ files, coverage, activeFile, onSelectFile }: FileListPro
 
   return (
     <ul className={classes.fileList} aria-label="Changed files">
-      {treeItems(nodes, 0, { collapsed, onToggle, coverage, activeFile, onSelectFile })}
+      {treeItems(nodes, 0, {
+        collapsed,
+        onToggle,
+        coverage,
+        activeFile,
+        readingFile,
+        onSelectFile,
+      })}
     </ul>
   );
 }
@@ -412,6 +438,7 @@ function treeItems(
           file={node.file}
           coverage={context.coverage?.get(node.file.filename)}
           active={node.file.filename === context.activeFile}
+          reading={node.file.filename === context.readingFile}
           depth={depth}
           showDirname={false}
           onSelectFile={context.onSelectFile}

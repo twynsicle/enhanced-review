@@ -234,6 +234,25 @@
   );
 }
 
+/*
+ * The file whose diff is under the reader's eye as they scroll a chapter. It
+ * answers a different question from the wash above — that one says "this view
+ * is this file", this one says "this is the one in front of you" — so it is a
+ * different mark rather than a paler version of the same one: the 2px rail
+ * the chapter list already uses for where-you-are, over a tint just strong
+ * enough to find in a long list. The two never appear together, because a
+ * file view has no chapter to scroll.
+ */
+.fileRow[data-reading]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-inline-start: 2px solid var(--er-before);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--er-before) 8%, transparent);
+}
+
 .fileRow > * {
   position: relative;
 }

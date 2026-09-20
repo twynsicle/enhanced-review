@@ -37,7 +37,9 @@ src/report/
                      assessment, then the chapters — that the sidebar renders and the keyboard walks),
                      chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, a row carrying
                      a diagram is marked, a skipped file is dimmed, a file the chapters left out carries ○ (none of
-                     its hunks cited) or ◐ (some) beside its stats with the reason in its title and hidden text;
+                     its hunks cited) or ◐ (some) beside its stats with the reason in its title and hidden text,
+                     and the file whose diff the reader has scrolled to carries a rail (use-reading-file.ts) that is
+                     a quieter, separate mark from the wash on a file the file view shows;
                      its Files header carries the flat ⇄ tree toggle for the changed-file list, one shared row
                      component under both views, the tree drawn as nested lists with aria-expanded on the
                      directory buttons — a disclosure list, not an ARIA tree, since there is no roving tabindex —
@@ -67,6 +69,8 @@ src/report/
                      DiffUnavailable, a line of text in the card instead of an empty body),
                      monaco-cdn.ts (MONACO_VERSION / MONACO_VS_URL: which Monaco the CDN serves, held to the
                      declared monaco-editor — the types' version — by the monaco-version guardrail),
+                     use-reading-file.ts (which file's diff card is pinned under the topbar, re-read on scroll and
+                     on the column's own resize, for the sidebar's mark; every card carries data-diff-file),
                      use-narrative-keyboard
   diagram/           SVG: text-metrics (estimated widths), change-style (change → token; nodes are outlined,
                      never filled), graph-layout (dagre, compound + multigraph; beforeAfter splits into two panels

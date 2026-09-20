@@ -23,6 +23,7 @@ import { RiskCard } from '@/report/reader/risk-card';
 import { findSection, readerSections, type ReaderSection } from '@/report/reader/sections';
 import { SummaryCard } from '@/report/reader/summary-card';
 import { useNarrativeKeyboard } from '@/report/reader/use-narrative-keyboard';
+import { useReadingFile } from '@/report/reader/use-reading-file';
 import { useReaderColumn } from '@/report/stores/diff-view';
 import {
   applySidebarWidth,
@@ -119,6 +120,12 @@ export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderPr
    * `?ch=`/`?file=` puts it rather than snapping away from it.
    */
   const activeContentId = activeFile ?? activeId;
+  /*
+   * Only in the chapter view. The file view already marks its file, and that
+   * mark means "this is what the column shows", which is a stronger claim than
+   * scroll position has any business making.
+   */
+  const readingFile = useReadingFile(mainRef, activeContentId);
   const isFirstRender = useRef(true);
   // oxlint-disable-next-line react/exhaustive-deps -- activeContentId is the trigger, not read in the body
   useEffect(() => {
@@ -214,6 +221,7 @@ export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderPr
           coverage={coverage}
           activeId={activeId}
           activeFile={activeFile}
+          readingFile={activeFile === null ? readingFile : null}
           reviewTitle={review.prTitle}
           riskAssessment={review.riskAssessment}
           onSelect={onSelect}
