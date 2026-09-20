@@ -75,7 +75,7 @@ describe('the shared SDK loop', () => {
   });
 
   it('reports tool uses with what they name, and system messages by subtype', async () => {
-    const onToolUse = vi.fn<(tool: string, detail: string) => void>();
+    const onToolUse = vi.fn<(tool: string, detail: string, turn: number) => void>();
     const onSystem = vi.fn<(subtype: string) => void>();
 
     await runSdkLoop(
@@ -92,10 +92,26 @@ describe('the shared SDK loop', () => {
     );
 
     expect(onToolUse.mock.calls).toEqual([
-      ['Grep', 'addWorktree'],
-      ['Bash', 'git log'],
+      ['Grep', 'addWorktree', 1],
+      ['Bash', 'git log', 1],
     ]);
     expect(onSystem).toHaveBeenCalledWith('init');
+  });
+
+  it('counts a turn per assistant message, however many tools it asks for', async () => {
+    const onToolUse = vi.fn<(tool: string, detail: string, turn: number) => void>();
+
+    await runSdkLoop(
+      yielding([
+        assistant(toolUse('Read', { file_path: 'a.ts' }), toolUse('Read', { file_path: 'b.ts' })),
+        assistant(toolUse('Read', { file_path: 'c.ts' })),
+        result({ subtype: 'success', is_error: false, total_cost_usd: 0 }),
+      ]),
+      args(),
+      { onToolUse },
+    );
+
+    expect(onToolUse.mock.calls.map(([, , turn]) => turn)).toEqual([1, 1, 2]);
   });
 
   it('hands back an SDK failure with the text collected before it, instead of throwing', async () => {

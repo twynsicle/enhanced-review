@@ -77,8 +77,13 @@ function totalUsage(byModel: Record<string, ModelUsage> | undefined): SdkUsage {
 export interface SdkLoopCallbacks {
   /** Each block of model text, in order. Throwing stops the run. */
   onText?: (text: string) => void;
-  /** A tool the model used, with the path, pattern or command it named. */
-  onToolUse?: (tool: string, detail: string) => void;
+  /**
+   * A tool the model used, with the path, pattern or command it named, and
+   * the turn it was used on. One assistant message is one turn — one API
+   * round-trip — however many tools it asks for at once, which is what
+   * `maxTurns` counts and what the result's `num_turns` reports.
+   */
+  onToolUse?: (tool: string, detail: string, turn: number) => void;
   onSystem?: (subtype: string) => void;
 }
 
@@ -100,14 +105,16 @@ export async function runSdkLoop(
   let raw = '';
   let result: SdkRunResult | null = null;
   let callbackError: Error | null = null;
+  let turn = 0;
 
   try {
     for await (const message of queryFn(args)) {
       if (callbackError) break;
       if (message.type === 'assistant') {
+        turn += 1;
         for (const block of assistantBlocks(message)) {
           if (block.kind === 'tool') {
-            callbacks.onToolUse?.(block.tool, block.detail);
+            callbacks.onToolUse?.(block.tool, block.detail, turn);
             continue;
           }
           raw += block.text;

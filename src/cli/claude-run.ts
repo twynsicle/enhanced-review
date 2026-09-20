@@ -61,8 +61,8 @@ export interface ClaudeRunOptions {
 
 export interface ClaudeRunDeps {
   query?: QueryFn;
-  /** One line per tool use, for the terminal. */
-  onActivity?: (activity: string) => void;
+  /** One line per tool use, for the terminal, with the turn it was used on. */
+  onActivity?: (activity: string, turn: number) => void;
   /** Each block of the answer as it arrives, for the terminal. */
   onText?: (chunk: string) => void;
   /** A disqualified answer the model was asked to write again: what was wrong with it. */
@@ -144,9 +144,9 @@ export async function runClaude(
           characters += text.length;
           deps.onText?.(text);
         },
-        onToolUse: (tool, detail) => {
-          event({ type: 'tool', tool, detail });
-          deps.onActivity?.(activityLine(tool, detail));
+        onToolUse: (tool, detail, turn) => {
+          event({ type: 'tool', turn, tool, detail });
+          deps.onActivity?.(activityLine(tool, detail), turn);
         },
         onSystem: (subtype) => {
           event({ type: 'system', subtype });

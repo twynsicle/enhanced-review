@@ -115,23 +115,30 @@ export async function review(
         );
       } else {
         const progress = startProgress();
-        const result = await runClaude(
-          run,
-          {
-            cwd: worktree?.path ?? context.target.repoRoot,
-            model: options.model,
-            maxTurns: options.maxTurns,
-            timeoutMs: options.timeoutMs,
-            grounding: groundingForRun(context),
-          },
-          {
-            onActivity: progress.activity,
-            onText: progress.text,
-            onBlocked: blockedNote,
-            onHookError: hookErrorNote,
-            ...deps.claude,
-          },
-        );
+        let result;
+        try {
+          result = await runClaude(
+            run,
+            {
+              cwd: worktree?.path ?? context.target.repoRoot,
+              model: options.model,
+              maxTurns: options.maxTurns,
+              timeoutMs: options.timeoutMs,
+              grounding: groundingForRun(context),
+            },
+            {
+              onActivity: progress.activity,
+              onText: progress.text,
+              onBlocked: blockedNote,
+              onHookError: hookErrorNote,
+              ...deps.claude,
+            },
+          );
+        } finally {
+          // The heartbeat outlives the run otherwise, and would go on saying
+          // the model is working over the parse and render lines.
+          progress.stop();
+        }
         stage('run', `${describeRun(result)}${where}`, performance.now() - started);
       }
     } finally {
