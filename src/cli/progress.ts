@@ -8,9 +8,10 @@ import { note } from './terminal.ts';
  * worth the length, since the cost of a run failing on `error_max_turns` is
  * the whole run's effort, not a scrollback.
  *
- * The turn is the SDK's own count of API round-trips, not a tally of tool
- * uses: a turn that asks for four files at once is one turn, and the whole
- * point of the number is to read it against `--max-turns`.
+ * The turn comes from the message loop rather than from counting the lines
+ * here: a turn that asks for four files at once is one turn and prints four
+ * lines, and the whole point of the number is to be read against
+ * `--max-turns`.
  *
  * Chapter titles are picked out of the answer as it streams, before there is
  * enough JSON to parse: a chapter is the only object that carries an `id`
