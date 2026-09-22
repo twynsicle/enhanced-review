@@ -76,7 +76,7 @@ export async function resolveTarget(
   const repo = await repoLabel(shell, repoRoot);
   switch (request.kind) {
     case 'pr':
-      return resolvePull(shell, repo, request.number, request.base);
+      return resolvePull(shell, repo, request.number, request.base, options);
     case 'branch':
       return resolveBranch(shell, repo, request.base, options);
     case 'staged':
@@ -115,6 +115,7 @@ async function resolvePull(
   repo: string,
   number: number,
   base: string | null,
+  { warn }: ResolveOptions,
 ): Promise<ResolvedTarget> {
   const pull = parsePull(await shell.gh(['pr', 'view', String(number), '--json', PULL_FIELDS]));
   await shell.git([
@@ -130,7 +131,7 @@ async function resolvePull(
     throw new Error(`PR #${String(number)} changed while it was being fetched; run again`);
   }
   const baseLabel = base ?? `origin/${pull.baseRefName}`;
-  const baseSha = await mergeBase(shell, headSha, baseLabel);
+  const baseSha = await mergeBase(shell, headSha, baseLabel, warn);
   return {
     target: {
       kind: 'pr',
@@ -166,7 +167,7 @@ async function resolveBranch(
     }
     baseLabel = `origin/${baseBranch}`;
   }
-  const baseSha = await mergeBase(shell, headSha, baseLabel);
+  const baseSha = await mergeBase(shell, headSha, baseLabel, warn);
   const name = branch ?? headSha.slice(0, 7);
   if (baseSha === headSha) {
     throw new Error(`nothing to review: ${name} has no commits past ${baseLabel}`);
@@ -306,11 +307,43 @@ async function revParse(
   return result.stdout.trim();
 }
 
-async function mergeBase(shell: Shell, headSha: string, baseLabel: string): Promise<string> {
+/**
+ * More changed files than this between the merge-base and head is not a
+ * normal branch or PR review; past `FAIL_CHANGED_FILES` it is refused
+ * outright rather than handed to the model. The likely cause is `--base`
+ * naming a ref that moved (e.g. was rebased) since this branch forked from
+ * it, so the merge-base git finds is far earlier than the real fork point.
+ */
+const WARN_CHANGED_FILES = 50;
+const FAIL_CHANGED_FILES = 300;
+
+async function mergeBase(
+  shell: Shell,
+  headSha: string,
+  baseLabel: string,
+  warn: (text: string) => void,
+): Promise<string> {
   const baseTip = await revParse(shell, baseLabel, 'base');
   const result = await shell.tryGit(['merge-base', headSha, baseTip]);
   if (result.exitCode !== 0) throw new Error(`no common history with ${baseLabel}`);
-  return result.stdout.trim();
+  const baseSha = result.stdout.trim();
+  const changed = await shell.git(['diff', '--name-only', `${baseSha}..${headSha}`]);
+  const fileCount = changed.split('\n').filter((line) => line !== '').length;
+  if (fileCount > FAIL_CHANGED_FILES) {
+    throw new Error(
+      `${String(fileCount)} files changed between ${baseLabel} and this branch, far more than a ` +
+        `real review target; ${baseLabel} most likely moved (e.g. was rebased) since this branch ` +
+        "forked from it. Pass a --base that still shares this branch's actual history.",
+    );
+  }
+  if (fileCount > WARN_CHANGED_FILES) {
+    warn(
+      `${String(fileCount)} files changed between ${baseLabel} and this branch, more than a typical ` +
+        `review; if ${baseLabel} moved (e.g. was rebased) since this branch forked from it, this diff ` +
+        'may reach further back than intended.',
+    );
+  }
+  return baseSha;
 }
 
 /** `owner/name` from origin's URL; the folder name when there is no GitHub-style remote. */

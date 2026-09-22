@@ -193,6 +193,53 @@ describe('branch target', () => {
       resolveTarget({ kind: 'branch', base: null }, shell().shell, { warn }),
     ).rejects.toThrow('nothing to review: main has no commits past origin/main');
   });
+
+  /**
+   * `stack-base` picks up `count` files, `feature` forks from it, then
+   * `stack-base` is force-moved onto `main` and given different commits of
+   * its own — as a rebase would. `feature` still carries the old `stack-base`
+   * commits as ancestry, so its merge-base with the *new* `stack-base` falls
+   * back to their last shared commit (`main`'s `initial`), pulling every one
+   * of those old files into the diff.
+   */
+  function stackedBranchWithFiles(count: number): string {
+    repo.git('checkout', '--quiet', '-b', 'stack-base');
+    for (let i = 0; i < count; i += 1) {
+      repo.write(`generated/file-${String(i)}.txt`, `content ${String(i)}\n`);
+    }
+    repo.commit(`add ${String(count)} files`);
+    repo.git('checkout', '--quiet', '-b', 'feature', 'stack-base');
+    repo.write('src/feature.ts', 'export const x = 1;\n');
+    const head = repo.commit('feature work');
+    repo.git('branch', '--force', '--quiet', 'stack-base', 'main');
+    repo.git('checkout', '--quiet', 'stack-base');
+    repo.write('unrelated.md', 'moved on\n');
+    repo.commit('stack-base moved on');
+    repo.git('push', '--quiet', '--force', 'origin', 'stack-base');
+    repo.git('checkout', '--quiet', 'feature');
+    return head;
+  }
+
+  it('warns when --base names a ref that moved since this branch forked from it', async () => {
+    const head = stackedBranchWithFiles(55);
+
+    const { target } = await resolveTarget({ kind: 'branch', base: 'stack-base' }, shell().shell, {
+      warn,
+    });
+
+    expect(target.baseSha).toBe(initial);
+    expect(target.headSha).toBe(head);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toMatch(/^56 files changed between stack-base/);
+  });
+
+  it('refuses --base outright when it produces an implausibly large diff', async () => {
+    stackedBranchWithFiles(305);
+
+    await expect(
+      resolveTarget({ kind: 'branch', base: 'stack-base' }, shell().shell, { warn }),
+    ).rejects.toThrow(/^306 files changed between stack-base.*rebased/);
+  });
 });
 
 describe('staged target', () => {
