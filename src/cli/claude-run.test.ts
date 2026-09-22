@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { HookInput, Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { groundingFor } from '../domain/review/prompt/diff-hunk-catalog.ts';
+import { groundingFor } from '../review/prompt/diff-hunk-catalog.ts';
 import { runClaude, type QueryFn } from './claude-run.ts';
 import { runFiles, type RunFiles } from './run-folder.ts';
 
@@ -30,6 +30,13 @@ const toolUse = (name: string, input: Record<string, unknown>) =>
   ({
     type: 'assistant',
     message: { content: [{ type: 'tool_use', name, input }] },
+  }) as unknown as SDKMessage;
+
+/** One turn that asks for several tools at once, as a batching agent does. */
+const toolUses = (...tools: [name: string, input: Record<string, unknown>][]) =>
+  ({
+    type: 'assistant',
+    message: { content: tools.map(([name, input]) => ({ type: 'tool_use', name, input })) },
   }) as unknown as SDKMessage;
 
 const result = (fields: Record<string, unknown>) =>
@@ -138,22 +145,31 @@ describe('the model run', () => {
     expect(events().at(-1)).toMatchObject({ type: 'result', subtype: 'success', turns: 7 });
   });
 
-  it('reports each tool use as it happens, with what it was about', async () => {
-    const onActivity = vi.fn<(activity: string) => void>();
+  it('reports each tool use as it happens, with what it was about and its turn', async () => {
+    const onActivity = vi.fn<(activity: string, turn: number) => void>();
     const query = fakeQuery([
-      toolUse('Read', { file_path: 'src/cli/review.ts' }),
-      toolUse('Bash', { command: 'git log --oneline -5' }),
+      toolUses(
+        ['Read', { file_path: 'src/cli/review.ts' }],
+        ['Bash', { command: 'git log --oneline -5' }],
+      ),
+      toolUse('Grep', { pattern: 'addWorktree' }),
       text('a review'),
       result({ subtype: 'success', total_cost_usd: 0.1 }),
     ]);
 
     await runClaude(run, options, { query, onActivity });
 
-    expect(onActivity.mock.calls.map(([activity]) => activity)).toEqual([
-      'Read src/cli/review.ts',
-      'Bash git log --oneline -5',
+    // Two tools asked for at once is one turn, which is what --max-turns counts.
+    expect(onActivity.mock.calls).toEqual([
+      ['Read src/cli/review.ts', 1],
+      ['Bash git log --oneline -5', 1],
+      ['Grep addWorktree', 2],
     ]);
-    expect(events().filter((event) => event.type === 'tool')).toHaveLength(2);
+    expect(events().filter((event) => event.type === 'tool')).toEqual([
+      expect.objectContaining({ type: 'tool', turn: 1, tool: 'Read' }),
+      expect.objectContaining({ type: 'tool', turn: 1, tool: 'Bash' }),
+      expect.objectContaining({ type: 'tool', turn: 2, tool: 'Grep' }),
+    ]);
   });
 
   it('runs the agent in the review’s working directory, with the repo’s own settings', async () => {

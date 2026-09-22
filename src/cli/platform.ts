@@ -3,7 +3,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { hostEnv } from '../config/host-env.ts';
+import { hostEnv } from './host-env.ts';
 
 /**
  * Everything that differs by operating system lives here: where the tool
@@ -31,7 +31,7 @@ export interface ScriptResult {
  * shim, which only a shell can start; the command is a fixed string, never
  * built from input.
  */
-export function runNpmScript(script: 'viewer:build', cwd: string): Promise<ScriptResult> {
+export function runNpmScript(script: 'report:build', cwd: string): Promise<ScriptResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(`npm run ${script}`, {
       cwd,

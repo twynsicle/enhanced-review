@@ -1,10 +1,6 @@
 import { spawn } from 'node:child_process';
-import { hostEnv } from '../config/host-env.ts';
-import {
-  runGit,
-  type GitRunner,
-  type GitRunResult,
-} from '../domain/review/clone/git-runner.server.ts';
+import { hostEnv } from './host-env.ts';
+import { runGit, type GitRunner, type GitRunResult } from './git-runner.ts';
 
 /**
  * git and gh for the CLI, bound to one working directory. git goes through
@@ -55,10 +51,9 @@ export const runGh: CommandRunner = (opts) =>
   });
 
 /**
- * git as the engineer running it. The shared runner ignores the system and
- * global configuration, because the server diffs a repository it did not write
- * on a host whose gitconfig it does not control; here those files are what
- * makes git work at all — the credential helper, proxy and `url.insteadOf`
+ * git as the engineer running it. `runGit` ignores the system and global
+ * configuration unless asked, so a test is not at the mercy of whoever runs
+ * it; here those files are what makes git work at all — the credential helper, proxy and `url.insteadOf`
  * that reach origin, and the `safe.directory` entries without which git
  * refuses to touch the repository. Nothing the catalog needs rides on them:
  * each patch is numbered under a `diff --git` header this CLI writes itself,

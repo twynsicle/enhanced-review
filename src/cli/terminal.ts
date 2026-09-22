@@ -33,24 +33,3 @@ export function warn(text: string): void {
 export function fail(text: string): void {
   process.stderr.write(`${paint('red', 'error', process.stderr)} ${text}\n`);
 }
-
-/**
- * The live line a long stage keeps updating in place: the model run's
- * elapsed time and what the agent is doing. It exists
- * only on a terminal — piped or redirected output gets the stage lines and
- * nothing else, so a log never fills with half-drawn lines.
- */
-const CLEAR_LINE = String.fromCharCode(13) + String.fromCharCode(27) + '[2K';
-
-export function status(text: string): void {
-  if (process.stdout.isTTY !== true) return;
-  const columns = process.stdout.columns ?? 80;
-  const room = Math.max(10, columns - 1);
-  const shown = text.length > room ? `${text.slice(0, room - 1)}…` : text;
-  process.stdout.write(CLEAR_LINE + paint('dim', shown, process.stdout));
-}
-
-export function clearStatus(): void {
-  if (process.stdout.isTTY !== true) return;
-  process.stdout.write(CLEAR_LINE);
-}

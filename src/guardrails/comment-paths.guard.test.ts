@@ -1,6 +1,6 @@
 import { globSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GENERATED_OUTPUT, REPO_ROOT, listFiles, readSource, report, toPosix } from './helpers';
+import { GENERATED_OUTPUT, REPO_ROOT, listFiles, readSource, report, toPosix } from './helpers.ts';
 
 /**
  * Guardrail — a repo path named in a comment still points at something. A
@@ -20,13 +20,13 @@ import { GENERATED_OUTPUT, REPO_ROOT, listFiles, readSource, report, toPosix } f
  * proportionate answer to that, not a cure. The alternative to all of it is
  * guessing, and a guardrail that guesses is one that gets switched off.
  */
-const SOURCES = ['src/**/*.{ts,tsx}', 'server/**/*.ts', 'prisma/**/*.prisma', '*.ts'];
+const SOURCES = ['src/**/*.{ts,tsx}', '*.ts'];
 
 const COMMENT_LINE = /^\s*\{?(?:\/\/|\/\*|\*)/;
 const BACKTICKED = /`([^`\n]+)`/g;
 const PLAIN_PATH = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*\/?$/;
 const REPO_EXTENSION =
-  /\.(?:tsx?|jsx?|[cm]js|[cm]ts|css|scss|json|ya?ml|mdx?|sh|sql|html|svg|png|ico|txt|toml|prisma|example)$/;
+  /\.(?:tsx?|jsx?|[cm]js|[cm]ts|css|scss|json|ya?ml|mdx?|sh|sql|html|svg|png|ico|txt|toml)$/;
 
 const GENERATED_ROOTS = GENERATED_OUTPUT.map((pattern) => pattern.replace(/\/\*\*$/, ''));
 
@@ -81,9 +81,9 @@ const CLAIMS: Claim[] = listFiles(SOURCES).flatMap((file) =>
     }),
 );
 
-// Well under the claims the tree carries today, so it fires on collapse and
-// not on a handful of pointers being deleted.
-const MIN_CLAIMS = 10;
+// The tree names few paths in comments, so the floor only catches the scan
+// collapsing to nothing.
+const MIN_CLAIMS = 1;
 
 describe('guardrail: comment paths', () => {
   it('every repo path named in a comment exists', () => {

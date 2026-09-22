@@ -2,33 +2,21 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "web",
+      "name": "report",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000
-    },
-    {
-      "name": "web-3001",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["cross-env", "PORT=3001", "node", "server/index.ts"],
-      "port": 3001
-    },
-    {
-      "name": "viewer",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "viewer:dev", "--", "--port", "5180", "--strictPort"],
+      "runtimeArgs": ["run", "report:dev", "--", "--port", "5180", "--strictPort"],
       "port": 5180
     },
     {
-      "name": "viewer-5181",
+      "name": "report-5181",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "viewer:dev", "--", "--port", "5181", "--strictPort"],
+      "runtimeArgs": ["run", "report:dev", "--", "--port", "5181", "--strictPort"],
       "port": 5181
     },
     {
-      "name": "viewer-5182",
+      "name": "report-5182",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "viewer:dev", "--", "--port", "5182", "--strictPort"],
+      "runtimeArgs": ["run", "report:dev", "--", "--port", "5182", "--strictPort"],
       "port": 5182
     }
   ]

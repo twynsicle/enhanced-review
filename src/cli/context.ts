@@ -1,30 +1,23 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
-import {
-  EmbeddedFileSchema,
-  type EmbeddedFile,
-  type EmbeddedSide,
-} from '../domain/review/bundle.ts';
-import {
-  listChangedFileDetails,
-  type ChangedFile,
-} from '../domain/review/clone/diff-files.server.ts';
-import { argBatches } from '../domain/review/clone/git-runner.server.ts';
-import { DiffLineSpanSchema, ReviewFileSchema } from '../domain/review/narrative.ts';
-import { buildDiffHunkIndex, type DiffHunk } from '../domain/review/prompt/diff-hunk-catalog.ts';
-import { ReviewMetaSchema, type ReviewMeta } from '../domain/review/review-meta.ts';
-import { skipReasons, toReviewFiles } from '../domain/review/skip-reasons.server.ts';
+import { EmbeddedFileSchema, type EmbeddedFile, type EmbeddedSide } from '../review/bundle.ts';
+import { listChangedFileDetails, type ChangedFile } from './diff-files.ts';
+import { argBatches } from './git-runner.ts';
+import { DiffLineSpanSchema, ReviewFileSchema } from '../review/narrative.ts';
+import { buildDiffHunkIndex, type DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
+import { ReviewMetaSchema, type ReviewMeta } from '../review/review-meta.ts';
+import { skipReasons, toReviewFiles } from './skip-reasons.ts';
 import type { Shell } from './git.ts';
-import { hunkFileName, RUNS_DIR, type RunFiles } from './run-folder.ts';
+import { RUNS_DIR, type RunFiles } from './run-folder.ts';
 import { TargetSchema, type Target } from './targets.ts';
 
 /**
  * The gather stage: everything later stages need, read from git once and
  * written to `context.json`, so the prompt, parse and render stages (and a
- * `--from` rerun) never touch git again. Beside it, one hunk file per
- * reviewed file for the agent to read, and the PR description when there is
- * one.
+ * `--from` rerun) never touch git again. Beside it, one diff file carrying
+ * every reviewed file's patch for the agent to read, and the PR description
+ * when there is one.
  */
 export const DiffHunkSchema = z.object({
   id: z.string(),
@@ -57,10 +50,12 @@ export const RunContextSchema = z.object({
   commits: z.array(CommitSchema),
   /** Working-tree changes that are not part of the review. */
   dirty: z.array(z.string()),
+  /** Lines in `context/diff.patch`, so the prompt can ask for it in one `Read`. */
+  diffLines: z.number().int().nonnegative(),
 });
 export type RunContext = z.infer<typeof RunContextSchema>;
 
-/** Either side of a file over this is embedded as `too-large`, as the hosted reader does. */
+/** Either side of a file over this is embedded as `too-large`, and the report says so instead of a diff. */
 export const MAX_EMBED_BYTES = 1_000_000;
 
 const MAX_COMMITS = 200;
@@ -81,6 +76,7 @@ export async function gather(
 
   const diffs = await mapLimit(reviewed, PARALLEL_GIT, (file) => fileDiff(shell, target, file));
   const hunks = numberHunks(reviewed, diffs);
+  const diffFile = annotatedDiffFile(reviewed, diffs, hunks);
   const contents = await embedContents(shell, target, reviewed);
   const renamedFrom = Object.fromEntries(
     changed.flatMap((file) =>
@@ -104,10 +100,12 @@ export async function gather(
     contents,
     commits: target.kind === 'staged' ? [] : await listCommits(shell, baseSha, headSha),
     dirty: target.kind === 'pr' ? [] : await dirtyPaths(shell, target.kind),
+    diffLines: diffFile.split('\n').length,
   };
 
   await writeFile(run.context, `${JSON.stringify(context, null, 2)}\n`);
-  await writeHunkFiles(run, reviewed, diffs, hunks);
+  await mkdir(path.dirname(run.diff), { recursive: true });
+  await writeFile(run.diff, diffFile);
   if (meta.description) {
     await mkdir(path.dirname(run.pr), { recursive: true });
     await writeFile(run.pr, `# ${meta.title}\n\n${meta.description}\n`);
@@ -164,28 +162,25 @@ function numberHunks(files: readonly ChangedFile[], diffs: readonly string[]): D
   return hunks;
 }
 
-/** `context/diff/<path>.diff`, with each hunk's id on the line above its header. */
-async function writeHunkFiles(
-  run: RunFiles,
+/** `context/diff.patch`'s text: every reviewed file's patch, in file order, each hunk's id on the line above its header. */
+function annotatedDiffFile(
   files: readonly ChangedFile[],
   diffs: readonly string[],
   hunks: readonly DiffHunk[],
-): Promise<void> {
+): string {
   const idsByFile = new Map<string, string[]>();
   for (const hunk of hunks)
     idsByFile.set(hunk.filename, [...(idsByFile.get(hunk.filename) ?? []), hunk.id]);
-  await mapLimit(files, PARALLEL_GIT, async (file, index) => {
+  const patches = files.map((file, index) => {
     const ids = idsByFile.get(file.filename) ?? [];
     let next = 0;
-    const text = diffs[index]!.split('\n')
+    return diffs[index]!.split('\n')
       .flatMap((line) =>
         line.startsWith('@@ ') && next < ids.length ? [`# ${ids[next++]!}`, line] : [line],
       )
       .join('\n');
-    const target = path.join(run.diffDir, hunkFileName(file.filename));
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, text);
   });
+  return patches.join('\n');
 }
 
 interface TreeEntry {

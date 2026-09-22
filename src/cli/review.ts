@@ -1,12 +1,12 @@
 import { rename } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import path from 'node:path';
-import { plural } from '../common/plural.ts';
-import { reviewCoverage } from '../domain/review/coverage.ts';
-import { MAX_VALIDATION_RETRIES } from '../domain/review/executor/validation-stop-hook.server.ts';
-import type { Finding } from '../domain/review/findings.ts';
-import type { NarrativeReview } from '../domain/review/narrative.ts';
-import type { ReviewMeta } from '../domain/review/review-meta.ts';
+import { plural } from '../review/plural.ts';
+import { reviewCoverage } from '../review/coverage.ts';
+import { MAX_VALIDATION_RETRIES } from './validation-stop-hook.ts';
+import type { Finding } from '../review/findings.ts';
+import type { NarrativeReview } from '../review/narrative.ts';
+import type { ReviewMeta } from '../review/review-meta.ts';
 import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
 import { gather, readContext, type RunContext } from './context.ts';
 import { Shell } from './git.ts';
@@ -19,7 +19,7 @@ import { HOST_RENDER_DEPS, renderRun, type RenderDeps } from './render.ts';
 import { createRunFolder, latestRunFolder, reportFileName, type RunFiles } from './run-folder.ts';
 import { writeStubRun } from './stub-run.ts';
 import { locateTarget, resolveTarget, type Target, type TargetRequest } from './targets.ts';
-import { clearStatus, note, stage, warn } from './terminal.ts';
+import { note, stage, warn } from './terminal.ts';
 import {
   addWorktree,
   removeWorktree,
@@ -135,6 +135,8 @@ export async function review(
             },
           );
         } finally {
+          // The heartbeat outlives the run otherwise, and would go on saying
+          // the model is working over the parse and render lines.
           progress.stop();
         }
         stage('run', `${describeRun(result)}${where}`, performance.now() - started);
@@ -182,12 +184,9 @@ export async function review(
 /**
  * A disqualified answer, as it happens. Only what was wrong with it: the rest
  * of what the model was sent is an instruction addressed to the model, and it
- * is in `events.jsonl` for anyone who wants it. The progress line is redrawn
- * every second, so it is taken down first rather than left with a note written
- * across it.
+ * is in `events.jsonl` for anyone who wants it.
  */
 function blockedNote(attempt: number, defects: string): void {
-  clearStatus();
   note(
     `  answer disqualified, asking again (${String(attempt)} of ${String(MAX_VALIDATION_RETRIES)}): ${defects}`,
   );
@@ -195,7 +194,6 @@ function blockedNote(attempt: number, defects: string): void {
 
 /** The run carried on ungraded; whatever it wrote is judged at the parse stage. */
 function hookErrorNote(error: Error): void {
-  clearStatus();
   warn(`the answer could not be checked while the model was still writing: ${error.message}`);
 }
 
@@ -308,7 +306,7 @@ function dirtyWarning(context: RunContext): string {
   );
 }
 
-/** A rough count at four characters a token, the hosted prompt's own estimate. */
+/** A rough count at four characters a token. */
 function tokens(text: string): string {
   return approxTokens(text.length);
 }

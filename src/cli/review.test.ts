@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { HookInput } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { BUNDLE_PLACEHOLDER } from '../domain/review/bundle-html.ts';
-import { runGit } from '../domain/review/clone/git-runner.server.ts';
-import { finding } from '../domain/review/findings.ts';
+import { BUNDLE_PLACEHOLDER } from '../review/bundle-html.ts';
+import { runGit } from './git-runner.ts';
+import { finding } from '../review/findings.ts';
 import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import type { QueryFn } from './claude-run.ts';
 import { Shell } from './git.ts';
@@ -27,8 +27,6 @@ vi.mock('./terminal.ts', () => ({
   stage: vi.fn(),
   warn: vi.fn(),
   fail: vi.fn(),
-  status: vi.fn(),
-  clearStatus: vi.fn(),
 }));
 
 let repo: TempRepo;
@@ -44,7 +42,7 @@ beforeEach(() => {
       git: runGit,
       gh: async () => ({ stdout: '', stderr: 'no gh in tests', exitCode: 1 }),
     }),
-    render: { viewerShell: async () => `<html>${BUNDLE_PLACEHOLDER}</html>` },
+    render: { reportShell: async () => `<html>${BUNDLE_PLACEHOLDER}</html>` },
     open: vi.fn<(file: string) => void>(),
     claude: {},
   };
@@ -258,12 +256,12 @@ describe('er review', () => {
     const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
     writeFileSync(
       path.join(run, 'findings.json'),
-      JSON.stringify([finding('diff-truncated', 'Part of the change was never shown.')]),
+      JSON.stringify([finding('diagram-dropped', 'A diagram was dropped.')]),
     );
 
     vi.mocked(terminal.warn).mockClear();
     await expect(review(options({ from: 'render', open: false }), deps)).resolves.toBe(WARNED);
-    expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith('Part of the change was never shown.');
+    expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith('A diagram was dropped.');
   });
 
   it('refuses to resume a target that has never run', async () => {

@@ -9,7 +9,9 @@ The backlog and all in-flight bug and feature work live in Linear, in the team
 **enhanced-reviews** (key `ER`, issues `ER-<n>`,
 https://linear.app/lemon-dev/team/ER/active), which you reach through the
 Linear MCP server. The team has no projects or cycles. Its labels are
-`Feature`, `Improvement` and `Bug`. Its statuses are `Backlog` → `Todo` →
+`Feature`, `Improvement` and `Bug`, plus `Hosted only` on issues written for
+the removed hosted app (kept at the git tag `hosted-app-final`), which do not
+apply to `er` and need no work on `main`. Its statuses are `Backlog` → `Todo` →
 `In Progress` → `In Review` → `Done`, plus `Canceled` and `Duplicate`. If the
 Linear tools are not connected in your session, tell the user rather than
 silently skipping any of the steps below.

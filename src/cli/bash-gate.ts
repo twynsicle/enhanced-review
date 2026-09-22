@@ -2,7 +2,7 @@
  * What the local agent may run with `Bash`.
  *
  * A local review reads the engineer's own repository, so it gets history —
- * `git log`, `git blame`, `git show` — on top of the hosted Read/Glob/Grep.
+ * `git log`, `git blame`, `git show` — on top of Read/Glob/Grep.
  * Nothing else: `Bash` is left out of `allowedTools`, so every command
  * arrives here first, and anything this function does not recognise as a
  * read is refused with a message telling the agent what it may run instead.

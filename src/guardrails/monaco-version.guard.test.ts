@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { importSpecifiers, isTestFile, listFiles, readSource, report } from './helpers';
+import { importSpecifiers, isTestFile, listFiles, readSource, report } from './helpers.ts';
 
 /**
  * Guardrail — the Monaco the reader is typechecked against and the Monaco it
@@ -16,10 +16,10 @@ import { importSpecifiers, isTestFile, listFiles, readSource, report } from './h
  * would let an install satisfy it with a version the URL does not name and
  * leave this comparison none the wiser.
  */
-const CDN = 'src/web/components/narrative/monaco-cdn.ts';
+const CDN = 'src/report/reader/monaco-cdn.ts';
 
 /** The only module allowed to pull the editor in, because it is the one that pins the URL. */
-const CONFIGURES_THE_LOADER = 'src/web/components/narrative/inline-diff-chunk.tsx';
+const CONFIGURES_THE_LOADER = 'src/report/reader/inline-diff-chunk.tsx';
 
 const MONACO_PACKAGES = /^@monaco-editor\/(react|loader)$/;
 

@@ -1,9 +1,6 @@
 node_modules
 build
-.react-router
 coverage
 screenshots
-public
 package-lock.json
-src/db/generated
 /review.html

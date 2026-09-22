@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { z } from 'zod';
-import type { ReviewMeta } from '../domain/review/review-meta.ts';
+import type { ReviewMeta } from '../review/review-meta.ts';
 import type { Shell } from './git.ts';
 
 /**

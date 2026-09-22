@@ -1,19 +1,16 @@
 ---
 paths:
   - 'src/cli/**'
-  - 'vite.viewer.config.ts'
 ---
 
 # `src/cli/` — `er`, the local review CLI
 
 Loaded when you open a CLI file. `er review` runs inside the repository under
 review and writes one `review.html` — everything inlined but the Monaco editor,
-which the page fetches — that renders the same reader as the hosted app. It runs on an engineer's laptop with none
-of the server's configuration, so the `cli-imports` guardrail keeps its whole
-import graph clear of `env.ts`, the logger, the db layer and server-only
-packages, and holds the Agent SDK to type-only or dynamic imports so nothing
-but a real run loads it. Output goes through `terminal.ts` (stdout/stderr,
-never `console`).
+which the page fetches. The `sdk-import` guardrail holds the Agent SDK to
+type-only or dynamic imports so nothing but a real run loads it. Output goes
+through `terminal.ts` (stdout/stderr, never `console`), and the environment
+comes only through `host-env.ts`.
 
 ```
 src/cli/
@@ -27,30 +24,54 @@ src/cli/
   targets.ts       resolveTarget: branch (against the open PR's base or origin's default, fetched first), pr (fetch
                    pull/<n>/head, merge-base with its base), staged (the index as a dangling commit on HEAD); --base;
                    locateTarget (repo root + slug only, for --from); TargetSchema
-  git.ts           Shell: git (the shared non-interactive runner, run with the engineer's own gitconfig so
+  git.ts           Shell: git (git-runner's non-interactive runner, run with the engineer's own gitconfig so
                    their credentials, proxy and safe.directory apply) and gh, bound to one directory
+  git-runner.ts    spawn git non-interactively, the host's system and global gitconfig ignored unless a call asks
+                   for `hostConfig` (the tests run without it), abort → SIGTERM; argBatches, the path-list split
+                   that keeps a command line inside Windows' limit
+  host-env.ts      the only process.env reader: hostEnv(), what a spawned git, gh or SDK
+                   subprocess inherits
+  diff-files.ts    listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over `-z` output,
+                   each rename's old path and the binary flag; output that ends mid-record throws rather than
+                   yielding a short list
+  skip-reasons.ts  why each changed file is left out: the built-in list, then the reviewed repository's own
+                   `.gitattributes` (`git check-attr` at the head commit, which resolves a nested
+                   `.gitattributes` for the paths beneath it), then binary; toReviewFiles stamps the reasons on
   run-folder.ts    <repo root>/er-reviews/<slug>/<stamp>/ and each stage's file; latestRunFolder; the runs folder
-                   ignores itself; hunkFileName (Windows-safe)
+                   ignores itself
   context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons, hunks numbered
                    across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
-                   one annotated hunk file per reviewed file; pr.md
-  prompt.ts        system.md (the shared instructions + LOCAL_WORKING_TREE) + prompt.md (the local delivery section)
+                   one diff file carrying every reviewed file's annotated patch, its line count carried as
+                   `diffLines` so the prompt can ask the agent to Read it in one call; pr.md
+  prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
+                   commits, where the agent is, Files Changed, Not Reviewed, the hunk table, and where the diff
+                   file is, with its length
   claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl
                    (tool uses, refusals, blocked stops, and a result event carrying turns, cost and the token
-                   usage); the shared validationStopHook registered on Stop over the run's own copy of the answer,
+                   usage); validationStopHook registered on Stop over the run's own copy of the answer,
                    so a disqualified one costs a turn rather than a second run, and each refusal is a `blocked`
                    event and a terminal note, and a hook that throws is a `hook-error` event and a warning rather
                    than a stranded run; the reviewed repo's own settings (settingSources user/project/local),
                    read-only tools, the engineer's environment inherited by the subprocess; the SDK is imported
                    only when a run happens
+  sdk-loop.ts      the SDK message loop: text, tool uses and the result out — subtype, turns, cost and token
+                   usage, cost counted even when the run ran out of turns — nothing thrown; howItEnded, the one
+                   reading of a result
+  validation-stop-hook.ts
+                   the retry, as a Stop hook: validates the text accumulated so far and refuses the stop up to
+                   MAX_VALIDATION_RETRIES times, naming the defect and asking for the whole block again — without
+                   spelling the tag pair, which the parser would then find; onBlock gets the defects apart from
+                   the reason sent to the model, and onError allows the stop when the hook itself throws rather
+                   than stranding the run; SDK types only
   bash-gate.ts     which Bash commands a review may run: the line is split at | && ||, every part must be a known
                    read-only invocation; no redirection (bar 2>/dev/null), substitution or launcher flags
-  progress.ts      the live line during the run: elapsed time, the file being read, chapter titles picked out of the
-                   answer as it streams; drawn only on a terminal
+  progress.ts      the run log: one elapsed-time-stamped line per tool use, carrying the SDK's own turn number
+                   (one turn however many tools it asked for at once), plus a line per chapter title picked out
+                   of the answer as it streams, and a heartbeat line while a turn is quiet
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks; no model. It also
                    overwrites events.jsonl with one clean result event, so the parse stage reads how this run
                    ended and never an earlier run's log
-  parse.ts         raw.txt → validateReview (the same verdict the hosted run uses) → review.json + findings.json,
+  parse.ts         raw.txt → validateReview (the same verdict the Stop hook uses) → review.json + findings.json,
                    files taken from context, each carrying its share of the hunk catalog; what the run itself cost
                    is read back off events.jsonl rather than passed down, so --from parse reports the same
                    findings without paying for the model again: refusals → one `commands-refused` warning, a
@@ -62,8 +83,8 @@ src/cli/
                    stale review; the failure points at raw.txt only when the defect is in the answer, since a
                    run-stopped-early is about turns nobody can put back by editing it. readFindings reads that
                    file back for the render stage, and refuses one that is missing, half-written or fatal
-  render.ts        the bundle into the viewer shell → review.html; viewerShell rebuilds build/viewer when stale
-  viewer-stamp.ts  hash of the viewer's sources; the viewer build writes it, render compares it
+  render.ts        the bundle into the report shell → review.html; reportShell rebuilds build/report when stale
+  shell-stamp.ts   hash of the report's sources; the report build writes it, render compares it
   worktree.ts      a PR's run happens in a detached worktree of its head in the temp dir (er-pr<n>-<pid>-<stamp>),
                    added without hooks or LFS downloads, removed after the run or on interrupt; the sweep removes
                    worktrees whose process is gone
@@ -106,22 +127,20 @@ it decided, kept here because changing any of it is a decision to re-make and
 not an accident to fix:
 
 - **Local mode is the primary product** until roughly early 2027, because the
-  organisation cannot install a GitHub App. The hosted app is parked: it stays
-  green in CI and shares the reader, the prompt and the parser, but it gets no
-  new features while this is the way the tool is used.
-- **There is never a second reader.** The report renders
-  `src/web/components/narrative/` — the same components the hosted app serves.
-  A change to the reader has to work for both, which is what `FileSource` and
-  the bundle contract are for.
+  organisation cannot install a GitHub App. The hosted app was removed; it is
+  kept at the git tag `hosted-app-final`.
+- **The report is a static page.** `src/report/` renders a `ReviewBundle`
+  embedded in the page, with no server and no router.
 - **One `review.html`**, opened from disk: every script, style and font
   inlined, and Monaco fetched from a CDN when a diff is opened. That last part
   is a decision, not a gap — bundling the editor would cost 24 MB and the file
   is meant to be emailable — so the report is not offline-capable and is not
   going to be. Chromium only; Firefox is out of scope.
-- **The prompt is agentic, not inline.** It carries the file list and a compact
-  hunk table, and the hunks themselves are files on disk the agent opens. This
-  is the opposite of the hosted path, which pastes the diff in, and it is why
-  the local run gets `Bash` and a working directory it can explore.
+- **The prompt is agentic, not inline.** It carries the file list, a compact
+  hunk table, and the whole change's patch as one diff file on disk the agent
+  opens — one file rather than one per reviewed file, so reading the change
+  costs a single turn however many files it touches. This is why the local run
+  gets `Bash` and a working directory it can explore.
 - **A PR review runs in a throwaway worktree** of the PR's head, so the
   engineer's checkout is never touched and never has to be clean. Branch and
   staged reviews run where the engineer already is, and warn about edits that
@@ -133,8 +152,7 @@ not an accident to fix:
 - **Five stages, each resumable**, because the model run is the only one that
   costs money: `gather → prompt → run → parse → render`. Nothing should ever
   have to be paid for twice.
-- **Local and hosted reviews never meet.** No import, no upload, no hosting a
-  report anywhere.
+- **A report stays local.** No upload, no hosting a report anywhere.
 - **Windows and macOS.** `platform.ts` is the single seam every OS difference
   goes through — where the tool root is, how it runs its own npm scripts, the
   temp dir a PR worktree lives in, and how a report is opened. A third OS

@@ -3,7 +3,7 @@ import path from 'node:path';
 
 /**
  * Shared plumbing for the repo-reading guardrail tests. Everything works on
- * repo-relative POSIX paths (`src/web/root.tsx`) so assertions read the same
+ * repo-relative POSIX paths (`src/report/main.tsx`) so assertions read the same
  * on Windows and Linux.
  */
 // Vitest runs from the repo root; `import.meta.url` is not a file: URL under
@@ -12,12 +12,7 @@ export const REPO_ROOT = process.cwd();
 
 // Written by a build, not by a person: never a subject of a rule, and never
 // stale when a comment names one — it is absent on a clean checkout.
-export const GENERATED_OUTPUT = [
-  'node_modules/**',
-  'build/**',
-  '.react-router/**',
-  'src/db/generated/**',
-];
+export const GENERATED_OUTPUT = ['node_modules/**', 'build/**'];
 
 // Guardrail sources mention the very patterns they police, so they are never
 // subjects themselves.
@@ -27,13 +22,19 @@ export function toPosix(p: string): string {
   return p.split(path.sep).join('/');
 }
 
-/** Repo-relative POSIX paths matching the patterns (minus build noise). */
+/**
+ * Repo-relative POSIX paths matching the patterns (minus build noise). Throws
+ * when nothing matches: a rule over no files passes forever, so a pattern left
+ * behind by a move would otherwise retire its guardrail without a sound.
+ */
 export function listFiles(patterns: string[], exclude: string[] = []): string[] {
   const excluded = [...ALWAYS_EXCLUDE, ...exclude];
-  return globSync(patterns, { cwd: REPO_ROOT })
+  const files = globSync(patterns, { cwd: REPO_ROOT })
     .map(toPosix)
     .filter((rel) => !excluded.some((pattern) => matchesGlob(rel, pattern)))
     .toSorted();
+  if (files.length === 0) throw new Error(`no files match ${patterns.join(', ')}`);
+  return files;
 }
 
 export function readSource(relPath: string): string {
@@ -41,7 +42,7 @@ export function readSource(relPath: string): string {
 }
 
 export function isTestFile(relPath: string): boolean {
-  return /\.(test|spec|integration\.test)\.[cm]?[jt]sx?$/.test(relPath);
+  return /\.test\.tsx?$/.test(relPath);
 }
 
 /** Static + dynamic import specifiers, plus `export ... from` re-exports. */
@@ -61,7 +62,7 @@ export function importSpecifiers(source: string): string[] {
 
 /**
  * Resolve an `@/` or relative specifier to a repo-relative path without the
- * extension (e.g. `src/web/theme/theme`). Bare package specifiers → null.
+ * extension (e.g. `src/report/theme/theme`). Bare package specifiers → null.
  */
 export function resolveProjectImport(spec: string, fromFile: string): string | null {
   let target: string;
@@ -75,27 +76,12 @@ export function resolveProjectImport(spec: string, fromFile: string): string | n
   return target.replace(/\.[cm]?[jt]sx?$/, '');
 }
 
-export type Area =
-  'web' | 'domain' | 'db' | 'jobs' | 'cli' | 'common' | 'config' | 'guardrails' | 'test';
+const AREAS = ['cli', 'review', 'report', 'guardrails', 'test'] as const;
+export type Area = (typeof AREAS)[number];
 
 export function areaOf(relPath: string): Area | null {
-  const match = /^src\/([^/]+)\//.exec(relPath);
-  if (!match) return null;
-  const area = match[1]!;
-  if (
-    area === 'web' ||
-    area === 'domain' ||
-    area === 'db' ||
-    area === 'jobs' ||
-    area === 'cli' ||
-    area === 'common' ||
-    area === 'config' ||
-    area === 'guardrails' ||
-    area === 'test'
-  ) {
-    return area;
-  }
-  return null;
+  const area = /^src\/([^/]+)\//.exec(relPath)?.[1];
+  return AREAS.find((known) => known === area) ?? null;
 }
 
 /** Minimal glob matcher: `**`, `*`, and literal segments. */

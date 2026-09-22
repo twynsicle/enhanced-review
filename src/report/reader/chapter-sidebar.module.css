@@ -1,0 +1,358 @@
+/*
+ * Reader navigation. The chapter list and file tree are buttons with
+ * active/hover states and an active-row wash that Mantine props cannot
+ * express, so they live here; layout and type come from Mantine.
+ */
+.nav {
+  position: sticky;
+  top: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: calc(100vh - 6rem);
+  padding: 4px 12px 0 0;
+  overflow: hidden auto;
+}
+
+.riskCard {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--er-border);
+  background: color-mix(in oklab, var(--er-card) 70%, transparent);
+  text-align: left;
+  transition: background-color 150ms;
+}
+
+.riskCard:hover {
+  background: color-mix(in oklab, var(--er-muted) 40%, transparent);
+}
+
+/*
+ * The summary is the reader's opening section, so this card is active on
+ * arrival. Its children — the `Risk` caption, the score label and the meter —
+ * take their colours from `token()` calls a component away and cannot know
+ * they are on a fill, so the active state uses `surface-2`, a ground the
+ * palette guardrail already checks them against, and carries the affordance
+ * on a full-strength `before` border instead of a tint the base accents do
+ * not clear AA on (`risk` on `before-soft` is 4.01:1 in dark).
+ */
+.riskCard[data-active] {
+  border-color: var(--er-before);
+  background: var(--er-surface-2);
+}
+
+.riskCard:hover .chevron {
+  transform: translateX(2px);
+}
+
+.chevron {
+  margin-left: auto;
+  font-size: var(--mantine-font-size-sm);
+  color: var(--er-muted-foreground);
+  transition: transform 150ms;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  gap: 10px;
+  text-align: left;
+}
+
+.index {
+  flex-shrink: 0;
+  padding-top: 4px;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--er-muted-foreground);
+}
+
+.label {
+  display: block;
+  min-width: 0;
+  padding-left: 8px;
+  border-left: 2px solid transparent;
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1.35;
+  color: var(--er-muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item[data-active] .index {
+  color: var(--er-before);
+}
+
+.item[data-active] .label {
+  border-left-color: var(--er-before);
+  font-weight: 600;
+  color: var(--er-foreground);
+}
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--er-border);
+}
+
+.fileList {
+  --twisty-width: 10px;
+  --twisty-gap: 6px;
+  --indent-step: calc(var(--twisty-width) + var(--twisty-gap));
+
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * `--file-depth` is how deep a row sits, and it becomes left padding rather
+ * than a nested box so that every row keeps one right edge for its stats
+ * however deep it is. It has to follow the `padding` shorthand in each rule,
+ * which would otherwise reset it. The step is the directory row's twisty plus
+ * its gap, so a child's first glyph starts under its parent's name: any less
+ * and the child starts left of that name, and a folder's contents read as its
+ * siblings. The cap matters more than the step: the
+ * sidebar goes down to 208px, and a tree that kept indenting would spend the
+ * column on whitespace before it ran out of levels — past the sixth the
+ * nesting is carried by the group structure and the folded names alone.
+ */
+.fileRow {
+  position: relative;
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  /*
+   * Baselines, not tops. The three cells carry three type sizes, and a row is
+   * one line tall in the tree and two in the flat list — so aligning boxes puts
+   * the status letter and the stats a couple of pixels below the name wherever
+   * the sizes differ, which the single-line tree row shows plainly. The middle
+   * cell's first baseline is the basename's, so the directory line below it
+   * does not drag the other two down.
+   */
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px;
+  padding-inline-start: calc(6px + var(--indent-step) * min(var(--file-depth, 0), 6));
+  overflow: hidden;
+  border-radius: 6px;
+  color: var(--er-muted-foreground);
+  text-align: left;
+  transition: background-color 150ms;
+}
+
+.fileRow:hover,
+.dirRow:hover {
+  background: color-mix(in oklab, var(--er-muted) 50%, transparent);
+}
+
+/*
+ * A directory row is structure, not a destination: it folds and nothing else.
+ * It is quieter than the files under it — smaller type, no status letter, no
+ * stats — so the column still reads as a list of files with headings in it
+ * rather than as two kinds of thing competing for the same glance.
+ */
+.dirRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--twisty-gap);
+  padding: 6px;
+  padding-inline-start: calc(6px + var(--indent-step) * min(var(--file-depth, 0), 6));
+  overflow: hidden;
+  border-radius: 6px;
+  text-align: left;
+  transition: background-color 150ms;
+}
+
+.twisty {
+  flex-shrink: 0;
+  width: var(--twisty-width);
+  text-align: center;
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1;
+  color: var(--er-muted-foreground);
+  transition: transform 150ms;
+}
+
+.twisty[data-open] {
+  transform: rotate(90deg);
+}
+
+.dirLabel {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1.3;
+  color: var(--er-muted-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fileRow[data-active]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--er-before) 22%, transparent),
+    color-mix(in oklab, var(--er-before) 6%, transparent) 8%,
+    transparent 22%
+  );
+}
+
+/*
+ * The file whose diff is under the reader's eye as they scroll a chapter. It
+ * answers a different question from the wash above — that one says "this view
+ * is this file", this one says "this is the one in front of you" — so it is a
+ * different mark rather than a paler version of the same one: the 2px rail
+ * the chapter list already uses for where-you-are, over a tint just strong
+ * enough to find in a long list. The two never appear together, because a
+ * file view has no chapter to scroll.
+ */
+.fileRow[data-reading]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-inline-start: 2px solid var(--er-before);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--er-before) 8%, transparent);
+}
+
+.fileRow > * {
+  position: relative;
+}
+
+.status {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+}
+
+.status[data-status='added'],
+.status[data-status='copied'] {
+  color: var(--er-after);
+}
+
+.status[data-status='removed'] {
+  color: var(--er-risk);
+}
+
+.status[data-status='renamed'] {
+  color: var(--er-suggestion);
+}
+
+.status[data-status='modified'],
+.status[data-status='unchanged'] {
+  color: var(--er-before);
+}
+
+.basename,
+.dirname {
+  display: block;
+  overflow: hidden;
+  font-family: var(--mantine-font-family-monospace);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.basename {
+  font-size: var(--mantine-font-size-sm);
+  color: var(--er-foreground);
+}
+
+.dirname {
+  font-size: var(--mantine-font-size-xs);
+  color: var(--er-muted-foreground);
+}
+
+/* A file that changed but was not reviewed: listed, but quieter. */
+.fileRow[data-skipped] .basename {
+  color: var(--er-muted-foreground);
+}
+
+.trailing {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/*
+ * The coverage mark: an empty circle for a file no chapter discusses, a half
+ * one for a file discussed in part. It sits with the stats, on the row's
+ * right edge, so the name keeps its clean left edge and its ellipsis. It is
+ * `muted-foreground` rather than `subtle` because it carries meaning a
+ * sighted reader is meant to notice; the row's hidden text spells it out.
+ */
+.coverageMark {
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1;
+  color: var(--er-muted-foreground);
+}
+
+.stats {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+  color: var(--er-muted-foreground);
+  white-space: nowrap;
+}
+
+.add {
+  color: var(--er-add);
+}
+
+.del {
+  color: var(--er-del);
+}
+
+/*
+ * The diagram mark on a section row. It sits after the label rather than
+ * before it so the numbers and titles keep their two clean left edges, and it
+ * is `subtle` until the row is active: decoration, never text.
+ */
+.diagramMark {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1;
+  color: var(--er-subtle);
+}
+
+.item[data-active] .diagramMark {
+  color: var(--er-before);
+}

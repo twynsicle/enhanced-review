@@ -2,10 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  LOCAL_WORKING_TREE,
-  NARRATIVE_SYSTEM_PROMPT,
-} from '../domain/review/prompt/instructions.ts';
+import { LOCAL_WORKING_TREE, NARRATIVE_SYSTEM_PROMPT } from '../review/prompt/instructions.ts';
 import type { RunContext } from './context.ts';
 import { buildPrompt, writePrompt } from './prompt.ts';
 import { runFiles, type RunFiles } from './run-folder.ts';
@@ -64,12 +61,13 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
     contents: {},
     commits: [{ sha: '2222222bbbb', subject: 'Add the login form', body: 'With validation.' }],
     dirty: [],
+    diffLines: 42,
     ...overrides,
   };
 }
 
 describe('the local prompt', () => {
-  it('delivers a PR with its header, files, hunks and where the hunk files are', () => {
+  it('delivers a PR with its header, files, hunks and where the diff file is', () => {
     const prompt = buildPrompt(context(), run);
 
     expect(prompt).toMatch(/^# Pull Request #7: Add a login form\n/);
@@ -87,7 +85,8 @@ describe('the local prompt', () => {
     expect(prompt).toContain(
       '  H0001  src/login.ts  @@ -0,0 +1,10 @@  original L1 (+0)  modified L1-10',
     );
-    expect(prompt).toContain(`\`${run.diffDir.replaceAll('\\', '/')}/<path>.diff\``);
+    expect(prompt).toContain(`\`${run.diff.replaceAll('\\', '/')}\`, 42 lines`);
+    expect(prompt).toContain('a limit of at least 42');
     expect(prompt).toContain('a temporary checkout of the pull request’s head commit (2222222)');
     expect(prompt).toContain(
       `except for this run’s own folder, \`${run.folder.replaceAll('\\', '/')}\``,
@@ -136,7 +135,7 @@ describe('the local prompt', () => {
     );
   });
 
-  it('writes the hosted instructions unchanged beside the prompt', async () => {
+  it('writes the shared instructions and the local paragraph beside the prompt', async () => {
     const user = await writePrompt(context(), run);
     expect(readFileSync(run.system, 'utf8')).toBe(NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
     expect(readFileSync(run.prompt, 'utf8')).toBe(user);

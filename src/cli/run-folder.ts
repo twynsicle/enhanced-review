@@ -1,6 +1,6 @@
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { ReviewMeta } from '../domain/review/review-meta.ts';
+import type { ReviewMeta } from '../review/review-meta.ts';
 
 /**
  * Where a run keeps its stage files:
@@ -15,8 +15,8 @@ const STAMP_RE = /^\d{8}-\d{6}(-\d+)?$/;
 export interface RunFiles {
   folder: string;
   context: string;
-  /** One `<path>.diff` per reviewed file, hunk ids marked. */
-  diffDir: string;
+  /** The whole change's patch, in file order, hunk ids marked. */
+  diff: string;
   /** The PR description, when there is one. */
   pr: string;
   system: string;
@@ -34,7 +34,7 @@ export function runFiles(folder: string): RunFiles {
   return {
     folder,
     context: path.join(folder, 'context.json'),
-    diffDir: path.join(folder, 'context', 'diff'),
+    diff: path.join(folder, 'context', 'diff.patch'),
     pr: path.join(folder, 'context', 'pr.md'),
     system: path.join(folder, 'system.md'),
     prompt: path.join(folder, 'prompt.md'),
@@ -105,16 +105,6 @@ function compareStamps(a: string, b: string): number {
 function stampKey(name: string): [string, number] {
   const cut = name.length > 15 ? name.lastIndexOf('-') : name.length;
   return [name.slice(0, cut), cut === name.length ? 1 : Number(name.slice(cut + 1))];
-}
-
-/**
- * Where a reviewed file's hunks go, relative to the diff folder: the file's
- * own path plus `.diff`, with the characters Windows refuses in a file name
- * replaced (a path from a Linux repository may hold them).
- */
-export function hunkFileName(filename: string): string {
-  // oxlint-disable-next-line no-control-regex -- control characters are exactly what Windows refuses
-  return `${filename.replace(/[<>:"|?*\x00-\x1f]/g, '_')}.diff`;
 }
 
 /**
