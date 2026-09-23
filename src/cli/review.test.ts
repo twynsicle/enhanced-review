@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import * as fsPromises from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { HookInput } from '@anthropic-ai/claude-agent-sdk';
@@ -20,6 +21,7 @@ import { removeWorktreeSync } from './worktree.ts';
 vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT, hookTimeout: GIT_TEST_TIMEOUT });
 
 vi.mock('./stub-run.ts', { spy: true });
+vi.mock('node:fs/promises', { spy: true });
 
 vi.mock('./terminal.ts', () => ({
   line: vi.fn(),
@@ -325,6 +327,16 @@ describe('er review', () => {
       );
       expect(perFile).toEqual([]);
       expect(runFolders()).toEqual([]);
+    });
+
+    it('still says why gather failed when its run folder cannot be removed', async () => {
+      stageFiles(LIMITS.refuse);
+      vi.mocked(fsPromises.rm).mockRejectedValueOnce(new Error('EBUSY: resource busy or locked'));
+
+      await expect(withModel()).rejects.toThrow(/--allow-large$/);
+      expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith(
+        expect.stringMatching(/^could not remove .*EBUSY.*before using --from$/),
+      );
     });
 
     it('leaves the last finished run the newest after a refusal', async () => {
