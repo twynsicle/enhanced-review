@@ -307,8 +307,11 @@ async function startRun(
     context = await gather(target, meta, shell.at(target.repoRoot), run, checkReviewed);
   } catch (error) {
     // A failed gather leaves at most part of a run, which --from would take
-    // for this target's newest and so hide the last run that finished.
-    await rm(run.folder, { recursive: true, force: true });
+    // for this target's newest and so hide the last run that finished. The
+    // removal failing (a Windows file lock) must not hide why gather failed.
+    await rm(run.folder, { recursive: true, force: true }).catch((cleanup: Error) => {
+      warn(`could not remove ${run.folder} (${cleanup.message}); delete it before using --from`);
+    });
     throw error;
   }
   if (context.dirty.length > 0) warn(dirtyWarning(context));

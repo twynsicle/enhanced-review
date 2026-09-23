@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { z } from 'zod';
+import { plural } from '../review/plural.ts';
 import type { ReviewMeta } from '../review/review-meta.ts';
 import type { Shell } from './git.ts';
 
@@ -316,12 +317,13 @@ async function revParse(
  * `git rebase` does. Without a reflog to go on (a bare SHA, a ref first
  * fetched after the rewrite) it fails and the merge-base stands.
  *
- * The reflog cannot tell a rebased base from one reset off commits that then
- * became this branch (work committed to main by mistake and moved): either
- * way the base once held commits it no longer does. A fork point at head
- * itself can only be the second, so the merge-base stands; any other is
- * taken, and the warning names the bare merge-base SHA as the `--base` that
- * gets the whole diff back.
+ * The reflog alone cannot tell a rebased base from one reset off commits that
+ * then became this branch (work committed to main by mistake and moved): both
+ * once held commits they no longer do. Patches can: a rebased base still
+ * carries every one of them in new commits, and a reset one carries none. So
+ * the fork point is taken only when `git cherry` finds all of them in the
+ * base; otherwise they are reviewed as this change's own. Both say so, with
+ * the `--base` that gives the other answer, since either can be wrong.
  */
 async function forkPoint(
   shell: Shell,
@@ -336,14 +338,27 @@ async function forkPoint(
   const fork = await shell.tryGit(['merge-base', '--fork-point', baseLabel, headSha]);
   if (fork.exitCode !== 0) return mergeBase;
   const forkSha = fork.stdout.trim();
+  // Not rewritten, or it only ever held this change's own commits.
   if (forkSha === mergeBase || forkSha === headSha) return mergeBase;
+
+  // `+ <sha>` for a commit the base has nothing like, `- <sha>` for one it carries rewritten.
+  const cherry = await shell.git(['cherry', baseTip, forkSha, mergeBase]);
+  const between = cherry.split('\n').filter((line) => /^[+-] /.test(line));
+  const dropped = between.filter((line) => line.startsWith('+')).length;
+  if (dropped === 0) {
+    warn(
+      `${baseLabel} was rewritten after this change forked from it; reviewing from the fork point ` +
+        `${forkSha.slice(0, 7)}, leaving out ${plural(between.length, 'commit')} ${baseLabel} now carries ` +
+        `rewritten. If they belong to this change, pass --base ${mergeBase}`,
+    );
+    return forkSha;
+  }
   warn(
-    `${baseLabel} was rewritten after this change forked from it; reviewing from the fork point ` +
-      `${forkSha.slice(0, 7)}, not the merge-base ${mergeBase.slice(0, 7)}, which would take in ` +
-      `commits ${baseLabel} no longer has. If those commits belong to this change, pass ` +
-      `--base ${mergeBase}`,
+    `${baseLabel} no longer has ${plural(dropped, 'commit')} this change carries (it was reset ` +
+      `or rewritten since this change left it), so they are reviewed as part of the change. If ` +
+      `they are not, pass --base ${forkSha}`,
   );
-  return forkSha;
+  return mergeBase;
 }
 
 /** `owner/name` from origin's URL; the folder name when there is no GitHub-style remote. */

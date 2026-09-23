@@ -55,24 +55,24 @@ function branchWithMovedMain(): string {
 }
 
 /**
- * `feature` forks off `stack-base`, which is then rewritten onto `main` with
- * different commits, as a rebase would, and pushed. `feature` still carries
- * the old `stack-base` commit, so its plain merge-base with the new
- * `stack-base` is `initial`, and that commit's file would be swept into the
- * review.
+ * `feature` forks off `stack-base`, which is then rebased onto a `main` that
+ * has moved on, and pushed. `feature` still carries the old `stack-base`
+ * commit, so its plain merge-base with the new `stack-base` is `initial`,
+ * and that commit's file would be swept into the review.
  */
 function rebasedStack(): { head: string; forkedAt: string } {
   repo.git('checkout', '--quiet', '-b', 'stack-base');
   repo.write('src/old-base.ts', 'export const old = 1;\n');
-  const forkedAt = repo.commit('old stack-base work');
+  const forkedAt = repo.commit('stack-base work');
   repo.git('push', '--quiet', 'origin', 'stack-base');
   repo.git('checkout', '--quiet', '-b', 'feature');
   repo.write('src/feature.ts', 'export const x = 1;\n');
   const head = repo.commit('feature work');
-  repo.git('branch', '--force', '--quiet', 'stack-base', 'main');
+  repo.git('checkout', '--quiet', 'main');
+  repo.write('CHANGELOG.md', 'main moved on\n');
+  repo.commit('main moves on');
   repo.git('checkout', '--quiet', 'stack-base');
-  repo.write('src/new-base.ts', 'export const rewritten = 1;\n');
-  repo.commit('rewritten stack-base work');
+  repo.git('rebase', '--quiet', 'main');
   repo.git('push', '--quiet', '--force', 'origin', 'stack-base');
   repo.git('checkout', '--quiet', 'feature');
   return { head, forkedAt };
@@ -248,6 +248,26 @@ describe('branch target', () => {
     expect(target.baseSha).toBe(initial);
     expect(target.headSha).toBe(head);
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('reviews work moved off a reset base as its own, once the branch has moved on', async () => {
+    repo.write('src/oops.ts', 'export const oops = 1;\n');
+    const moved = repo.commit('committed to main by mistake');
+    repo.git('branch', 'feat/moved');
+    repo.git('reset', '--quiet', '--hard', initial);
+    repo.git('checkout', '--quiet', 'feat/moved');
+    repo.write('src/more.ts', 'export const more = 1;\n');
+    repo.commit('more work');
+
+    const { target } = await resolveTarget({ kind: 'branch', base: 'main' }, shell().shell, {
+      warn,
+    });
+
+    expect(target.baseSha).toBe(initial);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toMatch(
+      new RegExp(`^main no longer has 1 commit this change carries .* pass --base ${moved}$`),
+    );
   });
 
   it('falls back to the merge-base when the base has no reflog to find the fork in', async () => {
