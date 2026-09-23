@@ -315,6 +315,13 @@ async function revParse(
  * `--fork-point` reads the base's reflog to find where head really left it, as
  * `git rebase` does. Without a reflog to go on (a bare SHA, a ref first
  * fetched after the rewrite) it fails and the merge-base stands.
+ *
+ * The reflog cannot tell a rebased base from one reset off commits that then
+ * became this branch (work committed to main by mistake and moved): either
+ * way the base once held commits it no longer does. A fork point at head
+ * itself can only be the second, so the merge-base stands; any other is
+ * taken, and the warning names the bare merge-base SHA as the `--base` that
+ * gets the whole diff back.
  */
 async function forkPoint(
   shell: Shell,
@@ -329,13 +336,13 @@ async function forkPoint(
   const fork = await shell.tryGit(['merge-base', '--fork-point', baseLabel, headSha]);
   if (fork.exitCode !== 0) return mergeBase;
   const forkSha = fork.stdout.trim();
-  if (forkSha !== mergeBase) {
-    warn(
-      `${baseLabel} was rewritten after this change forked from it; reviewing from the fork point ` +
-        `${forkSha.slice(0, 7)}, not the merge-base ${mergeBase.slice(0, 7)}, which would take in ` +
-        `commits ${baseLabel} no longer has`,
-    );
-  }
+  if (forkSha === mergeBase || forkSha === headSha) return mergeBase;
+  warn(
+    `${baseLabel} was rewritten after this change forked from it; reviewing from the fork point ` +
+      `${forkSha.slice(0, 7)}, not the merge-base ${mergeBase.slice(0, 7)}, which would take in ` +
+      `commits ${baseLabel} no longer has. If those commits belong to this change, pass ` +
+      `--base ${mergeBase}`,
+  );
   return forkSha;
 }
 

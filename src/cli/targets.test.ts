@@ -229,7 +229,25 @@ describe('branch target', () => {
     expect(target.baseSha).toBe(forkedAt);
     expect(target.headSha).toBe(head);
     expect(warn).toHaveBeenCalledOnce();
-    expect(warn.mock.calls[0]![0]).toMatch(/^stack-base was rewritten .* fork point/);
+    expect(warn.mock.calls[0]![0]).toMatch(
+      new RegExp(`^stack-base was rewritten .* fork point .* pass --base ${initial}$`),
+    );
+  });
+
+  it('keeps the merge-base for work moved off a base that was reset behind it', async () => {
+    repo.write('src/oops.ts', 'export const oops = 1;\n');
+    const head = repo.commit('committed to main by mistake');
+    repo.git('branch', 'feat/moved');
+    repo.git('reset', '--quiet', '--hard', initial);
+    repo.git('checkout', '--quiet', 'feat/moved');
+
+    const { target } = await resolveTarget({ kind: 'branch', base: 'main' }, shell().shell, {
+      warn,
+    });
+
+    expect(target.baseSha).toBe(initial);
+    expect(target.headSha).toBe(head);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('falls back to the merge-base when the base has no reflog to find the fork in', async () => {

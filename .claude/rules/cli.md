@@ -24,8 +24,9 @@ src/cli/
                    readFindings, so rendering again says the same thing about the review; deps (Shell, render,
                    open, query) injectable for the end-to-end test
   targets.ts       resolveTarget: branch (against the open PR's base or origin's default, fetched first), pr (fetch
-                   pull/<n>/head, merge-base with its base), staged (the index as a dangling commit on HEAD); --base;
-                   the fork point from the base's reflog over the merge-base when the base was rewritten since;
+                   pull/<n>/head), both measured from where head forked off the base: the merge-base, or the
+                   fork point from the base's reflog when the base was rewritten since (with a warning naming the
+                   merge-base SHA to pass as --base instead); staged (the index as a dangling commit on HEAD); --base;
                    locateTarget (repo root + slug only, for --from); TargetSchema
   git.ts           Shell: git (git-runner's non-interactive runner, run with the engineer's own gitconfig so
                    their credentials, proxy and safe.directory apply) and gh, bound to one directory

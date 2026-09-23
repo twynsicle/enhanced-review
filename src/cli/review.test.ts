@@ -10,14 +10,7 @@ import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-rep
 import type { QueryFn } from './claude-run.ts';
 import { Shell } from './git.ts';
 import { runInterruptCleanups } from './interrupts.ts';
-import {
-  REFUSE_REVIEWED_FILES,
-  review,
-  WARN_REVIEWED_FILES,
-  WARNED,
-  type ReviewDeps,
-  type ReviewOptions,
-} from './review.ts';
+import { review, SIZE_LIMITS, WARNED, type ReviewDeps, type ReviewOptions } from './review.ts';
 import { RUNS_DIR } from './run-folder.ts';
 import * as stubRun from './stub-run.ts';
 import * as terminal from './terminal.ts';
@@ -52,6 +45,7 @@ beforeEach(() => {
     render: { reportShell: async () => `<html>${BUNDLE_PLACEHOLDER}</html>` },
     open: vi.fn<(file: string) => void>(),
     claude: {},
+    sizeLimits: SIZE_LIMITS,
   };
   repo.write('src/app.ts', 'export const app = 2;\n');
   repo.git('add', 'src/app.ts');
@@ -279,7 +273,12 @@ describe('er review', () => {
   });
 
   describe('the size of a change', () => {
-    beforeEach(() => vi.mocked(terminal.warn).mockClear());
+    /** Small enough that a test stages a handful of files, not hundreds. */
+    const LIMITS = { warn: 2, refuse: 4 };
+    beforeEach(() => {
+      deps.sizeLimits = LIMITS;
+      vi.mocked(terminal.warn).mockClear();
+    });
 
     /** Stages `count` more files, on top of the one every test here starts with. */
     function stageFiles(count: number, dir = 'more', ext = '.ts'): void {
@@ -298,16 +297,16 @@ describe('er review', () => {
       review(options({ stub: false, open: false, ...overrides }), { ...deps, claude: { query } });
 
     it('warns about a change past a typical review, and runs it', async () => {
-      stageFiles(WARN_REVIEWED_FILES);
+      stageFiles(LIMITS.warn);
 
       await expect(withModel()).rejects.toThrow(REACHED);
       expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith(
-        `${String(WARN_REVIEWED_FILES + 1)} files to review, more than a typical change`,
+        `${String(LIMITS.warn + 1)} files to review, more than a typical change`,
       );
     });
 
     it('refuses to run the model on a change past the limit, and says how to go on', async () => {
-      stageFiles(REFUSE_REVIEWED_FILES);
+      stageFiles(LIMITS.refuse);
       const gitCalls: string[][] = [];
       deps.shell = new Shell(repo.work, {
         git: async (opts) => {
@@ -318,7 +317,7 @@ describe('er review', () => {
       });
 
       await expect(withModel()).rejects.toThrow(
-        new RegExp(`^${String(REFUSE_REVIEWED_FILES + 1)} files to review, past .*--allow-large$`),
+        new RegExp(`^${String(LIMITS.refuse + 1)} files to review, past .*--allow-large$`),
       );
       // Refused before any file was diffed or read, with no run folder left to resume.
       const perFile = gitCalls.filter(
@@ -330,14 +329,14 @@ describe('er review', () => {
 
     it('leaves the last finished run the newest after a refusal', async () => {
       await expect(review(options({ open: false }), deps)).resolves.toBe(0);
-      stageFiles(REFUSE_REVIEWED_FILES);
+      stageFiles(LIMITS.refuse);
       await expect(withModel()).rejects.toThrow(/--allow-large$/);
 
       await expect(review(options({ from: 'render', open: false }), deps)).resolves.toBe(0);
     });
 
     it('holds a resumed run to the limit too, and lets --allow-large through', async () => {
-      stageFiles(REFUSE_REVIEWED_FILES);
+      stageFiles(LIMITS.refuse);
       await expect(review(options({ open: false }), deps)).resolves.toBe(0);
 
       await expect(withModel({ from: 'run' })).rejects.toThrow(
@@ -348,7 +347,7 @@ describe('er review', () => {
 
     it('names --base as the likely fix when a branch review is too big', async () => {
       repo.git('checkout', '--quiet', '-b', 'feat/big');
-      stageFiles(REFUSE_REVIEWED_FILES);
+      stageFiles(LIMITS.refuse);
       repo.git('commit', '--quiet', '-m', 'big');
 
       await expect(
@@ -360,17 +359,17 @@ describe('er review', () => {
     });
 
     it('runs a change past the limit with --allow-large, without a word', async () => {
-      stageFiles(REFUSE_REVIEWED_FILES);
+      stageFiles(LIMITS.refuse);
 
       await expect(withModel({ allowLarge: true })).rejects.toThrow(REACHED);
       expect(vi.mocked(terminal.warn)).not.toHaveBeenCalled();
     });
 
     it('counts only the files the model is given, and holds --stub to nothing', async () => {
-      stageFiles(REFUSE_REVIEWED_FILES, 'snapshots', '.snap');
+      stageFiles(LIMITS.refuse, 'snapshots', '.snap');
       await expect(withModel()).rejects.toThrow(REACHED);
 
-      stageFiles(REFUSE_REVIEWED_FILES);
+      stageFiles(LIMITS.refuse);
       await expect(review(options({ open: false }), deps)).resolves.toBe(0);
     });
   });

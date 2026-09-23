@@ -68,7 +68,7 @@ export interface ReviewOptions {
   open: boolean;
   /** Leave a PR review's worktree in place after the run. */
   keepWorktree: boolean;
-  /** Run the model on a change past `REFUSE_REVIEWED_FILES`. */
+  /** Run the model on a change past `SIZE_LIMITS.refuse` reviewed files. */
   allowLarge: boolean;
 }
 
@@ -77,6 +77,7 @@ export interface ReviewDeps {
   render: RenderDeps;
   open: (file: string) => void;
   claude: ClaudeRunDeps;
+  sizeLimits: SizeLimits;
 }
 
 export async function review(
@@ -86,13 +87,15 @@ export async function review(
     render: HOST_RENDER_DEPS,
     open: openFile,
     claude: {},
+    sizeLimits: SIZE_LIMITS,
   },
 ): Promise<number> {
   const runs = (name: Stage) => STAGES.indexOf(name) >= STAGES.indexOf(options.from ?? 'gather');
+  const limits = options.stub || options.allowLarge ? null : deps.sizeLimits;
 
   const { run, context } = options.from
     ? await resume(options.request, options.from, deps.shell)
-    : await startRun(options.request, deps.shell, options.stub || options.allowLarge);
+    : await startRun(options.request, deps.shell, limits);
 
   if (runs('prompt')) {
     const started = performance.now();
@@ -105,7 +108,17 @@ export async function review(
   }
 
   if (runs('run')) {
-    if (!options.stub && !options.allowLarge) checkSize(context);
+    if (limits) {
+      const count = context.files.filter((file) => !file.skipped).length;
+      // A fresh run was refused inside gather; a resumed one gathered elsewhere
+      // (a --stub run, say) and is held to the limit here.
+      if (options.from) refuseTooLarge(count, context.target, limits, 'resumed');
+      if (count > limits.warn) {
+        warn(
+          `${plural(count, 'file')} to review, more than a typical change${wrongBaseHint(context.target)}`,
+        );
+      }
+    }
     const started = performance.now();
     const repo = deps.shell.at(context.target.repoRoot);
     const swept = await sweepStaleWorktrees(repo);
@@ -198,27 +211,27 @@ export async function review(
  * a change that may be thousands of files; a resumed one just before the run.
  * A `--stub` run costs nothing and is held to neither.
  */
-export const WARN_REVIEWED_FILES = 50;
-export const REFUSE_REVIEWED_FILES = 300;
+export interface SizeLimits {
+  /** Reviewed files past which the run goes ahead with a warning. */
+  warn: number;
+  /** Reviewed files past which the model run is refused without --allow-large. */
+  refuse: number;
+}
+export const SIZE_LIMITS: SizeLimits = { warn: 50, refuse: 300 };
 
-function refuseTooLarge(count: number, target: Target, gathered: boolean): void {
-  if (count <= REFUSE_REVIEWED_FILES) return;
-  const keep = gathered ? ' (and --from run to keep this gather)' : '';
+function refuseTooLarge(
+  count: number,
+  target: Target,
+  limits: SizeLimits,
+  when: 'fresh' | 'resumed',
+): void {
+  if (count <= limits.refuse) return;
+  const keep = when === 'resumed' ? ' (and --from run to keep this gather)' : '';
   throw new Error(
-    `${plural(count, 'file')} to review, past the ${String(REFUSE_REVIEWED_FILES)} a model run ` +
+    `${plural(count, 'file')} to review, past the ${String(limits.refuse)} a model run ` +
       `is allowed${wrongBaseHint(target)}; if the change really is this big, run again with ` +
       `--allow-large${keep}`,
   );
-}
-
-function checkSize(context: RunContext): void {
-  const count = context.files.filter((file) => !file.skipped).length;
-  refuseTooLarge(count, context.target, true);
-  if (count > WARN_REVIEWED_FILES) {
-    warn(
-      `${plural(count, 'file')} to review, more than a typical change${wrongBaseHint(context.target)}`,
-    );
-  }
 }
 
 function wrongBaseHint({ kind, baseLabel }: Target): string {
@@ -278,7 +291,7 @@ async function workingDirectory(
 async function startRun(
   request: TargetRequest,
   shell: Shell,
-  unlimited: boolean,
+  limits: SizeLimits | null,
 ): Promise<{ run: RunFiles; context: RunContext }> {
   let started = performance.now();
   const { target, meta } = await resolveTarget(request, shell, { warn });
@@ -286,9 +299,9 @@ async function startRun(
 
   started = performance.now();
   const run = await createRunFolder(target.repoRoot, target.slug, new Date());
-  const checkReviewed = unlimited
-    ? undefined
-    : (count: number) => refuseTooLarge(count, target, false);
+  const checkReviewed = limits
+    ? (count: number) => refuseTooLarge(count, target, limits, 'fresh')
+    : undefined;
   let context: RunContext;
   try {
     context = await gather(target, meta, shell.at(target.repoRoot), run, checkReviewed);
