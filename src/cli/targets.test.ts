@@ -266,7 +266,41 @@ describe('branch target', () => {
     expect(target.baseSha).toBe(initial);
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0]![0]).toMatch(
-      new RegExp(`^main no longer has 1 commit this change carries .* pass --base ${moved}$`),
+      new RegExp(
+        `^main was reset .* dropping 1 commit this change carries; they are .* pass --base ${moved}$`,
+      ),
+    );
+  });
+
+  it('reviews all of a base it only partly carries rewritten, and says how many', async () => {
+    repo.git('checkout', '--quiet', '-b', 'stack-base');
+    repo.write('src/kept.ts', 'export const kept = 1;\n');
+    const kept = repo.commit('stack work that survives the rebase');
+    repo.write('src/changed.ts', 'export const changed = 1;\n');
+    const forkedAt = repo.commit('stack work resolved differently in the rebase');
+    repo.git('checkout', '--quiet', '-b', 'feature');
+    repo.write('src/feature.ts', 'export const x = 1;\n');
+    repo.commit('feature work');
+    repo.git('checkout', '--quiet', 'main');
+    repo.write('CHANGELOG.md', 'main moved on\n');
+    repo.commit('main moves on');
+    repo.git('checkout', '--quiet', 'stack-base');
+    repo.git('reset', '--quiet', '--hard', 'main');
+    repo.git('cherry-pick', '--quiet', kept);
+    repo.write('src/changed.ts', 'export const changed = 2;\n');
+    repo.commit('stack work resolved differently in the rebase');
+    repo.git('checkout', '--quiet', 'feature');
+
+    const { target } = await resolveTarget({ kind: 'branch', base: 'stack-base' }, shell().shell, {
+      warn,
+    });
+
+    expect(target.baseSha).toBe(initial);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toMatch(
+      new RegExp(
+        `dropping 1 commit this change carries and rewriting 1 more; all 2 are .* pass --base ${forkedAt}$`,
+      ),
     );
   });
 

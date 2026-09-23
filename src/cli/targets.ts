@@ -353,10 +353,15 @@ async function forkPoint(
     );
     return forkSha;
   }
+  const rewritten = between.length - dropped;
+  const reviewed =
+    rewritten > 0
+      ? ` and rewriting ${String(rewritten)} more; all ${String(between.length)} are`
+      : '; they are';
   warn(
-    `${baseLabel} no longer has ${plural(dropped, 'commit')} this change carries (it was reset ` +
-      `or rewritten since this change left it), so they are reviewed as part of the change. If ` +
-      `they are not, pass --base ${forkSha}`,
+    `${baseLabel} was reset or rewritten since this change left it, dropping ` +
+      `${plural(dropped, 'commit')} this change carries${reviewed} reviewed as part of the ` +
+      `change. If they are not, pass --base ${forkSha}`,
   );
   return mergeBase;
 }
