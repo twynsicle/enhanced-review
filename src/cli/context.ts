@@ -62,17 +62,24 @@ const MAX_COMMITS = 200;
 const PARALLEL_GIT = 8;
 const LITERAL = '--literal-pathspecs';
 
+/**
+ * `checkReviewed` sees how many files will be reviewed before any of them is
+ * diffed or embedded, so a change too big to run is refused before gather
+ * reads every blob in it.
+ */
 export async function gather(
   target: Target,
   meta: ReviewMeta,
   shell: Shell,
   run: RunFiles,
+  checkReviewed: (count: number) => void = () => undefined,
 ): Promise<RunContext> {
   const { baseSha, headSha } = target;
   const changed = await listChangedFileDetails(shell.runners.git, shell.cwd, baseSha, headSha);
   const reasons = await skipReasons(changed, headSha, (args) => shell.git(args));
   const files = toReviewFiles(changed, reasons);
   const reviewed = changed.filter((file) => !reasons.has(file.filename));
+  checkReviewed(reviewed.length);
 
   const diffs = await mapLimit(reviewed, PARALLEL_GIT, (file) => fileDiff(shell, target, file));
   const hunks = numberHunks(reviewed, diffs);

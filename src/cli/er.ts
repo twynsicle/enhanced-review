@@ -76,6 +76,10 @@ async function main(argv: string[]): Promise<number> {
   }
   const [command, ...args] = positionals;
   if (command !== 'review') throw new UsageError(`unknown command: ${command!}`);
+  const from = resumeStage(values.from);
+  if (values['allow-large'] && (values.stub || from === 'parse' || from === 'render')) {
+    throw new UsageError('--allow-large applies only to a run of the model');
+  }
   return review({
     request: targetRequest(args, values),
     cwd: process.cwd(),
@@ -83,7 +87,7 @@ async function main(argv: string[]): Promise<number> {
     model: values.model ?? DEFAULT_MODEL,
     maxTurns: positiveNumber(values['max-turns'], '--max-turns', DEFAULT_MAX_TURNS),
     timeoutMs: positiveNumber(values.timeout, '--timeout', DEFAULT_TIMEOUT_MINUTES) * 60_000,
-    from: resumeStage(values.from),
+    from,
     open: !values['no-open'],
     keepWorktree: values['keep-worktree'] ?? false,
     allowLarge: values['allow-large'] ?? false,

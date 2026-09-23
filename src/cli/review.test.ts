@@ -284,11 +284,7 @@ describe('er review', () => {
     /** Stages `count` more files, on top of the one every test here starts with. */
     function stageFiles(count: number, dir = 'more', ext = '.ts'): void {
       for (let i = 0; i < count; i += 1) {
-        repo.write(
-          `${dir}/file-${String(i)}${ext}`,
-          `export const n = ${String(i)};
-`,
-        );
+        repo.write(`${dir}/file-${String(i)}${ext}`, `export const n = ${String(i)};\n`);
       }
       repo.git('add', dir);
     }
@@ -314,8 +310,23 @@ describe('er review', () => {
       stageFiles(REFUSE_REVIEWED_FILES);
 
       await expect(withModel()).rejects.toThrow(
-        new RegExp(`^${String(REFUSE_REVIEWED_FILES + 1)} files to review, past .*--allow-large`),
+        new RegExp(`^${String(REFUSE_REVIEWED_FILES + 1)} files to review, past .*--allow-large$`),
       );
+      // Refused inside gather, before a blob was read: there is no context to resume.
+      const [folder] = runFolders();
+      expect(existsSync(path.join(repo.work, RUNS_DIR, 'staged', folder!, 'context.json'))).toBe(
+        false,
+      );
+    });
+
+    it('holds a resumed run to the limit too, and lets --allow-large through', async () => {
+      stageFiles(REFUSE_REVIEWED_FILES);
+      await expect(review(options({ open: false }), deps)).resolves.toBe(0);
+
+      await expect(withModel({ from: 'run' })).rejects.toThrow(
+        /past .*--allow-large \(and --from run to keep this gather\)$/,
+      );
+      await expect(withModel({ from: 'run', allowLarge: true })).rejects.toThrow(REACHED);
     });
 
     it('names --base as the likely fix when a branch review is too big', async () => {

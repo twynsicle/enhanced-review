@@ -87,7 +87,7 @@ export async function review(
 
   const { run, context } = options.from
     ? await resume(options.request, options.from, deps.shell)
-    : await startRun(options.request, deps.shell);
+    : await startRun(options.request, deps.shell, !options.stub && !options.allowLarge);
 
   if (runs('prompt')) {
     const started = performance.now();
@@ -188,30 +188,40 @@ export async function review(
  * A model run grows with the change, in time and in tokens, and a change far
  * past a normal review is more often a wrong base than a real change: a
  * stacked branch whose base was rebased where no reflog shows the fork, or a
- * `--base` that is simply wrong. Checked just before the run, over the files
- * the model is actually given, so a resumed run is held to it too and a
- * `--stub` run, which costs nothing, is not.
+ * `--base` that is simply wrong. Counted over the files the model is actually
+ * given. A fresh run is refused inside gather, before it reads every blob of
+ * a change that may be thousands of files; a resumed one just before the run.
+ * A `--stub` run costs nothing and is held to neither.
  */
 export const WARN_REVIEWED_FILES = 50;
 export const REFUSE_REVIEWED_FILES = 300;
 
+function refuseTooLarge(count: number, target: Target, gathered: boolean): void {
+  if (count <= REFUSE_REVIEWED_FILES) return;
+  const keep = gathered ? ' (and --from run to keep this gather)' : '';
+  throw new Error(
+    `${plural(count, 'file')} to review, past the ${String(REFUSE_REVIEWED_FILES)} a model run ` +
+      `is allowed${wrongBaseHint(target)}; if the change really is this big, run again with ` +
+      `--allow-large${keep}`,
+  );
+}
+
 function checkSize(context: RunContext): void {
   const count = context.files.filter((file) => !file.skipped).length;
-  if (count <= WARN_REVIEWED_FILES) return;
-  const { baseLabel, kind } = context.target;
-  const wrongBase =
-    kind === 'staged'
-      ? ''
-      : `; if ${baseLabel} is not where this change starts (a stacked branch whose base was ` +
-        'rebased, say), pass --base <ref>';
-  if (count > REFUSE_REVIEWED_FILES) {
-    throw new Error(
-      `${plural(count, 'file')} to review, past the ${String(REFUSE_REVIEWED_FILES)} a model run ` +
-        `is allowed${wrongBase}; if the change really is this big, run again with --allow-large ` +
-        '(and --from run to keep this gather)',
+  refuseTooLarge(count, context.target, true);
+  if (count > WARN_REVIEWED_FILES) {
+    warn(
+      `${plural(count, 'file')} to review, more than a typical change${wrongBaseHint(context.target)}`,
     );
   }
-  warn(`${plural(count, 'file')} to review, more than a typical change${wrongBase}`);
+}
+
+function wrongBaseHint({ kind, baseLabel }: Target): string {
+  if (kind === 'staged') return '';
+  return (
+    `; if ${baseLabel} is not where this change starts (a stacked branch whose base was ` +
+    'rebased, say), pass --base <ref>'
+  );
 }
 
 /**
@@ -263,6 +273,7 @@ async function workingDirectory(
 async function startRun(
   request: TargetRequest,
   shell: Shell,
+  limitSize: boolean,
 ): Promise<{ run: RunFiles; context: RunContext }> {
   let started = performance.now();
   const { target, meta } = await resolveTarget(request, shell, { warn });
@@ -270,7 +281,9 @@ async function startRun(
 
   started = performance.now();
   const run = await createRunFolder(target.repoRoot, target.slug, new Date());
-  const context = await gather(target, meta, shell.at(target.repoRoot), run);
+  const context = await gather(target, meta, shell.at(target.repoRoot), run, (count) => {
+    if (limitSize) refuseTooLarge(count, target, false);
+  });
   if (context.dirty.length > 0) warn(dirtyWarning(context));
   stage('gather', describeGather(context), performance.now() - started);
   return { run, context };
