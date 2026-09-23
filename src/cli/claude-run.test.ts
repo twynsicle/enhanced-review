@@ -198,6 +198,17 @@ describe('the model run', () => {
     expect(query.options().settingSources).toEqual(['user']);
   });
 
+  it('runs the agent with git refusing a bare repository it was not pointed at', async () => {
+    const query = fakeQuery([text('a review'), result({ subtype: 'success', total_cost_usd: 0 })]);
+
+    await runClaude(run, options, { query });
+
+    const env = query.options().env ?? {};
+    const index = Number(env.GIT_CONFIG_COUNT) - 1;
+    expect(env[`GIT_CONFIG_KEY_${String(index)}`]).toBe('safe.bareRepository');
+    expect(env[`GIT_CONFIG_VALUE_${String(index)}`]).toBe('explicit');
+  });
+
   it('lets the agent read history with Bash, and nothing else', async () => {
     const query = fakeQuery([text('a review'), result({ subtype: 'success', total_cost_usd: 0 })]);
     await runClaude(run, options, { query });

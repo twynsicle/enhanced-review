@@ -36,7 +36,8 @@ src/cli/
                    for `hostConfig` (the tests run without it), abort → SIGTERM; argBatches, the path-list split
                    that keeps a command line inside Windows' limit
   host-env.ts      the only process.env reader: hostEnv(), what a spawned git, gh or SDK
-                   subprocess inherits
+                   subprocess inherits; agentEnv(), the SDK's, adds safe.bareRepository=explicit so a
+                   bare repository committed inside a reviewed tree is never used by the agent's git
   diff-files.ts    listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over `-z` output,
                    each rename's old path and the binary flag; output that ends mid-record throws rather than
                    yielding a short list

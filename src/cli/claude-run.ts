@@ -6,6 +6,7 @@ import { howItEnded, runSdkLoop, type SdkQueryFn, type SdkUsage } from './sdk-lo
 import { MAX_VALIDATION_RETRIES, validationStopHook } from './validation-stop-hook.ts';
 import type { PromptGrounding } from '../review/prompt/diff-hunk-catalog.ts';
 import { reviewBashCommand } from './bash-gate.ts';
+import { agentEnv } from './host-env.ts';
 import { onInterrupt } from './interrupts.ts';
 import type { RunFiles } from './run-folder.ts';
 
@@ -220,6 +221,7 @@ function sdkOptions(
       return Promise.resolve(decision);
     },
     settingSources: options.tree === 'own' ? ['user', 'project', 'local'] : ['user'],
+    env: agentEnv(),
     persistSession: false,
     abortController: controller,
     maxTurns: options.maxTurns,
