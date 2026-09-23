@@ -6,11 +6,11 @@ import type { Shell } from './git.ts';
 /**
  * What `er review` reviews, pinned to two commits:
  *
- * - **branch** — HEAD against its merge-base with the base branch: the open
+ * - **branch** — HEAD against where it forked from the base branch: the open
  *   PR's base when the branch has one, otherwise origin's default branch,
  *   fetched first; `--base` overrides either;
- * - **pr** — `pull/<n>/head` against its merge-base with the PR's base, the
- *   three-dot diff GitHub shows;
+ * - **pr** — `pull/<n>/head` against where it forked from the PR's base, the
+ *   three-dot diff GitHub shows unless that base has since been rewritten;
  * - **staged** — the index, written as a dangling commit on top of HEAD.
  *
  * The meta is the reader's header; its `stats` are left for gather, which is
@@ -131,7 +131,7 @@ async function resolvePull(
     throw new Error(`PR #${String(number)} changed while it was being fetched; run again`);
   }
   const baseLabel = base ?? `origin/${pull.baseRefName}`;
-  const baseSha = await mergeBase(shell, headSha, baseLabel, warn);
+  const baseSha = await forkPoint(shell, headSha, baseLabel, warn);
   return {
     target: {
       kind: 'pr',
@@ -167,7 +167,7 @@ async function resolveBranch(
     }
     baseLabel = `origin/${baseBranch}`;
   }
-  const baseSha = await mergeBase(shell, headSha, baseLabel, warn);
+  const baseSha = await forkPoint(shell, headSha, baseLabel, warn);
   const name = branch ?? headSha.slice(0, 7);
   if (baseSha === headSha) {
     throw new Error(`nothing to review: ${name} has no commits past ${baseLabel}`);
@@ -308,16 +308,15 @@ async function revParse(
 }
 
 /**
- * More changed files than this between the merge-base and head is not a
- * normal branch or PR review; past `FAIL_CHANGED_FILES` it is refused
- * outright rather than handed to the model. The likely cause is `--base`
- * naming a ref that moved (e.g. was rebased) since this branch forked from
- * it, so the merge-base git finds is far earlier than the real fork point.
+ * Where head left the base. A plain merge-base is wrong once the base has been
+ * rewritten since head forked from it (a rebased stacked branch): the old base
+ * commits head still carries are no longer the base's, so the merge-base falls
+ * back to an older shared ancestor and the diff sweeps all of them in.
+ * `--fork-point` reads the base's reflog to find where head really left it, as
+ * `git rebase` does. Without a reflog to go on (a bare SHA, a ref first
+ * fetched after the rewrite) it fails and the merge-base stands.
  */
-const WARN_CHANGED_FILES = 50;
-const FAIL_CHANGED_FILES = 300;
-
-async function mergeBase(
+async function forkPoint(
   shell: Shell,
   headSha: string,
   baseLabel: string,
@@ -326,24 +325,18 @@ async function mergeBase(
   const baseTip = await revParse(shell, baseLabel, 'base');
   const result = await shell.tryGit(['merge-base', headSha, baseTip]);
   if (result.exitCode !== 0) throw new Error(`no common history with ${baseLabel}`);
-  const baseSha = result.stdout.trim();
-  const changed = await shell.git(['diff', '--name-only', `${baseSha}..${headSha}`]);
-  const fileCount = changed.split('\n').filter((line) => line !== '').length;
-  if (fileCount > FAIL_CHANGED_FILES) {
-    throw new Error(
-      `${String(fileCount)} files changed between ${baseLabel} and this branch, far more than a ` +
-        `real review target; ${baseLabel} most likely moved (e.g. was rebased) since this branch ` +
-        "forked from it. Pass a --base that still shares this branch's actual history.",
-    );
-  }
-  if (fileCount > WARN_CHANGED_FILES) {
+  const mergeBase = result.stdout.trim();
+  const fork = await shell.tryGit(['merge-base', '--fork-point', baseLabel, headSha]);
+  if (fork.exitCode !== 0) return mergeBase;
+  const forkSha = fork.stdout.trim();
+  if (forkSha !== mergeBase) {
     warn(
-      `${String(fileCount)} files changed between ${baseLabel} and this branch, more than a typical ` +
-        `review; if ${baseLabel} moved (e.g. was rebased) since this branch forked from it, this diff ` +
-        'may reach further back than intended.',
+      `${baseLabel} was rewritten after this change forked from it; reviewing from the fork point ` +
+        `${forkSha.slice(0, 7)}, not the merge-base ${mergeBase.slice(0, 7)}, which would take in ` +
+        `commits ${baseLabel} no longer has`,
     );
   }
-  return baseSha;
+  return forkSha;
 }
 
 /** `owner/name` from origin's URL; the folder name when there is no GitHub-style remote. */

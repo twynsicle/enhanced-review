@@ -54,6 +54,30 @@ function branchWithMovedMain(): string {
   return head;
 }
 
+/**
+ * `feature` forks off `stack-base`, which is then rewritten onto `main` with
+ * different commits, as a rebase would, and pushed. `feature` still carries
+ * the old `stack-base` commit, so its plain merge-base with the new
+ * `stack-base` is `initial`, and that commit's file would be swept into the
+ * review.
+ */
+function rebasedStack(): { head: string; forkedAt: string } {
+  repo.git('checkout', '--quiet', '-b', 'stack-base');
+  repo.write('src/old-base.ts', 'export const old = 1;\n');
+  const forkedAt = repo.commit('old stack-base work');
+  repo.git('push', '--quiet', 'origin', 'stack-base');
+  repo.git('checkout', '--quiet', '-b', 'feature');
+  repo.write('src/feature.ts', 'export const x = 1;\n');
+  const head = repo.commit('feature work');
+  repo.git('branch', '--force', '--quiet', 'stack-base', 'main');
+  repo.git('checkout', '--quiet', 'stack-base');
+  repo.write('src/new-base.ts', 'export const rewritten = 1;\n');
+  repo.commit('rewritten stack-base work');
+  repo.git('push', '--quiet', '--force', 'origin', 'stack-base');
+  repo.git('checkout', '--quiet', 'feature');
+  return { head, forkedAt };
+}
+
 const warn = vi.fn();
 beforeEach(() => warn.mockReset());
 
@@ -171,6 +195,7 @@ describe('branch target', () => {
     expect(target.baseLabel).toBe('main');
     expect(target.baseSha).toBe(initial);
     expect(meta.baseRefName).toBe('main');
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('warns and uses the local copy when origin cannot be reached', async () => {
@@ -194,51 +219,27 @@ describe('branch target', () => {
     ).rejects.toThrow('nothing to review: main has no commits past origin/main');
   });
 
-  /**
-   * `stack-base` picks up `count` files, `feature` forks from it, then
-   * `stack-base` is force-moved onto `main` and given different commits of
-   * its own — as a rebase would. `feature` still carries the old `stack-base`
-   * commits as ancestry, so its merge-base with the *new* `stack-base` falls
-   * back to their last shared commit (`main`'s `initial`), pulling every one
-   * of those old files into the diff.
-   */
-  function stackedBranchWithFiles(count: number): string {
-    repo.git('checkout', '--quiet', '-b', 'stack-base');
-    for (let i = 0; i < count; i += 1) {
-      repo.write(`generated/file-${String(i)}.txt`, `content ${String(i)}\n`);
-    }
-    repo.commit(`add ${String(count)} files`);
-    repo.git('checkout', '--quiet', '-b', 'feature', 'stack-base');
-    repo.write('src/feature.ts', 'export const x = 1;\n');
-    const head = repo.commit('feature work');
-    repo.git('branch', '--force', '--quiet', 'stack-base', 'main');
-    repo.git('checkout', '--quiet', 'stack-base');
-    repo.write('unrelated.md', 'moved on\n');
-    repo.commit('stack-base moved on');
-    repo.git('push', '--quiet', '--force', 'origin', 'stack-base');
-    repo.git('checkout', '--quiet', 'feature');
-    return head;
-  }
-
-  it('warns when --base names a ref that moved since this branch forked from it', async () => {
-    const head = stackedBranchWithFiles(55);
+  it('reviews from where it forked off a --base that was rewritten since', async () => {
+    const { head, forkedAt } = rebasedStack();
 
     const { target } = await resolveTarget({ kind: 'branch', base: 'stack-base' }, shell().shell, {
       warn,
     });
 
-    expect(target.baseSha).toBe(initial);
+    expect(target.baseSha).toBe(forkedAt);
     expect(target.headSha).toBe(head);
     expect(warn).toHaveBeenCalledOnce();
-    expect(warn.mock.calls[0]![0]).toMatch(/^56 files changed between stack-base/);
+    expect(warn.mock.calls[0]![0]).toMatch(/^stack-base was rewritten .* fork point/);
   });
 
-  it('refuses --base outright when it produces an implausibly large diff', async () => {
-    stackedBranchWithFiles(305);
+  it('falls back to the merge-base when the base has no reflog to find the fork in', async () => {
+    rebasedStack();
+    const tip = repo.git('rev-parse', 'stack-base').trim();
 
-    await expect(
-      resolveTarget({ kind: 'branch', base: 'stack-base' }, shell().shell, { warn }),
-    ).rejects.toThrow(/^306 files changed between stack-base.*rebased/);
+    const { target } = await resolveTarget({ kind: 'branch', base: tip }, shell().shell, { warn });
+
+    expect(target.baseSha).toBe(initial);
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 
@@ -287,13 +288,13 @@ describe('pr target', () => {
     return head;
   }
 
-  const pullJson = (headRefOid: string) =>
+  const pullJson = (headRefOid: string, baseRefName = 'main') =>
     json({
       number: 7,
       title: 'Add a login form',
       body: '',
       author: { login: 'octo' },
-      baseRefName: 'main',
+      baseRefName,
       headRefName: 'feat/login-form',
       headRefOid,
       state: 'OPEN',
@@ -322,6 +323,23 @@ describe('pr target', () => {
       authorLogin: 'octo',
       description: null,
     });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('reviews from where it forked off a PR base that was rewritten since', async () => {
+    const { head, forkedAt } = rebasedStack();
+    repo.git('push', '--quiet', 'origin', 'feature:refs/pull/7/head');
+
+    const { target } = await resolveTarget(
+      { kind: 'pr', number: 7, base: null },
+      shell(() => pullJson(head, 'stack-base')).shell,
+      { warn },
+    );
+
+    expect(target.baseLabel).toBe('origin/stack-base');
+    expect(target.baseSha).toBe(forkedAt);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toMatch(/^origin\/stack-base was rewritten/);
   });
 
   it('refuses when the PR moved between asking and fetching', async () => {
