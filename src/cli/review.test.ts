@@ -132,8 +132,10 @@ describe('er review', () => {
 
   it('runs the model without --stub, in the repository, and reports what it wrote', async () => {
     let cwd = '';
+    let settingSources: unknown;
     const query: QueryFn = ({ options: sdkOptions }) => {
       cwd = sdkOptions.cwd ?? '';
+      settingSources = sdkOptions.settingSources;
       return (async function* () {
         yield assistantText(MODEL_REVIEW);
         yield runResult();
@@ -144,6 +146,7 @@ describe('er review', () => {
 
     const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
     expect(cwd).toBe(repoRoot);
+    expect(settingSources).toEqual(['user', 'project', 'local']);
     expect(readFileSync(path.join(run, 'raw.txt'), 'utf8')).toBe(MODEL_REVIEW);
     expect(readFileSync(path.join(run, 'events.jsonl'), 'utf8')).toContain('"subtype":"success"');
     expect(readFileSync(path.join(run, 'review.json'), 'utf8')).toContain('The staged change');
@@ -416,6 +419,27 @@ describe('er review', () => {
       expect(existsSync(path.join(repo.work, RUNS_DIR, 'pr-7'))).toBe(true);
       expect(ourWorktrees()).toEqual([]);
       expect(repo.git('worktree', 'list').trim().split('\n')).toHaveLength(1);
+    });
+
+    it('keeps the PR’s own Claude settings out of the run', async () => {
+      openPull();
+      let settingSources: unknown;
+      const query: QueryFn = ({ options: sdkOptions }) => {
+        settingSources = sdkOptions.settingSources;
+        return (async function* () {
+          yield runResult();
+        })();
+      };
+
+      // No answer, so the run fails; what it was started with is the point.
+      await expect(
+        review(
+          options({ request: { kind: 'pr', number: 7, base: null }, stub: false, open: false }),
+          { ...deps, claude: { query } },
+        ),
+      ).rejects.toThrow('the model wrote nothing');
+
+      expect(settingSources).toEqual(['user']);
     });
 
     it('removes the worktree when interrupted mid-run', async () => {

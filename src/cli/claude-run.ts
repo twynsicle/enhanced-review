@@ -6,6 +6,7 @@ import { howItEnded, runSdkLoop, type SdkQueryFn, type SdkUsage } from './sdk-lo
 import { MAX_VALIDATION_RETRIES, validationStopHook } from './validation-stop-hook.ts';
 import type { PromptGrounding } from '../review/prompt/diff-hunk-catalog.ts';
 import { reviewBashCommand } from './bash-gate.ts';
+import { agentEnv } from './host-env.ts';
 import { onInterrupt } from './interrupts.ts';
 import type { RunFiles } from './run-folder.ts';
 
@@ -18,9 +19,11 @@ import type { RunFiles } from './run-folder.ts';
  *
  * The engineer's own environment is what authenticates: the SDK subprocess
  * inherits it, and this CLI reads none of it itself, so it needs no
- * configuration of its own. The reviewed repository's own Claude
- * configuration loads as it would in a normal session: it is the engineer's
- * own repository, so its hooks and settings are theirs to trust.
+ * configuration of its own. The engineer's user settings always load. The
+ * working tree's project and local settings load only when that tree is the
+ * engineer's own checkout: a PR's worktree is its author's files, and a hook
+ * or an allow rule in its `.claude/` would run commands, or wave Bash past the
+ * gate, on the reviewer's machine.
  */
 
 /**
@@ -52,6 +55,11 @@ export type QueryFn = SdkQueryFn;
 export interface ClaudeRunOptions {
   /** The agent's working directory: a PR's worktree, or the repository. */
   cwd: string;
+  /**
+   * Whose files `cwd` holds: `own` for the engineer's checkout, whose Claude
+   * settings are theirs to trust; `pr` for a worktree of someone else's PR.
+   */
+  tree: 'own' | 'pr';
   model: string;
   maxTurns: number;
   timeoutMs: number;
@@ -212,8 +220,8 @@ function sdkOptions(
       if (decision.behavior === 'deny') callbacks.onDeny(tool, input, decision.message);
       return Promise.resolve(decision);
     },
-    // The engineer's own settings, and the reviewed repository's CLAUDE.md.
-    settingSources: ['user', 'project', 'local'],
+    settingSources: options.tree === 'own' ? ['user', 'project', 'local'] : ['user'],
+    env: agentEnv(),
     persistSession: false,
     abortController: controller,
     maxTurns: options.maxTurns,

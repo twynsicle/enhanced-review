@@ -147,7 +147,8 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
 | `npm run check`                            | **The gate**: typecheck + report:build + test + lint + format:check |
 
 `er` needs no environment of its own: the model runs as the engineer, with
-their own Claude credentials and the reviewed repository's own Claude config.
+their own Claude credentials and user settings, plus the repository's own Claude
+config when the working tree is their checkout (never a PR's worktree).
 
 ## Working on Windows
 

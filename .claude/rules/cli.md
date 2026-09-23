@@ -36,7 +36,8 @@ src/cli/
                    for `hostConfig` (the tests run without it), abort → SIGTERM; argBatches, the path-list split
                    that keeps a command line inside Windows' limit
   host-env.ts      the only process.env reader: hostEnv(), what a spawned git, gh or SDK
-                   subprocess inherits
+                   subprocess inherits; agentEnv(), the SDK's, adds safe.bareRepository=explicit so a
+                   bare repository committed inside a reviewed tree is never used by the agent's git
   diff-files.ts    listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over `-z` output,
                    each rename's old path and the binary flag; output that ends mid-record throws rather than
                    yielding a short list
@@ -57,8 +58,8 @@ src/cli/
                    usage); validationStopHook registered on Stop over the run's own copy of the answer,
                    so a disqualified one costs a turn rather than a second run, and each refusal is a `blocked`
                    event and a terminal note, and a hook that throws is a `hook-error` event and a warning rather
-                   than a stranded run; the reviewed repo's own settings (settingSources user/project/local),
-                   read-only tools, the engineer's environment inherited by the subprocess; the SDK is imported
+                   than a stranded run; the engineer's user settings, plus the working tree's
+                   project/local settings only when it is their own checkout (never a PR's worktree), read-only tools, the engineer's environment inherited by the subprocess; the SDK is imported
                    only when a run happens
   sdk-loop.ts      the SDK message loop: text, tool uses and the result out — subtype, turns, cost and token
                    usage, cost counted even when the run ran out of turns — nothing thrown; howItEnded, the one
@@ -69,8 +70,9 @@ src/cli/
                    spelling the tag pair, which the parser would then find; onBlock gets the defects apart from
                    the reason sent to the model, and onError allows the stop when the hook itself throws rather
                    than stranding the run; SDK types only
-  bash-gate.ts     which Bash commands a review may run: the line is split at | && ||, every part must be a known
-                   read-only invocation; no redirection (bar 2>/dev/null), substitution or launcher flags
+  bash-gate.ts     which Bash commands a review may run: the line is read as bash reads it, quotes removed, and
+                   split at | && ||; every part must be a known read-only invocation; no redirection (bar
+                   2>/dev/null), substitution, variables, backslashes, launcher flags or a glob that could be a flag
   progress.ts      the run log: one elapsed-time-stamped line per tool use, carrying the SDK's own turn number
                    (one turn however many tools it asked for at once), plus a line per chapter title picked out
                    of the answer as it streams, and a heartbeat line while a turn is quiet
@@ -152,8 +154,10 @@ not an accident to fix:
   staged reviews run where the engineer already is, and warn about edits that
   are not part of the review.
 - **The model runs as the engineer**, headless through the Agent SDK, with
-  their own credentials and the reviewed repository's own Claude config. `er`
-  reads no credential itself; a sign-in problem is theirs to fix in their own
+  their own credentials and user settings. The repository's own Claude config
+  loads only for a branch or staged review, in the engineer's checkout: a PR's
+  worktree is its author's files, and a hook there would run as the reviewer.
+  `er` reads no credential itself; a sign-in problem is theirs to fix in their own
   terminal.
 - **Five stages, each resumable**, because the model run is the only one that
   costs money: `gather → prompt → run → parse → render`. Nothing should ever

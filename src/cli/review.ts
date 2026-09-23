@@ -142,6 +142,7 @@ export async function review(
             run,
             {
               cwd: worktree?.path ?? context.target.repoRoot,
+              tree: worktree ? 'pr' : 'own',
               model: options.model,
               maxTurns: options.maxTurns,
               timeoutMs: options.timeoutMs,
