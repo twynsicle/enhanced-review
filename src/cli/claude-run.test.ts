@@ -70,6 +70,7 @@ const hunk = (id: string) => ({
 
 const options = {
   cwd: 'C:/repo',
+  tree: 'own' as const,
   model: 'test-model',
   maxTurns: 5,
   timeoutMs: 60_000,
@@ -186,6 +187,15 @@ describe('the model run', () => {
       allowedTools: ['Read', 'Glob', 'Grep'],
       tools: ['Read', 'Glob', 'Grep', 'Bash'],
     });
+  });
+
+  it('reads only the engineer’s user settings in a worktree of someone else’s PR', async () => {
+    const query = fakeQuery([text('a review'), result({ subtype: 'success', total_cost_usd: 0 })]);
+
+    await runClaude(run, { ...options, tree: 'pr' }, { query });
+
+    // A hook or an allow rule in the PR's own .claude/ would run as the reviewer.
+    expect(query.options().settingSources).toEqual(['user']);
   });
 
   it('lets the agent read history with Bash, and nothing else', async () => {

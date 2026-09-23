@@ -57,8 +57,8 @@ src/cli/
                    usage); validationStopHook registered on Stop over the run's own copy of the answer,
                    so a disqualified one costs a turn rather than a second run, and each refusal is a `blocked`
                    event and a terminal note, and a hook that throws is a `hook-error` event and a warning rather
-                   than a stranded run; the reviewed repo's own settings (settingSources user/project/local),
-                   read-only tools, the engineer's environment inherited by the subprocess; the SDK is imported
+                   than a stranded run; the engineer's user settings, plus the working tree's
+                   project/local settings only when it is their own checkout (never a PR's worktree), read-only tools, the engineer's environment inherited by the subprocess; the SDK is imported
                    only when a run happens
   sdk-loop.ts      the SDK message loop: text, tool uses and the result out — subtype, turns, cost and token
                    usage, cost counted even when the run ran out of turns — nothing thrown; howItEnded, the one
@@ -152,8 +152,10 @@ not an accident to fix:
   staged reviews run where the engineer already is, and warn about edits that
   are not part of the review.
 - **The model runs as the engineer**, headless through the Agent SDK, with
-  their own credentials and the reviewed repository's own Claude config. `er`
-  reads no credential itself; a sign-in problem is theirs to fix in their own
+  their own credentials and user settings. The repository's own Claude config
+  loads only for a branch or staged review, in the engineer's checkout: a PR's
+  worktree is its author's files, and a hook there would run as the reviewer.
+  `er` reads no credential itself; a sign-in problem is theirs to fix in their own
   terminal.
 - **Five stages, each resumable**, because the model run is the only one that
   costs money: `gather → prompt → run → parse → render`. Nothing should ever
