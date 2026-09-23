@@ -308,15 +308,32 @@ describe('er review', () => {
 
     it('refuses to run the model on a change past the limit, and says how to go on', async () => {
       stageFiles(REFUSE_REVIEWED_FILES);
+      const gitCalls: string[][] = [];
+      deps.shell = new Shell(repo.work, {
+        git: async (opts) => {
+          gitCalls.push([...opts.args]);
+          return runGit(opts);
+        },
+        gh: async () => ({ stdout: '', stderr: 'no gh in tests', exitCode: 1 }),
+      });
 
       await expect(withModel()).rejects.toThrow(
         new RegExp(`^${String(REFUSE_REVIEWED_FILES + 1)} files to review, past .*--allow-large$`),
       );
-      // Refused inside gather, before a blob was read: there is no context to resume.
-      const [folder] = runFolders();
-      expect(existsSync(path.join(repo.work, RUNS_DIR, 'staged', folder!, 'context.json'))).toBe(
-        false,
+      // Refused before any file was diffed or read, with no run folder left to resume.
+      const perFile = gitCalls.filter(
+        (args) => args.includes('--unified=3') || args.includes('cat-file'),
       );
+      expect(perFile).toEqual([]);
+      expect(runFolders()).toEqual([]);
+    });
+
+    it('leaves the last finished run the newest after a refusal', async () => {
+      await expect(review(options({ open: false }), deps)).resolves.toBe(0);
+      stageFiles(REFUSE_REVIEWED_FILES);
+      await expect(withModel()).rejects.toThrow(/--allow-large$/);
+
+      await expect(review(options({ from: 'render', open: false }), deps)).resolves.toBe(0);
     });
 
     it('holds a resumed run to the limit too, and lets --allow-large through', async () => {

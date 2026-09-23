@@ -1,4 +1,4 @@
-import { rename } from 'node:fs/promises';
+import { rename, rm } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import path from 'node:path';
 import { plural } from '../review/plural.ts';
@@ -46,6 +46,11 @@ export type Stage = (typeof STAGES)[number];
 /** Gather starts a run, so it is not a place to resume from. */
 export const RESUMABLE_STAGES = STAGES.slice(1) as Exclude<Stage, 'gather'>[];
 
+/** Whether a run resumed at `from` (or started afresh) still reaches the model. */
+export function runsModel(from: Stage | null): boolean {
+  return STAGES.indexOf(from ?? 'gather') <= STAGES.indexOf('run');
+}
+
 /** The exit code for a review that was written but carries warnings. */
 export const WARNED = 2;
 
@@ -87,7 +92,7 @@ export async function review(
 
   const { run, context } = options.from
     ? await resume(options.request, options.from, deps.shell)
-    : await startRun(options.request, deps.shell, !options.stub && !options.allowLarge);
+    : await startRun(options.request, deps.shell, options.stub || options.allowLarge);
 
   if (runs('prompt')) {
     const started = performance.now();
@@ -273,7 +278,7 @@ async function workingDirectory(
 async function startRun(
   request: TargetRequest,
   shell: Shell,
-  limitSize: boolean,
+  unlimited: boolean,
 ): Promise<{ run: RunFiles; context: RunContext }> {
   let started = performance.now();
   const { target, meta } = await resolveTarget(request, shell, { warn });
@@ -281,9 +286,18 @@ async function startRun(
 
   started = performance.now();
   const run = await createRunFolder(target.repoRoot, target.slug, new Date());
-  const context = await gather(target, meta, shell.at(target.repoRoot), run, (count) => {
-    if (limitSize) refuseTooLarge(count, target, false);
-  });
+  const checkReviewed = unlimited
+    ? undefined
+    : (count: number) => refuseTooLarge(count, target, false);
+  let context: RunContext;
+  try {
+    context = await gather(target, meta, shell.at(target.repoRoot), run, checkReviewed);
+  } catch (error) {
+    // A failed gather leaves at most part of a run, which --from would take
+    // for this target's newest and so hide the last run that finished.
+    await rm(run.folder, { recursive: true, force: true });
+    throw error;
+  }
   if (context.dirty.length > 0) warn(dirtyWarning(context));
   stage('gather', describeGather(context), performance.now() - started);
   return { run, context };

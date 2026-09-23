@@ -3,7 +3,7 @@ import { parseArgs } from 'node:util';
 import { DEFAULT_MAX_TURNS, DEFAULT_MODEL, DEFAULT_TIMEOUT_MINUTES } from './claude-run.ts';
 import { toolVersion } from './platform.ts';
 import { runInterruptCleanups } from './interrupts.ts';
-import { RESUMABLE_STAGES, review, type ReviewOptions } from './review.ts';
+import { RESUMABLE_STAGES, review, runsModel, type ReviewOptions } from './review.ts';
 import type { TargetRequest } from './targets.ts';
 import { fail, line } from './terminal.ts';
 
@@ -77,7 +77,7 @@ async function main(argv: string[]): Promise<number> {
   const [command, ...args] = positionals;
   if (command !== 'review') throw new UsageError(`unknown command: ${command!}`);
   const from = resumeStage(values.from);
-  if (values['allow-large'] && (values.stub || from === 'parse' || from === 'render')) {
+  if (values['allow-large'] && (values.stub || !runsModel(from))) {
     throw new UsageError('--allow-large applies only to a run of the model');
   }
   return review({
