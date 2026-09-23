@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import * as fsPromises from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { HookInput } from '@anthropic-ai/claude-agent-sdk';
@@ -10,7 +11,7 @@ import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-rep
 import type { QueryFn } from './claude-run.ts';
 import { Shell } from './git.ts';
 import { runInterruptCleanups } from './interrupts.ts';
-import { review, WARNED, type ReviewDeps, type ReviewOptions } from './review.ts';
+import { review, SIZE_LIMITS, WARNED, type ReviewDeps, type ReviewOptions } from './review.ts';
 import { RUNS_DIR } from './run-folder.ts';
 import * as stubRun from './stub-run.ts';
 import * as terminal from './terminal.ts';
@@ -20,6 +21,7 @@ import { removeWorktreeSync } from './worktree.ts';
 vi.setConfig({ testTimeout: GIT_TEST_TIMEOUT, hookTimeout: GIT_TEST_TIMEOUT });
 
 vi.mock('./stub-run.ts', { spy: true });
+vi.mock('node:fs/promises', { spy: true });
 
 vi.mock('./terminal.ts', () => ({
   line: vi.fn(),
@@ -45,6 +47,7 @@ beforeEach(() => {
     render: { reportShell: async () => `<html>${BUNDLE_PLACEHOLDER}</html>` },
     open: vi.fn<(file: string) => void>(),
     claude: {},
+    sizeLimits: SIZE_LIMITS,
   };
   repo.write('src/app.ts', 'export const app = 2;\n');
   repo.git('add', 'src/app.ts');
@@ -61,6 +64,7 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   from: null,
   open: true,
   keepWorktree: false,
+  allowLarge: false,
   ...overrides,
 });
 
@@ -268,6 +272,118 @@ describe('er review', () => {
     await expect(review(options({ from: 'render' }), deps)).rejects.toThrow(
       'no earlier run for staged to resume; run without --from first',
     );
+  });
+
+  describe('the size of a change', () => {
+    /** Small enough that a test stages a handful of files, not hundreds. */
+    const LIMITS = { warn: 2, refuse: 4 };
+    beforeEach(() => {
+      deps.sizeLimits = LIMITS;
+      vi.mocked(terminal.warn).mockClear();
+    });
+
+    /** Stages `count` more files, on top of the one every test here starts with. */
+    function stageFiles(count: number, dir = 'more', ext = '.ts'): void {
+      for (let i = 0; i < count; i += 1) {
+        repo.write(`${dir}/file-${String(i)}${ext}`, `export const n = ${String(i)};\n`);
+      }
+      repo.git('add', dir);
+    }
+
+    /** A model that stops the review the moment it is reached: these tests end there. */
+    const REACHED = 'the model was reached';
+    const query: QueryFn = () => {
+      throw new Error(REACHED);
+    };
+    const withModel = (overrides: Partial<ReviewOptions> = {}) =>
+      review(options({ stub: false, open: false, ...overrides }), { ...deps, claude: { query } });
+
+    it('warns about a change past a typical review, and runs it', async () => {
+      stageFiles(LIMITS.warn);
+
+      await expect(withModel()).rejects.toThrow(REACHED);
+      expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith(
+        `${String(LIMITS.warn + 1)} files to review, more than a typical change`,
+      );
+    });
+
+    it('refuses to run the model on a change past the limit, and says how to go on', async () => {
+      stageFiles(LIMITS.refuse);
+      const gitCalls: string[][] = [];
+      deps.shell = new Shell(repo.work, {
+        git: async (opts) => {
+          gitCalls.push([...opts.args]);
+          return runGit(opts);
+        },
+        gh: async () => ({ stdout: '', stderr: 'no gh in tests', exitCode: 1 }),
+      });
+
+      await expect(withModel()).rejects.toThrow(
+        new RegExp(`^${String(LIMITS.refuse + 1)} files to review, past .*--allow-large$`),
+      );
+      // Refused before any file was diffed or read, with no run folder left to resume.
+      const perFile = gitCalls.filter(
+        (args) => args.includes('--unified=3') || args.includes('cat-file'),
+      );
+      expect(perFile).toEqual([]);
+      expect(runFolders()).toEqual([]);
+    });
+
+    it('still says why gather failed when its run folder cannot be removed', async () => {
+      stageFiles(LIMITS.refuse);
+      vi.mocked(fsPromises.rm).mockRejectedValueOnce(new Error('EBUSY: resource busy or locked'));
+
+      await expect(withModel()).rejects.toThrow(/--allow-large$/);
+      expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith(
+        expect.stringMatching(/^could not remove .*EBUSY.*before using --from$/),
+      );
+    });
+
+    it('leaves the last finished run the newest after a refusal', async () => {
+      await expect(review(options({ open: false }), deps)).resolves.toBe(0);
+      stageFiles(LIMITS.refuse);
+      await expect(withModel()).rejects.toThrow(/--allow-large$/);
+
+      await expect(review(options({ from: 'render', open: false }), deps)).resolves.toBe(0);
+    });
+
+    it('holds a resumed run to the limit too, and lets --allow-large through', async () => {
+      stageFiles(LIMITS.refuse);
+      await expect(review(options({ open: false }), deps)).resolves.toBe(0);
+
+      await expect(withModel({ from: 'run' })).rejects.toThrow(
+        /past .*--allow-large \(and --from run to keep this gather\)$/,
+      );
+      await expect(withModel({ from: 'run', allowLarge: true })).rejects.toThrow(REACHED);
+    });
+
+    it('names --base as the likely fix when a branch review is too big', async () => {
+      repo.git('checkout', '--quiet', '-b', 'feat/big');
+      stageFiles(LIMITS.refuse);
+      repo.git('commit', '--quiet', '-m', 'big');
+
+      await expect(
+        review(
+          options({ request: { kind: 'branch', base: 'main' }, stub: false, open: false }),
+          deps,
+        ),
+      ).rejects.toThrow(/if main is not where this change starts .* pass --base <ref>/);
+    });
+
+    it('runs a change past the limit with --allow-large, without a word', async () => {
+      stageFiles(LIMITS.refuse);
+
+      await expect(withModel({ allowLarge: true })).rejects.toThrow(REACHED);
+      expect(vi.mocked(terminal.warn)).not.toHaveBeenCalled();
+    });
+
+    it('counts only the files the model is given, and holds --stub to nothing', async () => {
+      stageFiles(LIMITS.refuse, 'snapshots', '.snap');
+      await expect(withModel()).rejects.toThrow(REACHED);
+
+      stageFiles(LIMITS.refuse);
+      await expect(review(options({ open: false }), deps)).resolves.toBe(0);
+    });
   });
 
   describe('a PR review', () => {

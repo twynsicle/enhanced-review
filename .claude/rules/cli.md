@@ -17,12 +17,18 @@ src/cli/
   er.ts            the bin (`npm link` puts it on PATH): parseArgs → review; usage errors reprint the usage;
                    the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
-                   --keep-worktree, --model, --max-turns, --timeout; prints each warning finding after the parse
+                   --keep-worktree, --model, --max-turns, --timeout, --allow-large; past 300 reviewed files a model run is
+                   refused (a fresh one inside gather, before any blob is read; a resumed one before the run),
+                   past 50 it warns, and --stub is held to neither; prints each warning finding after the parse
                    line and returns WARNED (2) when there was one — --from render reads them back with
                    readFindings, so rendering again says the same thing about the review; deps (Shell, render,
                    open, query) injectable for the end-to-end test
   targets.ts       resolveTarget: branch (against the open PR's base or origin's default, fetched first), pr (fetch
-                   pull/<n>/head, merge-base with its base), staged (the index as a dangling commit on HEAD); --base;
+                   pull/<n>/head), both measured from where head forked off the base: the merge-base, or the
+                   fork point from the base's reflog when the base was rewritten since and `git cherry` finds every
+                   commit in between still in it (a rebased stack); commits it no longer has at all are reviewed
+                   as the change's own; either way a warning names the --base for the other answer; staged (the
+                   index as a dangling commit on HEAD); --base;
                    locateTarget (repo root + slug only, for --from); TargetSchema
   git.ts           Shell: git (git-runner's non-interactive runner, run with the engineer's own gitconfig so
                    their credentials, proxy and safe.directory apply) and gh, bound to one directory

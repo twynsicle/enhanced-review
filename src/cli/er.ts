@@ -3,7 +3,7 @@ import { parseArgs } from 'node:util';
 import { DEFAULT_MAX_TURNS, DEFAULT_MODEL, DEFAULT_TIMEOUT_MINUTES } from './claude-run.ts';
 import { toolVersion } from './platform.ts';
 import { runInterruptCleanups } from './interrupts.ts';
-import { RESUMABLE_STAGES, review, type ReviewOptions } from './review.ts';
+import { RESUMABLE_STAGES, review, runsModel, type ReviewOptions } from './review.ts';
 import type { TargetRequest } from './targets.ts';
 import { fail, line } from './terminal.ts';
 
@@ -27,6 +27,7 @@ Options:
   --from <stage>       resume the newest run for this target at prompt, run, parse or render
   --no-open            write the report without opening it
   --keep-worktree      leave a PR review's temporary worktree in place
+  --allow-large        run the model on a change past the size er otherwise refuses
   -h, --help           show this help
   -v, --version        show the version`;
 
@@ -62,6 +63,7 @@ async function main(argv: string[]): Promise<number> {
       from: { type: 'string' },
       'no-open': { type: 'boolean' },
       'keep-worktree': { type: 'boolean' },
+      'allow-large': { type: 'boolean' },
     },
   });
   if (values.version) {
@@ -74,6 +76,10 @@ async function main(argv: string[]): Promise<number> {
   }
   const [command, ...args] = positionals;
   if (command !== 'review') throw new UsageError(`unknown command: ${command!}`);
+  const from = resumeStage(values.from);
+  if (values['allow-large'] && (values.stub || !runsModel(from))) {
+    throw new UsageError('--allow-large applies only to a run of the model');
+  }
   return review({
     request: targetRequest(args, values),
     cwd: process.cwd(),
@@ -81,9 +87,10 @@ async function main(argv: string[]): Promise<number> {
     model: values.model ?? DEFAULT_MODEL,
     maxTurns: positiveNumber(values['max-turns'], '--max-turns', DEFAULT_MAX_TURNS),
     timeoutMs: positiveNumber(values.timeout, '--timeout', DEFAULT_TIMEOUT_MINUTES) * 60_000,
-    from: resumeStage(values.from),
+    from,
     open: !values['no-open'],
     keepWorktree: values['keep-worktree'] ?? false,
+    allowLarge: values['allow-large'] ?? false,
   });
 }
 

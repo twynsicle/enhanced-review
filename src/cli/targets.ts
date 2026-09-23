@@ -1,16 +1,17 @@
 import path from 'node:path';
 import { z } from 'zod';
+import { plural } from '../review/plural.ts';
 import type { ReviewMeta } from '../review/review-meta.ts';
 import type { Shell } from './git.ts';
 
 /**
  * What `er review` reviews, pinned to two commits:
  *
- * - **branch** — HEAD against its merge-base with the base branch: the open
+ * - **branch** — HEAD against where it forked from the base branch: the open
  *   PR's base when the branch has one, otherwise origin's default branch,
  *   fetched first; `--base` overrides either;
- * - **pr** — `pull/<n>/head` against its merge-base with the PR's base, the
- *   three-dot diff GitHub shows;
+ * - **pr** — `pull/<n>/head` against where it forked from the PR's base, the
+ *   three-dot diff GitHub shows unless that base has since been rewritten;
  * - **staged** — the index, written as a dangling commit on top of HEAD.
  *
  * The meta is the reader's header; its `stats` are left for gather, which is
@@ -76,7 +77,7 @@ export async function resolveTarget(
   const repo = await repoLabel(shell, repoRoot);
   switch (request.kind) {
     case 'pr':
-      return resolvePull(shell, repo, request.number, request.base);
+      return resolvePull(shell, repo, request.number, request.base, options);
     case 'branch':
       return resolveBranch(shell, repo, request.base, options);
     case 'staged':
@@ -115,6 +116,7 @@ async function resolvePull(
   repo: string,
   number: number,
   base: string | null,
+  { warn }: ResolveOptions,
 ): Promise<ResolvedTarget> {
   const pull = parsePull(await shell.gh(['pr', 'view', String(number), '--json', PULL_FIELDS]));
   await shell.git([
@@ -130,7 +132,7 @@ async function resolvePull(
     throw new Error(`PR #${String(number)} changed while it was being fetched; run again`);
   }
   const baseLabel = base ?? `origin/${pull.baseRefName}`;
-  const baseSha = await mergeBase(shell, headSha, baseLabel);
+  const baseSha = await forkPoint(shell, headSha, baseLabel, warn);
   return {
     target: {
       kind: 'pr',
@@ -166,7 +168,7 @@ async function resolveBranch(
     }
     baseLabel = `origin/${baseBranch}`;
   }
-  const baseSha = await mergeBase(shell, headSha, baseLabel);
+  const baseSha = await forkPoint(shell, headSha, baseLabel, warn);
   const name = branch ?? headSha.slice(0, 7);
   if (baseSha === headSha) {
     throw new Error(`nothing to review: ${name} has no commits past ${baseLabel}`);
@@ -306,11 +308,62 @@ async function revParse(
   return result.stdout.trim();
 }
 
-async function mergeBase(shell: Shell, headSha: string, baseLabel: string): Promise<string> {
+/**
+ * Where head left the base. A plain merge-base is wrong once the base has been
+ * rewritten since head forked from it (a rebased stacked branch): the old base
+ * commits head still carries are no longer the base's, so the merge-base falls
+ * back to an older shared ancestor and the diff sweeps all of them in.
+ * `--fork-point` reads the base's reflog to find where head really left it, as
+ * `git rebase` does. Without a reflog to go on (a bare SHA, a ref first
+ * fetched after the rewrite) it fails and the merge-base stands.
+ *
+ * The reflog alone cannot tell a rebased base from one reset off commits that
+ * then became this branch (work committed to main by mistake and moved): both
+ * once held commits they no longer do. Patches can: a rebased base still
+ * carries every one of them in new commits, and a reset one carries none. So
+ * the fork point is taken only when `git cherry` finds all of them in the
+ * base; otherwise they are reviewed as this change's own. Both say so, with
+ * the `--base` that gives the other answer, since either can be wrong.
+ */
+async function forkPoint(
+  shell: Shell,
+  headSha: string,
+  baseLabel: string,
+  warn: (text: string) => void,
+): Promise<string> {
   const baseTip = await revParse(shell, baseLabel, 'base');
   const result = await shell.tryGit(['merge-base', headSha, baseTip]);
   if (result.exitCode !== 0) throw new Error(`no common history with ${baseLabel}`);
-  return result.stdout.trim();
+  const mergeBase = result.stdout.trim();
+  const fork = await shell.tryGit(['merge-base', '--fork-point', baseLabel, headSha]);
+  if (fork.exitCode !== 0) return mergeBase;
+  const forkSha = fork.stdout.trim();
+  // Not rewritten, or it only ever held this change's own commits.
+  if (forkSha === mergeBase || forkSha === headSha) return mergeBase;
+
+  // `+ <sha>` for a commit the base has nothing like, `- <sha>` for one it carries rewritten.
+  const cherry = await shell.git(['cherry', baseTip, forkSha, mergeBase]);
+  const between = cherry.split('\n').filter((line) => /^[+-] /.test(line));
+  const dropped = between.filter((line) => line.startsWith('+')).length;
+  if (dropped === 0) {
+    warn(
+      `${baseLabel} was rewritten after this change forked from it; reviewing from the fork point ` +
+        `${forkSha.slice(0, 7)}, leaving out ${plural(between.length, 'commit')} ${baseLabel} now carries ` +
+        `rewritten. If they belong to this change, pass --base ${mergeBase}`,
+    );
+    return forkSha;
+  }
+  const rewritten = between.length - dropped;
+  const reviewed =
+    rewritten > 0
+      ? ` and rewriting ${String(rewritten)} more; all ${String(between.length)} are`
+      : '; they are';
+  warn(
+    `${baseLabel} was reset or rewritten since this change left it, dropping ` +
+      `${plural(dropped, 'commit')} this change carries${reviewed} reviewed as part of the ` +
+      `change. If they are not, pass --base ${forkSha}`,
+  );
+  return mergeBase;
 }
 
 /** `owner/name` from origin's URL; the folder name when there is no GitHub-style remote. */

@@ -1,4 +1,4 @@
-import { rename } from 'node:fs/promises';
+import { rename, rm } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import path from 'node:path';
 import { plural } from '../review/plural.ts';
@@ -46,6 +46,11 @@ export type Stage = (typeof STAGES)[number];
 /** Gather starts a run, so it is not a place to resume from. */
 export const RESUMABLE_STAGES = STAGES.slice(1) as Exclude<Stage, 'gather'>[];
 
+/** Whether a run resumed at `from` (or started afresh) still reaches the model. */
+export function runsModel(from: Stage | null): boolean {
+  return STAGES.indexOf(from ?? 'gather') <= STAGES.indexOf('run');
+}
+
 /** The exit code for a review that was written but carries warnings. */
 export const WARNED = 2;
 
@@ -63,6 +68,8 @@ export interface ReviewOptions {
   open: boolean;
   /** Leave a PR review's worktree in place after the run. */
   keepWorktree: boolean;
+  /** Run the model on a change past `SIZE_LIMITS.refuse` reviewed files. */
+  allowLarge: boolean;
 }
 
 export interface ReviewDeps {
@@ -70,6 +77,7 @@ export interface ReviewDeps {
   render: RenderDeps;
   open: (file: string) => void;
   claude: ClaudeRunDeps;
+  sizeLimits: SizeLimits;
 }
 
 export async function review(
@@ -79,13 +87,15 @@ export async function review(
     render: HOST_RENDER_DEPS,
     open: openFile,
     claude: {},
+    sizeLimits: SIZE_LIMITS,
   },
 ): Promise<number> {
   const runs = (name: Stage) => STAGES.indexOf(name) >= STAGES.indexOf(options.from ?? 'gather');
+  const limits = options.stub || options.allowLarge ? null : deps.sizeLimits;
 
   const { run, context } = options.from
     ? await resume(options.request, options.from, deps.shell)
-    : await startRun(options.request, deps.shell);
+    : await startRun(options.request, deps.shell, limits);
 
   if (runs('prompt')) {
     const started = performance.now();
@@ -98,6 +108,17 @@ export async function review(
   }
 
   if (runs('run')) {
+    if (limits) {
+      const count = context.files.filter((file) => !file.skipped).length;
+      // A fresh run was refused inside gather; a resumed one gathered elsewhere
+      // (a --stub run, say) and is held to the limit here.
+      if (options.from) refuseTooLarge(count, context.target, limits, 'resumed');
+      if (count > limits.warn) {
+        warn(
+          `${plural(count, 'file')} to review, more than a typical change${wrongBaseHint(context.target)}`,
+        );
+      }
+    }
     const started = performance.now();
     const repo = deps.shell.at(context.target.repoRoot);
     const swept = await sweepStaleWorktrees(repo);
@@ -182,6 +203,46 @@ export async function review(
 }
 
 /**
+ * A model run grows with the change, in time and in tokens, and a change far
+ * past a normal review is more often a wrong base than a real change: a
+ * stacked branch whose base was rebased where no reflog shows the fork, or a
+ * `--base` that is simply wrong. Counted over the files the model is actually
+ * given. A fresh run is refused inside gather, before it reads every blob of
+ * a change that may be thousands of files; a resumed one just before the run.
+ * A `--stub` run costs nothing and is held to neither.
+ */
+export interface SizeLimits {
+  /** Reviewed files past which the run goes ahead with a warning. */
+  warn: number;
+  /** Reviewed files past which the model run is refused without --allow-large. */
+  refuse: number;
+}
+export const SIZE_LIMITS: SizeLimits = { warn: 50, refuse: 300 };
+
+function refuseTooLarge(
+  count: number,
+  target: Target,
+  limits: SizeLimits,
+  when: 'fresh' | 'resumed',
+): void {
+  if (count <= limits.refuse) return;
+  const keep = when === 'resumed' ? ' (and --from run to keep this gather)' : '';
+  throw new Error(
+    `${plural(count, 'file')} to review, past the ${String(limits.refuse)} a model run ` +
+      `is allowed${wrongBaseHint(target)}; if the change really is this big, run again with ` +
+      `--allow-large${keep}`,
+  );
+}
+
+function wrongBaseHint({ kind, baseLabel }: Target): string {
+  if (kind === 'staged') return '';
+  return (
+    `; if ${baseLabel} is not where this change starts (a stacked branch whose base was ` +
+    'rebased, say), pass --base <ref>'
+  );
+}
+
+/**
  * A disqualified answer, as it happens. Only what was wrong with it: the rest
  * of what the model was sent is an instruction addressed to the model, and it
  * is in `events.jsonl` for anyone who wants it.
@@ -230,6 +291,7 @@ async function workingDirectory(
 async function startRun(
   request: TargetRequest,
   shell: Shell,
+  limits: SizeLimits | null,
 ): Promise<{ run: RunFiles; context: RunContext }> {
   let started = performance.now();
   const { target, meta } = await resolveTarget(request, shell, { warn });
@@ -237,7 +299,21 @@ async function startRun(
 
   started = performance.now();
   const run = await createRunFolder(target.repoRoot, target.slug, new Date());
-  const context = await gather(target, meta, shell.at(target.repoRoot), run);
+  const checkReviewed = limits
+    ? (count: number) => refuseTooLarge(count, target, limits, 'fresh')
+    : undefined;
+  let context: RunContext;
+  try {
+    context = await gather(target, meta, shell.at(target.repoRoot), run, checkReviewed);
+  } catch (error) {
+    // A failed gather leaves at most part of a run, which --from would take
+    // for this target's newest and so hide the last run that finished. The
+    // removal failing (a Windows file lock) must not hide why gather failed.
+    await rm(run.folder, { recursive: true, force: true }).catch((cleanup: Error) => {
+      warn(`could not remove ${run.folder} (${cleanup.message}); delete it before using --from`);
+    });
+    throw error;
+  }
   if (context.dirty.length > 0) warn(dirtyWarning(context));
   stage('gather', describeGather(context), performance.now() - started);
   return { run, context };

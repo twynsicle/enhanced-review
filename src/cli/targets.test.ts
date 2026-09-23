@@ -54,6 +54,30 @@ function branchWithMovedMain(): string {
   return head;
 }
 
+/**
+ * `feature` forks off `stack-base`, which is then rebased onto a `main` that
+ * has moved on, and pushed. `feature` still carries the old `stack-base`
+ * commit, so its plain merge-base with the new `stack-base` is `initial`,
+ * and that commit's file would be swept into the review.
+ */
+function rebasedStack(): { head: string; forkedAt: string } {
+  repo.git('checkout', '--quiet', '-b', 'stack-base');
+  repo.write('src/old-base.ts', 'export const old = 1;\n');
+  const forkedAt = repo.commit('stack-base work');
+  repo.git('push', '--quiet', 'origin', 'stack-base');
+  repo.git('checkout', '--quiet', '-b', 'feature');
+  repo.write('src/feature.ts', 'export const x = 1;\n');
+  const head = repo.commit('feature work');
+  repo.git('checkout', '--quiet', 'main');
+  repo.write('CHANGELOG.md', 'main moved on\n');
+  repo.commit('main moves on');
+  repo.git('checkout', '--quiet', 'stack-base');
+  repo.git('rebase', '--quiet', 'main');
+  repo.git('push', '--quiet', '--force', 'origin', 'stack-base');
+  repo.git('checkout', '--quiet', 'feature');
+  return { head, forkedAt };
+}
+
 const warn = vi.fn();
 beforeEach(() => warn.mockReset());
 
@@ -171,6 +195,7 @@ describe('branch target', () => {
     expect(target.baseLabel).toBe('main');
     expect(target.baseSha).toBe(initial);
     expect(meta.baseRefName).toBe('main');
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('warns and uses the local copy when origin cannot be reached', async () => {
@@ -192,6 +217,101 @@ describe('branch target', () => {
     await expect(
       resolveTarget({ kind: 'branch', base: null }, shell().shell, { warn }),
     ).rejects.toThrow('nothing to review: main has no commits past origin/main');
+  });
+
+  it('reviews from where it forked off a --base that was rewritten since', async () => {
+    const { head, forkedAt } = rebasedStack();
+
+    const { target } = await resolveTarget({ kind: 'branch', base: 'stack-base' }, shell().shell, {
+      warn,
+    });
+
+    expect(target.baseSha).toBe(forkedAt);
+    expect(target.headSha).toBe(head);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toMatch(
+      new RegExp(`^stack-base was rewritten .* fork point .* pass --base ${initial}$`),
+    );
+  });
+
+  it('keeps the merge-base for work moved off a base that was reset behind it', async () => {
+    repo.write('src/oops.ts', 'export const oops = 1;\n');
+    const head = repo.commit('committed to main by mistake');
+    repo.git('branch', 'feat/moved');
+    repo.git('reset', '--quiet', '--hard', initial);
+    repo.git('checkout', '--quiet', 'feat/moved');
+
+    const { target } = await resolveTarget({ kind: 'branch', base: 'main' }, shell().shell, {
+      warn,
+    });
+
+    expect(target.baseSha).toBe(initial);
+    expect(target.headSha).toBe(head);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('reviews work moved off a reset base as its own, once the branch has moved on', async () => {
+    repo.write('src/oops.ts', 'export const oops = 1;\n');
+    const moved = repo.commit('committed to main by mistake');
+    repo.git('branch', 'feat/moved');
+    repo.git('reset', '--quiet', '--hard', initial);
+    repo.git('checkout', '--quiet', 'feat/moved');
+    repo.write('src/more.ts', 'export const more = 1;\n');
+    repo.commit('more work');
+
+    const { target } = await resolveTarget({ kind: 'branch', base: 'main' }, shell().shell, {
+      warn,
+    });
+
+    expect(target.baseSha).toBe(initial);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toMatch(
+      new RegExp(
+        `^main was reset .* dropping 1 commit this change carries; they are .* pass --base ${moved}$`,
+      ),
+    );
+  });
+
+  it('reviews all of a base it only partly carries rewritten, and says how many', async () => {
+    repo.git('checkout', '--quiet', '-b', 'stack-base');
+    repo.write('src/kept.ts', 'export const kept = 1;\n');
+    const kept = repo.commit('stack work that survives the rebase');
+    repo.write('src/changed.ts', 'export const changed = 1;\n');
+    const forkedAt = repo.commit('stack work resolved differently in the rebase');
+    repo.git('checkout', '--quiet', '-b', 'feature');
+    repo.write('src/feature.ts', 'export const x = 1;\n');
+    repo.commit('feature work');
+    repo.git('checkout', '--quiet', 'main');
+    repo.write('CHANGELOG.md', 'main moved on\n');
+    repo.commit('main moves on');
+    repo.git('checkout', '--quiet', 'stack-base');
+    repo.git('reset', '--quiet', '--hard', 'main');
+    repo.git('cherry-pick', '--quiet', kept);
+    repo.write('src/changed.ts', 'export const changed = 2;\n');
+    repo.commit('stack work resolved differently in the rebase');
+    repo.git('checkout', '--quiet', 'feature');
+
+    const { target } = await resolveTarget({ kind: 'branch', base: 'stack-base' }, shell().shell, {
+      warn,
+    });
+
+    expect(target.baseSha).toBe(initial);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toMatch(
+      new RegExp(
+        `dropping 1 commit this change carries and rewriting 1 more; all 2 are .* pass --base ${forkedAt}$`,
+      ),
+    );
+  });
+
+  it('falls back to the merge-base when the base has no reflog to find the fork in', async () => {
+    rebasedStack();
+    const tip = repo.git('rev-parse', 'stack-base').trim();
+
+    const { target } = await resolveTarget({ kind: 'branch', base: tip }, shell().shell, { warn });
+
+    expect(target.baseSha).toBe(initial);
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 
@@ -240,13 +360,13 @@ describe('pr target', () => {
     return head;
   }
 
-  const pullJson = (headRefOid: string) =>
+  const pullJson = (headRefOid: string, baseRefName = 'main') =>
     json({
       number: 7,
       title: 'Add a login form',
       body: '',
       author: { login: 'octo' },
-      baseRefName: 'main',
+      baseRefName,
       headRefName: 'feat/login-form',
       headRefOid,
       state: 'OPEN',
@@ -275,6 +395,23 @@ describe('pr target', () => {
       authorLogin: 'octo',
       description: null,
     });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('reviews from where it forked off a PR base that was rewritten since', async () => {
+    const { head, forkedAt } = rebasedStack();
+    repo.git('push', '--quiet', 'origin', 'feature:refs/pull/7/head');
+
+    const { target } = await resolveTarget(
+      { kind: 'pr', number: 7, base: null },
+      shell(() => pullJson(head, 'stack-base')).shell,
+      { warn },
+    );
+
+    expect(target.baseLabel).toBe('origin/stack-base');
+    expect(target.baseSha).toBe(forkedAt);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toMatch(/^origin\/stack-base was rewritten/);
   });
 
   it('refuses when the PR moved between asking and fetching', async () => {
