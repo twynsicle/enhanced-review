@@ -14,13 +14,30 @@
  * own: the line is allowed only if all of them are known read-only
  * invocations, with no syntax that could start something unlisted, and no
  * argument that turns a listed program into a launcher for one.
+ *
+ * The line is read the way bash will read it, quotes removed, because the
+ * words checked here must be the words bash runs: a gate that stops looking
+ * inside double quotes lets `"$(…)"` through, and one that checks `-"c"` as
+ * written lets bash run `-c`. Whatever this reader does not model — escapes,
+ * expansions, a glob that could expand to a flag — is refused rather than
+ * guessed at.
  */
 
 /** Characters that could start a command this gate never sees. */
-const FORBIDDEN_SYNTAX = /[;`<(){}\n\r]/;
+const FORBIDDEN_SYNTAX = /[;`<(){}\n\r\\]/;
 
-/** Discarding stderr is a read; it is also the only redirection allowed. */
+/**
+ * Discarding stderr is a read; it is also the only redirection allowed. It
+ * comes out before the line is read, so the `>` in it is never seen.
+ */
 const STDERR_DISCARD = /\s2>\s*(?:\/dev\/null|[Nn][Uu][Ll])(?=\s|$)/g;
+
+/**
+ * Glob characters. One that could expand to a flag — at the start of a word,
+ * or in a word that starts with a dash — is refused: a file in the reviewed
+ * tree named `--pre=sh` would answer it.
+ */
+const GLOB = /[*?[]/;
 
 const PROGRAMS = new Set(['cd', 'git', 'rg', 'grep', 'ls', 'cat', 'head', 'tail', 'wc']);
 
@@ -43,37 +60,43 @@ const GIT_SUBCOMMANDS = new Set([
 ]);
 
 /**
- * Arguments that make an allowed program run something else or write a file:
- * `git --output=` writes the diff out, `git -c` sets config for the command
- * (including hook and pager paths), and ripgrep's preprocessor flags name a
- * program to execute.
+ * Arguments that make an allowed program run something else or write a file.
+ * For git: `--output` writes the diff out, `-c` and `--config-env` set config
+ * for the command (hook, pager and diff-driver commands among it), and
+ * `--git-dir`, `--work-tree`, `--exec-path` and `-C` point git somewhere the
+ * reviewed tree could have prepared. For ripgrep: the preprocessor flags name
+ * a program to execute. Per program, because `-c` and `-C` are harmless
+ * counts and context to grep, rg and wc.
  */
-const FORBIDDEN_ARGUMENTS = ['-c', '--output', '--pre', '--hostname-bin', '--exec', '-exec'];
+const FORBIDDEN_ARGUMENTS: Record<string, readonly string[]> = {
+  git: ['-c', '-C', '--config-env', '--exec-path', '--git-dir', '--work-tree', '--output'],
+  rg: ['--pre', '--hostname-bin'],
+};
 
 export type BashDecision = { allowed: true } | { allowed: false; reason: string };
 
 const REFUSAL =
   'er allows read-only commands only: git log/show/diff/blame/status and similar, rg, grep, ls, ' +
   'cat, head, tail, wc. They may be chained with `|` or `&&` as long as every command in the ' +
-  'line is one of those; redirection and command substitution are not available.';
+  'line is one of those; redirection, substitution, variables, backslashes and globs are not ' +
+  'available, so write paths with forward slashes and quote search patterns in single quotes.';
 
 export function reviewBashCommand(command: string): BashDecision {
   const trimmed = command.trim();
   if (trimmed === '') return deny('an empty command');
 
-  const split = splitChain(trimmed.replace(STDERR_DISCARD, ' '));
-  if (!split.ok) return deny(split.reason);
+  const read = readLine(trimmed.replace(STDERR_DISCARD, ' '));
+  if (!read.ok) return deny(read.reason);
 
-  for (const part of split.parts) {
-    const decision = reviewOne(part);
+  for (const words of read.commands) {
+    const decision = reviewOne(words);
     if (!decision.allowed) return decision;
   }
   return { allowed: true };
 }
 
-/** One command: a known program, run in a way that only reads. */
-function reviewOne(command: string): BashDecision {
-  const words = splitWords(command.trim());
+/** One command, as the words bash will pass it: a known program, run in a way that only reads. */
+function reviewOne(words: string[]): BashDecision {
   const program = words[0];
   if (program === undefined) return deny('an empty command in the line');
   if (!PROGRAMS.has(program)) {
@@ -81,9 +104,10 @@ function reviewOne(command: string): BashDecision {
   }
 
   const rest = words.slice(1);
+  const forbidden = FORBIDDEN_ARGUMENTS[program] ?? [];
   for (const word of rest) {
     const flag = word.split('=')[0]!;
-    if (FORBIDDEN_ARGUMENTS.includes(flag)) {
+    if (forbidden.includes(flag)) {
       return deny(`\`${flag}\` can run or write something else`);
     }
   }
@@ -100,65 +124,96 @@ function reviewOne(command: string): BashDecision {
   return { allowed: true };
 }
 
-type Chain = { ok: true; parts: string[] } | { ok: false; reason: string };
+type Line = { ok: true; commands: string[][] } | { ok: false; reason: string };
 
 /**
- * The line broken at `|`, `||` and `&&`, respecting quotes so a separator
- * inside a search pattern stays part of it. Anything else that could reach a
- * second program — a `;`, a subshell, a redirection, a substitution, a
- * background `&` — ends the scan instead, because splitting on it would not
- * be enough to check what it runs.
+ * The line as bash will split it: commands broken at `|`, `||` and `&&`, each
+ * cut into words with the quotes removed. Inside single quotes everything is
+ * literal. Inside double quotes bash still expands `$…` and backticks and
+ * honours backslashes, so those are refused there; a `$` is let through only
+ * where bash leaves it as a character, before the closing quote or a space
+ * (`grep "end$"`). Outside quotes, anything that could reach a second program
+ * — a `;`, a subshell, a redirection, a substitution, a background `&` — ends
+ * the scan, because splitting on it would not be enough to check what it runs.
  */
-function splitChain(command: string): Chain {
-  const parts: string[] = [];
-  let current = '';
-  let quote: string | null = null;
+function readLine(line: string): Line {
+  const commands: string[][] = [];
+  let words: string[] = [];
+  let word = '';
+  /** Whether a word has started: `''` is a word, and so is `""`. */
+  let inWord = false;
+  let quote: "'" | '"' | null = null;
 
-  for (let i = 0; i < command.length; i += 1) {
-    const char = command[i]!;
-    if (quote !== null) {
-      current += char;
-      if (char === quote) quote = null;
+  const endWord = () => {
+    if (inWord) words.push(word);
+    word = '';
+    inWord = false;
+  };
+  const endCommand = () => {
+    endWord();
+    commands.push(words);
+    words = [];
+  };
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i]!;
+    const next = line[i + 1];
+
+    if (quote === "'") {
+      if (char === "'") quote = null;
+      else word += char;
       continue;
     }
-    if (char === '"' || char === "'") {
+    if (quote === '"') {
+      if (char === '"') {
+        quote = null;
+        continue;
+      }
+      if (char === '`' || char === '\\') {
+        return { ok: false, reason: `\`${char}\` inside double quotes, which bash still reads` };
+      }
+      if (char === '$' && next !== '"' && next !== ' ') {
+        return { ok: false, reason: 'a `$` expansion inside double quotes' };
+      }
+      word += char;
+      continue;
+    }
+
+    if (char === "'" || char === '"') {
       quote = char;
-      current += char;
+      inWord = true;
+      continue;
+    }
+    if (char === ' ' || char === '\t') {
+      endWord();
       continue;
     }
     if (char === '|' || char === '&') {
-      const doubled = command[i + 1] === char;
+      const doubled = next === char;
       if (char === '&' && !doubled) return { ok: false, reason: 'a backgrounded command' };
-      parts.push(current);
-      current = '';
+      endCommand();
       if (doubled) i += 1;
       continue;
     }
     if (char === '>') return { ok: false, reason: 'redirection, which writes' };
-    if (char === '$' && (command[i + 1] === '(' || command[i + 1] === '{')) {
-      return { ok: false, reason: 'a substitution, which could expand to another command' };
+    if (char === '$') {
+      return { ok: false, reason: 'a `$` expansion, which could expand to another command' };
     }
     if (FORBIDDEN_SYNTAX.test(char)) {
       return { ok: false, reason: `\`${char}\`, which could run something else` };
     }
-    current += char;
+    if (GLOB.test(char) && (word === '' || word.startsWith('-'))) {
+      return { ok: false, reason: 'a glob that could expand to a flag' };
+    }
+    word += char;
+    inWord = true;
   }
 
   if (quote !== null) return { ok: false, reason: 'an unclosed quote' };
-  parts.push(current);
-  return { ok: true, parts };
+  endCommand();
+  return { ok: true, commands };
 }
 
 function deny(what: string): BashDecision {
   return { allowed: false, reason: `Refused ${what}. ${REFUSAL}` };
-}
-
-/**
- * Words, treating a quoted run as one word. Quoting cannot hide a separator
- * from this gate: the line was split before it was cut into words.
- */
-function splitWords(command: string): string[] {
-  return (command.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((word) =>
-    /^(".*"|'.*')$/.test(word) ? word.slice(1, -1) : word,
-  );
 }

@@ -81,6 +81,64 @@ describe('what the local agent may run', () => {
     expect(wrongly(commands, false)).toEqual([]);
   });
 
+  /**
+   * Bash still expands `$(…)` and backticks inside double quotes, and reads a
+   * backslash as an escape; a gate that stopped looking at the quote, or took
+   * `\"` for one, passed commands bash ran as two.
+   */
+  it('refuses a command hidden inside quotes or behind an escape', () => {
+    const commands = [
+      'grep "$(touch pwned)" README.md',
+      'grep "`touch pwned`" README.md',
+      'grep "${HOME}" README.md',
+      'grep \\" x ; touch pwned ; echo \\" README.md',
+      'grep "a\\" x" ; touch pwned ; echo "',
+      "grep $'\\x2d' README.md",
+      'git log $HOME',
+    ];
+    expect(wrongly(commands, false)).toEqual([]);
+  });
+
+  it('checks each argument as bash will pass it, quotes removed', () => {
+    const commands = [
+      'git log --out"put"=notes.txt',
+      "git log --'output'=notes.txt",
+      'git -"c" core.pager=sh log',
+      'rg --p"re"=sh pattern .',
+    ];
+    expect(wrongly(commands, false)).toEqual([]);
+  });
+
+  it('refuses a glob that a file named like a flag could answer', () => {
+    expect(allows('rg pattern *')).toBe(false);
+    expect(allows('grep -r pattern -*')).toBe(false);
+    expect(allows('rg pattern "--pre=s"*')).toBe(false);
+    expect(allows('ls src/cli/*.ts')).toBe(true);
+  });
+
+  it('still reads quoted patterns the way the model writes them', () => {
+    const commands = [
+      "rg 'foo$' src",
+      'grep "end$" src/cli/review.ts',
+      'grep -c "a|b && c; d" README.md',
+      "rg -C 3 'a{2}' src",
+      'wc -c README.md',
+      'git log --format="%h %s" -5',
+    ];
+    expect(wrongly(commands, true)).toEqual([]);
+  });
+
+  it('keeps git away from a repository or config the reviewed tree could supply', () => {
+    const commands = [
+      'git --git-dir=vendor/x diff HEAD~1 HEAD',
+      'git --work-tree=vendor/x status',
+      'git -C vendor/x log',
+      'git --config-env=core.pager=HOME log',
+      'git --exec-path=vendor log',
+    ];
+    expect(wrongly(commands, false)).toEqual([]);
+  });
+
   it('refuses arguments that turn an allowed program into a launcher', () => {
     expect(allows('rg --pre sh pattern .')).toBe(false);
     expect(allows('git -c core.pager=sh log')).toBe(false);

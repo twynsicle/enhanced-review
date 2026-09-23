@@ -69,8 +69,9 @@ src/cli/
                    spelling the tag pair, which the parser would then find; onBlock gets the defects apart from
                    the reason sent to the model, and onError allows the stop when the hook itself throws rather
                    than stranding the run; SDK types only
-  bash-gate.ts     which Bash commands a review may run: the line is split at | && ||, every part must be a known
-                   read-only invocation; no redirection (bar 2>/dev/null), substitution or launcher flags
+  bash-gate.ts     which Bash commands a review may run: the line is read as bash reads it, quotes removed, and
+                   split at | && ||; every part must be a known read-only invocation; no redirection (bar
+                   2>/dev/null), substitution, variables, backslashes, launcher flags or a glob that could be a flag
   progress.ts      the run log: one elapsed-time-stamped line per tool use, carrying the SDK's own turn number
                    (one turn however many tools it asked for at once), plus a line per chapter title picked out
                    of the answer as it streams, and a heartbeat line while a turn is quiet
