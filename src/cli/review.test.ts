@@ -10,7 +10,14 @@ import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-rep
 import type { QueryFn } from './claude-run.ts';
 import { Shell } from './git.ts';
 import { runInterruptCleanups } from './interrupts.ts';
-import { review, WARNED, type ReviewDeps, type ReviewOptions } from './review.ts';
+import {
+  REFUSE_REVIEWED_FILES,
+  review,
+  WARN_REVIEWED_FILES,
+  WARNED,
+  type ReviewDeps,
+  type ReviewOptions,
+} from './review.ts';
 import { RUNS_DIR } from './run-folder.ts';
 import * as stubRun from './stub-run.ts';
 import * as terminal from './terminal.ts';
@@ -61,6 +68,7 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   from: null,
   open: true,
   keepWorktree: false,
+  allowLarge: false,
   ...overrides,
 });
 
@@ -268,6 +276,75 @@ describe('er review', () => {
     await expect(review(options({ from: 'render' }), deps)).rejects.toThrow(
       'no earlier run for staged to resume; run without --from first',
     );
+  });
+
+  describe('the size of a change', () => {
+    beforeEach(() => vi.mocked(terminal.warn).mockClear());
+
+    /** Stages `count` more files, on top of the one every test here starts with. */
+    function stageFiles(count: number, dir = 'more', ext = '.ts'): void {
+      for (let i = 0; i < count; i += 1) {
+        repo.write(
+          `${dir}/file-${String(i)}${ext}`,
+          `export const n = ${String(i)};
+`,
+        );
+      }
+      repo.git('add', dir);
+    }
+
+    /** A model that stops the review the moment it is reached: these tests end there. */
+    const REACHED = 'the model was reached';
+    const query: QueryFn = () => {
+      throw new Error(REACHED);
+    };
+    const withModel = (overrides: Partial<ReviewOptions> = {}) =>
+      review(options({ stub: false, open: false, ...overrides }), { ...deps, claude: { query } });
+
+    it('warns about a change past a typical review, and runs it', async () => {
+      stageFiles(WARN_REVIEWED_FILES);
+
+      await expect(withModel()).rejects.toThrow(REACHED);
+      expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith(
+        `${String(WARN_REVIEWED_FILES + 1)} files to review, more than a typical change`,
+      );
+    });
+
+    it('refuses to run the model on a change past the limit, and says how to go on', async () => {
+      stageFiles(REFUSE_REVIEWED_FILES);
+
+      await expect(withModel()).rejects.toThrow(
+        new RegExp(`^${String(REFUSE_REVIEWED_FILES + 1)} files to review, past .*--allow-large`),
+      );
+    });
+
+    it('names --base as the likely fix when a branch review is too big', async () => {
+      repo.git('checkout', '--quiet', '-b', 'feat/big');
+      stageFiles(REFUSE_REVIEWED_FILES);
+      repo.git('commit', '--quiet', '-m', 'big');
+
+      await expect(
+        review(
+          options({ request: { kind: 'branch', base: 'main' }, stub: false, open: false }),
+          deps,
+        ),
+      ).rejects.toThrow(/if main is not where this change starts .* pass --base <ref>/);
+    });
+
+    it('runs a change past the limit with --allow-large, without a word', async () => {
+      stageFiles(REFUSE_REVIEWED_FILES);
+
+      await expect(withModel({ allowLarge: true })).rejects.toThrow(REACHED);
+      expect(vi.mocked(terminal.warn)).not.toHaveBeenCalled();
+    });
+
+    it('counts only the files the model is given, and holds --stub to nothing', async () => {
+      stageFiles(REFUSE_REVIEWED_FILES, 'snapshots', '.snap');
+      await expect(withModel()).rejects.toThrow(REACHED);
+
+      stageFiles(REFUSE_REVIEWED_FILES);
+      await expect(review(options({ open: false }), deps)).resolves.toBe(0);
+    });
   });
 
   describe('a PR review', () => {

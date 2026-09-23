@@ -27,6 +27,7 @@ Options:
   --from <stage>       resume the newest run for this target at prompt, run, parse or render
   --no-open            write the report without opening it
   --keep-worktree      leave a PR review's temporary worktree in place
+  --allow-large        run the model on a change past the size er otherwise refuses
   -h, --help           show this help
   -v, --version        show the version`;
 
@@ -62,6 +63,7 @@ async function main(argv: string[]): Promise<number> {
       from: { type: 'string' },
       'no-open': { type: 'boolean' },
       'keep-worktree': { type: 'boolean' },
+      'allow-large': { type: 'boolean' },
     },
   });
   if (values.version) {
@@ -84,6 +86,7 @@ async function main(argv: string[]): Promise<number> {
     from: resumeStage(values.from),
     open: !values['no-open'],
     keepWorktree: values['keep-worktree'] ?? false,
+    allowLarge: values['allow-large'] ?? false,
   });
 }
 

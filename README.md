@@ -127,18 +127,19 @@ What you have staged, against `HEAD` — a review before the commit.
 
 ### Every option
 
-| Flag                  | Applies to   | What it does                                                                              |
-| --------------------- | ------------ | ----------------------------------------------------------------------------------------- |
-| `--base <ref>`        | branch, PR   | compare against `<ref>` instead of the PR's base or the default branch                    |
-| `--model <name>`      | every review | review with `<name>` (default: `claude-sonnet-5[1m]`)                                     |
-| `--max-turns <n>`     | every review | let the model take at most `<n>` turns (default: `120`)                                   |
-| `--timeout <minutes>` | every review | give up on the model run after `<minutes>` (default: `15`)                                |
-| `--stub`              | every review | write a mechanical review instead of running a model — see below                          |
-| `--from <stage>`      | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below |
-| `--no-open`           | every review | write the report without opening it                                                       |
-| `--keep-worktree`     | PR reviews   | leave the PR's temporary worktree in place instead of removing it                         |
-| `-h`, `--help`        | —            | show usage and exit                                                                       |
-| `-v`, `--version`     | —            | show the installed version and exit                                                       |
+| Flag                  | Applies to   | What it does                                                                                   |
+| --------------------- | ------------ | ---------------------------------------------------------------------------------------------- |
+| `--base <ref>`        | branch, PR   | compare against `<ref>` instead of the PR's base or the default branch                         |
+| `--model <name>`      | every review | review with `<name>` (default: `claude-sonnet-5[1m]`)                                          |
+| `--max-turns <n>`     | every review | let the model take at most `<n>` turns (default: `120`)                                        |
+| `--timeout <minutes>` | every review | give up on the model run after `<minutes>` (default: `15`)                                     |
+| `--stub`              | every review | write a mechanical review instead of running a model — see below                               |
+| `--from <stage>`      | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below      |
+| `--no-open`           | every review | write the report without opening it                                                            |
+| `--keep-worktree`     | PR reviews   | leave the PR's temporary worktree in place instead of removing it                              |
+| `--allow-large`       | every review | run the model on more than 300 reviewed files, which `er` otherwise refuses (it warns past 50) |
+| `-h`, `--help`        | —            | show usage and exit                                                                            |
+| `-v`, `--version`     | —            | show the installed version and exit                                                            |
 
 `--staged` (a target, not an option) and `--base` cannot be combined: the
 staged tree has no branch to compare against but `HEAD`.

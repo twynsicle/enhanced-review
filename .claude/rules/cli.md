@@ -17,7 +17,8 @@ src/cli/
   er.ts            the bin (`npm link` puts it on PATH): parseArgs → review; usage errors reprint the usage;
                    the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
-                   --keep-worktree, --model, --max-turns, --timeout; prints each warning finding after the parse
+                   --keep-worktree, --model, --max-turns, --timeout, --allow-large; checkSize warns past 50 reviewed
+                   files and refuses the model run past 300 (not --stub); prints each warning finding after the parse
                    line and returns WARNED (2) when there was one — --from render reads them back with
                    readFindings, so rendering again says the same thing about the review; deps (Shell, render,
                    open, query) injectable for the end-to-end test

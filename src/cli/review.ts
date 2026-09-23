@@ -63,6 +63,8 @@ export interface ReviewOptions {
   open: boolean;
   /** Leave a PR review's worktree in place after the run. */
   keepWorktree: boolean;
+  /** Run the model on a change past `REFUSE_REVIEWED_FILES`. */
+  allowLarge: boolean;
 }
 
 export interface ReviewDeps {
@@ -98,6 +100,7 @@ export async function review(
   }
 
   if (runs('run')) {
+    if (!options.stub && !options.allowLarge) checkSize(context);
     const started = performance.now();
     const repo = deps.shell.at(context.target.repoRoot);
     const swept = await sweepStaleWorktrees(repo);
@@ -179,6 +182,36 @@ export async function review(
   note(`  ${reportPath}`);
   if (options.open) deps.open(reportPath);
   return warnings.length > 0 ? WARNED : 0;
+}
+
+/**
+ * A model run grows with the change, in time and in tokens, and a change far
+ * past a normal review is more often a wrong base than a real change: a
+ * stacked branch whose base was rebased where no reflog shows the fork, or a
+ * `--base` that is simply wrong. Checked just before the run, over the files
+ * the model is actually given, so a resumed run is held to it too and a
+ * `--stub` run, which costs nothing, is not.
+ */
+export const WARN_REVIEWED_FILES = 50;
+export const REFUSE_REVIEWED_FILES = 300;
+
+function checkSize(context: RunContext): void {
+  const count = context.files.filter((file) => !file.skipped).length;
+  if (count <= WARN_REVIEWED_FILES) return;
+  const { baseLabel, kind } = context.target;
+  const wrongBase =
+    kind === 'staged'
+      ? ''
+      : `; if ${baseLabel} is not where this change starts (a stacked branch whose base was ` +
+        'rebased, say), pass --base <ref>';
+  if (count > REFUSE_REVIEWED_FILES) {
+    throw new Error(
+      `${plural(count, 'file')} to review, past the ${String(REFUSE_REVIEWED_FILES)} a model run ` +
+        `is allowed${wrongBase}; if the change really is this big, run again with --allow-large ` +
+        '(and --from run to keep this gather)',
+    );
+  }
+  warn(`${plural(count, 'file')} to review, more than a typical change${wrongBase}`);
 }
 
 /**
