@@ -47,6 +47,7 @@ beforeEach(() => {
     render: { reportShell: async () => `<html>${BUNDLE_PLACEHOLDER}</html>` },
     open: vi.fn<(file: string) => void>(),
     claude: {},
+    copySources: {},
     sizeLimits: SIZE_LIMITS,
   };
   repo.write('src/app.ts', 'export const app = 2;\n');
@@ -66,6 +67,7 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   keepWorktree: false,
   allowLarge: false,
   instructions: null,
+  findCopySources: false,
   ...overrides,
 });
 
@@ -166,6 +168,29 @@ describe('er review', () => {
     expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
       'prompt',
       expect.stringMatching(/^~\d+ tokens with yours, plus the review instructions$/),
+      expect.any(Number),
+    );
+  });
+
+  it('asks a model for copy sources only with --find-copy-sources', async () => {
+    const prompts: string[] = [];
+    const query: QueryFn = ({ prompt }) => {
+      prompts.push(prompt);
+      return (async function* () {
+        yield assistantText('<copy_sources>[]</copy_sources>');
+        yield runResult();
+      })();
+    };
+    const withSources = { ...deps, copySources: { query } };
+
+    await review(options({ open: false }), withSources);
+    expect(prompts).toEqual([]);
+
+    await review(options({ open: false, findCopySources: true }), withSources);
+    expect(prompts).toEqual([expect.stringContaining('- src/app.ts\n')]);
+    expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
+      'sources',
+      '1 new file checked, 0 sources found, $0.05',
       expect.any(Number),
     );
   });

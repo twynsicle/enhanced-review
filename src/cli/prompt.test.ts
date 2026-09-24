@@ -84,7 +84,7 @@ describe('the local prompt', () => {
     expect(prompt).toContain(
       '## Files Changed (2)\n  added      +10/-0  src/login.ts\n  renamed    +2/-2  src/form.ts',
     );
-    expect(prompt).toContain('  src/form.ts  (from src/old-form.ts, 83% similar)');
+    expect(prompt).toContain('  src/form.ts  (renamed from src/old-form.ts, 83% similar)');
     expect(prompt).toContain('## Not Reviewed (1)');
     expect(prompt).toContain('  package-lock.json  (lockfile, bundle or snapshot)');
     expect(prompt).toContain(

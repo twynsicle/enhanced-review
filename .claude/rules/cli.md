@@ -19,12 +19,13 @@ src/cli/
                    --from past prompt, which writes no new prompt;
                    the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
-                   --keep-worktree, --model, --max-turns, --timeout, --allow-large, --instructions; past 300 reviewed files a model run is
+                   --keep-worktree, --model, --max-turns, --timeout, --allow-large, --instructions,
+                   --find-copy-sources (gather only, so er.ts refuses it with --stub or --from); past 300 reviewed files a model run is
                    refused (a fresh one inside gather, before any blob is read; a resumed one before the run),
                    past 50 it warns, and --stub is held to neither; prints each warning finding after the parse
                    line and returns WARNED (2) when there was one — --from render reads them back with
                    readFindings, so rendering again says the same thing about the review; deps (Shell, render,
-                   open, query) injectable for the end-to-end test
+                   open, query, the copy-source query) injectable for the end-to-end test
   targets.ts       resolveTarget: branch (against the open PR's base or origin's default, fetched first), pr (fetch
                    pull/<n>/head), both measured from where head forked off the base: the merge-base, or the
                    fork point from the base's reflog when the base was rewritten since and `git cherry` finds every
@@ -42,11 +43,18 @@ src/cli/
                    subprocess inherits; agentEnv(), the SDK's, adds safe.bareRepository=explicit so a
                    bare repository committed inside a reviewed tree is never used by the agent's git
   diff-files.ts    listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over `-z` output,
-                   each rename's origin (old path + git's similarity) and the binary flag; a removed and an added
-                   path the branch's own commits record as a move (chained across commits in topological
-                   order; a path created on the branch has no base origin) are rediffed as a pair at 1%, so a
-                   move-then-rewrite is still a rename; the history is read only when something was both removed
-                   and added; output that ends mid-record throws rather than yielding a short list
+                   each rename's or copy's origin (old path + git's similarity) and the binary flag; copies are
+                   looked for among every file at the base (--find-copies-harder), since a clone's template is
+                   usually untouched; a removed and an added path the branch's own commits record as a move
+                   (chained across commits in topological order; a path created on the branch has no base
+                   origin) go through pairFiles, which rediffs a pair at 1%, so a move-then-rewrite is still a
+                   rename; the history is read only when something was both removed and added; output that ends
+                   mid-record throws rather than yielding a short list
+  copy-sources.ts  --find-copy-sources: a Haiku run inside gather, from the repository root with only the Bash gate
+                   (both sides read with `git show <sha>:<path>`), naming the file each unpaired, reviewed added
+                   file was built from → pairFiles; an unreadable answer, a file it was not asked about or a
+                   source that was not a file at the base fails gather, a pair git finds nothing in common in is
+                   a warning and stays new; its answer in copy-sources.txt
   skip-reasons.ts  why each changed file is left out: the built-in list, then the reviewed repository's own
                    `.gitattributes` (`git check-attr` at the head commit, which resolves a nested
                    `.gitattributes` for the paths beneath it), then binary; toReviewFiles stamps the reasons on
@@ -57,9 +65,11 @@ src/cli/
                    ignores itself
   context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons and origins, hunks numbered
                    across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
-                   one diff file carrying every reviewed file's annotated patch (a patch holding two file sections
-                   where the list paired one fails the stage), its line count carried as
-                   `diffLines` so the prompt can ask the agent to Read it in one call; pr.md
+                   one diff file carrying every reviewed file's annotated patch (a copy diffed blob against blob,
+                   since its source may be changed on the branch too; otherwise a patch holding two file sections
+                   where the list paired one fails the stage), its line count carried as `diffLines` so the prompt
+                   can ask the agent to Read it in one call; pr.md; GatherOptions.findSources, the hook
+                   copy-sources.ts plugs into, asked only when a reviewed added file is left unpaired
   prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
                    commits, where the agent is, Files Changed, Not Reviewed, the hunk table, and where the diff
                    file is, with its length, then the engineer's own instructions when given

@@ -9,6 +9,7 @@ import type { NarrativeReview } from '../review/narrative.ts';
 import type { ReviewMeta } from '../review/review-meta.ts';
 import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
 import { gather, readContext, type RunContext } from './context.ts';
+import { findCopySources, type CopySourceDeps } from './copy-sources.ts';
 import { Shell } from './git.ts';
 import { onInterrupt } from './interrupts.ts';
 import { groundingForRun, parseRun, readFindings, readReview } from './parse.ts';
@@ -72,6 +73,8 @@ export interface ReviewOptions {
   allowLarge: boolean;
   /** The engineer's own guidance for the model, written into the prompt. */
   instructions: string | null;
+  /** Ask a model for the file each new file was copied from, where git found none. */
+  findCopySources: boolean;
 }
 
 export interface ReviewDeps {
@@ -79,6 +82,7 @@ export interface ReviewDeps {
   render: RenderDeps;
   open: (file: string) => void;
   claude: ClaudeRunDeps;
+  copySources: CopySourceDeps;
   sizeLimits: SizeLimits;
 }
 
@@ -89,6 +93,7 @@ export async function review(
     render: HOST_RENDER_DEPS,
     open: openFile,
     claude: {},
+    copySources: {},
     sizeLimits: SIZE_LIMITS,
   },
 ): Promise<number> {
@@ -97,7 +102,7 @@ export async function review(
 
   const { run, context } = options.from
     ? await resume(options.request, options.from, deps.shell)
-    : await startRun(options.request, deps.shell, limits);
+    : await startRun(options, deps, limits);
 
   if (runs('prompt')) {
     const started = performance.now();
@@ -293,12 +298,13 @@ async function workingDirectory(
 }
 
 async function startRun(
-  request: TargetRequest,
-  shell: Shell,
+  options: ReviewOptions,
+  deps: ReviewDeps,
   limits: SizeLimits | null,
 ): Promise<{ run: RunFiles; context: RunContext }> {
+  const { shell } = deps;
   let started = performance.now();
-  const { target, meta } = await resolveTarget(request, shell, { warn });
+  const { target, meta } = await resolveTarget(options.request, shell, { warn });
   stage('target', describeTarget(target, meta), performance.now() - started);
 
   started = performance.now();
@@ -308,7 +314,13 @@ async function startRun(
     : undefined;
   let context: RunContext;
   try {
-    context = await gather(target, meta, shell.at(target.repoRoot), run, checkReviewed);
+    const repo = shell.at(target.repoRoot);
+    context = await gather(target, meta, repo, run, {
+      checkReviewed,
+      findSources: options.findCopySources
+        ? (files, unpaired) => findCopySources(repo, target, run, files, unpaired, deps.copySources)
+        : undefined,
+    });
   } catch (error) {
     // A failed gather leaves at most part of a run, which --from would take
     // for this target's newest and so hide the last run that finished. The

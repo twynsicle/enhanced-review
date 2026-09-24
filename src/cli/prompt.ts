@@ -134,9 +134,11 @@ function workingDirectory({ target, dirty }: RunContext, run: RunFiles): string 
 }
 
 function renames(files: readonly ReviewFile[]): string {
-  const lines = files.flatMap(({ filename, origin }) =>
+  const lines = files.flatMap(({ filename, status, origin }) =>
     origin
-      ? [`  ${filename}  (from ${origin.filename}, ${String(origin.similarity)}% similar)`]
+      ? [
+          `  ${filename}  (${status === 'copied' ? 'copied' : 'renamed'} from ${origin.filename}, ${String(origin.similarity)}% similar)`,
+        ]
       : [],
   );
   if (lines.length === 0) return '';

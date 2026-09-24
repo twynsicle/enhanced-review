@@ -60,23 +60,43 @@ const MAX_COMMITS = 200;
 const LITERAL = '--literal-pathspecs';
 
 /**
- * `checkReviewed` sees how many files will be reviewed before any of them is
- * diffed or embedded, so a change too big to run is refused before gather
- * reads every blob in it.
+ * Pairs added files git found no origin for with sources found some other
+ * way, and returns the file list with those pairs in it.
  */
+export type FindSources = (
+  files: readonly ChangedFile[],
+  unpaired: readonly string[],
+) => Promise<ChangedFile[]>;
+
+export interface GatherOptions {
+  /**
+   * Sees how many files will be reviewed before any of them is diffed or
+   * embedded, so a change too big to run is refused before gather reads every
+   * blob in it.
+   */
+  checkReviewed?: (count: number) => void;
+  findSources?: FindSources;
+}
+
 export async function gather(
   target: Target,
   meta: ReviewMeta,
   shell: Shell,
   run: RunFiles,
-  checkReviewed: (count: number) => void = () => undefined,
+  { checkReviewed, findSources }: GatherOptions = {},
 ): Promise<RunContext> {
   const { baseSha, headSha } = target;
-  const changed = await listChangedFileDetails(shell.runners.git, shell.cwd, baseSha, headSha);
+  let changed = await listChangedFileDetails(shell.runners.git, shell.cwd, baseSha, headSha);
   const reasons = await skipReasons(changed, headSha, (args) => shell.git(args));
+  checkReviewed?.(changed.filter((file) => !reasons.has(file.filename)).length);
+  if (findSources) {
+    const unpaired = changed
+      .filter((file) => file.status === 'added' && !reasons.has(file.filename))
+      .map((file) => file.filename);
+    if (unpaired.length > 0) changed = await findSources(changed, unpaired);
+  }
   const files = toReviewFiles(changed, reasons);
   const reviewed = changed.filter((file) => !reasons.has(file.filename));
-  checkReviewed(reviewed.length);
 
   const diffs = await mapLimit(reviewed, PARALLEL_GIT, (file) => fileDiff(shell, target, file));
   const hunks = numberHunks(reviewed, diffs);
@@ -134,16 +154,26 @@ export async function readContext(run: RunFiles): Promise<RunContext> {
  * The file list decided that pairing with its own git call, so this checks the
  * patch agrees: two file sections would have `numberHunks` catalogue the old
  * file's deletions under the new name, a review that looks whole and is wrong.
+ *
+ * A copy is diffed blob against blob instead. Its source is still there at the
+ * head, and when the branch changed it too, a diff over the two paths prints
+ * that change as a second section.
  */
 async function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promise<string> {
+  const pins = ['--no-color', '--no-ext-diff', '--no-textconv', '--unified=3'];
+  if (file.status === 'copied' && file.origin) {
+    return shell.git([
+      'diff',
+      ...pins,
+      `${target.baseSha}:${file.origin.filename}`,
+      `${target.headSha}:${file.filename}`,
+    ]);
+  }
   const paths = file.origin ? [file.origin.filename, file.filename] : [file.filename];
   const patch = await shell.git([
     LITERAL,
     'diff',
-    '--no-color',
-    '--no-ext-diff',
-    '--no-textconv',
-    '--unified=3',
+    ...pins,
     '--find-renames=1%',
     target.baseSha,
     target.headSha,
