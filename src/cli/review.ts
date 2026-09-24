@@ -46,9 +46,9 @@ export type Stage = (typeof STAGES)[number];
 /** Gather starts a run, so it is not a place to resume from. */
 export const RESUMABLE_STAGES = STAGES.slice(1) as Exclude<Stage, 'gather'>[];
 
-/** Whether a run resumed at `from` (or started afresh) still reaches the model. */
-export function runsModel(from: Stage | null): boolean {
-  return STAGES.indexOf(from ?? 'gather') <= STAGES.indexOf('run');
+/** Whether a run resumed at `from` (or started afresh) still runs `stage`. */
+export function reaches(from: Stage | null, stage: Stage): boolean {
+  return STAGES.indexOf(from ?? 'gather') <= STAGES.indexOf(stage);
 }
 
 /** The exit code for a review that was written but carries warnings. */
@@ -92,7 +92,7 @@ export async function review(
     sizeLimits: SIZE_LIMITS,
   },
 ): Promise<number> {
-  const runs = (name: Stage) => STAGES.indexOf(name) >= STAGES.indexOf(options.from ?? 'gather');
+  const runs = (name: Stage) => reaches(options.from, name);
   const limits = options.stub || options.allowLarge ? null : deps.sizeLimits;
 
   const { run, context } = options.from

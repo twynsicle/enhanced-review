@@ -154,9 +154,16 @@ explains; it cannot change what a review is made of. For example:
 er review 42 --instructions "Focus on the retry logic and whether it can double-charge. Keep the UI chapters brief."
 ```
 
+Instructions that start with a dash, such as a bullet list, need the `=` form:
+`--instructions="- check the retry path"`. For anything longer, write it to a
+file and pass `--instructions-file`, which reads UTF-8 or the UTF-16 Windows
+PowerShell writes. The text is part of the prompt, so it is paid for on every
+turn; the prompt stage line counts it in.
+
 The instructions are written into `prompt.md`, so `--from run` reuses them;
 they cannot be given with `--from run`, `parse` or `render`, which write no
-new prompt.
+new prompt. `--from prompt` writes the prompt again from that command's flags,
+so repeat the instructions there to keep them.
 
 ### What it costs, and how long
 

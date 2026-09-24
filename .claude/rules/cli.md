@@ -15,8 +15,8 @@ comes only through `host-env.ts`.
 ```
 src/cli/
   er.ts            the bin (`npm link` puts it on PATH): parseArgs → review; usage errors reprint the usage;
-                   --instructions or --instructions-file (read here) becomes ReviewOptions.instructions,
-                   refused with a --from past prompt, which writes no new prompt;
+                   --instructions or --instructions-file becomes ReviewOptions.instructions, refused with a
+                   --from past prompt, which writes no new prompt;
                    the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
                    --keep-worktree, --model, --max-turns, --timeout, --allow-large, --instructions; past 300 reviewed files a model run is
@@ -46,6 +46,9 @@ src/cli/
   skip-reasons.ts  why each changed file is left out: the built-in list, then the reviewed repository's own
                    `.gitattributes` (`git check-attr` at the head commit, which resolves a nested
                    `.gitattributes` for the paths beneath it), then binary; toReviewFiles stamps the reasons on
+  reviewer-instructions.ts
+                   --instructions / --instructions-file → the text, trimmed; the file read as UTF-8 or, by its
+                   byte-order mark, UTF-16 (what Windows PowerShell writes), anything else refused
   run-folder.ts    <repo root>/er-reviews/<slug>/<stamp>/ and each stage's file; latestRunFolder; the runs folder
                    ignores itself
   context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons, hunks numbered

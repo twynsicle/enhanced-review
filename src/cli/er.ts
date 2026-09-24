@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { DEFAULT_MAX_TURNS, DEFAULT_MODEL, DEFAULT_TIMEOUT_MINUTES } from './claude-run.ts';
 import { toolVersion } from './platform.ts';
 import { runInterruptCleanups } from './interrupts.ts';
-import { RESUMABLE_STAGES, review, runsModel, type ReviewOptions } from './review.ts';
+import { reaches, RESUMABLE_STAGES, review, type ReviewOptions } from './review.ts';
+import { reviewerInstructions } from './reviewer-instructions.ts';
 import type { TargetRequest } from './targets.ts';
 import { fail, line } from './terminal.ts';
 
@@ -84,11 +84,16 @@ async function main(argv: string[]): Promise<number> {
   const [command, ...args] = positionals;
   if (command !== 'review') throw new UsageError(`unknown command: ${command!}`);
   const from = resumeStage(values.from);
-  if (values['allow-large'] && (values.stub || !runsModel(from))) {
+  if (values['allow-large'] && (values.stub || !reaches(from, 'run'))) {
     throw new UsageError('--allow-large applies only to a run of the model');
   }
-  const instructions = reviewerInstructions(values.instructions, values['instructions-file']);
-  if (instructions !== null && from !== null && from !== 'prompt') {
+  let instructions;
+  try {
+    instructions = reviewerInstructions(values.instructions, values['instructions-file']);
+  } catch (error) {
+    throw new UsageError((error as Error).message);
+  }
+  if (instructions !== null && !reaches(from, 'prompt')) {
     throw new UsageError(
       `--from ${from} reuses the prompt already written, so it cannot take new instructions; use --from prompt`,
     );
@@ -106,25 +111,6 @@ async function main(argv: string[]): Promise<number> {
     allowLarge: values['allow-large'] ?? false,
     instructions,
   });
-}
-
-function reviewerInstructions(text: string | undefined, file: string | undefined): string | null {
-  if (text !== undefined && file !== undefined) {
-    throw new UsageError('--instructions and --instructions-file cannot be combined');
-  }
-  if (text === undefined && file === undefined) return null;
-  const flag = file === undefined ? '--instructions' : '--instructions-file';
-  const instructions = (text ?? readInstructionsFile(file!)).trim();
-  if (instructions === '') throw new UsageError(`${flag} is empty`);
-  return instructions;
-}
-
-function readInstructionsFile(file: string): string {
-  try {
-    return readFileSync(file, 'utf8');
-  } catch (error) {
-    throw new UsageError(`--instructions-file: ${(error as Error).message}`);
-  }
 }
 
 /** A flag that must be a number greater than zero; minutes or turns. */

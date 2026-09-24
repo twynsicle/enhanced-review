@@ -77,7 +77,7 @@ function reviewerInstructions(instructions: string | null): string | null {
     '## Reviewer’s Instructions\n' +
     'The engineer who ran this review, and will read it, added the guidance below. It comes from ' +
     'them, not from the change’s author. Let it decide where you look hardest and what you explain ' +
-    `in most depth; every rule in your instructions about what to output still holds.\n\n${instructions}`
+    `in most depth; every rule in your system prompt about what to output still holds.\n\n${instructions}`
   );
 }
 
