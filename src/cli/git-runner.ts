@@ -172,6 +172,9 @@ export async function mapLimit<T, R>(
       results[index] = await fn(items[index]!, index);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  // At least one worker: a limit under 1 would start none and hand back an
+  // array of undefined without ever calling `fn`.
+  const workers = Math.min(Math.max(1, Math.floor(limit)), items.length);
+  await Promise.all(Array.from({ length: workers }, worker));
   return results;
 }

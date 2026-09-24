@@ -6,6 +6,7 @@ import { createTempRepo, GIT_TEST_TIMEOUT } from '../test/git-repo.ts';
 import {
   argBatches,
   GitCommandError,
+  mapLimit,
   runGit,
   runGitOrThrow,
   type GitRunner,
@@ -95,5 +96,26 @@ describe('argBatches', () => {
 
   it('has no batch to run for no paths', () => {
     expect(argBatches([])).toEqual([]);
+  });
+});
+
+describe('mapLimit', () => {
+  it('keeps results in item order and never runs more than the limit at once', async () => {
+    let running = 0;
+    let peak = 0;
+    const results = await mapLimit([30, 10, 20, 0], 2, async (ms, index) => {
+      running += 1;
+      peak = Math.max(peak, running);
+      await new Promise((resolve) => setTimeout(resolve, ms));
+      running -= 1;
+      return index;
+    });
+    expect(results).toEqual([0, 1, 2, 3]);
+    expect(peak).toBe(2);
+  });
+
+  it('still runs every item when the limit is under one', async () => {
+    await expect(mapLimit([1, 2, 3], 0.5, async (n) => n * 2)).resolves.toEqual([2, 4, 6]);
+    await expect(mapLimit([1], 0, async (n) => n)).resolves.toEqual([1]);
   });
 });
