@@ -36,15 +36,17 @@ src/cli/
                    their credentials, proxy and safe.directory apply) and gh, bound to one directory
   git-runner.ts    spawn git non-interactively, the host's system and global gitconfig ignored unless a call asks
                    for `hostConfig` (the tests run without it), abort → SIGTERM; argBatches, the path-list split
-                   that keeps a command line inside Windows' limit
+                   that keeps a command line inside Windows' limit; mapLimit + PARALLEL_GIT, how many git processes
+                   a stage runs at once
   host-env.ts      the only process.env reader: hostEnv(), what a spawned git, gh or SDK
                    subprocess inherits; agentEnv(), the SDK's, adds safe.bareRepository=explicit so a
                    bare repository committed inside a reviewed tree is never used by the agent's git
   diff-files.ts    listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over `-z` output,
                    each rename's origin (old path + git's similarity) and the binary flag; a removed and an added
-                   path the branch's own commits record as a move (chained across commits) are rediffed as a
-                   pair at 1%, so a move-then-rewrite is still a rename; output that ends mid-record throws
-                   rather than yielding a short list
+                   path the branch's own commits record as a move (chained across commits in topological
+                   order; a path created on the branch has no base origin) are rediffed as a pair at 1%, so a
+                   move-then-rewrite is still a rename; the history is read only when something was both removed
+                   and added; output that ends mid-record throws rather than yielding a short list
   skip-reasons.ts  why each changed file is left out: the built-in list, then the reviewed repository's own
                    `.gitattributes` (`git check-attr` at the head commit, which resolves a nested
                    `.gitattributes` for the paths beneath it), then binary; toReviewFiles stamps the reasons on
@@ -55,7 +57,8 @@ src/cli/
                    ignores itself
   context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons and origins, hunks numbered
                    across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
-                   one diff file carrying every reviewed file's annotated patch, its line count carried as
+                   one diff file carrying every reviewed file's annotated patch (a patch holding two file sections
+                   where the list paired one fails the stage), its line count carried as
                    `diffLines` so the prompt can ask the agent to Read it in one call; pr.md
   prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
                    commits, where the agent is, Files Changed, Not Reviewed, the hunk table, and where the diff

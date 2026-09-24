@@ -3,7 +3,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { EmbeddedFileSchema, type EmbeddedFile, type EmbeddedSide } from '../review/bundle.ts';
 import { listChangedFileDetails, type ChangedFile } from './diff-files.ts';
-import { argBatches } from './git-runner.ts';
+import { argBatches, mapLimit, PARALLEL_GIT } from './git-runner.ts';
 import { DiffLineSpanSchema, ReviewFileSchema } from '../review/narrative.ts';
 import { buildDiffHunkIndex, type DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
 import { ReviewMetaSchema, type ReviewMeta } from '../review/review-meta.ts';
@@ -57,7 +57,6 @@ export type RunContext = z.infer<typeof RunContextSchema>;
 export const MAX_EMBED_BYTES = 1_000_000;
 
 const MAX_COMMITS = 200;
-const PARALLEL_GIT = 8;
 const LITERAL = '--literal-pathspecs';
 
 /**
@@ -131,10 +130,14 @@ export async function readContext(run: RunFiles): Promise<RunContext> {
  * over just its two paths, where the 1% threshold can only pair those two: it
  * is what keeps a pair that the file list matched through the branch's history
  * (below git's usual 50%) a rename here too, rather than a delete and an add.
+ *
+ * The file list decided that pairing with its own git call, so this checks the
+ * patch agrees: two file sections would have `numberHunks` catalogue the old
+ * file's deletions under the new name, a review that looks whole and is wrong.
  */
-function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promise<string> {
+async function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promise<string> {
   const paths = file.origin ? [file.origin.filename, file.filename] : [file.filename];
-  return shell.git([
+  const patch = await shell.git([
     LITERAL,
     'diff',
     '--no-color',
@@ -147,6 +150,13 @@ function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promise<stri
     '--',
     ...paths,
   ]);
+  const sections = patch.split('\n').filter((line) => line.startsWith('diff --git ')).length;
+  if (sections > 1) {
+    throw new Error(
+      `git diffed ${paths.join(' and ')} as ${String(sections)} files where the file list paired them as one`,
+    );
+  }
+  return patch;
 }
 
 /**
@@ -293,22 +303,4 @@ async function dirtyPaths(shell: Shell, kind: 'branch' | 'staged'): Promise<stri
     if (kind === 'branch' || worktree !== ' ') paths.push(name);
   }
   return paths;
-}
-
-async function mapLimit<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = Array.from({ length: items.length });
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const index = next;
-      next += 1;
-      results[index] = await fn(items[index]!, index);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
 }

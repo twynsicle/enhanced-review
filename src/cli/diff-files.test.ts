@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  chainRenames,
+  baseOrigins,
   listChangedFileDetails,
-  parseRenames,
+  parseHistory,
   parseChangedFiles,
   TruncatedGitOutputError,
   type ChangedFile,
@@ -136,15 +136,29 @@ describe('parseChangedFiles', () => {
 });
 
 describe('listChangedFileDetails', () => {
-  it('runs numstat and name-status against the range and merges them', async () => {
+  const pins = ['--no-color', '--no-ext-diff', '--no-textconv'];
+
+  /** A fake git: each call answered by the first rule whose test matches its arguments. */
+  function fakeGit(rules: [(args: readonly string[]) => boolean, string][]) {
     const calls: string[][] = [];
     const git: GitRunner = async (opts) => {
       calls.push([...opts.args]);
-      const stdout = opts.args.includes('--numstat')
-        ? numstatZ('3\t1\tf.txt')
-        : nameStatusZ('M', 'f.txt');
-      return { stdout, stderr: '', exitCode: 0 };
+      const rule = rules.find(([test]) => test(opts.args));
+      return { stdout: rule?.[1] ?? '', stderr: '', exitCode: 0 };
     };
+    return { git, calls };
+  }
+  const isRange = (kind: string) => (args: readonly string[]) =>
+    args[0] !== 'log' && args.includes(kind) && args.at(-1) === 'base..head';
+  const isPair = (kind: string) => (args: readonly string[]) =>
+    args.includes(kind) && args.includes('--find-renames=1%');
+  const isLog = (args: readonly string[]) => args[0] === 'log';
+
+  it('runs numstat and name-status against the range and merges them', async () => {
+    const { git, calls } = fakeGit([
+      [isRange('--numstat'), numstatZ('3\t1\tf.txt')],
+      [isRange('--name-status'), nameStatusZ('M', 'f.txt')],
+    ]);
     await expect(listChangedFileDetails(git, '/work', 'base', 'head')).resolves.toEqual([
       file('f.txt', 'modified', 3, 1),
     ]);
@@ -153,7 +167,7 @@ describe('listChangedFileDetails', () => {
     // for a file the reviewed diff carries only as "Binary files ... differ".
     // Renames are asked for explicitly: a repository's own `diff.renames`
     // could otherwise turn them off here while the patch still pairs them.
-    const pins = ['--no-color', '--no-ext-diff', '--no-textconv'];
+    // With nothing removed there is nothing to pair, so the history is not read.
     expect(calls).toEqual([
       ['--literal-pathspecs', 'diff', '--numstat', '-z', '--find-renames', ...pins, 'base..head'],
       [
@@ -165,53 +179,116 @@ describe('listChangedFileDetails', () => {
         ...pins,
         'base..head',
       ],
-      [
-        'log',
-        '--reverse',
-        '-z',
-        '--format=',
-        '--name-status',
-        '--find-renames',
-        '--diff-filter=R',
-        ...pins,
-        'base..head',
-      ],
     ]);
+  });
+
+  it('rediffs a removed and an added path the history connects, and lists them as one rename', async () => {
+    const { git, calls } = fakeGit([
+      [isPair('--numstat'), numstatZ('7\t5\t', 'old.ts', 'new.ts')],
+      [isPair('--name-status'), nameStatusZ('R031', 'old.ts', 'new.ts')],
+      [isRange('--numstat'), numstatZ('0\t9\told.ts', '11\t0\tnew.ts', '1\t1\tkeep.ts')],
+      [isRange('--name-status'), nameStatusZ('D', 'old.ts', 'A', 'new.ts', 'M', 'keep.ts')],
+      [isLog, nameStatusZ('R100', 'old.ts', 'mid.ts', 'R100', 'mid.ts', 'new.ts')],
+    ]);
+    await expect(listChangedFileDetails(git, '/work', 'base', 'head')).resolves.toEqual([
+      file('new.ts', 'renamed', 7, 5, { origin: { filename: 'old.ts', similarity: 31 } }),
+      file('keep.ts', 'modified', 1, 1),
+    ]);
+    expect(calls.find(isLog)).toEqual([
+      'log',
+      '--topo-order',
+      '--reverse',
+      '-z',
+      '--format=',
+      '--name-status',
+      '--find-renames',
+      '--diff-filter=AR',
+      ...pins,
+      'base..head',
+    ]);
+    expect(calls.find(isPair('--name-status'))).toEqual([
+      '--literal-pathspecs',
+      'diff',
+      '--name-status',
+      '-z',
+      '--find-renames',
+      ...pins,
+      '--find-renames=1%',
+      'base..head',
+      '--',
+      'old.ts',
+      'new.ts',
+    ]);
+  });
+
+  it('leaves the two apart when git will not pair them even at 1%', async () => {
+    const { git } = fakeGit([
+      [isPair('--numstat'), numstatZ('0\t9\told.ts', '2\t0\tnew.ts')],
+      [isPair('--name-status'), nameStatusZ('D', 'old.ts', 'A', 'new.ts')],
+      [isRange('--numstat'), numstatZ('0\t9\told.ts', '2\t0\tnew.ts')],
+      [isRange('--name-status'), nameStatusZ('D', 'old.ts', 'A', 'new.ts')],
+      [isLog, nameStatusZ('R100', 'old.ts', 'new.ts')],
+    ]);
+    await expect(listChangedFileDetails(git, '/work', 'base', 'head')).resolves.toEqual([
+      file('old.ts', 'removed', 0, 9),
+      file('new.ts', 'added', 2, 0),
+    ]);
+  });
+
+  it('does not pair a path whose base file the branch kept', async () => {
+    // `old.ts` was moved and then written again at the same path: it is
+    // modified over the range, not removed, so it has no file to give away.
+    const { git, calls } = fakeGit([
+      [isRange('--numstat'), numstatZ('1\t1\told.ts', '2\t0\tnew.ts', '0\t3\tgone.ts')],
+      [isRange('--name-status'), nameStatusZ('M', 'old.ts', 'A', 'new.ts', 'D', 'gone.ts')],
+      [isLog, nameStatusZ('R100', 'old.ts', 'new.ts', 'A', 'old.ts')],
+    ]);
+    await expect(listChangedFileDetails(git, '/work', 'base', 'head')).resolves.toHaveLength(3);
+    expect(calls.some(isPair('--numstat'))).toBe(false);
   });
 });
 
-describe('parseRenames', () => {
-  it('reads each rename’s old and new path, in the order git printed them', () => {
-    expect(parseRenames(nameStatusZ('R100', 'a.ts', 'b.ts', 'R087', 'b.ts', 'c.ts'))).toEqual([
-      ['a.ts', 'b.ts'],
-      ['b.ts', 'c.ts'],
+describe('parseHistory', () => {
+  it('reads each creation and rename, in the order git printed them', () => {
+    expect(
+      parseHistory(nameStatusZ('R100', 'a.ts', 'b.ts', 'A', 'a.ts', 'R087', 'b.ts', 'c.ts')),
+    ).toEqual([
+      { kind: 'renamed', from: 'a.ts', to: 'b.ts' },
+      { kind: 'added', path: 'a.ts' },
+      { kind: 'renamed', from: 'b.ts', to: 'c.ts' },
     ]);
-    expect(parseRenames('')).toEqual([]);
+    expect(parseHistory('')).toEqual([]);
   });
 
-  it('throws on a rename cut off before its new path', () => {
-    expect(() => parseRenames(nameStatusZ('R100', 'a.ts'))).toThrow(TruncatedGitOutputError);
+  it('throws on a record cut off before its paths', () => {
+    expect(() => parseHistory(nameStatusZ('R100', 'a.ts'))).toThrow(TruncatedGitOutputError);
+    expect(() => parseHistory(nameStatusZ('A'))).toThrow(TruncatedGitOutputError);
   });
 });
 
-describe('chainRenames', () => {
-  it('follows a file through every move to the path it had at the start', () => {
-    const originOf = chainRenames([
-      ['a.ts', 'b.ts'],
-      ['x.ts', 'y.ts'],
-      ['b.ts', 'c.ts'],
+describe('baseOrigins', () => {
+  const moved = (from: string, to: string) => ({ kind: 'renamed' as const, from, to });
+  const created = (path: string) => ({ kind: 'added' as const, path });
+
+  it('follows a file through every move to the path it had at the base', () => {
+    const originOf = baseOrigins([
+      moved('a.ts', 'b.ts'),
+      moved('x.ts', 'y.ts'),
+      moved('b.ts', 'c.ts'),
     ]);
     expect(Object.fromEntries(originOf)).toEqual({ 'c.ts': 'a.ts', 'y.ts': 'x.ts' });
   });
 
   it('forgets a move that a later one undid', () => {
-    expect(
-      Object.fromEntries(
-        chainRenames([
-          ['a.ts', 'b.ts'],
-          ['b.ts', 'a.ts'],
-        ]),
-      ),
-    ).toEqual({});
+    expect(Object.fromEntries(baseOrigins([moved('a.ts', 'b.ts'), moved('b.ts', 'a.ts')]))).toEqual(
+      {},
+    );
+  });
+
+  it('gives a file created on the branch no base path, wherever it moves', () => {
+    // Without the creation, `d.ts` would claim `a.ts` too, and one removed
+    // file would become the origin of two renames.
+    const originOf = baseOrigins([moved('a.ts', 'b.ts'), created('a.ts'), moved('a.ts', 'd.ts')]);
+    expect(Object.fromEntries(originOf)).toEqual({ 'b.ts': 'a.ts' });
   });
 });

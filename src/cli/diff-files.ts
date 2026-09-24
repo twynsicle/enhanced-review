@@ -1,5 +1,5 @@
 import type { ReviewFile, ReviewFileOrigin, ReviewFileStatus } from '../review/narrative.ts';
-import { runGitOrThrow, type GitRunner } from './git-runner.ts';
+import { mapLimit, PARALLEL_GIT, runGitOrThrow, type GitRunner } from './git-runner.ts';
 
 const STATUS_MAP: Record<string, ReviewFileStatus> = {
   A: 'added',
@@ -56,43 +56,56 @@ export async function listChangedFileDetails(
 ): Promise<ChangedFile[]> {
   const range = `${base}..${head}`;
   const files = await changedFiles(git, cwd, [range], signal);
+  const removed = new Set(files.filter((f) => f.status === 'removed').map((f) => f.filename));
+  const added = files.filter((f) => f.status === 'added');
+  // Walking every commit's renames is the dearest git call here; with nothing
+  // on one side there is nothing it could pair.
+  if (removed.size === 0 || added.length === 0) return files;
+
   const log = await runGitOrThrow(git, 'log --name-status', {
     args: [
       'log',
+      // Parents before children: date order can put a later move first when
+      // commits share a timestamp, as a rebased stack's do, and break a chain.
+      '--topo-order',
       '--reverse',
       '-z',
       '--format=',
       '--name-status',
       '--find-renames',
-      '--diff-filter=R',
+      '--diff-filter=AR',
       ...DIFF_PINS,
       range,
     ],
     cwd,
     signal,
   });
-  const originOf = chainRenames(parseRenames(log.stdout));
-  const removed = new Set(files.filter((f) => f.status === 'removed').map((f) => f.filename));
-
-  let paired = files;
-  for (const file of files) {
+  const originOf = baseOrigins(parseHistory(log.stdout));
+  const candidates = added.flatMap((file) => {
     const from = originOf.get(file.filename);
-    if (file.status !== 'added' || from === undefined || !removed.has(from)) continue;
+    return from !== undefined && removed.has(from) ? [{ from, to: file.filename }] : [];
+  });
+
+  const pairs = await mapLimit(candidates, PARALLEL_GIT, async ({ from, to }) => {
     // Told there are only these two paths, git pairs anything with 1% in
     // common. A file sharing nothing at all with its old self stays unpaired:
     // a diff between the two would be every line out and every line in.
     const [pair, ...rest] = await changedFiles(
       git,
       cwd,
-      ['--find-renames=1%', range, '--', from, file.filename],
+      ['--find-renames=1%', range, '--', from, to],
       signal,
     );
-    if (pair?.status !== 'renamed' || rest.length > 0) continue;
-    paired = paired.flatMap((f) =>
-      f.filename === from ? [] : f.filename === file.filename ? [pair] : [f],
-    );
+    return pair?.status === 'renamed' && rest.length === 0 ? pair : null;
+  });
+  const pairedTo = new Map<string, ChangedFile>();
+  const consumed = new Set<string>();
+  for (const pair of pairs) {
+    if (!pair?.origin) continue;
+    pairedTo.set(pair.filename, pair);
+    consumed.add(pair.origin.filename);
   }
-  return paired;
+  return files.flatMap((f) => (consumed.has(f.filename) ? [] : [pairedTo.get(f.filename) ?? f]));
 }
 
 /** numstat joined to name-status for one `git diff` (the range, or a pair of paths within it). */
@@ -111,36 +124,60 @@ async function changedFiles(
       cwd,
       signal,
     });
-  const [numstat, status] = [await diff('--numstat'), await diff('--name-status')];
+  const [numstat, status] = await Promise.all([diff('--numstat'), diff('--name-status')]);
   return parseChangedFiles(numstat.stdout, status.stdout);
 }
 
-/** `git log --name-status -z --diff-filter=R`: `R<score>\0<old>\0<new>\0` per rename, oldest commit first. */
-export function parseRenames(logZ: string): [string, string][] {
+/** One path a commit created, or one it moved. */
+export type HistoryEntry =
+  { kind: 'added'; path: string } | { kind: 'renamed'; from: string; to: string };
+
+/**
+ * `git log --name-status -z --diff-filter=AR`: `A\0<path>\0` per file created
+ * and `R<score>\0<old>\0<new>\0` per rename, oldest commit first.
+ */
+export function parseHistory(logZ: string): HistoryEntry[] {
   const fields = splitRecords(logZ);
-  const moves: [string, string][] = [];
+  const entries: HistoryEntry[] = [];
   for (let i = 0; i < fields.length; i += 1) {
-    if (!/^R\d*$/.test(fields[i])) continue;
-    if (i + 2 >= fields.length) throw new TruncatedGitOutputError('log --name-status');
-    moves.push([fields[i + 1], fields[i + 2]]);
-    i += 2;
+    const field = fields[i];
+    if (field === 'A') {
+      if (i + 1 >= fields.length) throw new TruncatedGitOutputError('log --name-status');
+      entries.push({ kind: 'added', path: fields[i + 1] });
+      i += 1;
+    } else if (/^R\d*$/.test(field)) {
+      if (i + 2 >= fields.length) throw new TruncatedGitOutputError('log --name-status');
+      entries.push({ kind: 'renamed', from: fields[i + 1], to: fields[i + 2] });
+      i += 2;
+    }
   }
-  return moves;
+  return entries;
 }
 
 /**
- * Where each path the commits renamed to came from at the start, following a
- * chain of moves (`a → b`, then `b → c`, gives `c → a`). The moves arrive in
- * commit order.
+ * The path each file had at the base, by where the commits left it, following
+ * a chain of moves (`a → b`, then `b → c`, gives `c → a`). A path created on
+ * the branch has no base path, and neither does anything later moved out of
+ * it: without that, a file re-created at a path the branch had already moved
+ * away from would claim the moved file's origin as its own.
  */
-export function chainRenames(moves: readonly (readonly [string, string])[]): Map<string, string> {
-  const originOf = new Map<string, string>();
-  for (const [from, to] of moves) {
-    const origin = originOf.get(from) ?? from;
-    originOf.delete(from);
-    if (origin !== to) originOf.set(to, origin);
+export function baseOrigins(history: readonly HistoryEntry[]): Map<string, string> {
+  const originOf = new Map<string, string | null>();
+  for (const entry of history) {
+    if (entry.kind === 'added') {
+      originOf.set(entry.path, null);
+      continue;
+    }
+    const known = originOf.get(entry.from);
+    const origin = known === undefined ? entry.from : known;
+    originOf.delete(entry.from);
+    originOf.set(entry.to, origin);
   }
-  return originOf;
+  return new Map(
+    [...originOf].flatMap(([path, origin]) =>
+      origin !== null && origin !== path ? [[path, origin] as const] : [],
+    ),
+  );
 }
 
 /**
