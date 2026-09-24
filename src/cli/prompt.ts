@@ -17,14 +17,22 @@ import type { RunFiles } from './run-folder.ts';
 const MAX_INLINE_DESCRIPTION = 8000;
 const MAX_COMMIT_BODY = 600;
 
-export async function writePrompt(context: RunContext, run: RunFiles): Promise<string> {
-  const user = buildPrompt(context, run);
+export async function writePrompt(
+  context: RunContext,
+  run: RunFiles,
+  instructions: string | null,
+): Promise<string> {
+  const user = buildPrompt(context, run, instructions);
   await writeFile(run.system, NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
   await writeFile(run.prompt, user);
   return user;
 }
 
-export function buildPrompt(context: RunContext, run: RunFiles): string {
+export function buildPrompt(
+  context: RunContext,
+  run: RunFiles,
+  instructions: string | null,
+): string {
   const { target, meta, files, hunks, diffLines } = context;
   const reviewed = files.filter((file) => !file.skipped);
 
@@ -52,8 +60,25 @@ export function buildPrompt(context: RunContext, run: RunFiles): string {
       'instead of paging through it. Each hunk’s id is on a `# H0001` line directly above its `@@` ' +
       'header. Read that for the change itself, and the files in your working directory for the ' +
       'code around it.',
+    reviewerInstructions(instructions),
   ];
   return `${sections.filter((section) => section !== null).join('\n\n')}\n`;
+}
+
+/**
+ * Last, so it is the final thing read before the work starts. The framing
+ * matters: the description above is the author's, and a model told only
+ * "instructions" could as easily take these as the author's too, or as licence
+ * to drop the output format.
+ */
+function reviewerInstructions(instructions: string | null): string | null {
+  if (instructions === null) return null;
+  return (
+    '## Reviewer’s Instructions\n' +
+    'The engineer who ran this review, and will read it, added the guidance below. It comes from ' +
+    'them, not from the change’s author. Let it decide where you look hardest and what you explain ' +
+    `in most depth; every rule in your system prompt about what to output still holds.\n\n${instructions}`
+  );
 }
 
 function heading({ target, meta }: RunContext): string {

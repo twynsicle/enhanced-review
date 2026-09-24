@@ -46,9 +46,9 @@ export type Stage = (typeof STAGES)[number];
 /** Gather starts a run, so it is not a place to resume from. */
 export const RESUMABLE_STAGES = STAGES.slice(1) as Exclude<Stage, 'gather'>[];
 
-/** Whether a run resumed at `from` (or started afresh) still reaches the model. */
-export function runsModel(from: Stage | null): boolean {
-  return STAGES.indexOf(from ?? 'gather') <= STAGES.indexOf('run');
+/** Whether a run resumed at `from` (or started afresh) still runs `stage`. */
+export function reaches(from: Stage | null, stage: Stage): boolean {
+  return STAGES.indexOf(from ?? 'gather') <= STAGES.indexOf(stage);
 }
 
 /** The exit code for a review that was written but carries warnings. */
@@ -70,6 +70,8 @@ export interface ReviewOptions {
   keepWorktree: boolean;
   /** Run the model on a change past `SIZE_LIMITS.refuse` reviewed files. */
   allowLarge: boolean;
+  /** The engineer's own guidance for the model, written into the prompt. */
+  instructions: string | null;
 }
 
 export interface ReviewDeps {
@@ -90,7 +92,7 @@ export async function review(
     sizeLimits: SIZE_LIMITS,
   },
 ): Promise<number> {
-  const runs = (name: Stage) => STAGES.indexOf(name) >= STAGES.indexOf(options.from ?? 'gather');
+  const runs = (name: Stage) => reaches(options.from, name);
   const limits = options.stub || options.allowLarge ? null : deps.sizeLimits;
 
   const { run, context } = options.from
@@ -99,10 +101,11 @@ export async function review(
 
   if (runs('prompt')) {
     const started = performance.now();
-    const prompt = await writePrompt(context, run);
+    const prompt = await writePrompt(context, run, options.instructions);
+    const yours = options.instructions === null ? '' : ' with yours';
     stage(
       'prompt',
-      `~${tokens(prompt)} tokens, plus the instructions`,
+      `~${tokens(prompt)} tokens${yours}, plus the review instructions`,
       performance.now() - started,
     );
   }

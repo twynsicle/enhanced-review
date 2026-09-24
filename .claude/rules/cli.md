@@ -15,9 +15,11 @@ comes only through `host-env.ts`.
 ```
 src/cli/
   er.ts            the bin (`npm link` puts it on PATH): parseArgs → review; usage errors reprint the usage;
+                   --instructions or --instructions-file becomes ReviewOptions.instructions, refused with a
+                   --from past prompt, which writes no new prompt;
                    the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
-                   --keep-worktree, --model, --max-turns, --timeout, --allow-large; past 300 reviewed files a model run is
+                   --keep-worktree, --model, --max-turns, --timeout, --allow-large, --instructions; past 300 reviewed files a model run is
                    refused (a fresh one inside gather, before any blob is read; a resumed one before the run),
                    past 50 it warns, and --stub is held to neither; prints each warning finding after the parse
                    line and returns WARNED (2) when there was one — --from render reads them back with
@@ -44,6 +46,9 @@ src/cli/
   skip-reasons.ts  why each changed file is left out: the built-in list, then the reviewed repository's own
                    `.gitattributes` (`git check-attr` at the head commit, which resolves a nested
                    `.gitattributes` for the paths beneath it), then binary; toReviewFiles stamps the reasons on
+  reviewer-instructions.ts
+                   --instructions / --instructions-file → the text, trimmed; the file read as UTF-8 or, by its
+                   byte-order mark, UTF-16 (what Windows PowerShell writes), anything else refused
   run-folder.ts    <repo root>/er-reviews/<slug>/<stamp>/ and each stage's file; latestRunFolder; the runs folder
                    ignores itself
   context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons, hunks numbered
@@ -52,7 +57,7 @@ src/cli/
                    `diffLines` so the prompt can ask the agent to Read it in one call; pr.md
   prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
                    commits, where the agent is, Files Changed, Not Reviewed, the hunk table, and where the diff
-                   file is, with its length
+                   file is, with its length, then the engineer's own instructions when given
   claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl
                    (tool uses, refusals, blocked stops, and a result event carrying turns, cost and the token
                    usage); validationStopHook registered on Stop over the run's own copy of the answer,

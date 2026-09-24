@@ -68,7 +68,7 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
 
 describe('the local prompt', () => {
   it('delivers a PR with its header, files, hunks and where the diff file is', () => {
-    const prompt = buildPrompt(context(), run);
+    const prompt = buildPrompt(context(), run, null);
 
     expect(prompt).toMatch(/^# Pull Request #7: Add a login form\n/);
     expect(prompt).toContain('**Author**: octo');
@@ -96,7 +96,11 @@ describe('the local prompt', () => {
 
   it('points at pr.md instead of inlining a long description', () => {
     const long = 'x'.repeat(9000);
-    const prompt = buildPrompt(context({ meta: { ...context().meta, description: long } }), run);
+    const prompt = buildPrompt(
+      context({ meta: { ...context().meta, description: long } }),
+      run,
+      null,
+    );
     expect(prompt).not.toContain(long);
     expect(prompt).toContain(`read it in \`${run.pr.replaceAll('\\', '/')}\``);
   });
@@ -122,6 +126,7 @@ describe('the local prompt', () => {
         dirty: ['src/login.ts', 'notes.txt'],
       },
       run,
+      null,
     );
 
     expect(prompt).toMatch(/^# Branch: feat\/login\n/);
@@ -135,8 +140,24 @@ describe('the local prompt', () => {
     );
   });
 
+  it('ends with the reviewer’s instructions, framed as theirs rather than the author’s', () => {
+    const instructions = ['Look hard at the session handling.', 'Skip the CSS.'].join('\n');
+    const prompt = buildPrompt(context(), run, instructions);
+
+    const [before, section] = prompt.split('## Reviewer’s Instructions');
+    expect(before).toMatch(/code around it\.\n\n$/);
+    expect(section).toContain('It comes from them, not from the change’s author.');
+    expect(section).toMatch(
+      /still holds\.\n\nLook hard at the session handling\.\nSkip the CSS\.\n$/,
+    );
+  });
+
+  it('has no reviewer’s section without instructions', () => {
+    expect(buildPrompt(context(), run, null)).not.toContain('Reviewer’s Instructions');
+  });
+
   it('writes the shared instructions and the local paragraph beside the prompt', async () => {
-    const user = await writePrompt(context(), run);
+    const user = await writePrompt(context(), run, null);
     expect(readFileSync(run.system, 'utf8')).toBe(NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
     expect(readFileSync(run.prompt, 'utf8')).toBe(user);
   });
