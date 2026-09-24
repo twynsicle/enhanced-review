@@ -58,7 +58,9 @@ src/report/
                      marginalia treatment), article.module.css (the reading measure + the diff bleed lane),
                      prose-passage (a Prose: the lede one step up the scale, the body as Markdown beneath),
                      markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
-                     file-source (EmbeddedFileSource: both sides of every file the bundle carries; useFilePair),
+                     file-source (EmbeddedFileSource: both sides of every file the bundle carries, and the review's
+                     record of each; useFilePair, useReviewFile), file-origin.ts (the "Renamed from … · N% similar"
+                     wording the file view, the diff card header and the sidebar row share),
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group
                      (inline-diff-snippets.ts), the asides for this file above the diff — judgement calls first,
                      then the chapter's insights that named it — and a lazy Monaco DiffEditor, vs/vs-dark following

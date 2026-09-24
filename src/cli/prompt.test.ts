@@ -38,7 +38,13 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
     },
     files: [
       { filename: 'src/login.ts', status: 'added', additions: 10, deletions: 0 },
-      { filename: 'src/form.ts', status: 'renamed', additions: 2, deletions: 2 },
+      {
+        filename: 'src/form.ts',
+        status: 'renamed',
+        additions: 2,
+        deletions: 2,
+        origin: { filename: 'src/old-form.ts', similarity: 83 },
+      },
       {
         filename: 'package-lock.json',
         status: 'modified',
@@ -47,7 +53,6 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
         skipped: 'built-in',
       },
     ],
-    renamedFrom: { 'src/form.ts': 'src/old-form.ts' },
     hunks: [
       {
         id: 'H0001',
@@ -79,7 +84,7 @@ describe('the local prompt', () => {
     expect(prompt).toContain(
       '## Files Changed (2)\n  added      +10/-0  src/login.ts\n  renamed    +2/-2  src/form.ts',
     );
-    expect(prompt).toContain('  src/form.ts  (from src/old-form.ts)');
+    expect(prompt).toContain('  src/form.ts  (from src/old-form.ts, 83% similar)');
     expect(prompt).toContain('## Not Reviewed (1)');
     expect(prompt).toContain('  package-lock.json  (lockfile, bundle or snapshot)');
     expect(prompt).toContain(

@@ -51,7 +51,7 @@ export function buildPrompt(
     description(context, run),
     commits(context),
     workingDirectory(context, run),
-    `## Files Changed (${String(reviewed.length)})\n${formatFileList(reviewed)}${renames(context)}`,
+    `## Files Changed (${String(reviewed.length)})\n${formatFileList(reviewed)}${renames(files)}`,
     formatSkippedSection(files),
     `## Changed Hunks (Use These IDs in diffChunks.hunkIds)\n${formatHunkCatalog(hunks)}`,
     '## Diff\n' +
@@ -133,10 +133,14 @@ function workingDirectory({ target, dirty }: RunContext, run: RunFiles): string 
   );
 }
 
-function renames({ renamedFrom }: RunContext): string {
-  const entries = Object.entries(renamedFrom);
-  if (entries.length === 0) return '';
-  return `\n\nRenamed or copied:\n${entries.map(([to, from]) => `  ${to}  (from ${from})`).join('\n')}`;
+function renames(files: readonly ReviewFile[]): string {
+  const lines = files.flatMap(({ filename, origin }) =>
+    origin
+      ? [`  ${filename}  (from ${origin.filename}, ${String(origin.similarity)}% similar)`]
+      : [],
+  );
+  if (lines.length === 0) return '';
+  return `\n\nRenamed or copied:\n${lines.join('\n')}`;
 }
 
 /** Paths in the prompt use forward slashes, which every tool accepts. */

@@ -14,6 +14,7 @@ import {
   type FileTreeDirectory,
   type FileTreeNode,
 } from '@/report/reader/file-tree';
+import { originSentence } from '@/report/reader/file-origin';
 import { RiskInlineLabel, RiskScoreBars } from '@/report/reader/risk-score';
 import { sectionIndexLabel, type ReaderSection } from '@/report/reader/sections';
 import { SKIP_REASON_LABEL } from '@/report/reader/skipped-file';
@@ -307,7 +308,7 @@ function FileRow({
   const skipped = file.skipped ? `Not reviewed: ${SKIP_REASON_LABEL[file.skipped]}` : null;
   const partly = coverage !== undefined && coverage.cited > 0;
   const undiscussed = skipped ? null : coverageNote(coverage);
-  const note = skipped ?? undiscussed;
+  const note = [originSentence(file), skipped ?? undiscussed].filter(Boolean).join('. ') || null;
   return (
     <UnstyledButton
       className={classes.fileRow}

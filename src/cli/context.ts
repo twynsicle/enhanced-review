@@ -3,7 +3,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { EmbeddedFileSchema, type EmbeddedFile, type EmbeddedSide } from '../review/bundle.ts';
 import { listChangedFileDetails, type ChangedFile } from './diff-files.ts';
-import { argBatches } from './git-runner.ts';
+import { argBatches, mapLimit, PARALLEL_GIT } from './git-runner.ts';
 import { DiffLineSpanSchema, ReviewFileSchema } from '../review/narrative.ts';
 import { buildDiffHunkIndex, type DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
 import { ReviewMetaSchema, type ReviewMeta } from '../review/review-meta.ts';
@@ -40,8 +40,6 @@ export const RunContextSchema = z.object({
   meta: ReviewMetaSchema,
   /** Every changed file; the ones left out of the review carry `skipped`. */
   files: z.array(ReviewFileSchema),
-  /** The path each renamed or copied file came from, by its new path. */
-  renamedFrom: z.record(z.string(), z.string()),
   /** The reviewed files' hunks, numbered across the whole change. */
   hunks: z.array(DiffHunkSchema),
   /** Both sides of every reviewed file, in the report bundle's own shape. */
@@ -59,7 +57,6 @@ export type RunContext = z.infer<typeof RunContextSchema>;
 export const MAX_EMBED_BYTES = 1_000_000;
 
 const MAX_COMMITS = 200;
-const PARALLEL_GIT = 8;
 const LITERAL = '--literal-pathspecs';
 
 /**
@@ -85,11 +82,6 @@ export async function gather(
   const hunks = numberHunks(reviewed, diffs);
   const diffFile = annotatedDiffFile(reviewed, diffs, hunks);
   const contents = await embedContents(shell, target, reviewed);
-  const renamedFrom = Object.fromEntries(
-    changed.flatMap((file) =>
-      file.previousFilename ? [[file.filename, file.previousFilename]] : [],
-    ),
-  );
 
   const context: RunContext = {
     target,
@@ -102,7 +94,6 @@ export async function gather(
       },
     },
     files,
-    renamedFrom,
     hunks,
     contents,
     commits: target.kind === 'staged' ? [] : await listCommits(shell, baseSha, headSha),
@@ -134,22 +125,38 @@ export async function readContext(run: RunFiles): Promise<RunContext> {
   return parsed.data;
 }
 
-/** One file's patch, as git prints it for the whole range. */
-function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promise<string> {
-  const paths = file.previousFilename ? [file.previousFilename, file.filename] : [file.filename];
-  return shell.git([
+/**
+ * One file's patch, as git prints it for the whole range. A rename is diffed
+ * over just its two paths, where the 1% threshold can only pair those two: it
+ * is what keeps a pair that the file list matched through the branch's history
+ * (below git's usual 50%) a rename here too, rather than a delete and an add.
+ *
+ * The file list decided that pairing with its own git call, so this checks the
+ * patch agrees: two file sections would have `numberHunks` catalogue the old
+ * file's deletions under the new name, a review that looks whole and is wrong.
+ */
+async function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promise<string> {
+  const paths = file.origin ? [file.origin.filename, file.filename] : [file.filename];
+  const patch = await shell.git([
     LITERAL,
     'diff',
     '--no-color',
     '--no-ext-diff',
     '--no-textconv',
     '--unified=3',
-    '--find-renames',
+    '--find-renames=1%',
     target.baseSha,
     target.headSha,
     '--',
     ...paths,
   ]);
+  const sections = patch.split('\n').filter((line) => line.startsWith('diff --git ')).length;
+  if (sections > 1) {
+    throw new Error(
+      `git diffed ${paths.join(' and ')} as ${String(sections)} files where the file list paired them as one`,
+    );
+  }
+  return patch;
 }
 
 /**
@@ -203,7 +210,7 @@ async function embedContents(
 ): Promise<Record<string, EmbeddedFile>> {
   const basePaths = files
     .filter((f) => f.status !== 'added')
-    .map((f) => f.previousFilename ?? f.filename);
+    .map((f) => f.origin?.filename ?? f.filename);
   const headPaths = files.filter((f) => f.status !== 'removed').map((f) => f.filename);
   const [baseTree, headTree] = await Promise.all([
     treeEntries(shell, target.baseSha, basePaths),
@@ -211,7 +218,7 @@ async function embedContents(
   ]);
   const sides = await mapLimit(files, PARALLEL_GIT, async (file) => {
     const base =
-      file.status === 'added' ? undefined : baseTree.get(file.previousFilename ?? file.filename);
+      file.status === 'added' ? undefined : baseTree.get(file.origin?.filename ?? file.filename);
     const head = file.status === 'removed' ? undefined : headTree.get(file.filename);
     return [
       file.filename,
@@ -296,22 +303,4 @@ async function dirtyPaths(shell: Shell, kind: 'branch' | 'staged'): Promise<stri
     if (kind === 'branch' || worktree !== ' ') paths.push(name);
   }
   return paths;
-}
-
-async function mapLimit<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = Array.from({ length: items.length });
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const index = next;
-      next += 1;
-      results[index] = await fn(items[index]!, index);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
 }

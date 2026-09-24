@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { chaptersCiting, citedChunk, type FileCoverage } from '@/review/coverage';
 import type { NarrativeChapter, ReviewFile } from '@/review/narrative';
 import { Caption } from '@/report/chrome/caption';
+import { originVerb, similarityText } from '@/report/reader/file-origin';
 import { InlineDiffChunk } from '@/report/reader/inline-diff-chunk';
 import { SKIP_REASON_TEXT } from '@/report/reader/skipped-file';
 import { token } from '@/report/theme/tokens';
@@ -80,10 +81,29 @@ export function FileView({
           <span>{basename}</span>
         </Title>
         <Group gap={12} fz="sm" c="dimmed" style={{ rowGap: 4 }}>
-          {fileMeta && (
-            <Text component="span" fz="inherit" tt="capitalize">
-              {fileMeta.status}
-            </Text>
+          {fileMeta?.origin ? (
+            <>
+              <span>
+                {originVerb(fileMeta)}{' '}
+                <Text
+                  component="span"
+                  ff="monospace"
+                  fz="inherit"
+                  c={token('foreground')}
+                  style={{ wordBreak: 'break-all' }}
+                >
+                  {fileMeta.origin.filename}
+                </Text>
+              </span>
+              {dot}
+              <span>{similarityText(fileMeta.origin.similarity)}</span>
+            </>
+          ) : (
+            fileMeta && (
+              <Text component="span" fz="inherit" tt="capitalize">
+                {fileMeta.status}
+              </Text>
+            )
           )}
           {hasStats && (
             <>
@@ -176,5 +196,7 @@ function emptyNote(fileMeta: ReviewFile | null): string {
     return 'The reviewer didn’t select any hunks for this file, so there’s no inline diff. It is listed because it changed.';
   if (fileMeta.additions + fileMeta.deletions > 0)
     return 'This file’s patch wasn’t among the hunks the reviewer was given, so there’s no inline diff. It is listed because it changed.';
+  if (fileMeta.origin?.similarity === 100)
+    return 'Only the path changed. The content is the same at both paths, so there’s no diff to show.';
   return 'This file changed without a text diff to show. It is listed because it changed.';
 }

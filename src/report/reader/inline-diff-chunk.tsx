@@ -18,7 +18,8 @@ import {
 } from '@/report/reader/inline-diff-snippets';
 import { detectLanguage } from '@/review/language-map';
 import type { DiffChunk, Insight, JudgementCall } from '@/review/narrative';
-import { useFilePair } from '@/report/reader/file-source';
+import { originVerb } from '@/report/reader/file-origin';
+import { useFilePair, useReviewFile } from '@/report/reader/file-source';
 import { InsightCallout, JudgementCallout } from '@/report/reader/insight-callout';
 import { MONACO_VS_URL } from '@/report/reader/monaco-cdn';
 import {
@@ -594,6 +595,7 @@ export function InlineDiffChunk({
   judgementCalls?: readonly JudgementCall[];
 }) {
   const pair = useFilePair(chunk.filename);
+  const file = useReviewFile(chunk.filename);
   const stored = useDiffView((s) => s.view);
   const wrap = useDiffWrap((s) => s.wrap);
   const spaceLimited = useReaderColumn(selectSpaceLimited);
@@ -668,6 +670,14 @@ export function InlineDiffChunk({
             {basename}
           </Text>
         </Text>
+        {file?.origin && (
+          <Text component="span" fz="xs" c="dimmed" miw={0} style={{ wordBreak: 'break-all' }}>
+            {originVerb(file).toLowerCase()}{' '}
+            <Text component="span" ff="monospace" fz="inherit">
+              {file.origin.filename}
+            </Text>
+          </Text>
+        )}
         <Text
           component="span"
           fz="inherit"

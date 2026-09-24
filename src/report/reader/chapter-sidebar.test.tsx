@@ -328,6 +328,34 @@ describe('<ChapterSidebar />', () => {
     expect(done.textContent).not.toMatch(/[○◐]/);
   });
 
+  it('says where a renamed file came from, ahead of any other note on its row', () => {
+    render(
+      <ChapterSidebar
+        sections={sections}
+        chapters={chapters}
+        activeId={SUMMARY_SECTION_ID}
+        reviewTitle="t"
+        files={[
+          {
+            filename: 'src/app/page.tsx',
+            status: 'renamed',
+            additions: 3,
+            deletions: 1,
+            origin: { filename: 'src/pages/index.tsx', similarity: 71 },
+            skipped: 'generated',
+          },
+        ]}
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+
+    const row = screen.getByText('page.tsx').closest('button')!;
+    const note = 'Renamed from src/pages/index.tsx (71% similar). Not reviewed: generated';
+    expect(row.getAttribute('title')).toBe(note);
+    expect(row.textContent).toContain(note);
+  });
+
   it('marks the active file row with aria-current', () => {
     render(
       <ChapterSidebar

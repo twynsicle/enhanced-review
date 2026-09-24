@@ -124,11 +124,23 @@ export type ReviewFileStatus = z.infer<typeof ReviewFileStatusSchema>;
 export const ReviewFileSkipReasonSchema = z.enum(['generated', 'vendored', 'built-in', 'binary']);
 export type ReviewFileSkipReason = z.infer<typeof ReviewFileSkipReasonSchema>;
 
+/**
+ * Where a renamed or copied file came from, and git's similarity index for
+ * the pair: the percentage of the old content that survives in the new.
+ */
+export const ReviewFileOriginSchema = z.object({
+  filename: z.string(),
+  similarity: z.number().int().min(0).max(100),
+});
+export type ReviewFileOrigin = z.infer<typeof ReviewFileOriginSchema>;
+
 export const ReviewFileSchema = z.object({
   filename: z.string(),
   status: ReviewFileStatusSchema,
   additions: z.number().int(),
   deletions: z.number().int(),
+  /** Set on a renamed or copied file, and on no other. */
+  origin: ReviewFileOriginSchema.optional(),
   /** Set when the file changed but was not reviewed. */
   skipped: ReviewFileSkipReasonSchema.optional(),
   /**

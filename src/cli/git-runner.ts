@@ -153,3 +153,28 @@ export function argBatches(paths: readonly string[]): string[][] {
   if (current.length > 0) batches.push(current);
   return batches;
 }
+
+/** How many git processes a stage keeps running at once. */
+export const PARALLEL_GIT = 8;
+
+/** `fn` over every item, at most `limit` at a time, results in item order. */
+export async function mapLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = Array.from({ length: items.length });
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await fn(items[index]!, index);
+    }
+  };
+  // At least one worker: a limit under 1 would start none and hand back an
+  // array of undefined without ever calling `fn`.
+  const workers = Math.min(Math.max(1, Math.floor(limit)), items.length);
+  await Promise.all(Array.from({ length: workers }, worker));
+  return results;
+}

@@ -121,6 +121,51 @@ describe('FileView without hunks', () => {
   });
 });
 
+describe('FileView for a renamed file', () => {
+  it('names the old path and how similar the two are, in the header and on the diff', () => {
+    const files: ReviewFile[] = [
+      {
+        filename: 'src/app.ts',
+        status: 'renamed',
+        additions: 2,
+        deletions: 2,
+        origin: { filename: 'src/old-app.ts', similarity: 62 },
+        hunks: [hunk('H0001', 1)],
+      },
+    ];
+    renderWithSource(files, chapters);
+
+    const header = screen.getByRole('banner');
+    expect(header.textContent).toContain('Renamed from src/old-app.ts');
+    expect(header.textContent).toContain('62% similar');
+    const diff = screen.getByRole('figure', { name: 'Diff for src/app.ts' });
+    expect(diff.textContent).toContain('renamed from src/old-app.ts');
+  });
+
+  it('says only the path changed for a file moved without an edit', () => {
+    render(
+      <FileView
+        filename="src/app.ts"
+        chapters={chapters}
+        coverage={null}
+        files={[
+          {
+            filename: 'src/app.ts',
+            status: 'renamed',
+            additions: 0,
+            deletions: 0,
+            origin: { filename: 'src/old-app.ts', similarity: 100 },
+            hunks: [],
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByRole('banner').textContent).toContain('content unchanged');
+    expect(screen.getByText(/Only the path changed/)).toBeDefined();
+    expect(screen.queryByText(/changed without a text diff/)).toBeNull();
+  });
+});
+
 describe('FileView with hunks the chapters left out', () => {
   const files: ReviewFile[] = [
     {

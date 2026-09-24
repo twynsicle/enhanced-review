@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runGit } from './git-runner.ts';
+import { runGit, type GitRunner } from './git-runner.ts';
 import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import { gather, MAX_EMBED_BYTES, readContext } from './context.ts';
 import { Shell } from './git.ts';
@@ -26,8 +26,8 @@ afterEach(() => {
 
 const noGh = async () => ({ stdout: '', stderr: 'no gh in tests', exitCode: 1 });
 
-async function gatherFor(request: TargetRequest) {
-  const shell = new Shell(repo.work, { git: runGit, gh: noGh });
+async function gatherFor(request: TargetRequest, git: GitRunner = runGit) {
+  const shell = new Shell(repo.work, { git, gh: noGh });
   const { target, meta } = await resolveTarget(request, shell, { warn: () => undefined });
   const run = await createRunFolder(runsRoot, target.slug, new Date(2026, 8, 11, 14, 30, 5));
   return { context: await gather(target, meta, shell.at(target.repoRoot), run), run };
@@ -92,8 +92,10 @@ describe('gather', () => {
       additions: 2,
       deletions: 1,
     });
-    expect(byName['src/new-name.ts']?.status).toBe('renamed');
-    expect(context.renamedFrom).toEqual({ 'src/new-name.ts': 'src/old-name.ts' });
+    expect(byName['src/new-name.ts']).toMatchObject({
+      status: 'renamed',
+      origin: { filename: 'src/old-name.ts', similarity: expect.any(Number) },
+    });
     expect(context.meta.stats).toEqual({
       changedFiles: 9,
       additions: context.files.reduce((sum, file) => sum + file.additions, 0),
@@ -144,6 +146,71 @@ describe('gather', () => {
     expect(JSON.stringify(context.contents['src/keep.ts']?.head)).toContain('keep two');
   });
 
+  describe('a rename git cannot see across the whole range', () => {
+    /** A branch off main that moves `from`, commit by commit, through `moves`, then rewrites it with `rewrite`. */
+    function moveThenRewrite(from: string, moves: readonly string[], rewrite: string): void {
+      repo.write(from, lines(40, 'line'));
+      repo.commit('the file the branch will move');
+      repo.git('push', '--quiet', 'origin', 'main');
+      repo.git('checkout', '--quiet', '-b', 'feat/move');
+      let at = from;
+      for (const to of moves) {
+        repo.git('mv', at, to);
+        repo.commit(`move ${at} to ${to}`);
+        at = to;
+      }
+      repo.write(at, rewrite);
+      repo.commit('rewrite it');
+    }
+
+    // Two thirds of the lines changed: well under git's 50% over the range.
+    const heavyRewrite = lines(40, 'line').replace(/^line (\d+)$/gm, (row, n: string) =>
+      Number(n) % 3 === 0 ? row : `rewritten ${n}`,
+    );
+
+    it('pairs a file moved in one commit and rewritten in a later one', async () => {
+      moveThenRewrite('src/old.ts', ['src/new.ts'], heavyRewrite);
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files.map((file) => file.filename)).toEqual(['src/new.ts']);
+      const [moved] = context.files;
+      expect(moved).toMatchObject({ status: 'renamed', origin: { filename: 'src/old.ts' } });
+      expect(moved?.origin?.similarity).toBeLessThan(50);
+      expect(moved?.origin?.similarity).toBeGreaterThan(0);
+      expect(context.contents['src/new.ts']?.base).toEqual({
+        kind: 'content',
+        content: lines(40, 'line'),
+      });
+      // Hunks against the old content, not one hunk adding the whole file.
+      const hunks = context.hunks.filter((hunk) => hunk.filename === 'src/new.ts');
+      expect(hunks.length).toBeGreaterThan(0);
+      expect(hunks.every((hunk) => hunk.original.lineCount > 0)).toBe(true);
+    });
+
+    it('follows a chain of moves back to the path the file had at the base', async () => {
+      moveThenRewrite('src/one.ts', ['src/two.ts', 'src/three.ts'], heavyRewrite);
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files).toEqual([
+        expect.objectContaining({
+          filename: 'src/three.ts',
+          status: 'renamed',
+          origin: expect.objectContaining({ filename: 'src/one.ts' }),
+        }),
+      ]);
+    });
+
+    it('leaves a file that shares nothing with its old self as a removal and an addition', async () => {
+      moveThenRewrite('src/old.ts', ['src/new.ts'], 'export const entirely = "different";\n');
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files.map((file) => [file.filename, file.status])).toEqual([
+        ['src/new.ts', 'added'],
+        ['src/old.ts', 'removed'],
+      ]);
+    });
+  });
+
   it('writes one diff file for the whole change, each hunk id above its header', async () => {
     branchOfEveryKind();
     const { context, run } = await gatherFor({ kind: 'branch', base: 'main' });
@@ -181,6 +248,24 @@ describe('gather', () => {
     branchOfEveryKind();
     const { context, run } = await gatherFor({ kind: 'branch', base: 'main' });
     await expect(readContext(run)).resolves.toEqual(context);
+  });
+
+  it('fails rather than cataloguing a paired file whose patch came back as two files', async () => {
+    branchOfEveryKind();
+    // The file list pairs the rename; this git then prints its patch the way
+    // it would if the two paths had not paired: a deletion and an addition.
+    const unpaired: GitRunner = async (opts) => {
+      const result = await runGit(opts);
+      if (!opts.args.includes('--unified=3') || !opts.args.includes('src/new-name.ts'))
+        return result;
+      return {
+        ...result,
+        stdout: `diff --git a/src/old-name.ts b/src/old-name.ts\n${result.stdout}`,
+      };
+    };
+    await expect(gatherFor({ kind: 'branch', base: 'main' }, unpaired)).rejects.toThrow(
+      'git diffed src/old-name.ts and src/new-name.ts as 2 files where the file list paired them as one',
+    );
   });
 
   it('says what to do when a context is missing', async () => {
