@@ -6,12 +6,13 @@ export function originVerb(file: ReviewFile): string {
 }
 
 /**
- * How much of the old file survives. At 100 a percentage undersells it; and an
- * identical copy is shown as the new file it is, all additions, where
- * "unchanged" beside the count would read as a contradiction.
+ * How much of the old file survives, or that all of it does unchanged: a
+ * percentage undersells that. An identical copy is shown as the new file it
+ * is, all additions, where "unchanged" beside the count would read as a
+ * contradiction.
  */
 export function similarityText(origin: ReviewFileOrigin, status: ReviewFileStatus): string {
-  if (origin.similarity !== 100) return `${String(origin.similarity)}% similar`;
+  if (!origin.identical) return `${String(origin.similarity)}% similar`;
   return status === 'copied' ? 'identical' : 'content unchanged';
 }
 

@@ -240,7 +240,7 @@ describe('gather', () => {
           status: 'copied',
           additions: 1,
           deletions: 1,
-          origin: { filename: 'src/template.ts', similarity: expect.any(Number) },
+          origin: { filename: 'src/template.ts', similarity: expect.any(Number), identical: false },
         },
       ]);
       expect(context.contents['src/copy.ts']?.base).toEqual({
@@ -275,7 +275,7 @@ describe('gather', () => {
           status: 'copied',
           additions: 40,
           deletions: 0,
-          origin: { filename: 'src/template.ts', similarity: 100 },
+          origin: { filename: 'src/template.ts', similarity: 100, identical: true },
         },
       ]);
       expect(context.contents['src/copy.ts']?.base).toEqual({ kind: 'absent' });
@@ -285,6 +285,41 @@ describe('gather', () => {
           { startLine: 1, lineCount: 40 },
         ],
       ]);
+    });
+
+    it('counts every line of an identical copy, one that reads like a diff header too', async () => {
+      const patchLike = `+++ b/file\n++ counter\n${lines(10, 'line')}`;
+      repo.write('src/fixture.patch', patchLike);
+      repo.commit('a fixture');
+      repo.git('push', '--quiet', 'origin', 'main');
+      repo.git('checkout', '--quiet', '-b', 'feat/fixture');
+      repo.write('src/fixture-copy.patch', patchLike);
+      repo.commit('copy the fixture');
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files).toEqual([
+        expect.objectContaining({
+          filename: 'src/fixture-copy.patch',
+          additions: 12,
+          deletions: 0,
+        }),
+      ]);
+    });
+
+    it('diffs a copy of its source’s lines reordered against the source, though git scores it 100', async () => {
+      const whole = lines(40, 'line');
+      const firstHalf = lines(20, 'line');
+      branchWithCopy(whole.slice(firstHalf.length) + firstHalf);
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files).toEqual([
+        expect.objectContaining({
+          status: 'copied',
+          origin: { filename: 'src/template.ts', similarity: 100, identical: false },
+        }),
+      ]);
+      expect(context.contents['src/copy.ts']?.base).toMatchObject({ kind: 'content' });
+      expect(context.hunks.some((hunk) => hunk.original.lineCount > 0)).toBe(true);
     });
 
     it('keeps a copy’s patch to the copy when the branch also changed its source', async () => {

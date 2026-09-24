@@ -129,7 +129,7 @@ describe('FileView for a renamed file', () => {
         status: 'renamed',
         additions: 2,
         deletions: 2,
-        origin: { filename: 'src/old-app.ts', similarity: 62 },
+        origin: { filename: 'src/old-app.ts', similarity: 62, identical: false },
         hunks: [hunk('H0001', 1)],
       },
     ];
@@ -154,7 +154,7 @@ describe('FileView for a renamed file', () => {
             status: 'renamed',
             additions: 0,
             deletions: 0,
-            origin: { filename: 'src/old-app.ts', similarity: 100 },
+            origin: { filename: 'src/old-app.ts', similarity: 100, identical: true },
             hunks: [],
           },
         ]}
@@ -163,6 +163,24 @@ describe('FileView for a renamed file', () => {
     expect(screen.getByRole('banner').textContent).toContain('content unchanged');
     expect(screen.getByText(/Only the path changed/)).toBeDefined();
     expect(screen.queryByText(/changed without a text diff/)).toBeNull();
+  });
+
+  it('gives the percentage for a rename git scores 100 whose lines moved', () => {
+    const files: ReviewFile[] = [
+      {
+        filename: 'src/app.ts',
+        status: 'renamed',
+        additions: 2,
+        deletions: 2,
+        origin: { filename: 'src/old-app.ts', similarity: 100, identical: false },
+        hunks: [hunk('H0001', 1)],
+      },
+    ];
+    renderWithSource(files, chapters);
+
+    const header = screen.getByRole('banner');
+    expect(header.textContent).toContain('100% similar');
+    expect(header.textContent).not.toContain('content unchanged');
   });
 
   it('calls a copy with every line of its source identical, not unchanged', () => {
@@ -177,7 +195,7 @@ describe('FileView for a renamed file', () => {
             status: 'copied',
             additions: 12,
             deletions: 0,
-            origin: { filename: 'src/old-app.ts', similarity: 100 },
+            origin: { filename: 'src/old-app.ts', similarity: 100, identical: true },
           },
         ]}
       />,

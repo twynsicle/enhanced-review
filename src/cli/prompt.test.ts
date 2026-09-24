@@ -43,7 +43,7 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
         status: 'renamed',
         additions: 2,
         deletions: 2,
-        origin: { filename: 'src/old-form.ts', similarity: 83 },
+        origin: { filename: 'src/old-form.ts', similarity: 83, identical: false },
       },
       {
         filename: 'package-lock.json',

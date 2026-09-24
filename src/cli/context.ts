@@ -95,14 +95,11 @@ export async function gather(
       .map((file) => file.filename);
     if (unpaired.length > 0) changed = await findSources(changed, unpaired);
   }
-  const diffs = await mapLimit(
-    changed.filter((file) => !reasons.has(file.filename)),
-    PARALLEL_GIT,
-    (file) => fileDiff(shell, target, file),
+  const reviewable = changed.filter((file) => !reasons.has(file.filename));
+  const diffs = await mapLimit(reviewable, PARALLEL_GIT, (file) => fileDiff(shell, target, file));
+  const reviewed = reviewable.map((file, index) =>
+    identicalCopy(file) ? countedAsNew(file, diffs[index]!) : file,
   );
-  const reviewed = changed
-    .filter((file) => !reasons.has(file.filename))
-    .map((file, index) => (identicalCopy(file) ? countedAsNew(file, diffs[index]!) : file));
   const counted = new Map(reviewed.map((file) => [file.filename, file]));
   const files = toReviewFiles(
     changed.map((file) => counted.get(file.filename) ?? file),
@@ -212,19 +209,21 @@ async function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promis
 }
 
 /**
- * A copy with every line of its source is shown as the new file it is. Diffed
+ * A copy identical to its source is shown as the new file it is. Diffed
  * against the source it would have no hunk at all, leaving nothing a chapter
  * could cite for a file the reviewer may well want to question.
  */
 function identicalCopy(file: ChangedFile): boolean {
-  return file.status === 'copied' && file.origin?.similarity === 100;
+  return file.status === 'copied' && file.origin?.identical === true;
 }
 
-/** Git counts an identical copy's lines against its source, where nothing changed; the review shows every one as added. */
+/**
+ * Git counts an identical copy's lines against its source, where nothing
+ * changed; the review shows every one as added, as its one hunk's header says.
+ */
 function countedAsNew(file: ChangedFile, patch: string): ChangedFile {
-  const additions = patch
-    .split('\n')
-    .filter((line) => line.startsWith('+') && !line.startsWith('+++ ')).length;
+  const header = /^@@ -0,0 \+1(?:,(\d+))? @@/m.exec(patch);
+  const additions = header ? Number(header[1] ?? '1') : 0;
   return { ...file, additions, deletions: 0 };
 }
 

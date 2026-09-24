@@ -54,19 +54,24 @@ describe('parseChangedFiles', () => {
         nameStatusZ('R077', 'old.ts', 'new.ts'),
       ),
     ).toEqual([
-      file('new.ts', 'renamed', 4, 3, { origin: { filename: 'old.ts', similarity: 77 } }),
+      file('new.ts', 'renamed', 4, 3, {
+        origin: { filename: 'old.ts', similarity: 77, identical: false },
+      }),
     ]);
   });
 
   it('handles a rename whose paths share a directory prefix', () => {
-    // The line format writes this as `src/{a => b}/x.ts`.
+    // The line format writes this as `src/{a => b}/x.ts`. Git scores it 100
+    // with a line in and a line out, as it does lines reordered: not identical.
     expect(
       parseChangedFiles(
         numstatZ('1\t1\t', 'src/a/x.ts', 'src/b/x.ts'),
         nameStatusZ('R100', 'src/a/x.ts', 'src/b/x.ts'),
       ),
     ).toEqual([
-      file('src/b/x.ts', 'renamed', 1, 1, { origin: { filename: 'src/a/x.ts', similarity: 100 } }),
+      file('src/b/x.ts', 'renamed', 1, 1, {
+        origin: { filename: 'src/a/x.ts', similarity: 100, identical: false },
+      }),
     ]);
   });
 
@@ -77,7 +82,9 @@ describe('parseChangedFiles', () => {
         nameStatusZ('C100', 'src/x.ts', 'src/y.ts'),
       ),
     ).toEqual([
-      file('src/y.ts', 'copied', 0, 0, { origin: { filename: 'src/x.ts', similarity: 100 } }),
+      file('src/y.ts', 'copied', 0, 0, {
+        origin: { filename: 'src/x.ts', similarity: 100, identical: true },
+      }),
     ]);
   });
 
@@ -89,7 +96,9 @@ describe('parseChangedFiles', () => {
       ),
     ).toEqual([
       file('src/a.ts', 'modified', 1, 0),
-      file('new.ts', 'renamed', 2, 2, { origin: { filename: 'old.ts', similarity: 90 } }),
+      file('new.ts', 'renamed', 2, 2, {
+        origin: { filename: 'old.ts', similarity: 90, identical: false },
+      }),
       file('src/c.ts', 'modified', 0, 3),
     ]);
   });
@@ -186,7 +195,9 @@ describe('listChangedFileDetails', () => {
       [isLog, nameStatusZ('R100', 'old.ts', 'mid.ts', 'R100', 'mid.ts', 'new.ts')],
     ]);
     await expect(listChangedFileDetails(git, '/work', 'base', 'head')).resolves.toEqual([
-      file('new.ts', 'renamed', 7, 5, { origin: { filename: 'old.ts', similarity: 31 } }),
+      file('new.ts', 'renamed', 7, 5, {
+        origin: { filename: 'old.ts', similarity: 31, identical: false },
+      }),
       file('keep.ts', 'modified', 1, 1),
     ]);
     expect(calls.find(isLog)).toEqual([
@@ -276,8 +287,12 @@ describe('pairFiles', () => {
     expect(paired).toEqual({
       files: [
         file('tpl.ts', 'modified', 1, 1),
-        file('copy.ts', 'copied', 3, 2, { origin: { filename: 'tpl.ts', similarity: 24 } }),
-        file('moved.ts', 'renamed', 4, 6, { origin: { filename: 'gone.ts', similarity: 12 } }),
+        file('copy.ts', 'copied', 3, 2, {
+          origin: { filename: 'tpl.ts', similarity: 24, identical: false },
+        }),
+        file('moved.ts', 'renamed', 4, 6, {
+          origin: { filename: 'gone.ts', similarity: 12, identical: false },
+        }),
       ],
       unpaired: [],
     });

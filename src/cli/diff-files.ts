@@ -270,11 +270,16 @@ export function parseChangedFiles(numstatZ: string, nameStatusZ: string): Change
     const pathAt = renamed ? i + 2 : i + 1;
     if (pathAt >= statusFields.length) throw new TruncatedGitOutputError('diff --name-status');
     const filename = statusFields[pathAt];
-    const origin: ReviewFileOrigin | null = renamed
-      ? { filename: statusFields[i + 1], similarity: similarity(statusFields[i]) }
-      : null;
     if (renamed) i += 1;
     const c = counts.get(filename) ?? { additions: 0, deletions: 0, binary: false };
+    // No line in or out of a text file: the same content, whatever the score.
+    const origin: ReviewFileOrigin | null = renamed
+      ? {
+          filename: statusFields[i],
+          similarity: similarity(statusFields[i - 1]),
+          identical: !c.binary && c.additions === 0 && c.deletions === 0,
+        }
+      : null;
     files.push({
       filename,
       status: STATUS_MAP[code] ?? 'modified',

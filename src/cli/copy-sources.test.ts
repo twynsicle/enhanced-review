@@ -89,7 +89,7 @@ describe('checkCopySources', () => {
     additions: 1,
     deletions: 0,
     binary: false,
-    ...(origin ? { origin: { filename: origin, similarity: 80 } } : {}),
+    ...(origin ? { origin: { filename: origin, similarity: 80, identical: false } } : {}),
   });
   const files = [
     file('new.ts', 'added'),
