@@ -100,13 +100,7 @@ export async function runClaude(
     readFile(run.prompt, 'utf8'),
   ]);
 
-  const controller = new AbortController();
-  const unregister = onInterrupt(() => {
-    controller.abort();
-  });
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, options.timeoutMs);
+  const { controller, release } = runDeadline(options.timeoutMs);
   const started = performance.now();
   const events = createWriteStream(run.events, { flags: 'w' });
   const raw = createWriteStream(run.raw, { flags: 'w' });
@@ -189,10 +183,30 @@ export async function runClaude(
       incomplete: howItEnded(result),
     };
   } finally {
-    clearTimeout(timer);
-    unregister();
+    release();
     await Promise.all([closeStream(raw), closeStream(events)]);
   }
+}
+
+/** An abort that the deadline and an interrupt both pull; `release` it once the run is over. */
+export function runDeadline(timeoutMs: number): {
+  controller: AbortController;
+  release: () => void;
+} {
+  const controller = new AbortController();
+  const unregister = onInterrupt(() => {
+    controller.abort();
+  });
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+  return {
+    controller,
+    release: () => {
+      clearTimeout(timer);
+      unregister();
+    },
+  };
 }
 
 interface RunCallbacks {
@@ -241,7 +255,7 @@ function sdkOptions(
   };
 }
 
-export type Permission =
+type Permission =
   | { behavior: 'allow'; updatedInput: Record<string, unknown> }
   | { behavior: 'deny'; message: string };
 

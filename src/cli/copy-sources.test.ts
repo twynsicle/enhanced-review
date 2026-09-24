@@ -7,6 +7,7 @@ import type { QueryFn } from './claude-run.ts';
 import {
   checkCopySources,
   COPY_SOURCE_MODEL,
+  copySourceLimits,
   findCopySources,
   parseCopySources,
 } from './copy-sources.ts';
@@ -60,6 +61,11 @@ describe('parseCopySources', () => {
     const text = `I will answer in <copy_sources>[]</copy_sources> form.\n${answer([
       { file: 'src/b.ts', source: 'src/a.ts' },
     ])}`;
+    expect(parseCopySources(text)).toEqual([{ from: 'src/a.ts', to: 'src/b.ts' }]);
+  });
+
+  it('reads a path the way a person writes one', () => {
+    const text = answer([{ file: './src/b.ts', source: ' src\\a.ts' }]);
     expect(parseCopySources(text)).toEqual([{ from: 'src/a.ts', to: 'src/b.ts' }]);
   });
 
@@ -123,6 +129,15 @@ describe('checkCopySources', () => {
     expect(check({ from: 'gone.ts', to: 'new.ts' }, { from: 'gone.ts', to: 'other.ts' })).toThrow(
       'source of two files',
     );
+  });
+});
+
+describe('copySourceLimits', () => {
+  it('gives more turns and more time to more files', () => {
+    const one = copySourceLimits(1);
+    const many = copySourceLimits(150);
+    expect(many.maxTurns).toBeGreaterThan(3 * 150);
+    expect(many.timeoutMs).toBeGreaterThan(one.timeoutMs);
   });
 });
 
@@ -206,12 +221,23 @@ describe('findCopySources', () => {
     );
   });
 
-  it('fails on a source that is not at the base', async () => {
+  it('fails on a source that is not at the base, quoting what the model said', async () => {
     const { shell, target, run, files } = await setUp();
     const query = replying(answer([{ file: 'src/copy.ts', source: 'src/nowhere.ts' }]));
 
-    await expect(findCopySources(shell, target, run, files, both, { query })).rejects.toThrow(
+    const failed = findCopySources(shell, target, run, files, both, { query });
+    await expect(failed).rejects.toThrow(
       'src/nowhere.ts as the source of src/copy.ts, but it is not a file at the base',
+    );
+    await expect(failed).rejects.toThrow('the model answered:\nLooked at the siblings.');
+  });
+
+  it('fails on a directory named as a source', async () => {
+    const { shell, target, run, files } = await setUp();
+    const query = replying(answer([{ file: 'src/copy.ts', source: 'src' }]));
+
+    await expect(findCopySources(shell, target, run, files, both, { query })).rejects.toThrow(
+      'not a file at the base',
     );
   });
 

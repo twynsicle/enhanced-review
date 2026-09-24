@@ -252,6 +252,41 @@ describe('gather', () => {
       ]);
     });
 
+    it('finds a copy past the rename limit the repository sets', async () => {
+      // Past the limit git falls back to modified sources only, and says so on
+      // stderr alone; a large tree hits the default the same way.
+      repo.git('config', 'diff.renameLimit', '1');
+      repo.write('src/other.ts', lines(3, 'other'));
+      branchWithCopy(lightEdit);
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files.map((file) => [file.filename, file.status])).toEqual([
+        ['src/copy.ts', 'copied'],
+      ]);
+    });
+
+    it('shows a copy identical to its source as the new file it is', async () => {
+      branchWithCopy(lines(40, 'line'));
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files).toEqual([
+        {
+          filename: 'src/copy.ts',
+          status: 'copied',
+          additions: 40,
+          deletions: 0,
+          origin: { filename: 'src/template.ts', similarity: 100 },
+        },
+      ]);
+      expect(context.contents['src/copy.ts']?.base).toEqual({ kind: 'absent' });
+      expect(context.hunks.map((hunk) => [hunk.original, hunk.modified])).toEqual([
+        [
+          { startLine: 0, lineCount: 0 },
+          { startLine: 1, lineCount: 40 },
+        ],
+      ]);
+    });
+
     it('keeps a copy’s patch to the copy when the branch also changed its source', async () => {
       branchWithCopy(lightEdit, lines(40, 'line').replace('line 30\n', 'line thirty\n'));
       const { context, run } = await gatherFor({ kind: 'branch', base: 'main' });

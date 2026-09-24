@@ -2,12 +2,11 @@ import { writeFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import { z } from 'zod';
 import { plural } from '../review/plural.ts';
-import { loadQuery, permission, withSigninHint, type QueryFn } from './claude-run.ts';
+import { loadQuery, permission, runDeadline, withSigninHint, type QueryFn } from './claude-run.ts';
+import { treeEntries } from './context.ts';
 import { pairFiles, type ChangedFile, type PairRequest } from './diff-files.ts';
-import { argBatches } from './git-runner.ts';
 import type { Shell } from './git.ts';
 import { agentEnv } from './host-env.ts';
-import { onInterrupt } from './interrupts.ts';
 import type { RunFiles } from './run-folder.ts';
 import { howItEnded, runSdkLoop } from './sdk-loop.ts';
 import type { Target } from './targets.ts';
@@ -33,8 +32,15 @@ import { stage, warn } from './terminal.ts';
  */
 
 export const COPY_SOURCE_MODEL = 'claude-haiku-4-5';
-const MAX_TURNS = 40;
-const TIMEOUT_MINUTES = 5;
+
+/**
+ * The work grows with the files asked about — a look at each, a candidate or
+ * two read beside it — so the allowance does too. A fixed one would fail a
+ * change adding a hundred files every time, and the review with it.
+ */
+export function copySourceLimits(files: number): { maxTurns: number; timeoutMs: number } {
+  return { maxTurns: 20 + 3 * files, timeoutMs: (3 * 60 + 20 * files) * 1000 };
+}
 
 export interface CopySourceDeps {
   query?: QueryFn;
@@ -49,14 +55,25 @@ export async function findCopySources(
   deps: CopySourceDeps = {},
 ): Promise<ChangedFile[]> {
   const started = performance.now();
-  const answer = await askModel(copySourcePrompt(target, unpaired), shell.cwd, run, deps);
-  const requests = parseCopySources(answer.text);
-  const baseFiles = await filesAtBase(
-    shell,
-    target.baseSha,
-    requests.map((r) => r.from),
-  );
-  checkCopySources(requests, unpaired, files, baseFiles);
+  const answer = await askModel(copySourcePrompt(target, unpaired), shell.cwd, run, {
+    ...deps,
+    ...copySourceLimits(unpaired.length),
+  });
+  let requests: PairRequest[];
+  try {
+    requests = parseCopySources(answer.text);
+    const baseTree = await treeEntries(
+      shell,
+      target.baseSha,
+      requests.map((r) => r.from),
+    );
+    checkCopySources(requests, unpaired, files, new Set(baseTree.keys()));
+  } catch (error) {
+    // A failed gather takes the run folder, and copy-sources.txt with it.
+    throw new Error(`${(error as Error).message}; the model answered:\n${tail(answer.text)}`, {
+      cause: error,
+    });
+  }
   const paired = await pairFiles(
     shell.runners.git,
     shell.cwd,
@@ -106,19 +123,18 @@ Answer with this block and nothing after it, one entry per new file that has a s
 An empty list is the right answer when none of them was built from another file.`;
 }
 
+/** The end of an answer, where its block is: enough to see what went wrong without the whole run. */
+function tail(text: string): string {
+  return text.length <= 2000 ? text : `…${text.slice(-2000)}`;
+}
+
 async function askModel(
   prompt: string,
   cwd: string,
   run: RunFiles,
-  deps: CopySourceDeps,
+  deps: CopySourceDeps & { maxTurns: number; timeoutMs: number },
 ): Promise<{ text: string; costUsd: number | null }> {
-  const controller = new AbortController();
-  const unregister = onInterrupt(() => {
-    controller.abort();
-  });
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, TIMEOUT_MINUTES * 60_000);
+  const { controller, release } = runDeadline(deps.timeoutMs);
   try {
     const queryFn = deps.query ?? (await loadQuery());
     const outcome = await runSdkLoop(queryFn, {
@@ -136,20 +152,20 @@ async function askModel(
         env: agentEnv(),
         persistSession: false,
         abortController: controller,
-        maxTurns: MAX_TURNS,
+        maxTurns: deps.maxTurns,
       },
     });
     await writeFile(run.copySources, outcome.raw);
     if (controller.signal.aborted) {
-      throw new Error(`finding copy sources stopped after ${String(TIMEOUT_MINUTES)} minutes`);
+      const minutes = Math.round(deps.timeoutMs / 60_000);
+      throw new Error(`finding copy sources stopped after ${String(minutes)} minutes`);
     }
     if (outcome.sdkError) throw withSigninHint(outcome.sdkError);
     const ended = howItEnded(outcome.result);
     if (ended !== null) throw new Error(`finding copy sources ended ${ended}`);
     return { text: outcome.raw, costUsd: outcome.result?.costUsd ?? null };
   } finally {
-    clearTimeout(timer);
-    unregister();
+    release();
   }
 }
 
@@ -174,7 +190,19 @@ export function parseCopySources(text: string): PairRequest[] {
       `the copy-source answer is not a list of {file, source}: ${parsed.error.message}`,
     );
   }
-  return parsed.data.map(({ file, source }) => ({ from: source, to: file }));
+  return parsed.data.map(({ file, source }) => ({ from: repoPath(source), to: repoPath(file) }));
+}
+
+/**
+ * Leniency toward the model, which writes a path the way a person would: a
+ * `./` in front or Windows separators name the same file, and refusing them
+ * would fail a review over nothing.
+ */
+function repoPath(path: string): string {
+  return path
+    .trim()
+    .replaceAll('\\', '/')
+    .replace(/^(?:\.\/)+/, '');
 }
 
 /**
@@ -221,28 +249,4 @@ export function checkCopySources(
       claimed.add(from);
     }
   }
-}
-
-/** Which of these paths were files (not directories) at the base. */
-async function filesAtBase(
-  shell: Shell,
-  baseSha: string,
-  paths: readonly string[],
-): Promise<Set<string>> {
-  const found = new Set<string>();
-  for (const batch of argBatches([...new Set(paths)])) {
-    const out = await shell.git([
-      '--literal-pathspecs',
-      'ls-tree',
-      '-r',
-      '-z',
-      '--name-only',
-      '--full-tree',
-      baseSha,
-      '--',
-      ...batch,
-    ]);
-    for (const path of out.split('\0')) if (path !== '') found.add(path);
-  }
-  return found;
 }

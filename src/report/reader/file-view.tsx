@@ -96,7 +96,7 @@ export function FileView({
                 </Text>
               </span>
               {dot}
-              <span>{similarityText(fileMeta.origin.similarity)}</span>
+              <span>{similarityText(fileMeta.origin, fileMeta.status)}</span>
             </>
           ) : (
             fileMeta && (

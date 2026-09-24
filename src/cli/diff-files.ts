@@ -40,8 +40,13 @@ const DIFF_PINS = ['--no-color', '--no-ext-diff', '--no-textconv'] as const;
  * pairs the same files. `--find-copies-harder` looks for a copy's source among
  * every file at the base, not only the ones the branch touched: a new file is
  * most often cloned from one nobody changed.
+ *
+ * `-l0` lifts git's rename limit. Past it, git drops back to copies of
+ * modified files only and says so on stderr alone, so in a large tree copy
+ * detection would stop without anyone being told. What the lift costs is paid
+ * knowingly: the comparisons grow with added files times files at the base.
  */
-const FIND_ORIGINS = ['--find-copies', '--find-copies-harder'] as const;
+const FIND_ORIGINS = ['--find-copies', '--find-copies-harder', '-l0'] as const;
 
 /**
  * The changed files between two commits: per-file counts, rename and copy

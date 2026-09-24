@@ -45,7 +45,8 @@ src/cli/
   diff-files.ts    listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over `-z` output,
                    each rename's or copy's origin (old path + git's similarity) and the binary flag; copies are
                    looked for among every file at the base (--find-copies-harder), since a clone's template is
-                   usually untouched; a removed and an added path the branch's own commits record as a move
+                   usually untouched, with git's rename limit lifted (-l0) so a large tree does not quietly
+                   drop back to modified sources; a removed and an added path the branch's own commits record as a move
                    (chained across commits in topological order; a path created on the branch has no base
                    origin) go through pairFiles, which rediffs a pair at 1%, so a move-then-rewrite is still a
                    rename; the history is read only when something was both removed and added; output that ends
@@ -53,8 +54,10 @@ src/cli/
   copy-sources.ts  --find-copy-sources: a Haiku run inside gather, from the repository root with only the Bash gate
                    (both sides read with `git show <sha>:<path>`), naming the file each unpaired, reviewed added
                    file was built from → pairFiles; an unreadable answer, a file it was not asked about or a
-                   source that was not a file at the base fails gather, a pair git finds nothing in common in is
-                   a warning and stays new; its answer in copy-sources.txt
+                   source that was not a file at the base fails gather, quoting the answer (the failed gather
+                   takes the run folder), a pair git finds nothing in common in is a warning and stays new; `./`
+                   and `\` in its paths are forgiven; turns and time grow with the files asked about; its
+                   answer in copy-sources.txt
   skip-reasons.ts  why each changed file is left out: the built-in list, then the reviewed repository's own
                    `.gitattributes` (`git check-attr` at the head commit, which resolves a nested
                    `.gitattributes` for the paths beneath it), then binary; toReviewFiles stamps the reasons on
@@ -66,7 +69,8 @@ src/cli/
   context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons and origins, hunks numbered
                    across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
                    one diff file carrying every reviewed file's annotated patch (a copy diffed blob against blob,
-                   since its source may be changed on the branch too; otherwise a patch holding two file sections
+                   since its source may be changed on the branch too, except an identical one, which is shown
+                   and counted as a new file so there is a hunk to cite; otherwise a patch holding two file sections
                    where the list paired one fails the stage), its line count carried as `diffLines` so the prompt
                    can ask the agent to Read it in one call; pr.md; GatherOptions.findSources, the hook
                    copy-sources.ts plugs into, asked only when a reviewed added file is left unpaired

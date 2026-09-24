@@ -174,7 +174,9 @@ so repeat the instructions there to keep them.
 A new file cloned from an existing one — a handler modelled on its sibling, a
 test copied from the one beside it — is shown as a diff against the file it was
 copied from, with "Copied from `<path>` · N% similar" above it, so the review
-reads what changed from the template rather than an all-green new file. Git
+reads what changed from the template rather than an all-green new file. A copy
+identical to its source is shown in full, as new, since there is no difference
+to show and the review should still be able to point at it. Git
 finds these on its own when the copy is at least 50% similar to its source;
 that needs no flag.
 

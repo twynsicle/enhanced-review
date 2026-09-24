@@ -138,7 +138,7 @@ describe('parseChangedFiles', () => {
 
 describe('listChangedFileDetails', () => {
   const pins = ['--no-color', '--no-ext-diff', '--no-textconv'];
-  const origins = ['--find-copies', '--find-copies-harder'];
+  const origins = ['--find-copies', '--find-copies-harder', '-l0'];
 
   /** A fake git: each call answered by the first rule whose test matches its arguments. */
   function fakeGit(rules: [(args: readonly string[]) => boolean, string][]) {

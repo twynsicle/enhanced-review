@@ -95,10 +95,20 @@ export async function gather(
       .map((file) => file.filename);
     if (unpaired.length > 0) changed = await findSources(changed, unpaired);
   }
-  const files = toReviewFiles(changed, reasons);
-  const reviewed = changed.filter((file) => !reasons.has(file.filename));
+  const diffs = await mapLimit(
+    changed.filter((file) => !reasons.has(file.filename)),
+    PARALLEL_GIT,
+    (file) => fileDiff(shell, target, file),
+  );
+  const reviewed = changed
+    .filter((file) => !reasons.has(file.filename))
+    .map((file, index) => (identicalCopy(file) ? countedAsNew(file, diffs[index]!) : file));
+  const counted = new Map(reviewed.map((file) => [file.filename, file]));
+  const files = toReviewFiles(
+    changed.map((file) => counted.get(file.filename) ?? file),
+    reasons,
+  );
 
-  const diffs = await mapLimit(reviewed, PARALLEL_GIT, (file) => fileDiff(shell, target, file));
   const hunks = numberHunks(reviewed, diffs);
   const diffFile = annotatedDiffFile(reviewed, diffs, hunks);
   const contents = await embedContents(shell, target, reviewed);
@@ -161,6 +171,18 @@ export async function readContext(run: RunFiles): Promise<RunContext> {
  */
 async function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promise<string> {
   const pins = ['--no-color', '--no-ext-diff', '--no-textconv', '--unified=3'];
+  if (identicalCopy(file)) {
+    return shell.git([
+      LITERAL,
+      'diff',
+      ...pins,
+      '--no-renames',
+      target.baseSha,
+      target.headSha,
+      '--',
+      file.filename,
+    ]);
+  }
   if (file.status === 'copied' && file.origin) {
     return shell.git([
       'diff',
@@ -187,6 +209,29 @@ async function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promis
     );
   }
   return patch;
+}
+
+/**
+ * A copy with every line of its source is shown as the new file it is. Diffed
+ * against the source it would have no hunk at all, leaving nothing a chapter
+ * could cite for a file the reviewer may well want to question.
+ */
+function identicalCopy(file: ChangedFile): boolean {
+  return file.status === 'copied' && file.origin?.similarity === 100;
+}
+
+/** Git counts an identical copy's lines against its source, where nothing changed; the review shows every one as added. */
+function countedAsNew(file: ChangedFile, patch: string): ChangedFile {
+  const additions = patch
+    .split('\n')
+    .filter((line) => line.startsWith('+') && !line.startsWith('+++ ')).length;
+  return { ...file, additions, deletions: 0 };
+}
+
+/** The path a file had at the base, or null when the review shows it as new. */
+function basePath(file: ChangedFile): string | null {
+  if (file.status === 'added' || identicalCopy(file)) return null;
+  return file.origin?.filename ?? file.filename;
 }
 
 /**
@@ -238,17 +283,15 @@ async function embedContents(
   target: Target,
   files: readonly ChangedFile[],
 ): Promise<Record<string, EmbeddedFile>> {
-  const basePaths = files
-    .filter((f) => f.status !== 'added')
-    .map((f) => f.origin?.filename ?? f.filename);
+  const basePaths = files.flatMap((f) => basePath(f) ?? []);
   const headPaths = files.filter((f) => f.status !== 'removed').map((f) => f.filename);
   const [baseTree, headTree] = await Promise.all([
     treeEntries(shell, target.baseSha, basePaths),
     treeEntries(shell, target.headSha, headPaths),
   ]);
   const sides = await mapLimit(files, PARALLEL_GIT, async (file) => {
-    const base =
-      file.status === 'added' ? undefined : baseTree.get(file.origin?.filename ?? file.filename);
+    const from = basePath(file);
+    const base = from === null ? undefined : baseTree.get(from);
     const head = file.status === 'removed' ? undefined : headTree.get(file.filename);
     return [
       file.filename,
@@ -268,7 +311,7 @@ async function embedSide(shell: Shell, entry: TreeEntry | undefined): Promise<Em
 }
 
 /** `git ls-tree -l` for just these paths: type, object id and size. */
-async function treeEntries(
+export async function treeEntries(
   shell: Shell,
   commit: string,
   paths: readonly string[],

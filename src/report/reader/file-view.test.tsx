@@ -164,6 +164,29 @@ describe('FileView for a renamed file', () => {
     expect(screen.getByText(/Only the path changed/)).toBeDefined();
     expect(screen.queryByText(/changed without a text diff/)).toBeNull();
   });
+
+  it('calls a copy with every line of its source identical, not unchanged', () => {
+    render(
+      <FileView
+        filename="src/app.ts"
+        chapters={chapters}
+        coverage={null}
+        files={[
+          {
+            filename: 'src/app.ts',
+            status: 'copied',
+            additions: 12,
+            deletions: 0,
+            origin: { filename: 'src/old-app.ts', similarity: 100 },
+          },
+        ]}
+      />,
+    );
+    const header = screen.getByRole('banner');
+    expect(header.textContent).toContain('Copied from');
+    expect(header.textContent).toContain('identical');
+    expect(header.textContent).not.toContain('content unchanged');
+  });
 });
 
 describe('FileView with hunks the chapters left out', () => {
