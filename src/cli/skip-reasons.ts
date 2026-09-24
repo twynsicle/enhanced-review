@@ -70,8 +70,15 @@ export function toReviewFiles(
   files: readonly ChangedFile[],
   reasons: ReadonlyMap<string, ReviewFileSkipReason>,
 ): ReviewFile[] {
-  return files.map(({ filename, status, additions, deletions }) => {
+  return files.map(({ filename, status, additions, deletions, origin }) => {
     const skipped = reasons.get(filename);
-    return { filename, status, additions, deletions, ...(skipped ? { skipped } : {}) };
+    return {
+      filename,
+      status,
+      additions,
+      deletions,
+      ...(origin ? { origin } : {}),
+      ...(skipped ? { skipped } : {}),
+    };
   });
 }

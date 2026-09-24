@@ -40,8 +40,6 @@ export const RunContextSchema = z.object({
   meta: ReviewMetaSchema,
   /** Every changed file; the ones left out of the review carry `skipped`. */
   files: z.array(ReviewFileSchema),
-  /** The path each renamed or copied file came from, by its new path. */
-  renamedFrom: z.record(z.string(), z.string()),
   /** The reviewed files' hunks, numbered across the whole change. */
   hunks: z.array(DiffHunkSchema),
   /** Both sides of every reviewed file, in the report bundle's own shape. */
@@ -85,11 +83,6 @@ export async function gather(
   const hunks = numberHunks(reviewed, diffs);
   const diffFile = annotatedDiffFile(reviewed, diffs, hunks);
   const contents = await embedContents(shell, target, reviewed);
-  const renamedFrom = Object.fromEntries(
-    changed.flatMap((file) =>
-      file.previousFilename ? [[file.filename, file.previousFilename]] : [],
-    ),
-  );
 
   const context: RunContext = {
     target,
@@ -102,7 +95,6 @@ export async function gather(
       },
     },
     files,
-    renamedFrom,
     hunks,
     contents,
     commits: target.kind === 'staged' ? [] : await listCommits(shell, baseSha, headSha),
@@ -134,9 +126,14 @@ export async function readContext(run: RunFiles): Promise<RunContext> {
   return parsed.data;
 }
 
-/** One file's patch, as git prints it for the whole range. */
+/**
+ * One file's patch, as git prints it for the whole range. A rename is diffed
+ * over just its two paths, where the 1% threshold can only pair those two: it
+ * is what keeps a pair that the file list matched through the branch's history
+ * (below git's usual 50%) a rename here too, rather than a delete and an add.
+ */
 function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promise<string> {
-  const paths = file.previousFilename ? [file.previousFilename, file.filename] : [file.filename];
+  const paths = file.origin ? [file.origin.filename, file.filename] : [file.filename];
   return shell.git([
     LITERAL,
     'diff',
@@ -144,7 +141,7 @@ function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promise<stri
     '--no-ext-diff',
     '--no-textconv',
     '--unified=3',
-    '--find-renames',
+    '--find-renames=1%',
     target.baseSha,
     target.headSha,
     '--',
@@ -203,7 +200,7 @@ async function embedContents(
 ): Promise<Record<string, EmbeddedFile>> {
   const basePaths = files
     .filter((f) => f.status !== 'added')
-    .map((f) => f.previousFilename ?? f.filename);
+    .map((f) => f.origin?.filename ?? f.filename);
   const headPaths = files.filter((f) => f.status !== 'removed').map((f) => f.filename);
   const [baseTree, headTree] = await Promise.all([
     treeEntries(shell, target.baseSha, basePaths),
@@ -211,7 +208,7 @@ async function embedContents(
   ]);
   const sides = await mapLimit(files, PARALLEL_GIT, async (file) => {
     const base =
-      file.status === 'added' ? undefined : baseTree.get(file.previousFilename ?? file.filename);
+      file.status === 'added' ? undefined : baseTree.get(file.origin?.filename ?? file.filename);
     const head = file.status === 'removed' ? undefined : headTree.get(file.filename);
     return [
       file.filename,

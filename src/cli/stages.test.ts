@@ -62,7 +62,6 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
         skipped: 'built-in',
       },
     ],
-    renamedFrom: {},
     hunks: [
       hunk('H0001', 'src/a.ts', 1),
       hunk('H0002', 'src/a.ts', 2),

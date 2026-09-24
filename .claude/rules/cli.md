@@ -41,8 +41,10 @@ src/cli/
                    subprocess inherits; agentEnv(), the SDK's, adds safe.bareRepository=explicit so a
                    bare repository committed inside a reviewed tree is never used by the agent's git
   diff-files.ts    listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over `-z` output,
-                   each rename's old path and the binary flag; output that ends mid-record throws rather than
-                   yielding a short list
+                   each rename's origin (old path + git's similarity) and the binary flag; a removed and an added
+                   path the branch's own commits record as a move (chained across commits) are rediffed as a
+                   pair at 1%, so a move-then-rewrite is still a rename; output that ends mid-record throws
+                   rather than yielding a short list
   skip-reasons.ts  why each changed file is left out: the built-in list, then the reviewed repository's own
                    `.gitattributes` (`git check-attr` at the head commit, which resolves a nested
                    `.gitattributes` for the paths beneath it), then binary; toReviewFiles stamps the reasons on
@@ -51,7 +53,7 @@ src/cli/
                    byte-order mark, UTF-16 (what Windows PowerShell writes), anything else refused
   run-folder.ts    <repo root>/er-reviews/<slug>/<stamp>/ and each stage's file; latestRunFolder; the runs folder
                    ignores itself
-  context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons, hunks numbered
+  context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons and origins, hunks numbered
                    across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
                    one diff file carrying every reviewed file's annotated patch, its line count carried as
                    `diffLines` so the prompt can ask the agent to Read it in one call; pr.md

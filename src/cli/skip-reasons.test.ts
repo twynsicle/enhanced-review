@@ -25,7 +25,6 @@ const file = (filename: string, binary = false): ChangedFile => ({
   status: 'modified',
   additions: 1,
   deletions: 1,
-  previousFilename: null,
   binary,
 });
 

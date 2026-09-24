@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  chainRenames,
   listChangedFileDetails,
+  parseRenames,
   parseChangedFiles,
   TruncatedGitOutputError,
   type ChangedFile,
@@ -27,7 +29,6 @@ function file(
     status,
     additions,
     deletions,
-    previousFilename: null,
     binary: false,
     ...extra,
   };
@@ -43,7 +44,7 @@ describe('parseChangedFiles', () => {
     ).toEqual([file('src/a.ts', 'modified', 10, 2), file('src/b.ts', 'removed', 0, 5)]);
   });
 
-  it('keeps the counts and the old path of a rename that also changed lines', () => {
+  it('keeps the counts, the old path and the similarity of a rename that also changed lines', () => {
     // `-z` splits a rename into an empty third numstat field plus two paths;
     // the old line format collapsed it to `old.ts => new.ts` and never joined.
     expect(
@@ -51,7 +52,9 @@ describe('parseChangedFiles', () => {
         numstatZ('4\t3\t', 'old.ts', 'new.ts'),
         nameStatusZ('R077', 'old.ts', 'new.ts'),
       ),
-    ).toEqual([file('new.ts', 'renamed', 4, 3, { previousFilename: 'old.ts' })]);
+    ).toEqual([
+      file('new.ts', 'renamed', 4, 3, { origin: { filename: 'old.ts', similarity: 77 } }),
+    ]);
   });
 
   it('handles a rename whose paths share a directory prefix', () => {
@@ -61,7 +64,9 @@ describe('parseChangedFiles', () => {
         numstatZ('1\t1\t', 'src/a/x.ts', 'src/b/x.ts'),
         nameStatusZ('R100', 'src/a/x.ts', 'src/b/x.ts'),
       ),
-    ).toEqual([file('src/b/x.ts', 'renamed', 1, 1, { previousFilename: 'src/a/x.ts' })]);
+    ).toEqual([
+      file('src/b/x.ts', 'renamed', 1, 1, { origin: { filename: 'src/a/x.ts', similarity: 100 } }),
+    ]);
   });
 
   it('reports a copy under the new name', () => {
@@ -70,7 +75,9 @@ describe('parseChangedFiles', () => {
         numstatZ('0\t0\t', 'src/x.ts', 'src/y.ts'),
         nameStatusZ('C100', 'src/x.ts', 'src/y.ts'),
       ),
-    ).toEqual([file('src/y.ts', 'copied', 0, 0, { previousFilename: 'src/x.ts' })]);
+    ).toEqual([
+      file('src/y.ts', 'copied', 0, 0, { origin: { filename: 'src/x.ts', similarity: 100 } }),
+    ]);
   });
 
   it('keeps ordinary entries straight when a rename sits between them', () => {
@@ -81,7 +88,7 @@ describe('parseChangedFiles', () => {
       ),
     ).toEqual([
       file('src/a.ts', 'modified', 1, 0),
-      file('new.ts', 'renamed', 2, 2, { previousFilename: 'old.ts' }),
+      file('new.ts', 'renamed', 2, 2, { origin: { filename: 'old.ts', similarity: 90 } }),
       file('src/c.ts', 'modified', 0, 3),
     ]);
   });
@@ -144,9 +151,67 @@ describe('listChangedFileDetails', () => {
     // The diff drivers a repository can name in its own `.gitattributes` are
     // refused here too: numstat honours textconv, and would then count lines
     // for a file the reviewed diff carries only as "Binary files ... differ".
+    // Renames are asked for explicitly: a repository's own `diff.renames`
+    // could otherwise turn them off here while the patch still pairs them.
+    const pins = ['--no-color', '--no-ext-diff', '--no-textconv'];
     expect(calls).toEqual([
-      ['diff', '--numstat', '-z', '--no-color', '--no-ext-diff', '--no-textconv', 'base..head'],
-      ['diff', '--name-status', '-z', '--no-color', '--no-ext-diff', '--no-textconv', 'base..head'],
+      ['--literal-pathspecs', 'diff', '--numstat', '-z', '--find-renames', ...pins, 'base..head'],
+      [
+        '--literal-pathspecs',
+        'diff',
+        '--name-status',
+        '-z',
+        '--find-renames',
+        ...pins,
+        'base..head',
+      ],
+      [
+        'log',
+        '--reverse',
+        '-z',
+        '--format=',
+        '--name-status',
+        '--find-renames',
+        '--diff-filter=R',
+        ...pins,
+        'base..head',
+      ],
     ]);
+  });
+});
+
+describe('parseRenames', () => {
+  it('reads each rename’s old and new path, in the order git printed them', () => {
+    expect(parseRenames(nameStatusZ('R100', 'a.ts', 'b.ts', 'R087', 'b.ts', 'c.ts'))).toEqual([
+      ['a.ts', 'b.ts'],
+      ['b.ts', 'c.ts'],
+    ]);
+    expect(parseRenames('')).toEqual([]);
+  });
+
+  it('throws on a rename cut off before its new path', () => {
+    expect(() => parseRenames(nameStatusZ('R100', 'a.ts'))).toThrow(TruncatedGitOutputError);
+  });
+});
+
+describe('chainRenames', () => {
+  it('follows a file through every move to the path it had at the start', () => {
+    const originOf = chainRenames([
+      ['a.ts', 'b.ts'],
+      ['x.ts', 'y.ts'],
+      ['b.ts', 'c.ts'],
+    ]);
+    expect(Object.fromEntries(originOf)).toEqual({ 'c.ts': 'a.ts', 'y.ts': 'x.ts' });
+  });
+
+  it('forgets a move that a later one undid', () => {
+    expect(
+      Object.fromEntries(
+        chainRenames([
+          ['a.ts', 'b.ts'],
+          ['b.ts', 'a.ts'],
+        ]),
+      ),
+    ).toEqual({});
   });
 });
