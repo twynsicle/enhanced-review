@@ -36,7 +36,10 @@ reaches, and why:
 - **Anthropic**, through the Claude Agent SDK, which runs as you with your own
   sign-in: the prompt, and whatever the agent reads from the repository while
   it reviews. The agent's tools are read-only — Read, Glob, Grep, and Bash
-  limited to read-only git history (`src/cli/bash-gate.ts`).
+  limited to read-only git history (`src/cli/bash-gate.ts`). With
+  `--find-copy-sources`, a second, shorter run with the same Bash gate and no
+  other tool: the list of new files, and what it reads of them and their
+  neighbours through git.
 - **cdn.jsdelivr.net**, from the report in your browser: the Monaco diff
   editor, pinned to the version in `package.json`, fetched when a diff is
   first shown (`src/report/reader/monaco-cdn.ts`). Nothing about the review is
@@ -127,22 +130,22 @@ What you have staged, against `HEAD` — a review before the commit.
 
 ### Every option
 
-| Flag                         | Applies to   | What it does                                                                                                                                                                         |
-| ---------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--base <ref>`               | branch, PR   | compare against `<ref>` instead of the PR's base or the default branch                                                                                                               |
-| `--model <name>`             | every review | review with `<name>` (default: `claude-sonnet-5[1m]`)                                                                                                                                |
-| `--max-turns <n>`            | every review | let the model take at most `<n>` turns (default: `120`)                                                                                                                              |
-| `--timeout <minutes>`        | every review | give up on the model run after `<minutes>` (default: `15`)                                                                                                                           |
-| `--instructions <text>`      | every review | add your own guidance to the prompt — what to focus on, what to explain — see below                                                                                                  |
-| `--instructions-file <path>` | every review | the same, read from a file, for anything long or multi-line                                                                                                                          |
-| `--stub`                     | every review | write a mechanical review instead of running a model — see below                                                                                                                     |
-| `--from <stage>`             | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below                                                                                            |
-| `--no-open`                  | every review | write the report without opening it                                                                                                                                                  |
-| `--keep-worktree`            | PR reviews   | leave the PR's temporary worktree in place instead of removing it                                                                                                                    |
-| `--allow-large`              | every review | run the model on more than 300 reviewed files, which `er` otherwise refuses (it warns past 50)                                                                                       |
-| `--find-copy-sources`        | every review | ask a small model which existing file each new file was copied from when git cannot tell (under 50% similar), and show it as a diff against that file; not with `--stub` or `--from` |
-| `-h`, `--help`               | —            | show usage and exit                                                                                                                                                                  |
-| `-v`, `--version`            | —            | show the installed version and exit                                                                                                                                                  |
+| Flag                         | Applies to   | What it does                                                                                   |
+| ---------------------------- | ------------ | ---------------------------------------------------------------------------------------------- |
+| `--base <ref>`               | branch, PR   | compare against `<ref>` instead of the PR's base or the default branch                         |
+| `--model <name>`             | every review | review with `<name>` (default: `claude-sonnet-5[1m]`)                                          |
+| `--max-turns <n>`            | every review | let the model take at most `<n>` turns (default: `120`)                                        |
+| `--timeout <minutes>`        | every review | give up on the model run after `<minutes>` (default: `15`)                                     |
+| `--instructions <text>`      | every review | add your own guidance to the prompt — what to focus on, what to explain — see below            |
+| `--instructions-file <path>` | every review | the same, read from a file, for anything long or multi-line                                    |
+| `--stub`                     | every review | write a mechanical review instead of running a model — see below                               |
+| `--from <stage>`             | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below      |
+| `--no-open`                  | every review | write the report without opening it                                                            |
+| `--keep-worktree`            | PR reviews   | leave the PR's temporary worktree in place instead of removing it                              |
+| `--allow-large`              | every review | run the model on more than 300 reviewed files, which `er` otherwise refuses (it warns past 50) |
+| `--find-copy-sources`        | every review | ask a small model which file each new file was copied from, when git cannot tell — see below   |
+| `-h`, `--help`               | —            | show usage and exit                                                                            |
+| `-v`, `--version`            | —            | show the installed version and exit                                                            |
 
 `--staged` (a target, not an option) and `--base` cannot be combined: the
 staged tree has no branch to compare against but `HEAD`.
@@ -166,6 +169,38 @@ they cannot be given with `--from run`, `parse` or `render`, which write no
 new prompt. `--from prompt` writes the prompt again from that command's flags,
 so repeat the instructions there to keep them.
 
+#### Copied files
+
+A new file cloned from an existing one — a handler modelled on its sibling, a
+test copied from the one beside it — is shown as a diff against the file it was
+copied from, with "Copied from `<path>` · N% similar" above it, so the review
+reads what changed from the template rather than an all-green new file. Git
+finds these on its own when the copy is at least 50% similar to its source;
+that needs no flag.
+
+Below 50%, git cannot tell a reworked clone from a new file.
+`--find-copy-sources` asks a model to name the source for each new file git left
+unpaired:
+
+```bash
+er review --find-copy-sources
+```
+
+It is a short run of Claude Haiku before the review starts, reading both sides
+with read-only git commands only — no working tree, no edits. Git then scores
+and diffs each pair it names, exactly as it would one it had found itself, so
+the model decides only which file, never what the diff says. It adds a line to
+the output, such as `sources  3 new files checked, 1 source found, $0.03`, and
+typically well under a minute; with no unpaired new files it does not run at
+all.
+
+A source git finds no line in common with is printed as a warning, and that file
+is reviewed as new. An answer naming a file it was not asked about, or a source
+that did not exist at the base, fails the run instead: `er` would rather stop
+than show a diff against the wrong file. The flag cannot be combined with
+`--stub`, which runs no model, or with `--from`, which reuses the files already
+gathered.
+
 ### What it costs, and how long
 
 The model run is the only stage that costs anything.
@@ -182,6 +217,7 @@ Measured on this repository, an 88-file, 138-hunk change:
 That is what an agentic review costs: it pays for its whole context on every
 turn, so the bill tracks the number of turns more than the size of the diff.
 The run line reports all of it as it finishes, cache share included.
+`--find-copy-sources` adds a few cents on top, reported on its own line.
 
 Two ways to spend nothing while working on the tool itself:
 
@@ -208,7 +244,8 @@ the report without paying twice.
 ignored by git automatically. The report is `review.html`, and it opens when
 it is written unless you pass `--no-open`. Beside it sit the stage files:
 `context.json` (what changed), `prompt.md` and `system.md` (what was asked),
-`raw.txt` (what the model said), `events.jsonl` (what it did, what it cost,
+`raw.txt` (what the model said), `copy-sources.txt` (the copy-source run's
+answer, with `--find-copy-sources`), `events.jsonl` (what it did, what it cost,
 any command the read-only gate refused and any answer it was asked to write
 again), `review.json` (the parsed review) and `findings.json` (what validating
 it turned up). A run folder is a complete record; delete the tree whenever you
