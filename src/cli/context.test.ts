@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runGit } from './git-runner.ts';
+import { runGit, type GitRunner } from './git-runner.ts';
 import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
 import { gather, MAX_EMBED_BYTES, readContext } from './context.ts';
 import { Shell } from './git.ts';
@@ -26,8 +26,8 @@ afterEach(() => {
 
 const noGh = async () => ({ stdout: '', stderr: 'no gh in tests', exitCode: 1 });
 
-async function gatherFor(request: TargetRequest) {
-  const shell = new Shell(repo.work, { git: runGit, gh: noGh });
+async function gatherFor(request: TargetRequest, git: GitRunner = runGit) {
+  const shell = new Shell(repo.work, { git, gh: noGh });
   const { target, meta } = await resolveTarget(request, shell, { warn: () => undefined });
   const run = await createRunFolder(runsRoot, target.slug, new Date(2026, 8, 11, 14, 30, 5));
   return { context: await gather(target, meta, shell.at(target.repoRoot), run), run };
@@ -248,6 +248,24 @@ describe('gather', () => {
     branchOfEveryKind();
     const { context, run } = await gatherFor({ kind: 'branch', base: 'main' });
     await expect(readContext(run)).resolves.toEqual(context);
+  });
+
+  it('fails rather than cataloguing a paired file whose patch came back as two files', async () => {
+    branchOfEveryKind();
+    // The file list pairs the rename; this git then prints its patch the way
+    // it would if the two paths had not paired: a deletion and an addition.
+    const unpaired: GitRunner = async (opts) => {
+      const result = await runGit(opts);
+      if (!opts.args.includes('--unified=3') || !opts.args.includes('src/new-name.ts'))
+        return result;
+      return {
+        ...result,
+        stdout: `diff --git a/src/old-name.ts b/src/old-name.ts\n${result.stdout}`,
+      };
+    };
+    await expect(gatherFor({ kind: 'branch', base: 'main' }, unpaired)).rejects.toThrow(
+      'git diffed src/old-name.ts and src/new-name.ts as 2 files where the file list paired them as one',
+    );
   });
 
   it('says what to do when a context is missing', async () => {

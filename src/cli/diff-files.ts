@@ -86,7 +86,8 @@ export async function listChangedFileDetails(
     return from !== undefined && removed.has(from) ? [{ from, to: file.filename }] : [];
   });
 
-  const pairs = await mapLimit(candidates, PARALLEL_GIT, async ({ from, to }) => {
+  // Halved: each pair runs its two git diffs at once.
+  const pairs = await mapLimit(candidates, PARALLEL_GIT / 2, async ({ from, to }) => {
     // Told there are only these two paths, git pairs anything with 1% in
     // common. A file sharing nothing at all with its old self stays unpaired:
     // a diff between the two would be every line out and every line in.
