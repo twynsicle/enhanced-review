@@ -70,6 +70,8 @@ export interface ReviewOptions {
   keepWorktree: boolean;
   /** Run the model on a change past `SIZE_LIMITS.refuse` reviewed files. */
   allowLarge: boolean;
+  /** The engineer's own guidance for the model, written into the prompt. */
+  instructions: string | null;
 }
 
 export interface ReviewDeps {
@@ -99,10 +101,11 @@ export async function review(
 
   if (runs('prompt')) {
     const started = performance.now();
-    const prompt = await writePrompt(context, run);
+    const prompt = await writePrompt(context, run, options.instructions);
+    const yours = options.instructions === null ? '' : ' with yours';
     stage(
       'prompt',
-      `~${tokens(prompt)} tokens, plus the instructions`,
+      `~${tokens(prompt)} tokens${yours}, plus the review instructions`,
       performance.now() - started,
     );
   }

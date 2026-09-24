@@ -127,22 +127,36 @@ What you have staged, against `HEAD` — a review before the commit.
 
 ### Every option
 
-| Flag                  | Applies to   | What it does                                                                                   |
-| --------------------- | ------------ | ---------------------------------------------------------------------------------------------- |
-| `--base <ref>`        | branch, PR   | compare against `<ref>` instead of the PR's base or the default branch                         |
-| `--model <name>`      | every review | review with `<name>` (default: `claude-sonnet-5[1m]`)                                          |
-| `--max-turns <n>`     | every review | let the model take at most `<n>` turns (default: `120`)                                        |
-| `--timeout <minutes>` | every review | give up on the model run after `<minutes>` (default: `15`)                                     |
-| `--stub`              | every review | write a mechanical review instead of running a model — see below                               |
-| `--from <stage>`      | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below      |
-| `--no-open`           | every review | write the report without opening it                                                            |
-| `--keep-worktree`     | PR reviews   | leave the PR's temporary worktree in place instead of removing it                              |
-| `--allow-large`       | every review | run the model on more than 300 reviewed files, which `er` otherwise refuses (it warns past 50) |
-| `-h`, `--help`        | —            | show usage and exit                                                                            |
-| `-v`, `--version`     | —            | show the installed version and exit                                                            |
+| Flag                         | Applies to   | What it does                                                                                   |
+| ---------------------------- | ------------ | ---------------------------------------------------------------------------------------------- |
+| `--base <ref>`               | branch, PR   | compare against `<ref>` instead of the PR's base or the default branch                         |
+| `--model <name>`             | every review | review with `<name>` (default: `claude-sonnet-5[1m]`)                                          |
+| `--max-turns <n>`            | every review | let the model take at most `<n>` turns (default: `120`)                                        |
+| `--timeout <minutes>`        | every review | give up on the model run after `<minutes>` (default: `15`)                                     |
+| `--instructions <text>`      | every review | add your own guidance to the prompt — what to focus on, what to explain — see below            |
+| `--instructions-file <path>` | every review | the same, read from a file, for anything long or multi-line                                    |
+| `--stub`                     | every review | write a mechanical review instead of running a model — see below                               |
+| `--from <stage>`             | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below      |
+| `--no-open`                  | every review | write the report without opening it                                                            |
+| `--keep-worktree`            | PR reviews   | leave the PR's temporary worktree in place instead of removing it                              |
+| `--allow-large`              | every review | run the model on more than 300 reviewed files, which `er` otherwise refuses (it warns past 50) |
+| `-h`, `--help`               | —            | show usage and exit                                                                            |
+| `-v`, `--version`            | —            | show the installed version and exit                                                            |
 
 `--staged` (a target, not an option) and `--base` cannot be combined: the
 staged tree has no branch to compare against but `HEAD`.
+
+`--instructions` goes straight into the model's prompt, as guidance from the
+person who will read the review, and steers where it looks hardest and what it
+explains; it cannot change what a review is made of. For example:
+
+```bash
+er review 42 --instructions "Focus on the retry logic and whether it can double-charge. Keep the UI chapters brief."
+```
+
+The instructions are written into `prompt.md`, so `--from run` reuses them;
+they cannot be given with `--from run`, `parse` or `render`, which write no
+new prompt.
 
 ### What it costs, and how long
 

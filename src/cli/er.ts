@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { DEFAULT_MAX_TURNS, DEFAULT_MODEL, DEFAULT_TIMEOUT_MINUTES } from './claude-run.ts';
 import { toolVersion } from './platform.ts';
@@ -23,6 +24,10 @@ Options:
   --model <name>       review with <name> (default: ${DEFAULT_MODEL})
   --max-turns <n>      let the model take at most <n> turns (default: ${String(DEFAULT_MAX_TURNS)})
   --timeout <minutes>  give up on the model run after <minutes> (default: ${String(DEFAULT_TIMEOUT_MINUTES)})
+  --instructions <text>
+                       add your own guidance to the prompt: what to focus on or explain
+  --instructions-file <path>
+                       the same, read from a file
   --stub               write a mechanical review instead of running a model
   --from <stage>       resume the newest run for this target at prompt, run, parse or render
   --no-open            write the report without opening it
@@ -64,6 +69,8 @@ async function main(argv: string[]): Promise<number> {
       'no-open': { type: 'boolean' },
       'keep-worktree': { type: 'boolean' },
       'allow-large': { type: 'boolean' },
+      instructions: { type: 'string' },
+      'instructions-file': { type: 'string' },
     },
   });
   if (values.version) {
@@ -80,6 +87,12 @@ async function main(argv: string[]): Promise<number> {
   if (values['allow-large'] && (values.stub || !runsModel(from))) {
     throw new UsageError('--allow-large applies only to a run of the model');
   }
+  const instructions = reviewerInstructions(values.instructions, values['instructions-file']);
+  if (instructions !== null && from !== null && from !== 'prompt') {
+    throw new UsageError(
+      `--from ${from} reuses the prompt already written, so it cannot take new instructions; use --from prompt`,
+    );
+  }
   return review({
     request: targetRequest(args, values),
     cwd: process.cwd(),
@@ -91,7 +104,27 @@ async function main(argv: string[]): Promise<number> {
     open: !values['no-open'],
     keepWorktree: values['keep-worktree'] ?? false,
     allowLarge: values['allow-large'] ?? false,
+    instructions,
   });
+}
+
+function reviewerInstructions(text: string | undefined, file: string | undefined): string | null {
+  if (text !== undefined && file !== undefined) {
+    throw new UsageError('--instructions and --instructions-file cannot be combined');
+  }
+  if (text === undefined && file === undefined) return null;
+  const flag = file === undefined ? '--instructions' : '--instructions-file';
+  const instructions = (text ?? readInstructionsFile(file!)).trim();
+  if (instructions === '') throw new UsageError(`${flag} is empty`);
+  return instructions;
+}
+
+function readInstructionsFile(file: string): string {
+  try {
+    return readFileSync(file, 'utf8');
+  } catch (error) {
+    throw new UsageError(`--instructions-file: ${(error as Error).message}`);
+  }
 }
 
 /** A flag that must be a number greater than zero; minutes or turns. */

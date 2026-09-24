@@ -65,6 +65,7 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   open: true,
   keepWorktree: false,
   allowLarge: false,
+  instructions: null,
   ...overrides,
 });
 
@@ -151,6 +152,22 @@ describe('er review', () => {
     expect(readFileSync(path.join(run, 'events.jsonl'), 'utf8')).toContain('"subtype":"success"');
     expect(readFileSync(path.join(run, 'review.json'), 'utf8')).toContain('The staged change');
     expect(deps.open).toHaveBeenCalledWith(path.join(run, 'review.html'));
+  });
+
+  it('writes the engineer’s instructions into the prompt, and says it did', async () => {
+    await expect(review(options({ instructions: 'Focus on error handling.' }), deps)).resolves.toBe(
+      0,
+    );
+
+    const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
+    expect(readFileSync(path.join(run, 'prompt.md'), 'utf8')).toMatch(
+      /## Reviewer’s Instructions\n[^]*Focus on error handling\.\n$/,
+    );
+    expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
+      'prompt',
+      expect.stringMatching(/^~\d+ tokens with yours, plus the review instructions$/),
+      expect.any(Number),
+    );
   });
 
   it('counts what the review covers, says nothing, and exits clean', async () => {
