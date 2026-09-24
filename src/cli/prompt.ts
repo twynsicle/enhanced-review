@@ -134,13 +134,18 @@ function workingDirectory({ target, dirty }: RunContext, run: RunFiles): string 
 }
 
 function renames(files: readonly ReviewFile[]): string {
-  const lines = files.flatMap(({ filename, status, origin }) =>
-    origin
-      ? [
-          `  ${filename}  (${status === 'copied' ? 'copied' : 'renamed'} from ${origin.filename}, ${String(origin.similarity)}% similar)`,
-        ]
-      : [],
-  );
+  const lines = files.flatMap(({ filename, status, origin }) => {
+    if (!origin) return [];
+    // An identical copy's patch is a new file's: without this it reads as fresh code.
+    if (status === 'copied' && origin.identical)
+      return [
+        `  ${filename}  (an identical copy of ${origin.filename}; its patch shows it as new)`,
+      ];
+    const how = origin.identical ? 'content unchanged' : `${String(origin.similarity)}% similar`;
+    return [
+      `  ${filename}  (${status === 'copied' ? 'copied' : 'renamed'} from ${origin.filename}, ${how})`,
+    ];
+  });
   if (lines.length === 0) return '';
   return `\n\nRenamed or copied:\n${lines.join('\n')}`;
 }

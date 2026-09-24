@@ -271,13 +271,15 @@ export function parseChangedFiles(numstatZ: string, nameStatusZ: string): Change
     if (pathAt >= statusFields.length) throw new TruncatedGitOutputError('diff --name-status');
     const filename = statusFields[pathAt];
     if (renamed) i += 1;
-    const c = counts.get(filename) ?? { additions: 0, deletions: 0, binary: false };
+    const counted = counts.get(filename);
+    const c = counted ?? { additions: 0, deletions: 0, binary: false };
     // No line in or out of a text file: the same content, whatever the score.
+    // A file numstat did not report has no counts to say so.
     const origin: ReviewFileOrigin | null = renamed
       ? {
           filename: statusFields[i],
           similarity: similarity(statusFields[i - 1]),
-          identical: !c.binary && c.additions === 0 && c.deletions === 0,
+          identical: counted !== undefined && !c.binary && c.additions === 0 && c.deletions === 0,
         }
       : null;
     files.push({

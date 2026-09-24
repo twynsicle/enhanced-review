@@ -99,6 +99,26 @@ describe('the local prompt', () => {
     expect(prompt).toContain('- 2222222 Add the login form\n    With validation.');
   });
 
+  it('says a copy is identical, since its patch shows only a new file', () => {
+    const copy = (filename: string, similarity: number, identical: boolean) => ({
+      filename,
+      status: 'copied' as const,
+      additions: 5,
+      deletions: identical ? 0 : 5,
+      origin: { filename: 'src/source.ts', similarity, identical },
+    });
+    const prompt = buildPrompt(
+      context({ files: [copy('src/same.ts', 100, true), copy('src/shuffled.ts', 100, false)] }),
+      run,
+      null,
+    );
+
+    expect(prompt).toContain(
+      '  src/same.ts  (an identical copy of src/source.ts; its patch shows it as new)',
+    );
+    expect(prompt).toContain('  src/shuffled.ts  (copied from src/source.ts, 100% similar)');
+  });
+
   it('points at pr.md instead of inlining a long description', () => {
     const long = 'x'.repeat(9000);
     const prompt = buildPrompt(

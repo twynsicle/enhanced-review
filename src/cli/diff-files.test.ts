@@ -75,6 +75,11 @@ describe('parseChangedFiles', () => {
     ]);
   });
 
+  it('does not call a file identical when numstat never counted it', () => {
+    const [copy] = parseChangedFiles(numstatZ(), nameStatusZ('C100', 'src/x.ts', 'src/y.ts'));
+    expect(copy?.origin?.identical).toBe(false);
+  });
+
   it('reports a copy under the new name', () => {
     expect(
       parseChangedFiles(
