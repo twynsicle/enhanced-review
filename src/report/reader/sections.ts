@@ -2,14 +2,15 @@ import { RISK_SECTION_ID, SUMMARY_SECTION_ID, type NarrativeReview } from '@/rev
 
 /**
  * The reader's sections, in the one order the sidebar shows and the keyboard
- * walks.
+ * walks: the risk card (when there is an assessment), then the summary row,
+ * then the chapters — top to bottom in the sidebar, since the risk card sits
+ * above the summary and chapter rows there.
  *
  * The reader used to be modelled as "chapters, plus a special case called the
  * summary": the sidebar hardcoded a `00 Summary` row and the keyboard hook
  * carried an `isSummary` branch through every binding. That held for one
- * synthesised section and fell over at two — and it was already inconsistent,
- * since the summary sat first in the sidebar but last in the arrow-key cycle.
- * One ordered list, derived here, is what both consume instead.
+ * synthesised section and fell over at two. One ordered list, derived here,
+ * is what both consume instead.
  */
 export type SectionKind = 'summary' | 'risk' | 'chapter';
 
@@ -25,15 +26,7 @@ export interface ReaderSection {
 }
 
 export function readerSections(review: NarrativeReview): ReaderSection[] {
-  const sections: ReaderSection[] = [
-    {
-      id: SUMMARY_SECTION_ID,
-      kind: 'summary',
-      label: 'Summary',
-      chapterNumber: null,
-      hasDiagram: review.overviewDiagram !== undefined,
-    },
-  ];
+  const sections: ReaderSection[] = [];
 
   // No assessment, no section — an empty risk page says less than no link to it.
   if (review.riskAssessment) {
@@ -45,6 +38,14 @@ export function readerSections(review: NarrativeReview): ReaderSection[] {
       hasDiagram: false,
     });
   }
+
+  sections.push({
+    id: SUMMARY_SECTION_ID,
+    kind: 'summary',
+    label: 'Summary',
+    chapterNumber: null,
+    hasDiagram: review.overviewDiagram !== undefined,
+  });
 
   review.chapters.forEach((chapter, index) => {
     sections.push({

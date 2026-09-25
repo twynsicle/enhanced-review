@@ -22,9 +22,8 @@ const sections: ReaderSection[] = [
 ];
 
 const withRisk: ReaderSection[] = [
-  sections[0] as ReaderSection,
   { id: RISK_SECTION_ID, kind: 'risk', label: 'Risk', chapterNumber: null, hasDiagram: false },
-  ...sections.slice(1),
+  ...sections,
 ];
 
 function Harness({
@@ -81,9 +80,17 @@ describe('useNarrativeKeyboard', () => {
     expect(onSelect).toHaveBeenCalledWith('ch1');
   });
 
-  it('walks through risk when the review has one', () => {
+  it('ArrowRight on the summary reaches the first chapter even with a risk section', () => {
+    // Risk sits ahead of the summary in this cycle, matching the sidebar,
+    // where its card sits above the summary row — not behind it.
     render(<Harness activeId={SUMMARY_SECTION_ID} onSelect={onSelect} list={withRisk} />);
     fireEvent.keyDown(document, { key: 'ArrowRight' });
+    expect(onSelect).toHaveBeenCalledWith('ch1');
+  });
+
+  it('ArrowLeft on the summary reaches risk when the review has one', () => {
+    render(<Harness activeId={SUMMARY_SECTION_ID} onSelect={onSelect} list={withRisk} />);
+    fireEvent.keyDown(document, { key: 'ArrowLeft' });
     expect(onSelect).toHaveBeenCalledWith(RISK_SECTION_ID);
   });
 
@@ -101,6 +108,12 @@ describe('useNarrativeKeyboard', () => {
 
   it('Home jumps to the first section', () => {
     render(<Harness activeId="ch3" onSelect={onSelect} />);
+    fireEvent.keyDown(document, { key: 'Home' });
+    expect(onSelect).toHaveBeenCalledWith(SUMMARY_SECTION_ID);
+  });
+
+  it('Home reaches the summary even though risk is first in the list', () => {
+    render(<Harness activeId="ch3" onSelect={onSelect} list={withRisk} />);
     fireEvent.keyDown(document, { key: 'Home' });
     expect(onSelect).toHaveBeenCalledWith(SUMMARY_SECTION_ID);
   });

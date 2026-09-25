@@ -14,6 +14,22 @@ const SCRIPT_TAG = /<script type="module" crossorigin src="\.\/([^"]+\.js)"><\/s
 const STYLE_TAG = /<link rel="stylesheet" crossorigin href="\.\/([^"]+\.css)">/g;
 
 /**
+ * The favicon as a data URI, so it needs no separate file for the browser to
+ * fetch and doesn't trip `inlineIntoHtml`'s check for a surviving reference
+ * to one.
+ */
+function favicon(): Plugin {
+  const svg = readFileSync(join(REPORT_ROOT, 'chrome/brand-mark.svg'), 'utf8');
+  const href = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+  return {
+    name: 'er-report-favicon',
+    transformIndexHtml: () => [
+      { tag: 'link', attrs: { rel: 'icon', type: 'image/svg+xml', href }, injectTo: 'head' },
+    ],
+  };
+}
+
+/**
  * Folds the emitted JS and CSS into the page once the build is on disk, then
  * deletes everything but `shell.html`, so the report opens from disk with
  * nothing beside it but the source stamp the CLI checks for staleness
@@ -79,7 +95,7 @@ export default defineConfig({
   base: './',
   publicDir: false,
   resolve: { tsconfigPaths: true },
-  plugins: [devBundle(), inlineIntoHtml()],
+  plugins: [devBundle(), favicon(), inlineIntoHtml()],
   build: {
     outDir: OUT_DIR,
     emptyOutDir: true,

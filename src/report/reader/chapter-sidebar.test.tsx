@@ -50,9 +50,8 @@ const riskAssessment: ReviewRiskAssessment = {
 
 /** The same list with a risk section, as `readerSections` builds it. */
 const withRisk: ReaderSection[] = [
-  sections[0] as ReaderSection,
   { id: RISK_SECTION_ID, kind: 'risk', label: 'Risk', chapterNumber: null, hasDiagram: false },
-  ...sections.slice(1),
+  ...sections,
 ];
 
 const noop = () => {};
