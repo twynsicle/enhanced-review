@@ -4,7 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runGit, type GitRunner } from './git-runner.ts';
 import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
-import { gather, MAX_EMBED_BYTES, readContext } from './context.ts';
+import { gather, MAX_EMBED_BYTES, readContext, type GatherOptions } from './context.ts';
+import { pairFiles } from './diff-files.ts';
 import { Shell } from './git.ts';
 import { createRunFolder } from './run-folder.ts';
 import { resolveTarget, type TargetRequest } from './targets.ts';
@@ -26,11 +27,15 @@ afterEach(() => {
 
 const noGh = async () => ({ stdout: '', stderr: 'no gh in tests', exitCode: 1 });
 
-async function gatherFor(request: TargetRequest, git: GitRunner = runGit) {
+async function gatherFor(
+  request: TargetRequest,
+  git: GitRunner = runGit,
+  options: GatherOptions = {},
+) {
   const shell = new Shell(repo.work, { git, gh: noGh });
   const { target, meta } = await resolveTarget(request, shell, { warn: () => undefined });
   const run = await createRunFolder(runsRoot, target.slug, new Date(2026, 8, 11, 14, 30, 5));
-  return { context: await gather(target, meta, shell.at(target.repoRoot), run), run };
+  return { context: await gather(target, meta, shell.at(target.repoRoot), run, options), run };
 }
 
 const lines = (count: number, label: string) =>
@@ -208,6 +213,168 @@ describe('gather', () => {
         ['src/new.ts', 'added'],
         ['src/old.ts', 'removed'],
       ]);
+    });
+  });
+
+  describe('a new file copied from an existing one', () => {
+    /** main holds a template; a branch off it adds `copy` and, when given, rewrites the template too. */
+    function branchWithCopy(copy: string, template?: string): void {
+      repo.write('src/template.ts', lines(40, 'line'));
+      repo.commit('the template');
+      repo.git('push', '--quiet', 'origin', 'main');
+      repo.git('checkout', '--quiet', '-b', 'feat/copy');
+      repo.write('src/copy.ts', copy);
+      if (template !== undefined) repo.write('src/template.ts', template);
+      repo.commit('copy the template');
+    }
+
+    const lightEdit = lines(40, 'line').replace('line 7\n', 'line seven\n');
+
+    it('lists a clone of an untouched file as a copy, diffed against its source', async () => {
+      branchWithCopy(lightEdit);
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files).toEqual([
+        {
+          filename: 'src/copy.ts',
+          status: 'copied',
+          additions: 1,
+          deletions: 1,
+          origin: { filename: 'src/template.ts', similarity: expect.any(Number), identical: false },
+        },
+      ]);
+      expect(context.contents['src/copy.ts']?.base).toEqual({
+        kind: 'content',
+        content: lines(40, 'line'),
+      });
+      expect(context.hunks.map((hunk) => [hunk.filename, hunk.original, hunk.modified])).toEqual([
+        ['src/copy.ts', { startLine: 4, lineCount: 7 }, { startLine: 4, lineCount: 7 }],
+      ]);
+    });
+
+    it('finds a copy past the rename limit the repository sets', async () => {
+      // Past the limit git falls back to modified sources only, and says so on
+      // stderr alone; a large tree hits the default the same way.
+      repo.git('config', 'diff.renameLimit', '1');
+      repo.write('src/other.ts', lines(3, 'other'));
+      branchWithCopy(lightEdit);
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files.map((file) => [file.filename, file.status])).toEqual([
+        ['src/copy.ts', 'copied'],
+      ]);
+    });
+
+    it('shows a copy identical to its source as the new file it is', async () => {
+      branchWithCopy(lines(40, 'line'));
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files).toEqual([
+        {
+          filename: 'src/copy.ts',
+          status: 'copied',
+          additions: 40,
+          deletions: 0,
+          origin: { filename: 'src/template.ts', similarity: 100, identical: true },
+        },
+      ]);
+      expect(context.contents['src/copy.ts']?.base).toEqual({ kind: 'absent' });
+      expect(context.hunks.map((hunk) => [hunk.original, hunk.modified])).toEqual([
+        [
+          { startLine: 0, lineCount: 0 },
+          { startLine: 1, lineCount: 40 },
+        ],
+      ]);
+    });
+
+    it('counts every line of an identical copy, one that reads like a diff header too', async () => {
+      const patchLike = `+++ b/file\n++ counter\n${lines(10, 'line')}`;
+      repo.write('src/fixture.patch', patchLike);
+      repo.commit('a fixture');
+      repo.git('push', '--quiet', 'origin', 'main');
+      repo.git('checkout', '--quiet', '-b', 'feat/fixture');
+      repo.write('src/fixture-copy.patch', patchLike);
+      repo.commit('copy the fixture');
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files).toEqual([
+        expect.objectContaining({
+          filename: 'src/fixture-copy.patch',
+          additions: 12,
+          deletions: 0,
+        }),
+      ]);
+    });
+
+    it('diffs a copy of its source’s lines reordered against the source, though git scores it 100', async () => {
+      const whole = lines(40, 'line');
+      const firstHalf = lines(20, 'line');
+      branchWithCopy(whole.slice(firstHalf.length) + firstHalf);
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files).toEqual([
+        expect.objectContaining({
+          status: 'copied',
+          origin: { filename: 'src/template.ts', similarity: 100, identical: false },
+        }),
+      ]);
+      expect(context.contents['src/copy.ts']?.base).toMatchObject({ kind: 'content' });
+      expect(context.hunks.some((hunk) => hunk.original.lineCount > 0)).toBe(true);
+    });
+
+    it('keeps a copy’s patch to the copy when the branch also changed its source', async () => {
+      branchWithCopy(lightEdit, lines(40, 'line').replace('line 30\n', 'line thirty\n'));
+      const { context, run } = await gatherFor({ kind: 'branch', base: 'main' });
+
+      expect(context.files.map((file) => [file.filename, file.status])).toEqual([
+        ['src/copy.ts', 'copied'],
+        ['src/template.ts', 'modified'],
+      ]);
+      const hunksOf = (name: string) =>
+        context.hunks.filter((hunk) => hunk.filename === name).map((hunk) => hunk.original);
+      expect(hunksOf('src/copy.ts')).toEqual([{ startLine: 4, lineCount: 7 }]);
+      expect(hunksOf('src/template.ts')).toEqual([{ startLine: 27, lineCount: 7 }]);
+      const diff = readFileSync(run.diff, 'utf8').split('\n');
+      expect(diff.filter((line) => line === '+line thirty')).toHaveLength(1);
+    });
+
+    it('asks findSources about the added files git left unpaired, and reviews what it pairs', async () => {
+      // Two thirds of the lines rewritten: under git's 50%, so it stays an add.
+      const rework = lines(40, 'line').replace(/^line (\d+)$/gm, (row, n: string) =>
+        Number(n) % 3 === 0 ? row : `reworked ${n}`,
+      );
+      branchWithCopy(rework);
+      repo.write('package-lock.json', '{ "lockfileVersion": 3 }\n');
+      repo.write('src/fresh.ts', 'export const fresh = 1;\n');
+      repo.commit('and two more');
+      const [base, head] = [
+        repo.git('rev-parse', 'main').trim(),
+        repo.git('rev-parse', 'HEAD').trim(),
+      ];
+      const asked: string[][] = [];
+      const { context } = await gatherFor({ kind: 'branch', base: 'main' }, runGit, {
+        findSources: async (files, unpaired) => {
+          asked.push([...unpaired]);
+          const request = { from: 'src/template.ts', to: 'src/copy.ts' };
+          return (await pairFiles(runGit, repo.work, base, head, files, [request])).files;
+        },
+      });
+
+      // The lockfile is skipped, so nobody is asked where it came from.
+      expect(asked).toEqual([['src/copy.ts', 'src/fresh.ts']]);
+      const copy = context.files.find((file) => file.filename === 'src/copy.ts');
+      expect(copy).toMatchObject({ status: 'copied', origin: { filename: 'src/template.ts' } });
+      expect(copy?.origin?.similarity).toBeLessThan(50);
+      const hunks = context.hunks.filter((hunk) => hunk.filename === 'src/copy.ts');
+      expect(hunks.length).toBeGreaterThan(0);
+      expect(hunks.every((hunk) => hunk.original.lineCount > 0)).toBe(true);
+    });
+
+    it('does not ask findSources when every added file is paired or skipped', async () => {
+      branchWithCopy(lightEdit);
+      const findSources = vi.fn<NonNullable<GatherOptions['findSources']>>();
+      await gatherFor({ kind: 'branch', base: 'main' }, runGit, { findSources });
+      expect(findSources).not.toHaveBeenCalled();
     });
   });
 

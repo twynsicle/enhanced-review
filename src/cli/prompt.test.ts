@@ -43,7 +43,7 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
         status: 'renamed',
         additions: 2,
         deletions: 2,
-        origin: { filename: 'src/old-form.ts', similarity: 83 },
+        origin: { filename: 'src/old-form.ts', similarity: 83, identical: false },
       },
       {
         filename: 'package-lock.json',
@@ -84,7 +84,7 @@ describe('the local prompt', () => {
     expect(prompt).toContain(
       '## Files Changed (2)\n  added      +10/-0  src/login.ts\n  renamed    +2/-2  src/form.ts',
     );
-    expect(prompt).toContain('  src/form.ts  (from src/old-form.ts, 83% similar)');
+    expect(prompt).toContain('  src/form.ts  (renamed from src/old-form.ts, 83% similar)');
     expect(prompt).toContain('## Not Reviewed (1)');
     expect(prompt).toContain('  package-lock.json  (lockfile, bundle or snapshot)');
     expect(prompt).toContain(
@@ -97,6 +97,26 @@ describe('the local prompt', () => {
       `except for this run’s own folder, \`${run.folder.replaceAll('\\', '/')}\``,
     );
     expect(prompt).toContain('- 2222222 Add the login form\n    With validation.');
+  });
+
+  it('says a copy is identical, since its patch shows only a new file', () => {
+    const copy = (filename: string, similarity: number, identical: boolean) => ({
+      filename,
+      status: 'copied' as const,
+      additions: 5,
+      deletions: identical ? 0 : 5,
+      origin: { filename: 'src/source.ts', similarity, identical },
+    });
+    const prompt = buildPrompt(
+      context({ files: [copy('src/same.ts', 100, true), copy('src/shuffled.ts', 100, false)] }),
+      run,
+      null,
+    );
+
+    expect(prompt).toContain(
+      '  src/same.ts  (an identical copy of src/source.ts; its patch shows it as new)',
+    );
+    expect(prompt).toContain('  src/shuffled.ts  (copied from src/source.ts, 100% similar)');
   });
 
   it('points at pr.md instead of inlining a long description', () => {

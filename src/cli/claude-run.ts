@@ -100,13 +100,7 @@ export async function runClaude(
     readFile(run.prompt, 'utf8'),
   ]);
 
-  const controller = new AbortController();
-  const unregister = onInterrupt(() => {
-    controller.abort();
-  });
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, options.timeoutMs);
+  const { controller, release } = runDeadline(options.timeoutMs);
   const started = performance.now();
   const events = createWriteStream(run.events, { flags: 'w' });
   const raw = createWriteStream(run.raw, { flags: 'w' });
@@ -189,10 +183,30 @@ export async function runClaude(
       incomplete: howItEnded(result),
     };
   } finally {
-    clearTimeout(timer);
-    unregister();
+    release();
     await Promise.all([closeStream(raw), closeStream(events)]);
   }
+}
+
+/** An abort that the deadline and an interrupt both pull; `release` it once the run is over. */
+export function runDeadline(timeoutMs: number): {
+  controller: AbortController;
+  release: () => void;
+} {
+  const controller = new AbortController();
+  const unregister = onInterrupt(() => {
+    controller.abort();
+  });
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+  return {
+    controller,
+    release: () => {
+      clearTimeout(timer);
+      unregister();
+    },
+  };
 }
 
 interface RunCallbacks {
@@ -246,7 +260,7 @@ type Permission =
   | { behavior: 'deny'; message: string };
 
 /** Read, Glob and Grep never reach this; Bash does, and only reads get through. */
-function permission(tool: string, input: Record<string, unknown>): Permission {
+export function permission(tool: string, input: Record<string, unknown>): Permission {
   if (tool !== 'Bash') {
     return { behavior: 'deny', message: `er reviews are read-only; ${tool} is not available.` };
   }
@@ -270,7 +284,7 @@ function activityLine(tool: string, detail: string): string {
  * The SDK reports a missing sign-in as an ordinary error. `er` runs as the
  * engineer, so the fix is theirs to make in their own terminal.
  */
-function withSigninHint(error: unknown): Error {
+export function withSigninHint(error: unknown): Error {
   const thrown = error instanceof Error ? error : new Error(String(error));
   if (!/not logged in|\/login|authentication|api key/i.test(thrown.message)) return thrown;
   return new Error(
@@ -287,9 +301,9 @@ function stoppedEarly(options: ClaudeRunOptions, characters: number, run: RunFil
   );
 }
 
-async function loadQuery(): Promise<QueryFn> {
+export async function loadQuery(): Promise<QueryFn> {
   // Imported here so the SDK, which starts a subprocess, is loaded only by a
-  // real run: never by --stub, by a resumed later stage, or by the tests.
+  // model run: never by --stub, by a resumed later stage, or by the tests.
   const sdk = await import('@anthropic-ai/claude-agent-sdk');
   return sdk.query;
 }

@@ -341,7 +341,7 @@ describe('<ChapterSidebar />', () => {
             status: 'renamed',
             additions: 3,
             deletions: 1,
-            origin: { filename: 'src/pages/index.tsx', similarity: 71 },
+            origin: { filename: 'src/pages/index.tsx', similarity: 71, identical: false },
             skipped: 'generated',
           },
         ]}

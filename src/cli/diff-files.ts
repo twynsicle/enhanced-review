@@ -35,8 +35,22 @@ export interface ChangedFile extends ReviewFile {
 const DIFF_PINS = ['--no-color', '--no-ext-diff', '--no-textconv'] as const;
 
 /**
- * The changed files between two commits: per-file counts, rename origins,
- * binary flags.
+ * Renames and copies are asked for rather than left to `diff.renames`, which
+ * the reviewed repository's own config can turn off; the patch the model reads
+ * pairs the same files. `--find-copies-harder` looks for a copy's source among
+ * every file at the base, not only the ones the branch touched: a new file is
+ * most often cloned from one nobody changed.
+ *
+ * `-l0` lifts git's rename limit. Past it, git drops back to copies of
+ * modified files only and says so on stderr alone, so in a large tree copy
+ * detection would stop without anyone being told. What the lift costs is paid
+ * knowingly: the comparisons grow with added files times files at the base.
+ */
+const FIND_ORIGINS = ['--find-copies', '--find-copies-harder', '-l0'] as const;
+
+/**
+ * The changed files between two commits: per-file counts, rename and copy
+ * origins, binary flags.
  *
  * Git scores a rename over the whole range, and a file that was moved in one
  * commit and rewritten in a later one — or re-indented, since whitespace
@@ -81,32 +95,66 @@ export async function listChangedFileDetails(
     signal,
   });
   const originOf = baseOrigins(parseHistory(log.stdout));
-  const candidates = added.flatMap((file) => {
+  const requests = added.flatMap((file) => {
     const from = originOf.get(file.filename);
     return from !== undefined && removed.has(from) ? [{ from, to: file.filename }] : [];
   });
+  return (await pairFiles(git, cwd, base, head, files, requests, signal)).files;
+}
 
+/** A path at the base that an added file is claimed to have come from. */
+export interface PairRequest {
+  from: string;
+  to: string;
+}
+
+/**
+ * Diffs each requested pair on its own and lists the added file as a rename
+ * or a copy of its source. Told there are only these two paths, git pairs
+ * anything with 1% in common; a pair sharing nothing at all comes back in
+ * `unpaired`, since a diff between the two would be every line out and every
+ * line in. A source the branch removed becomes a rename and leaves the list.
+ */
+export async function pairFiles(
+  git: GitRunner,
+  cwd: string,
+  base: string,
+  head: string,
+  files: readonly ChangedFile[],
+  requests: readonly PairRequest[],
+  signal?: AbortSignal,
+): Promise<{ files: ChangedFile[]; unpaired: PairRequest[] }> {
+  const range = `${base}..${head}`;
   // Halved: each pair runs its two git diffs at once.
-  const pairs = await mapLimit(candidates, PARALLEL_GIT / 2, async ({ from, to }) => {
-    // Told there are only these two paths, git pairs anything with 1% in
-    // common. A file sharing nothing at all with its old self stays unpaired:
-    // a diff between the two would be every line out and every line in.
-    const [pair, ...rest] = await changedFiles(
+  const pairs = await mapLimit(requests, PARALLEL_GIT / 2, async ({ from, to }) => {
+    // A copy's source can be listed beside it, modified on the branch.
+    const listed = await changedFiles(
       git,
       cwd,
-      ['--find-renames=1%', range, '--', from, to],
+      ['--find-copies=1%', range, '--', from, to],
       signal,
     );
-    return pair?.status === 'renamed' && rest.length === 0 ? pair : null;
+    return listed.find((f) => f.filename === to && f.origin?.filename === from) ?? null;
   });
   const pairedTo = new Map<string, ChangedFile>();
   const consumed = new Set<string>();
-  for (const pair of pairs) {
-    if (!pair?.origin) continue;
+  const unpaired: PairRequest[] = [];
+  pairs.forEach((pair, index) => {
+    if (!pair?.origin) {
+      unpaired.push(requests[index]!);
+      return;
+    }
     pairedTo.set(pair.filename, pair);
+    if (pair.status !== 'renamed') return;
+    if (consumed.has(pair.origin.filename)) {
+      throw new Error(`two files were paired as renames of ${pair.origin.filename}`);
+    }
     consumed.add(pair.origin.filename);
-  }
-  return files.flatMap((f) => (consumed.has(f.filename) ? [] : [pairedTo.get(f.filename) ?? f]));
+  });
+  return {
+    files: files.flatMap((f) => (consumed.has(f.filename) ? [] : [pairedTo.get(f.filename) ?? f])),
+    unpaired,
+  };
 }
 
 /** numstat joined to name-status for one `git diff` (the range, or a pair of paths within it). */
@@ -116,12 +164,9 @@ async function changedFiles(
   args: readonly string[],
   signal?: AbortSignal,
 ): Promise<ChangedFile[]> {
-  // Renames are asked for rather than left to `diff.renames`, which the
-  // reviewed repository's own config can turn off; the patch the model reads
-  // asks for them too, and the two must pair the same files.
   const diff = (kind: '--numstat' | '--name-status') =>
     runGitOrThrow(git, `diff ${kind}`, {
-      args: ['--literal-pathspecs', 'diff', kind, '-z', '--find-renames', ...DIFF_PINS, ...args],
+      args: ['--literal-pathspecs', 'diff', kind, '-z', ...FIND_ORIGINS, ...DIFF_PINS, ...args],
       cwd,
       signal,
     });
@@ -225,11 +270,18 @@ export function parseChangedFiles(numstatZ: string, nameStatusZ: string): Change
     const pathAt = renamed ? i + 2 : i + 1;
     if (pathAt >= statusFields.length) throw new TruncatedGitOutputError('diff --name-status');
     const filename = statusFields[pathAt];
-    const origin: ReviewFileOrigin | null = renamed
-      ? { filename: statusFields[i + 1], similarity: similarity(statusFields[i]) }
-      : null;
     if (renamed) i += 1;
-    const c = counts.get(filename) ?? { additions: 0, deletions: 0, binary: false };
+    const counted = counts.get(filename);
+    const c = counted ?? { additions: 0, deletions: 0, binary: false };
+    // No line in or out of a text file: the same content, whatever the score.
+    // A file numstat did not report has no counts to say so.
+    const origin: ReviewFileOrigin | null = renamed
+      ? {
+          filename: statusFields[i],
+          similarity: similarity(statusFields[i - 1]),
+          identical: counted !== undefined && !c.binary && c.additions === 0 && c.deletions === 0,
+        }
+      : null;
     files.push({
       filename,
       status: STATUS_MAP[code] ?? 'modified',
