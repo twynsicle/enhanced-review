@@ -53,11 +53,12 @@ src/cli/
                    mid-record throws rather than yielding a short list
   copy-sources.ts  --find-copy-sources: a Haiku run inside gather, from the repository root with only the Bash gate
                    (both sides read with `git show <sha>:<path>`), naming the file each unpaired, reviewed added
-                   file was built from → pairFiles; an unreadable answer, a file it was not asked about or a
-                   source that was not a file at the base fails gather, quoting the answer (the failed gather
-                   takes the run folder), a pair git finds nothing in common in is a warning and stays new; `./`
-                   and `\` in its paths are forgiven; turns and time grow with the files asked about; its
-                   answer in copy-sources.txt
+                   file was built from → pairFiles; a missing or malformed `<copy_sources>` block is redone by a
+                   Stop hook (copySourceStopHook, MAX_COPY_SOURCE_RETRIES) before it costs the run; a file it was
+                   not asked about or a source that was not a file at the base still fails gather, quoting the
+                   answer (the failed gather takes the run folder), a pair git finds nothing in common in is a
+                   warning and stays new; `./` and `\` in its paths are forgiven; turns and time grow with the
+                   files asked about; its answer in copy-sources.txt
   skip-reasons.ts  why each changed file is left out: the built-in list, then the reviewed repository's own
                    `.gitattributes` (`git check-attr` at the head commit, which resolves a nested
                    `.gitattributes` for the paths beneath it), then binary; toReviewFiles stamps the reasons on

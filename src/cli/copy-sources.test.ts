@@ -1,3 +1,4 @@
+import type { HookInput } from '@anthropic-ai/claude-agent-sdk';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -8,6 +9,7 @@ import {
   checkCopySources,
   COPY_SOURCE_MODEL,
   copySourceLimits,
+  copySourceStopHook,
   findCopySources,
   parseCopySources,
 } from './copy-sources.ts';
@@ -128,6 +130,93 @@ describe('checkCopySources', () => {
     expect(check({ from: 'was.ts', to: 'new.ts' })).toThrow('renamed on the branch');
     expect(check({ from: 'gone.ts', to: 'new.ts' }, { from: 'gone.ts', to: 'other.ts' })).toThrow(
       'source of two files',
+    );
+  });
+});
+
+describe('copySourceStopHook', () => {
+  const STOP = {
+    hook_event_name: 'Stop',
+    stop_hook_active: false,
+    session_id: 's',
+    transcript_path: 't',
+    cwd: '.',
+  } as HookInput;
+
+  function harness(texts: string[], maxRetries = 2, unpaired: string[] = ['src/b.ts']) {
+    let at = 0;
+    const onBlock = vi.fn<(attempt: number, reason: string, defect: string) => void>();
+    const onError = vi.fn<(error: Error) => void>();
+    const matcher = copySourceStopHook({
+      maxRetries,
+      unpaired,
+      text: () => texts[Math.min(at, texts.length - 1)] ?? '',
+      onBlock,
+      onError,
+    });
+    const stop = async (): Promise<{ decision?: string; reason?: string; continue?: boolean }> => {
+      const out = (await matcher.hooks[0]!(STOP, undefined, {
+        signal: new AbortController().signal,
+      })) as { decision?: string; reason?: string; continue?: boolean };
+      at += 1;
+      return out;
+    };
+    return { stop, onBlock, onError };
+  }
+
+  it('lets a complete answer stop', async () => {
+    const { stop, onBlock } = harness([answer([{ file: 'src/b.ts', source: 'src/a.ts' }])]);
+    await expect(stop()).resolves.toEqual({ continue: true });
+    expect(onBlock).not.toHaveBeenCalled();
+  });
+
+  it('refuses an answer with no block and asks for it again, without naming the tag', async () => {
+    const { stop, onBlock } = harness(['<analysis>...</analysis>\n<summary>{}</summary>']);
+    const out = await stop();
+    expect(out.decision).toBe('block');
+    expect(out.reason).toContain('no <copy_sources> block');
+    expect(out.reason).not.toContain('</copy_sources>');
+    expect(onBlock).toHaveBeenCalledWith(
+      1,
+      out.reason,
+      expect.stringContaining('no <copy_sources> block'),
+    );
+  });
+
+  it('refuses a source named for a file it was not asked about', async () => {
+    const { stop, onBlock } = harness([answer([{ file: 'src/other.ts', source: 'src/a.ts' }])]);
+    const out = await stop();
+    expect(out.decision).toBe('block');
+    expect(out.reason).toContain('not asked about');
+    expect(onBlock).toHaveBeenCalledWith(1, out.reason, expect.stringContaining('not asked about'));
+  });
+
+  it('stops refusing once the budget is spent', async () => {
+    const bad = 'none of them';
+    const { stop, onBlock } = harness([bad, bad, bad], 2);
+    for (let i = 0; i < 2; i += 1) expect((await stop()).decision).toBe('block');
+    await expect(stop()).resolves.toEqual({ continue: true });
+    expect(onBlock).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows the stop and reports when the hook itself throws', async () => {
+    const onBlock = vi.fn();
+    const onError = vi.fn<(error: Error) => void>();
+    const matcher = copySourceStopHook({
+      maxRetries: 2,
+      unpaired: ['src/b.ts'],
+      text: () => {
+        throw new Error('the transcript went missing');
+      },
+      onBlock,
+      onError,
+    });
+    await expect(
+      matcher.hooks[0]!(STOP, undefined, { signal: new AbortController().signal }),
+    ).resolves.toEqual({ continue: true });
+    expect(onBlock).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'the transcript went missing' }),
     );
   });
 });
