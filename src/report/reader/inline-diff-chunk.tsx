@@ -495,6 +495,9 @@ function SnippetEditor({
        */
       renderIndicators: false,
       lineDecorationsWidth: 6,
+      // Monaco ignores this in the unified view, and a move is only found when
+      // both ends sit inside the same snippet or the full file is shown.
+      experimental: { showMoves: true },
     }),
     [expanded, view],
   );
