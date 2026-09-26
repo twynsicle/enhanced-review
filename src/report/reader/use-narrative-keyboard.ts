@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { SUMMARY_SECTION_ID } from '@/review/narrative';
 import { sectionHeadingId, type ReaderSection } from '@/report/reader/sections';
 
 const FOCUS_RETRY_FRAMES = 30;
@@ -98,12 +99,8 @@ export function useNarrativeKeyboard({
       if (e.key === ' ' && ownsSpace(e.target)) return;
 
       if (e.key === 'ArrowRight' || (e.key === ' ' && !e.shiftKey)) {
-        /*
-         * Both ends are walls. The summary used to sit after the last chapter
-         * in this cycle while sitting first in the sidebar, which left `→`
-         * from the summary doing nothing at all — a dead key on the section
-         * the reader opens on.
-         */
+        // Both ends are walls, and still claim the key so Space and the
+        // arrows do not fall through to scrolling the page.
         if (activeIndex >= 0 && activeIndex < sections.length - 1) goTo(e, activeIndex + 1);
         else e.preventDefault();
         return;
@@ -118,7 +115,7 @@ export function useNarrativeKeyboard({
       if (e.key === 'Home') {
         goTo(
           e,
-          sections.findIndex((section) => section.kind === 'summary'),
+          sections.findIndex((section) => section.id === SUMMARY_SECTION_ID),
         );
         return;
       }

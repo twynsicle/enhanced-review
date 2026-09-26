@@ -6,11 +6,9 @@ import { RISK_SECTION_ID, SUMMARY_SECTION_ID, type NarrativeReview } from '@/rev
  * then the chapters — top to bottom in the sidebar, since the risk card sits
  * above the summary and chapter rows there.
  *
- * The reader used to be modelled as "chapters, plus a special case called the
- * summary": the sidebar hardcoded a `00 Summary` row and the keyboard hook
- * carried an `isSummary` branch through every binding. That held for one
- * synthesised section and fell over at two. One ordered list, derived here,
- * is what both consume instead.
+ * Summary and risk are sections like any chapter rather than special cases
+ * beside the chapters, so the sidebar and the keyboard read one list and
+ * cannot disagree about the order.
  */
 export type SectionKind = 'summary' | 'risk' | 'chapter';
 

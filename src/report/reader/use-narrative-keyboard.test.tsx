@@ -82,7 +82,7 @@ describe('useNarrativeKeyboard', () => {
 
   it('ArrowRight on the summary reaches the first chapter even with a risk section', () => {
     // Risk sits ahead of the summary in this cycle, matching the sidebar,
-    // where its card sits above the summary row — not behind it.
+    // where its card sits above the summary row.
     render(<Harness activeId={SUMMARY_SECTION_ID} onSelect={onSelect} list={withRisk} />);
     fireEvent.keyDown(document, { key: 'ArrowRight' });
     expect(onSelect).toHaveBeenCalledWith('ch1');
