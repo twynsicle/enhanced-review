@@ -6,9 +6,8 @@ import { RISK_SECTION_ID, SUMMARY_SECTION_ID, type NarrativeReview } from '@/rev
  * then the chapters — top to bottom in the sidebar, since the risk card sits
  * above the summary and chapter rows there.
  *
- * Summary and risk are sections like any chapter rather than special cases
- * beside the chapters, so the sidebar and the keyboard read one list and
- * cannot disagree about the order.
+ * The sidebar and the keyboard both read this one list rather than each
+ * deriving an order of its own, so they cannot disagree about it.
  */
 export type SectionKind = 'summary' | 'risk' | 'chapter';
 
