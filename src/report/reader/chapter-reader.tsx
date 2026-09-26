@@ -208,7 +208,10 @@ export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderPr
 
   // One lookup, then one switch: the section list already knows which kind of
   // card each id wants, so the render site never re-derives that from the id.
-  const activeSection = findSection(sections, activeId) ?? sections[0]!;
+  // Falls back to the summary, not sections[0] — risk sits ahead of it in the
+  // list when there is an assessment.
+  const activeSection =
+    findSection(sections, activeId) ?? findSection(sections, SUMMARY_SECTION_ID)!;
   const activeIndex = review.chapters.findIndex((ch) => ch.id === activeId) + 1;
 
   return (

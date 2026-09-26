@@ -33,8 +33,8 @@ src/report/
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
                      belongs to the file; each change is a history entry),
-                     sections.ts (readerSections: the one ordered list of sections — summary, risk when there is an
-                     assessment, then the chapters — that the sidebar renders and the keyboard walks),
+                     sections.ts (readerSections: the one ordered list of sections — risk when there is an
+                     assessment, the summary, then the chapters — that the sidebar renders and the keyboard walks),
                      chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, a row carrying
                      a diagram is marked, a skipped file is dimmed, a file the chapters left out carries ○ (none of
                      its hunks cited) or ◐ (some) beside its stats with the reason in its title and hidden text,
@@ -100,7 +100,8 @@ src/report/
 ```
 
 The build (`vite.config.ts`) inlines JS, CSS and fonts into
-`build/report/shell.html` and writes `shell.stamp` beside it, a hash of the
+`build/report/shell.html`, puts `chrome/brand-mark.svg` in its head as a
+data-URI favicon, and writes `shell.stamp` beside it, a hash of the
 report's sources that `er` checks before each render and rebuilds on when it
 differs (`src/cli/shell-stamp.ts`). `report:dev` serves the same page with the
 bundle injected by a dev-server plugin.

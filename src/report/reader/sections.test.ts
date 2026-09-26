@@ -26,15 +26,15 @@ describe('readerSections', () => {
     ]);
   });
 
-  it('adds risk only when the review has an assessment', () => {
+  it('adds risk, ahead of the summary, only when the review has an assessment', () => {
     const assessed = sectionsOf(
       review({
         riskAssessment: { score: 3, summary: 'Moderate', rationale: '', factors: [] },
       }),
     );
     expect(assessed.map((section) => section.id)).toEqual([
-      SUMMARY_SECTION_ID,
       RISK_SECTION_ID,
+      SUMMARY_SECTION_ID,
       'ch1',
       'ch2',
     ]);

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { SUMMARY_SECTION_ID } from '@/review/narrative';
 import { sectionHeadingId, type ReaderSection } from '@/report/reader/sections';
 
 const FOCUS_RETRY_FRAMES = 30;
@@ -36,18 +37,19 @@ function ownsSpace(target: EventTarget | null): boolean {
 
 /**
  * Keyboard navigation for the chapter reader. `onSelect` drives the URL
- * state a layer up. Bindings walk `sections` — the summary, risk where there
- * is an assessment, then the chapters — in the order the sidebar lists them:
+ * state a layer up. Bindings walk `sections` — risk where there is an
+ * assessment, then the summary, then the chapters — in the order the sidebar
+ * lists them:
  *
  *   - `→` / Space     → next section
  *   - `←` / Shift+Spc → previous section
- *   - `Home`          → first section (the summary)
+ *   - `Home`          → the summary, the section the reader opens on
  *   - `End`           → last section
  *   - `1`–`9`         → chapter at that number
  *
- * Home and End are the ends of that one list, nothing cleverer: pointing Home
- * at the first chapter instead would put the summary at both ends of the
- * reader at once, first in the sidebar and last in the arrow cycle.
+ * Home targets the summary by id rather than index 0: risk, when there is
+ * one, sits ahead of it in the arrow-key cycle to match the sidebar, so the
+ * list's first entry is risk, not the section Home is for.
  *
  * The Space bindings step aside when focus is on a button, link or other
  * control that activates on Space; the arrow keys otherwise keep working from
@@ -97,12 +99,8 @@ export function useNarrativeKeyboard({
       if (e.key === ' ' && ownsSpace(e.target)) return;
 
       if (e.key === 'ArrowRight' || (e.key === ' ' && !e.shiftKey)) {
-        /*
-         * Both ends are walls. The summary used to sit after the last chapter
-         * in this cycle while sitting first in the sidebar, which left `→`
-         * from the summary doing nothing at all — a dead key on the section
-         * the reader opens on.
-         */
+        // Both ends are walls, and still claim the key so Space and the
+        // arrows do not fall through to scrolling the page.
         if (activeIndex >= 0 && activeIndex < sections.length - 1) goTo(e, activeIndex + 1);
         else e.preventDefault();
         return;
@@ -115,7 +113,10 @@ export function useNarrativeKeyboard({
       }
 
       if (e.key === 'Home') {
-        goTo(e, 0);
+        goTo(
+          e,
+          sections.findIndex((section) => section.id === SUMMARY_SECTION_ID),
+        );
         return;
       }
 
