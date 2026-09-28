@@ -19,6 +19,8 @@ export interface RunFiles {
   diff: string;
   /** The PR description, when there is one. */
   pr: string;
+  /** What `--find-copy-sources` asked the model, answered. */
+  copySources: string;
   system: string;
   prompt: string;
   raw: string;
@@ -36,6 +38,7 @@ export function runFiles(folder: string): RunFiles {
     context: path.join(folder, 'context.json'),
     diff: path.join(folder, 'context', 'diff.patch'),
     pr: path.join(folder, 'context', 'pr.md'),
+    copySources: path.join(folder, 'copy-sources.txt'),
     system: path.join(folder, 'system.md'),
     prompt: path.join(folder, 'prompt.md'),
     raw: path.join(folder, 'raw.txt'),

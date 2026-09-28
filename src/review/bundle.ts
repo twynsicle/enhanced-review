@@ -12,7 +12,7 @@ import { ReviewMetaSchema } from './review-meta.ts';
  * `BUNDLE_SCHEMA_VERSION` on any breaking change and the reader asks for the
  * review to be regenerated instead of guessing at an old shape.
  */
-export const BUNDLE_SCHEMA_VERSION = 2;
+export const BUNDLE_SCHEMA_VERSION = 3;
 
 /** One side of a file: its content, absent (added or deleted on that side), or too large to embed. */
 export const EmbeddedSideSchema = z.discriminatedUnion('kind', [

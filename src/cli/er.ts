@@ -33,6 +33,8 @@ Options:
   --no-open            write the report without opening it
   --keep-worktree      leave a PR review's temporary worktree in place
   --allow-large        run the model on a change past the size er otherwise refuses
+  --find-copy-sources  ask a model which existing file each new file was copied from, when git
+                       cannot tell, and show it as a diff against that file
   -h, --help           show this help
   -v, --version        show the version`;
 
@@ -69,6 +71,7 @@ async function main(argv: string[]): Promise<number> {
       'no-open': { type: 'boolean' },
       'keep-worktree': { type: 'boolean' },
       'allow-large': { type: 'boolean' },
+      'find-copy-sources': { type: 'boolean' },
       instructions: { type: 'string' },
       'instructions-file': { type: 'string' },
     },
@@ -86,6 +89,11 @@ async function main(argv: string[]): Promise<number> {
   const from = resumeStage(values.from);
   if (values['allow-large'] && (values.stub || !reaches(from, 'run'))) {
     throw new UsageError('--allow-large applies only to a run of the model');
+  }
+  if (values['find-copy-sources'] && (values.stub || from !== null)) {
+    throw new UsageError(
+      '--find-copy-sources runs a model while gathering, so it cannot take --stub or --from',
+    );
   }
   let instructions;
   try {
@@ -110,6 +118,7 @@ async function main(argv: string[]): Promise<number> {
     keepWorktree: values['keep-worktree'] ?? false,
     allowLarge: values['allow-large'] ?? false,
     instructions,
+    findCopySources: values['find-copy-sources'] ?? false,
   });
 }
 

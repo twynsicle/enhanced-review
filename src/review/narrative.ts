@@ -127,10 +127,14 @@ export type ReviewFileSkipReason = z.infer<typeof ReviewFileSkipReasonSchema>;
 /**
  * Where a renamed or copied file came from, and git's similarity index for
  * the pair: the percentage of the old content that survives in the new.
+ *
+ * `identical` is its own fact rather than a similarity of 100, which git also
+ * gives a file whose lines all survive in a different order.
  */
 export const ReviewFileOriginSchema = z.object({
   filename: z.string(),
   similarity: z.number().int().min(0).max(100),
+  identical: z.boolean(),
 });
 export type ReviewFileOrigin = z.infer<typeof ReviewFileOriginSchema>;
 
