@@ -198,6 +198,22 @@ describe('branch target', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it('names the remote-tracking ref when --base was only ever fetched, not checked out', async () => {
+    repo.git('checkout', '--quiet', '-b', 'phil/feature');
+    repo.write('src/feature.ts', 'export const feature = 1;\n');
+    repo.commit('feature work');
+    repo.git('push', '--quiet', 'origin', 'phil/feature');
+    repo.git('checkout', '--quiet', 'main');
+    repo.git('branch', '-D', 'phil/feature');
+    repo.git('fetch', '--quiet', 'origin', 'phil/feature');
+
+    await expect(
+      resolveTarget({ kind: 'branch', base: 'phil/feature' }, shell().shell, { warn }),
+    ).rejects.toThrow(
+      'unknown base: phil/feature (did you mean --base origin/phil/feature? a fetch only updates the remote-tracking ref, not a local branch of that name)',
+    );
+  });
+
   it('warns and uses the local copy when origin cannot be reached', async () => {
     branchWithMovedMain();
     repo.git('remote', 'set-head', 'origin', 'main');

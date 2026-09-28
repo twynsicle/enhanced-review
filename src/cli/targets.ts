@@ -309,6 +309,25 @@ async function revParse(
 }
 
 /**
+ * `git fetch` only ever updates the remote-tracking ref, never a local
+ * branch of the same name, so a `--base` that names a branch someone just
+ * fetched (rather than checked out) fails here unless it is spelled
+ * `origin/<branch>`. Naming that in the error saves a trip to work it out.
+ */
+async function resolveBaseTip(shell: Shell, baseLabel: string): Promise<string> {
+  const result = await shell.tryGit(['rev-parse', '--verify', '--quiet', `${baseLabel}^{commit}`]);
+  if (result.exitCode === 0) return result.stdout.trim();
+  const remote = `origin/${baseLabel}`;
+  const viaOrigin = await shell.tryGit(['rev-parse', '--verify', '--quiet', `${remote}^{commit}`]);
+  if (viaOrigin.exitCode === 0) {
+    throw new Error(
+      `unknown base: ${baseLabel} (did you mean --base ${remote}? a fetch only updates the remote-tracking ref, not a local branch of that name)`,
+    );
+  }
+  throw new Error(`unknown base: ${baseLabel}`);
+}
+
+/**
  * Where head left the base. A plain merge-base is wrong once the base has been
  * rewritten since head forked from it (a rebased stacked branch): the old base
  * commits head still carries are no longer the base's, so the merge-base falls
@@ -331,7 +350,7 @@ async function forkPoint(
   baseLabel: string,
   warn: (text: string) => void,
 ): Promise<string> {
-  const baseTip = await revParse(shell, baseLabel, 'base');
+  const baseTip = await resolveBaseTip(shell, baseLabel);
   const result = await shell.tryGit(['merge-base', headSha, baseTip]);
   if (result.exitCode !== 0) throw new Error(`no common history with ${baseLabel}`);
   const mergeBase = result.stdout.trim();
