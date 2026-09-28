@@ -214,6 +214,13 @@ describe('branch target', () => {
     );
   });
 
+  it('offers no remote-tracking ref when origin has none either', async () => {
+    branchWithMovedMain();
+    await expect(
+      resolveTarget({ kind: 'branch', base: 'no/such-branch' }, shell().shell, { warn }),
+    ).rejects.toThrow(/^unknown base: no\/such-branch$/);
+  });
+
   it('warns and uses the local copy when origin cannot be reached', async () => {
     branchWithMovedMain();
     repo.git('remote', 'set-head', 'origin', 'main');

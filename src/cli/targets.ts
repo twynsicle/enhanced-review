@@ -303,23 +303,27 @@ async function revParse(
   what: string,
   missing = `unknown ${what}: ${rev}`,
 ): Promise<string> {
+  const sha = await tryRevParse(shell, rev);
+  if (sha === null) throw new Error(missing);
+  return sha;
+}
+
+async function tryRevParse(shell: Shell, rev: string): Promise<string | null> {
   const result = await shell.tryGit(['rev-parse', '--verify', '--quiet', `${rev}^{commit}`]);
-  if (result.exitCode !== 0) throw new Error(missing);
-  return result.stdout.trim();
+  return result.exitCode === 0 ? result.stdout.trim() : null;
 }
 
 /**
  * `git fetch` only ever updates the remote-tracking ref, never a local
- * branch of the same name, so a `--base` that names a branch someone just
- * fetched (rather than checked out) fails here unless it is spelled
+ * branch of the same name, so a `--base` naming a branch that was fetched
+ * rather than checked out does not resolve unless it is spelled
  * `origin/<branch>`. Naming that in the error saves a trip to work it out.
  */
 async function resolveBaseTip(shell: Shell, baseLabel: string): Promise<string> {
-  const result = await shell.tryGit(['rev-parse', '--verify', '--quiet', `${baseLabel}^{commit}`]);
-  if (result.exitCode === 0) return result.stdout.trim();
+  const sha = await tryRevParse(shell, baseLabel);
+  if (sha !== null) return sha;
   const remote = `origin/${baseLabel}`;
-  const viaOrigin = await shell.tryGit(['rev-parse', '--verify', '--quiet', `${remote}^{commit}`]);
-  if (viaOrigin.exitCode === 0) {
+  if ((await tryRevParse(shell, remote)) !== null) {
     throw new Error(
       `unknown base: ${baseLabel} (did you mean --base ${remote}? a fetch only updates the remote-tracking ref, not a local branch of that name)`,
     );
