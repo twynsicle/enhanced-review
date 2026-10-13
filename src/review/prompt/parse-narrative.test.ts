@@ -688,7 +688,7 @@ describe('what a repair records', () => {
     ]);
   });
 
-  it('keeps a model id that a synthesised one would have taken, and synthesises around it', () => {
+  it('keeps every model id a synthesised one would have taken, and synthesises around it', () => {
     const result = parse(
       [
         { title: 'A', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
@@ -699,16 +699,36 @@ describe('what a repair records', () => {
       { readingPlan: { brief: ['chapter-1'], standard: ['chapter-1'] } },
     );
     expect(result.ok && result.data.chapters.map((c) => c.id)).toEqual([
+      'chapter-1-2',
       'chapter-1',
-      'chapter-2',
       'chapter-4',
       'chapter-4-2',
     ]);
     expect(codes(result).filter((code) => code.startsWith('chapter-id'))).toEqual([
       'chapter-id-synthesised',
-      'chapter-id-duplicate',
       'chapter-id-synthesised',
     ]);
+    expect(result.ok && result.data.readingPlan?.brief).toEqual(['chapter-1']);
+  });
+
+  it('never gives a made-up id to a chapter whose own id a later chapter holds', () => {
+    const result = parse(
+      [
+        { title: 'A', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+        { id: 'x', title: 'B', insights: [], diffChunks: [cite('src/a.ts', ['H0002'])] },
+        { id: 'chapter-1', title: 'C', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+        { id: 'chapter-3', title: 'D', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+      ],
+      { readingPlan: { brief: ['chapter-3'], standard: ['chapter-3'] } },
+    );
+    expect(result.ok && result.data.chapters.map((c) => [c.id, c.title])).toEqual([
+      ['chapter-1-2', 'A'],
+      ['x', 'B'],
+      ['chapter-1', 'C'],
+      ['chapter-3', 'D'],
+    ]);
+    expect(codes(result)).not.toContain('chapter-id-duplicate');
+    expect(result.ok && result.data.readingPlan?.brief).toEqual(['chapter-3']);
   });
 
   it('notes prose that arrived as a bare string, and prose that arrived with no lede', () => {

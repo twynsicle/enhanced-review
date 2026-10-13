@@ -115,11 +115,12 @@ src/review/
                      against the last opening tag paired with the last closing tag after it;
                      a failed JSON.parse is
                      retried once with escapeStrayQuotes, which escapes a quote the model left unescaped inside a string;
-                     a chapter id is unique once sanitised — a missing one becomes `chapter-<n>` (a note), and one
-                     an earlier chapter, a synthesised id or a reader section (SUMMARY_SECTION_ID,
-                     RISK_SECTION_ID) already holds is replaced the same way, in a `chapter-id-duplicate`
-                     warning, the first holder keeping it, since the plan, the sidebar, progress and Next all key
-                     on it;
+                     a chapter id is unique once sanitised (chapterIds) — every id the model gave is reserved
+                     first, so a made-up one never takes a later chapter's; a missing one becomes the first free
+                     `chapter-<n>` or `chapter-<n>-<k>` (a note), and a real repeat, of an earlier chapter's id or
+                     a reader section's (SUMMARY_SECTION_ID, RISK_SECTION_ID), is replaced the same way, in a
+                     `chapter-id-duplicate` warning, the first holder keeping it, since the plan, the sidebar,
+                     progress and Next all key on it;
                      fails the whole review — never silently drops or keeps a chapter — when a chapter ends up with no
                      diffChunks after hunk-id resolution and the prompt showed at least one hunk to cite, since prose
                      with nothing to show for it is a generation defect, not a valid review; a diff with nothing

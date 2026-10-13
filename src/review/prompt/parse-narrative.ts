@@ -776,39 +776,56 @@ function freshChapterId(n: string, taken: ReadonlySet<string>): string {
 }
 
 /**
- * `taken` holds the ids already given, starting with the reader's own
- * section ids; the chapter's id is added to it.
+ * Each chapter's id, unique, since the reading plan, the sidebar, reading
+ * progress and the footer's Next all key on it and a repeat would make two
+ * chapters one. Every id the model gave is reserved before any is made up,
+ * so a synthesised `chapter-<n>` never takes one a later chapter named; only
+ * a real repeat, of an earlier chapter's id or a reader section's, is
+ * replaced, the first holder keeping it.
  */
+function chapterIds(raw: readonly unknown[], log: FindingLog): string[] {
+  const given = raw.map((chapter) =>
+    isRecord(chapter) && typeof chapter['id'] === 'string' && chapter['id'].length > 0
+      ? chapter['id']
+      : null,
+  );
+  const taken = new Set([SUMMARY_SECTION_ID, RISK_SECTION_ID]);
+  const kept = given.map((id) => {
+    if (id === null || taken.has(id)) return null;
+    taken.add(id);
+    return id;
+  });
+  return kept.map((id, index) => {
+    if (id !== null) return id;
+    const n = String(index + 1);
+    const fresh = freshChapterId(n, taken);
+    taken.add(fresh);
+    const repeated = given[index] ?? null;
+    if (repeated === null) {
+      log.add('chapter-id-synthesised', `Chapter ${n} arrived with no id and was given ${fresh}.`, {
+        chapterId: fresh,
+      });
+    } else {
+      log.add(
+        'chapter-id-duplicate',
+        `Chapter ${n}'s id ${repeated} was already taken, so it was given ${fresh}; the reading plan's ${repeated} means the first.`,
+        { chapterId: fresh },
+      );
+    }
+    return fresh;
+  });
+}
+
 function sanitizeChapter(
   raw: Rec,
   index: number,
+  id: string,
   grounding: PromptGrounding | undefined,
   log: FindingLog,
   repairs: TierRepairs,
   excerptDrops: ExcerptDrop[],
-  taken: Set<string>,
 ): SanitizedChapter {
   const n = String(index + 1);
-  const given = typeof raw['id'] === 'string' && raw['id'].length > 0 ? raw['id'] : null;
-  let id: string;
-  if (given === null) {
-    id = freshChapterId(n, taken);
-    log.add('chapter-id-synthesised', `Chapter ${n} arrived with no id and was given ${id}.`, {
-      chapterId: id,
-    });
-  } else if (taken.has(given)) {
-    // The reading plan, the sidebar, reading progress and the footer's Next
-    // all key on a chapter's id, so a repeat would make two chapters one.
-    id = freshChapterId(n, taken);
-    log.add(
-      'chapter-id-duplicate',
-      `Chapter ${n}'s id ${given} was already taken, so it was given ${id}; the reading plan's ${given} means the first.`,
-      { chapterId: id },
-    );
-  } else {
-    id = given;
-  }
-  taken.add(id);
   let title: string;
   if (typeof raw['title'] === 'string' && raw['title'].length > 0) {
     title = raw['title'];
@@ -1088,16 +1105,16 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     reasonDropped: new Set(),
   };
   const excerptDrops: ExcerptDrop[] = [];
-  const takenIds = new Set([SUMMARY_SECTION_ID, RISK_SECTION_ID]);
+  const ids = chapterIds(parsed['chapters'], log);
   const chapters = parsed['chapters'].map((chapter, index) =>
     sanitizeChapter(
       isRecord(chapter) ? chapter : {},
       index,
+      ids[index]!,
       grounding,
       log,
       repairs,
       excerptDrops,
-      takenIds,
     ),
   );
   reportTierRepairs(repairs, log);
