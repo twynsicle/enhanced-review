@@ -93,6 +93,30 @@ describe('the run log', () => {
     expect(h.last()).toContain('writing chapter 2: Bash gate');
   });
 
+  it('does not take a diagram’s title for a chapter’s', () => {
+    const h = harness();
+    const progress = startProgress(h.deps);
+
+    progress.text(
+      '{"overviewDiagram":{"id":"map","title":"Where it attaches","caption":"..."},' +
+        '"chapters":[{"id":"core","title":"Core","diagram": {"id":"flow","title":"The flow"},' +
+        '"insights":[]},{"id":"wiring","title":"Wiring","insights":[]}]}',
+    );
+    expect(h.lines.filter((line) => line.includes('writing chapter'))).toEqual([
+      expect.stringContaining('writing chapter 1: Core'),
+      expect.stringContaining('writing chapter 2: Wiring'),
+    ]);
+  });
+
+  it('counts a diagram whose key arrived in an earlier block as a diagram', () => {
+    const h = harness();
+    const progress = startProgress(h.deps);
+
+    progress.text('{"chapters":[{"id":"core","title":"Core","diagram":');
+    progress.text(' {"id":"flow","title":"The flow"},"insights":[]}]}');
+    expect(h.lines.filter((line) => line.includes('writing chapter'))).toHaveLength(1);
+  });
+
   it('finds a chapter that straddles a block after two arrived in one', () => {
     const h = harness();
     const progress = startProgress(h.deps);
