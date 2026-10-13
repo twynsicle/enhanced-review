@@ -64,7 +64,9 @@ src/report/
                      in the chapter's estimate, "~3 min"; the eyebrow shares its row with the Ask button; the
                      chapter's excerpts of unchanged code come after its diffs under "Unchanged code it affects",
                      and are not counted as files touched),
-                     ask-claude-code (AskClaudeCode: the quiet icon button, "Copy a prompt for Claude Code", on
+                     ask-claude-code (AskClaudeCode: the quiet icon button, "Copy a prompt for Claude Code", wearing
+                     Clawd — Claude Code's mascot as its start-up banner draws it, an inline SVG in currentColor, since
+                     the icon set has no mark for it — on
                      every chapter's header and nowhere else — the clipboard API, then a hidden-textarea
                      execCommand copy, and when both fail the prompt in a read-only block, focused and selected,
                      to copy by hand; what happened is said beside the button in a polite live region, a

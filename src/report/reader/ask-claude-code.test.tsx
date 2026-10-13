@@ -88,6 +88,13 @@ describe('the Ask Claude Code button', () => {
     expect(button()).toHaveAccessibleName('Copy a prompt for Claude Code');
   });
 
+  it('wears Clawd, so it reads as Claude Code’s at a glance, hidden from assistive tech', () => {
+    renderChapter(first);
+    const icon = button().querySelector('svg[data-icon="clawd"]');
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute('aria-hidden');
+  });
+
   it('copies the chapter’s prompt through the clipboard API and confirms it politely', async () => {
     const writeText = stubClipboard(() => Promise.resolve());
     const execCommand = stubExecCommand(true);

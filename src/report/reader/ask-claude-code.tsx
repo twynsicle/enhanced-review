@@ -1,5 +1,4 @@
 import { ActionIcon, Group, Stack, Text, Textarea, Tooltip } from '@mantine/core';
-import { IconTerminal2 } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { token } from '@/report/theme/tokens';
 
@@ -9,6 +8,29 @@ const MANUAL_MAX_ROWS = 16;
 
 /** How long the confirmation stays beside the button. */
 export const CONFIRMATION_MS = 4000;
+
+/**
+ * Clawd, Claude Code's mascot, as its terminal draws it at start-up: a block
+ * body with two slit eyes, arms out to the sides and four legs. Each unit is
+ * one quarter of a terminal cell, half as wide as it is tall, which is what
+ * the 16 × 10 box keeps. The icon set has no mark for Claude Code, and a
+ * generic one says nothing about where the prompt is meant to go.
+ */
+function ClawdIcon() {
+  return (
+    <svg
+      width={16}
+      height={10}
+      viewBox="0 0 16 10"
+      fill="currentColor"
+      shapeRendering="crispEdges"
+      aria-hidden
+      data-icon="clawd"
+    >
+      <path d="M2 0h12v2H2zM2 2h2v2H2zM5 2h6v2H5zM12 2h2v2h-2zM0 4h16v2H0zM2 6h12v2H2zM3 8h1v2H3zM5 8h1v2H5zM10 8h1v2h-1zM12 8h1v2h-1z" />
+    </svg>
+  );
+}
 
 /**
  * The deprecated selection copy, for when the clipboard API refuses: a page
@@ -106,7 +128,7 @@ export function AskClaudeCode({ prompt, label }: { prompt: string; label: ReactN
               onClick={() => void onCopy()}
               style={{ color: token('muted-foreground') }}
             >
-              <IconTerminal2 size={16} />
+              <ClawdIcon />
             </ActionIcon>
           </Tooltip>
         </Group>
