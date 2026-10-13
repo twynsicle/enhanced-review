@@ -286,6 +286,10 @@ describe('stub run → parse', () => {
   });
 });
 
+function excerpt(startLine: number, endLine: number) {
+  return { filename: 'src/runner.ts', startLine, endLine, reason: 'Reads it.' };
+}
+
 describe('render', () => {
   const shellHtml = `<!doctype html><title>r</title>${BUNDLE_PLACEHOLDER}<div id="root"></div>`;
 
@@ -350,12 +354,6 @@ describe('render', () => {
     const { review } = await parseRun(context(), run, noGit);
     const lines = Array.from({ length: 10 }, (_, at) => `line ${String(at + 1)}`);
     writeFileSync(run.excerpts, JSON.stringify({ 'src/runner.ts': `${lines.join('\n')}\n` }));
-    const excerpt = (startLine: number, endLine: number) => ({
-      filename: 'src/runner.ts',
-      startLine,
-      endLine,
-      reason: 'Reads it.',
-    });
     const [first, second] = review.chapters;
     const excerpted = {
       ...review,

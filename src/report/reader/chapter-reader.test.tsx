@@ -119,10 +119,18 @@ describe('the sidebar resize handle', () => {
   });
 });
 
-describe('a chapter change', () => {
-  const lines = Array.from({ length: 40 }, (_, i) => `line ${String(i + 1)}`).join('\n');
-  /** Each chapter shows the same file in the same place: a read hunk, then a folded one. */
-  const chapter = (id: string, title: string): NarrativeChapter => ({
+async function show(chapterId: string): Promise<void> {
+  await act(async () => {
+    window.location.hash = `#/?ch=${chapterId}`;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
+}
+
+const folded = () => screen.getByRole('group', { name: 'Mechanical lines' });
+
+/** Each chapter shows the same file in the same place: a read hunk, then a folded one. */
+function chapter(id: string, title: string): NarrativeChapter {
+  return {
     id,
     title,
     insights: [],
@@ -149,7 +157,11 @@ describe('a chapter change', () => {
         ],
       },
     ],
-  });
+  };
+}
+
+describe('a chapter change', () => {
+  const lines = Array.from({ length: 40 }, (_, i) => `line ${String(i + 1)}`).join('\n');
   const twoChapters: NarrativeReview = {
     ...review,
     chapters: [chapter('ch1', 'First look'), chapter('ch2', 'Second look')],
@@ -162,14 +174,6 @@ describe('a chapter change', () => {
     review: twoChapters,
     files: { 'src/a.ts': { base: side, head: side } },
   };
-  const show = async (ch: string) => {
-    await act(async () => {
-      window.location.hash = `#/?ch=${ch}`;
-      window.dispatchEvent(new HashChangeEvent('hashchange'));
-    });
-  };
-  const folded = () => screen.getByRole('group', { name: 'Mechanical lines' });
-
   beforeEach(() => {
     window.location.hash = '#/?ch=ch1';
     render(
