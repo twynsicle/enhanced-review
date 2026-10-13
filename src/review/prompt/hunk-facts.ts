@@ -3,7 +3,9 @@ import type { HunkFacts } from '../narrative.ts';
 
 /**
  * What the patch proves about a hunk on its own, with no model and no
- * judgement: that it changes only whitespace, or that its lines were lifted
+ * judgement: that it changes only whitespace, and none a parser could read
+ * differently (a space joining two words, a line break ending a statement or
+ * a line comment), or that its lines were lifted
  * from (or to) another hunk. Both are cheap to check and easy to get wrong by
  * eye, which is why the CLI states them rather than leaving the model to
  * notice — and why they stay facts: whether a moved block still matters where
@@ -84,6 +86,10 @@ const WHITESPACE_CHAR_RE = /\s/;
 const LEADING_WHITESPACE_RE = /^\s*/;
 const QUOTES = new Set(["'", '"', '`']);
 const BACKSLASH = '\\';
+const WORD_CHAR_RE = /[\p{L}\p{N}_$]/u;
+const CLOSING_BRACKETS = new Set([')', ']', '}']);
+/** Operators that, doubled, are another operator or a comment (`++`, `--`, `//`, `&&`, `>>`). */
+const FUSING_OPERATORS = new Set(['+', '-', '*', '/', '<', '>', '&', '|', '=']);
 
 /** Languages the language map names whose indentation is syntax. */
 const INDENTED_LANGUAGES = new Set(['coffeescript', 'fsharp', 'markdown', 'pug', 'python', 'yaml']);
@@ -168,8 +174,8 @@ export function provenFacts(hunks: readonly HunkBody[]): Map<string, HunkFacts> 
 }
 
 /**
- * Removed and added text equal once whitespace outside string literals is
- * gone, which drops blank lines with it and lets a statement rewrapped over
+ * Removed and added text equal once each is cut down to its tokens
+ * (`tokenText`), which drops blank lines and lets a statement rewrapped over
  * three lines match the one line it was. Where indentation is syntax, each
  * line must also keep its own indentation, so a dedent that takes a statement
  * out of its block is not whitespace; a rewrap there goes unproven.
@@ -177,12 +183,12 @@ export function provenFacts(hunks: readonly HunkBody[]): Map<string, HunkFacts> 
 function isWhitespaceOnly({ filename, removed, added }: HunkBody): boolean {
   if (removed.length + added.length === 0) return false;
   if (!indentationMatters(filename)) {
-    return squeeze(removed.join('\n')) === squeeze(added.join('\n'));
+    return tokenText(removed.join('\n')) === tokenText(added.join('\n'));
   }
   const shape = (lines: readonly string[]) =>
     lines
       .filter((line) => line.trim().length > 0)
-      .map((line) => `${LEADING_WHITESPACE_RE.exec(line)![0]}${squeeze(line)}`);
+      .map((line) => `${LEADING_WHITESPACE_RE.exec(line)![0]}${tokenText(line)}`);
   const before = shape(removed);
   const after = shape(added);
   return before.length === after.length && before.every((line, index) => line === after[index]);
@@ -193,35 +199,79 @@ function indentationMatters(filename: string): boolean {
 }
 
 /**
- * The text with every whitespace character outside a string literal removed.
+ * The text with each run of whitespace outside a string literal cut to what
+ * can change how it parses. A run is dropped, except that it stays one space
+ * between two characters that would fuse into another token (`not ready`,
+ * `a + +b`), and one line break where a break can end a statement: the end of
+ * a line holding a line comment, which would otherwise swallow the code after
+ * it, and a break straight after a word (`return` then `value;`, under
+ * JavaScript's semicolon insertion) unless a closing bracket follows. That
+ * leaves a rewrap that breaks after a word mid-expression unproven, the safe
+ * way round.
+ *
  * A quoted string ends with its line, since only a backtick string spans lines
  * in most languages, and an apostrophe in a comment should not turn the rest
- * of the hunk into a string. A regex literal is not lexed, so a change to the
- * spacing inside one alone would be missed.
+ * of the hunk into a string; on a line holding a line comment a backtick ends
+ * there too. A regex literal is not lexed, so a change to the spacing inside
+ * one alone would be missed.
  */
-function squeeze(text: string): string {
+function tokenText(text: string): string {
   let out = '';
   let quote: string | null = null;
+  let lineComment = false;
+  let inRun = false;
+  let breakAfterComment = false;
+  let breakAfterWord = false;
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index]!;
     if (quote) {
-      if (char === '\n' && quote !== '`') {
+      if (char === '\n' && (quote !== '`' || lineComment)) {
         quote = null;
+      } else {
+        out += char;
+        if (char === BACKSLASH) {
+          out += text[index + 1] ?? '';
+          index += 1;
+        } else if (char === quote) {
+          quote = null;
+        }
         continue;
       }
-      out += char;
-      if (char === BACKSLASH) {
-        out += text[index + 1] ?? '';
-        index += 1;
-      } else if (char === quote) {
-        quote = null;
+    }
+    if (WHITESPACE_CHAR_RE.test(char)) {
+      if (char === '\n') {
+        if (lineComment) breakAfterComment = true;
+        else if (WORD_CHAR_RE.test(out.at(-1) ?? '')) breakAfterWord = true;
+        lineComment = false;
       }
+      inRun = true;
       continue;
     }
+    if (inRun && out.length > 0) {
+      if (breakAfterComment || (breakAfterWord && !CLOSING_BRACKETS.has(char))) out += '\n';
+      else if (fuses(out.at(-1)!, char)) out += ' ';
+    }
+    inRun = false;
+    breakAfterComment = false;
+    breakAfterWord = false;
     if (QUOTES.has(char)) quote = char;
-    if (!WHITESPACE_CHAR_RE.test(char)) out += char;
+    else if (startsLineComment(text, index)) lineComment = true;
+    out += char;
   }
   return out;
+}
+
+function fuses(left: string, right: string): boolean {
+  if (WORD_CHAR_RE.test(left) && WORD_CHAR_RE.test(right)) return true;
+  if (left === right && FUSING_OPERATORS.has(left)) return true;
+  return (left === '/' && right === '*') || (left === '*' && right === '/');
+}
+
+/** `//`, `#` or `--`, read generously: a false comment only keeps a line break that did not matter. */
+function startsLineComment(text: string, index: number): boolean {
+  const char = text[index];
+  if (char === '#') return true;
+  return (char === '/' || char === '-') && text[index + 1] === char;
 }
 
 /** A hunk's significant lines as a multiset: whitespace collapsed, long enough, holding a word. */

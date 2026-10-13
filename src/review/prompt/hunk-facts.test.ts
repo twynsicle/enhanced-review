@@ -114,6 +114,41 @@ describe('provenFacts: whitespace only', () => {
     expect(facts.get(spaced.id)).toEqual({ whitespaceOnly: true });
   });
 
+  it('proves nothing when the whitespace it changes is what separates, or ends, the code', () => {
+    // The call pulled up into the comment no longer runs.
+    const intoComment = body(
+      'src/cache.ts',
+      ['  // keep the cache warm', '  warm(cache);'],
+      ['  // keep the cache warm warm(cache);'],
+    );
+    // Semicolon insertion: the function now returns undefined.
+    const returnBroken = body('src/a.ts', ['  return value;'], ['  return', '  value;']);
+    // Two names merged into one.
+    const merged = body('src/jobs.py', ['    if not ready:'], ['    if notready:']);
+    const fused = body('src/a.ts', ['total = a + +b;'], ['total = a ++b;']);
+    const facts = provenFacts([intoComment, returnBroken, merged, fused]);
+    expect(facts.has(intoComment.id)).toBe(false);
+    expect(facts.has(returnBroken.id)).toBe(false);
+    expect(facts.has(merged.id)).toBe(false);
+    expect(facts.has(fused.id)).toBe(false);
+  });
+
+  it('still proves a comment reindented, or a break after a word that a closing bracket follows', () => {
+    const comment = body(
+      'src/cache.ts',
+      ['// keep the cache warm', 'warm(cache);'],
+      ['    // keep   the cache warm', '', '    warm( cache );'],
+    );
+    const closing = body(
+      'src/a.ts',
+      ['call(first, second);'],
+      ['call(', '  first,', '  second', ');'],
+    );
+    const facts = provenFacts([comment, closing]);
+    expect(facts.get(comment.id)).toEqual({ whitespaceOnly: true });
+    expect(facts.get(closing.id)).toEqual({ whitespaceOnly: true });
+  });
+
   it('proves nothing about a hunk that changes a character', () => {
     const edit = body('src/a.ts', ['return x;'], ['return y;']);
     const added = body('src/a.ts', [], ['const z = 1;']);
