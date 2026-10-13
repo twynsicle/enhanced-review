@@ -1,5 +1,5 @@
 import { plural } from '../plural.ts';
-import { judgementCallOwner, mergeCitations } from '../coverage.ts';
+import { asRead, judgementCallOwner, mergeCitations } from '../coverage.ts';
 import {
   excerptsDropped,
   findingLog,
@@ -39,7 +39,8 @@ import { sanitizeDiagram } from './parse-diagram.ts';
  * assessment, and hunk ids are resolved against what the prompt showed
  * (unknown or wrong-file ids are dropped). A cited hunk with no usable tier is
  * read as `read`, leaning toward more of the reader's attention, never less;
- * one proven whitespace-only or moved unchanged is `skim` whatever it says. A reading plan keeps only
+ * one proven whitespace-only is `skim` whatever it says. A skim reason is kept
+ * on a skim hunk only. A reading plan keeps only
  * real chapters, its standard read widened to hold its brief, and is dropped
  * when no brief chapter is left. An excerpt of unchanged code that breaks a
  * rule is dropped, never trimmed to fit. Diagrams go through `parse-diagram.ts`,
@@ -175,20 +176,36 @@ interface TierRepairs {
  * shape the model falls back to when it forgets the object, which is leniency
  * toward the model's answer and not toward any stored shape.
  */
-function readCitation(raw: unknown): { id: unknown; tier: unknown } {
-  if (isRecord(raw)) return { id: raw['id'], tier: raw['tier'] };
-  return { id: raw, tier: undefined };
+function readCitation(raw: unknown): { id: unknown; tier: unknown; skimReason: unknown } {
+  if (isRecord(raw)) return { id: raw['id'], tier: raw['tier'], skimReason: raw['skimReason'] };
+  return { id: raw, tier: undefined, skimReason: undefined };
 }
 
-/** A whitespace-only hunk is skim whatever the model says, so a missing tier there is no loss. */
-function citedHunk(hunk: DiffHunk, rawTier: unknown, repairs: TierRepairs): CitedHunk {
+/**
+ * A whitespace-only hunk is skim whatever the model says, so a missing tier
+ * there is no loss. A reason that is not a string, or is blank, is no reason:
+ * the reader then labels the lines "Skim" alone.
+ */
+function citedHunk(
+  hunk: DiffHunk,
+  { tier: rawTier, skimReason: rawReason }: { tier: unknown; skimReason: unknown },
+  repairs: TierRepairs,
+): CitedHunk {
   const parsed = HunkTierSchema.safeParse(rawTier);
+  const reason = typeof rawReason === 'string' ? rawReason.trim() : '';
+  const skim = (): CitedHunk => ({
+    ...toResolvedHunk(hunk),
+    tier: 'skim',
+    ...(reason ? { skimReason: reason } : {}),
+  });
   if (hunk.whitespaceOnly) {
     if (parsed.success && parsed.data === 'read') repairs.tierLowered.add(hunk.id);
-    return { ...toResolvedHunk(hunk), tier: 'skim' };
+    return skim();
   }
   if (!parsed.success) repairs.tierMissing.add(hunk.id);
-  return { ...toResolvedHunk(hunk), tier: parsed.success ? parsed.data : 'read' };
+  return parsed.success && parsed.data === 'skim'
+    ? skim()
+    : { ...toResolvedHunk(hunk), tier: 'read' };
 }
 
 function resolveHunks(
@@ -217,7 +234,8 @@ function resolveHunks(
   const deduped = new Map<string, CitedHunk>();
   let repeated = 0;
   for (const raw of rawHunks) {
-    const { id, tier } = readCitation(raw);
+    const citation = readCitation(raw);
+    const id = citation.id;
     const hunk = typeof id === 'string' ? grounding.shown.byId[id] : undefined;
     if (!hunk || hunk.filename !== filename) {
       log.add(
@@ -227,7 +245,7 @@ function resolveHunks(
       );
       continue;
     }
-    const cited = citedHunk(hunk, tier, repairs);
+    const cited = citedHunk(hunk, citation, repairs);
     const earlier = deduped.get(hunk.id);
     if (earlier) repeated += 1;
     deduped.set(hunk.id, earlier ? mergeCitations(earlier, cited) : cited);
@@ -546,7 +564,7 @@ function raiseJudgedHunks(
       const hunks = chunk.hunks.map((hunk): CitedHunk => {
         if (!ids.has(hunk.id) || hunk.tier === 'read') return hunk;
         raised.push(hunk.id);
-        return { ...hunk, tier: 'read' };
+        return asRead(hunk);
       });
       return { ...chunk, hunks };
     });

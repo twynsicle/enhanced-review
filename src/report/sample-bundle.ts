@@ -243,7 +243,11 @@ const H = {
   helpersRewrap: hunk('H0014', 1, [14, 2], [1, 4], { whitespaceOnly: true }),
 };
 
-const cite = (resolved: ResolvedDiffHunk, tier: HunkTier): CitedHunk => ({ ...resolved, tier });
+const cite = (resolved: ResolvedDiffHunk, tier: HunkTier, skimReason?: string): CitedHunk => ({
+  ...resolved,
+  tier,
+  ...(skimReason ? { skimReason } : {}),
+});
 
 const chunk = (filename: string, language: string, hunks: CitedHunk[]): DiffChunk => ({
   filename,
@@ -448,7 +452,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         diffChunks: [
           chunk('src/scheduler/cadence.ts', 'typescript', [
             cite(H.intervals, 'read'),
-            cite(H.lookup, 'skim'),
+            cite(H.lookup, 'skim', 'lookup over the new table'),
           ]),
         ],
         contextExcerpts: [
@@ -487,7 +491,9 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
             cite(H.pausedGuard, 'read'),
           ]),
           chunk('src/scheduler/queue.ts', 'typescript', [cite(H.queue, 'read')]),
-          chunk('src/scheduler/fixtures/schedules.ts', 'typescript', [cite(H.schedules, 'skim')]),
+          chunk('src/scheduler/fixtures/schedules.ts', 'typescript', [
+            cite(H.schedules, 'skim', 'test fixtures'),
+          ]),
           chunk('src/scheduler/fixtures/fake-clock.ts', 'typescript', [cite(H.fakeClock, 'skim')]),
           chunk('test/helpers.ts', 'typescript', [
             cite(H.helpersMove, 'skim'),
@@ -585,8 +591,10 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         ],
         diffChunks: [
           chunk('src/legacy/cron.ts', 'typescript', [cite(H.cron, 'read')]),
-          chunk('src/generated/schedule.schema.json', 'json', [cite(H.schema, 'skim')]),
-          chunk('docs/scheduling.md', 'markdown', [cite(H.docs, 'skim')]),
+          chunk('src/generated/schedule.schema.json', 'json', [
+            cite(H.schema, 'skim', 'generated schema'),
+          ]),
+          chunk('docs/scheduling.md', 'markdown', [cite(H.docs, 'skim', 'docs')]),
         ],
       },
     ],

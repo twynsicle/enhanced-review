@@ -74,8 +74,12 @@ export const sectionHeadingId = (id: string) => `chapter-heading-${id}`;
 
 /** The sidebar's index glyph: a chapter's number, `00` for a synthesised section. */
 export function sectionIndexLabel(section: ReaderSection): string {
-  if (section.chapterNumber === null) return '00';
-  return section.chapterNumber.toString().padStart(2, '0');
+  return formatChapterNumber(section.chapterNumber ?? 0);
+}
+
+/** A chapter's number as the sidebar shows it, two digits. */
+export function formatChapterNumber(chapterNumber: number): string {
+  return chapterNumber.toString().padStart(2, '0');
 }
 
 /** "2 of 5 chapters read", or "All 5 chapters read" once nothing is left. */

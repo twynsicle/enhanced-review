@@ -139,22 +139,29 @@ export function groupSelectedHunks(hunks: readonly CitedHunk[]): CitedHunk[][] {
   return groups;
 }
 
-/** "L8-10, orig L20-21": modified ranges, falling back to original for pure deletions. */
+/**
+ * "L8-10, orig L20-21": modified ranges, falling back to original for pure
+ * deletions. Ranges that touch are joined, so the flush parts of a split hunk
+ * read as the one block they came from.
+ */
 export function formatSelectedHunkLabel(hunks: readonly ResolvedDiffHunk[]): string {
-  return hunks
-    .toSorted((a, b) => a.fileOrder - b.fileOrder)
-    .map((hunk) => {
-      if (hunk.modified.lineCount > 0) {
-        const end = getSpanEndLine(hunk.modified.startLine, hunk.modified.lineCount);
-        return hunk.modified.lineCount === 1
-          ? `L${String(hunk.modified.startLine)}`
-          : `L${String(hunk.modified.startLine)}-${String(end)}`;
-      }
-      const end = getSpanEndLine(hunk.original.startLine, hunk.original.lineCount);
-      return hunk.original.lineCount === 1
-        ? `orig L${String(hunk.original.startLine)}`
-        : `orig L${String(hunk.original.startLine)}-${String(end)}`;
-    })
+  const ranges: { prefix: string; start: number; end: number }[] = [];
+  for (const hunk of hunks.toSorted((a, b) => a.fileOrder - b.fileOrder)) {
+    const [prefix, span] =
+      hunk.modified.lineCount > 0 ? ['L', hunk.modified] : ['orig L', hunk.original];
+    const start = span.startLine;
+    const end = getSpanEndLine(span.startLine, span.lineCount);
+    const previous = ranges.at(-1);
+    if (previous?.prefix === prefix && start <= previous.end + 1) {
+      previous.end = Math.max(previous.end, end);
+    } else {
+      ranges.push({ prefix, start, end });
+    }
+  }
+  return ranges
+    .map(({ prefix, start, end }) =>
+      start === end ? `${prefix}${String(start)}` : `${prefix}${String(start)}-${String(end)}`,
+    )
     .join(', ');
 }
 
@@ -215,7 +222,7 @@ export function buildInlineDiffSnippets({
 export type LineRange = readonly [start: number, end: number];
 
 /** A span renumbered from the snippet's first line; a side with no lines has nothing to fade. */
-function rangeOnSide(span: DiffLineSpan, startLine: number): LineRange[] {
+export function rangeOnSide(span: DiffLineSpan, startLine: number): LineRange[] {
   return span.lineCount > 0
     ? [[span.startLine - startLine + 1, span.startLine - startLine + span.lineCount]]
     : [];

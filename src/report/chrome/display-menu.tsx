@@ -7,6 +7,8 @@ import {
   IconMoon,
   IconSettings,
   IconSun,
+  IconTag,
+  IconTagOff,
   IconTextWrap,
   IconTextWrapDisabled,
   IconViewportNarrow,
@@ -17,6 +19,7 @@ import { selectSpaceLimited, useDiffView, useReaderColumn } from '@/report/store
 import { useDiffWrap } from '@/report/stores/diff-wrap';
 import { useDimComments } from '@/report/stores/dim-comments';
 import { useLayoutWidth } from '@/report/stores/layout-width';
+import { useSkimMarks } from '@/report/stores/skim-marks';
 
 const ICON = 16;
 
@@ -82,6 +85,8 @@ export function DisplayMenu() {
   const toggleWrap = useDiffWrap((s) => s.toggle);
   const comments = useDimComments((s) => s.comments);
   const toggleComments = useDimComments((s) => s.toggle);
+  const marks = useSkimMarks((s) => s.marks);
+  const toggleMarks = useSkimMarks((s) => s.toggle);
   const width = useLayoutWidth((s) => s.width);
   const toggleWidth = useLayoutWidth((s) => s.toggle);
   const spaceLimited = useReaderColumn(selectSpaceLimited);
@@ -124,6 +129,13 @@ export function DisplayMenu() {
           name="Comments"
           value={comments === 'dimmed' ? 'Dimmed' : 'Normal'}
           onClick={toggleComments}
+        />
+        <SettingItem
+          icon={marks === 'marked' ? <IconTag size={ICON} /> : <IconTagOff size={ICON} />}
+          name="Skim hunks"
+          value={marks === 'marked' ? 'Marked' : 'Plain'}
+          hint="Marked fades the lines the review says to skim and labels why"
+          onClick={toggleMarks}
         />
         <SettingItem
           icon={

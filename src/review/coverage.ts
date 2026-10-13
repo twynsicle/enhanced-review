@@ -65,10 +65,19 @@ export function withFileHunks(
 
 /**
  * One hunk cited twice, as one citation: `read` wins, since a hunk one chapter
- * says must be read is not made skimmable by another calling it routine.
+ * says must be read is not made skimmable by another calling it routine. Two
+ * skims keep the first reason either gave.
  */
 export function mergeCitations(first: CitedHunk, second: CitedHunk): CitedHunk {
-  return second.tier === 'read' ? { ...first, tier: 'read' } : first;
+  if (second.tier === 'read') return asRead(first);
+  return first.skimReason || !second.skimReason
+    ? first
+    : { ...first, skimReason: second.skimReason };
+}
+
+/** A hunk raised to `read`, which carries no reason to skim it. */
+export function asRead({ skimReason: _, ...hunk }: CitedHunk): CitedHunk {
+  return { ...hunk, tier: 'read' };
 }
 
 /** Every hunk id some chapter's diffChunks cite. */

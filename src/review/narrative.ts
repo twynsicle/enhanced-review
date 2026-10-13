@@ -140,9 +140,13 @@ export type ResolvedDiffHunk = z.infer<typeof ResolvedDiffHunkSchema>;
 export const HunkTierSchema = z.enum(['read', 'skim']);
 export type HunkTier = z.infer<typeof HunkTierSchema>;
 
-/** A hunk as a chapter cites it. */
+/**
+ * A hunk as a chapter cites it. `skimReason` is the model's few words on why a
+ * skim hunk may be passed over, drawn beside its lines; never on a read hunk.
+ */
 export const CitedHunkSchema = ResolvedDiffHunkSchema.extend({
   tier: HunkTierSchema,
+  skimReason: z.string().min(1).optional(),
 });
 export type CitedHunk = z.infer<typeof CitedHunkSchema>;
 

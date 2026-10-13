@@ -54,7 +54,8 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
           "hunks": [
             {
               "id": "string — a hunk ID from the Changed Hunks list (example: H0007)",
-              "tier": "read | skim — how hard the reviewer must look at this hunk. See Attention tiers below"
+              "tier": "read | skim — how hard the reviewer must look at this hunk. See Attention tiers below",
+              "skimReason": "string — a skim hunk only: 2-5 words on why it can be skimmed, e.g. 'import wiring' or 'test fixtures'. Omit it on a read hunk"
             }
           ]
         }
@@ -119,6 +120,7 @@ Every hunk a chapter cites carries a tier, so the reader knows where to look har
 - "skim": needed to follow the story but low-risk — plain wiring, imports, a rename's call sites, boilerplate, generated output, docs, and a test's scaffolding: setup, fixtures, mocks and helpers, unless the scaffolding is itself what the change is about.
 - Tier each hunk on its own lines, not by its file or chapter. A test file holds both: the setup is skimmed and the cases are read; a part of a split hunk is tiered like any other hunk.
 - Some hunks in Changed Hunks carry hints the tool proved from the patch: "[whitespace only]", or "[moved from <path>, N%]" and "[moved to <path>, N%]" when most of a hunk's lines were lifted from, or to, another hunk that holds little else. A whitespace-only hunk is shown as skim whatever tier you give it. A move hint informs the tier and never decides it, even at 100%, which means the lines moved unchanged: a block moved unchanged is usually skim, but a move that changes what can reach the code, what it can reach, or the order it runs in is read.
+- Give every skim hunk a "skimReason", shown beside its faded lines so the reader knows why they may pass over them without opening the hunk: a few lowercase words naming what the lines are ("call sites of the rename", "test fixtures", "re-exported types"), not a sentence and not the word "skim". A hunk the tool proved whitespace only or moved is labelled from that proof, so its reason may add what the proof does not say, such as "moved helper, renamed".
 - Neither extreme helps the reader: a review that tiers everything "read" has told them nothing, and one that skims the change's own logic, or its tests' cases, has hidden it.
 
 Reading plan:

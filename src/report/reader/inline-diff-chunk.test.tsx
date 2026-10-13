@@ -202,21 +202,24 @@ describe('<InlineDiffChunk /> by attention tier', () => {
     expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
   });
 
-  it('tags each proven fact in the header, with the lines it holds for', async () => {
+  it('tags each proven fact in the header once, over all the lines it holds for', async () => {
     tiered([
+      { movedFrom: { filename: 'src/old.ts', similarity: 92 } },
       { movedFrom: { filename: 'src/old.ts', similarity: 92 } },
       { tier: 'skim', whitespaceOnly: true },
     ]);
     await screen.findAllByTestId('diff-editor');
     const header = screen.getByText('main.ts').closest('div')!;
-    expect(within(header).getByText('Moved from src/old.ts · 92% · L1-10')).toBeDefined();
-    expect(within(header).getByText('Whitespace only · L11-20')).toBeDefined();
+    const moved = within(header).getByText('Moved from src/old.ts, with edits · L1-20');
+    expect(moved.getAttribute('title')).toBe(
+      '92% of these lines match the lines removed from src/old.ts',
+    );
+    expect(within(header).getByText('Whitespace only · L21-30')).toBeDefined();
   });
 
-  it('offers no skim setting in the display menu, since nothing folds', async () => {
+  it('offers skim marks in the display menu, off until the reader asks', async () => {
     render(<DisplayMenu />);
     await userEvent.click(screen.getByRole('button', { name: 'Display settings' }));
-    await screen.findByRole('menuitem', { name: /^Comments:/ });
-    expect(screen.queryByRole('menuitem', { name: /^Skim:/ })).toBeNull();
+    expect(await screen.findByRole('menuitem', { name: /^Skim hunks: Plain/ })).toBeDefined();
   });
 });

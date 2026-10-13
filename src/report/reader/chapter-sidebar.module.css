@@ -340,65 +340,25 @@
 }
 
 /*
- * The diagram mark on a section row. It sits after the label rather than
- * before it so the numbers and titles keep their two clean left edges, and it
- * is `subtle` until the row is active: decoration, never text.
+ * The core, diagram and read marks on a section row: one outline icon size and
+ * one colour, since none outranks the others, set close together as one
+ * group. After the label rather than before it, so the numbers and titles
+ * keep their two clean left edges.
  */
-.diagramMark {
+.rowMarks {
+  display: inline-flex;
   flex-shrink: 0;
+  align-self: center;
+  gap: 3px;
   margin-left: auto;
-  padding-left: 6px;
-  font-size: var(--mantine-font-size-xs);
-  line-height: 1;
-  color: var(--er-subtle);
 }
 
-.item[data-active] .diagramMark {
-  color: var(--er-before);
-}
-
-/*
- * The core mark: a chapter the reading plan's brief holds. `muted-foreground`
- * rather than `subtle`, because unlike the diagram mark it tells the reader
- * something they act on; it shares the row's trailing edge with that mark, so
- * when both are present only the first takes the free space.
- */
-.coreMark {
-  flex-shrink: 0;
-  margin-left: auto;
-  padding-left: 6px;
-  font-size: var(--mantine-font-size-xs);
-  line-height: 1;
+.rowMark {
+  display: inline-flex;
   color: var(--er-muted-foreground);
 }
 
-.coreMark + .diagramMark {
-  margin-left: 0;
-}
-
-.item[data-active] .coreMark {
-  color: var(--er-before);
-}
-
-/*
- * A chapter the reader marked read. Muted rather than `subtle` for the reason
- * the core mark is: it is something they act on, here by skipping the row.
- */
-.readMark {
-  flex-shrink: 0;
-  margin-left: auto;
-  padding-left: 6px;
-  font-size: var(--mantine-font-size-xs);
-  line-height: 1;
-  color: var(--er-muted-foreground);
-}
-
-.readMark + .coreMark,
-.readMark + .diagramMark {
-  margin-left: 0;
-}
-
-.item[data-active] .readMark {
+.item[data-active] .rowMark {
   color: var(--er-before);
 }
 

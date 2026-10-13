@@ -29,7 +29,8 @@ src/review/
                      lines it adds and removes without git's context, what the reader times; a whitespace-only hunk is skim whatever the
                      model said, a move only a hint; DiffChunk.hunks is
                      CitedHunk[], a resolved hunk plus its HunkTier (read | skim, the model's call on how hard to
-                     look; nothing folds, the reader fades skim lines in place);
+                     look; nothing folds, and the reader can fade skim lines in place) and, on a skim hunk only,
+                     skimReason, the model's few words on why, which the reader labels the lines with;
                      the order of `chapters` is the reading order, a cause before its consequences, with no
                      field for it; ReadingPlan / readingPlan? — `brief` (the one to three chapters where the
                      risk is, and the only mark of a core chapter) within `standard` (what approving needs),
@@ -54,7 +55,8 @@ src/review/
                      totals and byFile, one FileCoverage per catalogued file carrying its leftovers and their DiffChunk; plus chaptersCiting,
                      judgementCallOwner (the first chapter whose card for the call's file shows one of its hunks —
                      the parser and the reader must agree on it),
-                     mergeCitations (one hunk cited twice: read wins over skim) and
+                     mergeCitations (one hunk cited twice: read wins over skim, two skims keep the first reason;
+                     asRead, a hunk raised to read without its skim reason) and
                      citedChunk (every chapter's hunks for one file merged into a single chunk, deduplicated by
                      mergeCitations and in file order, so the file view draws one diff rather than one per citing
                      chapter); a leftover chunk's hunks are `read`, since no chapter judged them; a file
@@ -142,7 +144,8 @@ src/review/
                      id string; a whitespace-only hunk is skim whatever tier came with it (a `read` there is one
                      `hunk-tier-lowered` note naming the hunks), and otherwise a
                      missing or unknown tier is read as `read` — leniency toward the model, recorded once per
-                     review as a `hunk-tier-missing` warning naming the hunks, never a reason to fail;
+                     review as a `hunk-tier-missing` warning naming the hunks, never a reason to fail; a
+                     skimReason is kept trimmed on a skim hunk and dropped on a read one or when blank;
                      every hunk a judgement call cites is raised to `read` on its owner's card, in one
                      `hunk-tier-raised` note, since a question must not sit on lines faded as skim; a chapter's diffChunks are merged to one per filename (a hunk in both through
                      mergeCitations), since the reader keys a file's insights and its count on the name; and an insight's

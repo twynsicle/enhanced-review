@@ -4,6 +4,7 @@
  * it reach into Monaco's own DOM, which no prop can express.
  */
 .editor {
+  position: relative;
   overflow: hidden;
   /*
    * Monaco stacks its own furniture well above the card — the split-pane sash
@@ -75,15 +76,20 @@
  * added line the same colour as twenty.
  *
  * Matching on the inline style is the only thing that tells the two apart —
- * they are emitted under the same class name. The mark is the offset, not the
- * width: a whole-line decoration is laid out as `left:0;width:100%`, while a
- * ranged one always writes a unit, `left:0px` included. `width:100%` alone is
- * not enough, because a word-level range that runs past a soft wrap is given
- * one too — so an unanchored match would blank the very highlight this rule
- * exists to keep readable, on precisely the long lines that need it.
+ * they are emitted under the same class name. The mark is a box that starts
+ * at the line's left edge and runs the full width: the stacked view writes it
+ * `left:0;width:100%`, and side by side it is a range from the first column
+ * past the line's end, written `left:0px;width:100%`. `width:100%` alone is
+ * not enough, because the first visual line of a word-level range that runs
+ * past a soft wrap is given it too, at its own offset — so an unanchored match
+ * would blank the very highlight this rule exists to keep readable. The cost
+ * of anchoring at `0px` is a word-level range that spans three or more visual
+ * lines, whose middle lines lose their highlight and keep the band.
  */
 .editor :global(.cdr.char-insert[style^='left:0;width:100%']),
-.editor :global(.cdr.char-delete[style^='left:0;width:100%']) {
+.editor :global(.cdr.char-delete[style^='left:0;width:100%']),
+.editor :global(.cdr.char-insert[style^='left:0px;width:100%']),
+.editor :global(.cdr.char-delete[style^='left:0px;width:100%']) {
   background-color: transparent;
 }
 
@@ -110,10 +116,64 @@
 }
 
 /*
- * A skim hunk's lines, handed to Monaco as decoration classes on the text and
- * the line number. Faded rather than folded, so the file stays one editor the
- * reader can search; far enough to tell apart, near enough to read on demand.
+ * A skim hunk's lines, when the reader has asked for skim marks: the text
+ * faded, and the line and gutter washed most of the way to the editor's own
+ * background, so the diff band, the rail and the line number recede with it.
+ * Far enough back that the eye passes over them; the label says why.
+ */
+/*
+ * The wash is stacked above its siblings because Monaco orders a line's
+ * decorations by its own rules, and the diff's band and gutter rail can land
+ * after it. In the gutter that also puts it over the line number, which is
+ * how the number fades.
  */
 .skim {
-  opacity: 0.55;
+  opacity: 0.4;
+}
+
+.skimWash {
+  z-index: 1;
+  background: color-mix(in srgb, var(--vscode-editor-background) 70%, transparent);
+}
+
+/*
+ * The labelled regions, over the editor and out of the way of the pointer
+ * except on the label, which carries the whole reason as its title.
+ */
+.marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* The region: a rule down the right edge, the height of its lines. */
+.mark {
+  position: absolute;
+  right: 2px;
+  width: 2px;
+  background: var(--er-border-strong);
+  border-radius: 1px;
+}
+
+/*
+ * The label, hung off the rule's top and set against the card so it reads
+ * over whatever code runs under it.
+ */
+.markLabel {
+  position: absolute;
+  top: 0;
+  right: 6px;
+  max-width: 28rem;
+  overflow: hidden;
+  padding: 0 6px;
+  border: 1px solid var(--er-border);
+  border-radius: 4px;
+  background: var(--er-card);
+  color: var(--er-muted-foreground);
+  font-size: var(--mantine-font-size-xs);
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: auto;
 }

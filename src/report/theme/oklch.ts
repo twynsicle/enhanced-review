@@ -1,8 +1,6 @@
 /**
- * The tokens are written in `oklch()`, which CSS reads but Monaco's theme
- * data does not: a theme rule takes a bare `RRGGBB`. This is the one
- * conversion, shared with the palette guardrail's contrast arithmetic so that
- * what is checked and what is painted are the same numbers.
+ * The tokens are written in `oklch()`. The palette guardrail checks their
+ * contrast and gamut in linear sRGB, and this is that one conversion.
  */
 
 /** Parses the `oklch(L C H)` form the token maps are written in. */
@@ -25,17 +23,4 @@ export function oklchToLinearRgb(l: number, c: number, h: number): [number, numb
     -1.2684380046 * lc + 2.6097574011 * mc - 0.3413193965 * sc,
     -0.0041960863 * lc - 0.7034186147 * mc + 1.707614701 * sc,
   ];
-}
-
-/** An `oklch()` token as six lowercase hex digits with no `#`, as Monaco's theme rules take it. */
-export function oklchToHex(value: string): string {
-  return oklchToLinearRgb(...parseOklch(value))
-    .map((linear) => {
-      const clamped = Math.max(0, Math.min(1, linear));
-      const encoded = clamped <= 0.0031308 ? 12.92 * clamped : 1.055 * clamped ** (1 / 2.4) - 0.055;
-      return Math.round(encoded * 255)
-        .toString(16)
-        .padStart(2, '0');
-    })
-    .join('');
 }

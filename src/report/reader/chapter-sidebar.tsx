@@ -1,5 +1,5 @@
 import { ActionIcon, Box, Group, Stack, UnstyledButton, VisuallyHidden } from '@mantine/core';
-import { IconList, IconListTree } from '@tabler/icons-react';
+import { IconCheck, IconList, IconListTree, IconSchema, IconStar } from '@tabler/icons-react';
 import { useCallback, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import type { FileCoverage, ReviewCoverage } from '@/review/coverage';
 import {
@@ -22,6 +22,9 @@ import { useFileListView } from '@/report/stores/file-list-view';
 import classes from './chapter-sidebar.module.css';
 
 const NONE_READ: ReadonlySet<string> = new Set();
+
+/** The row marks' icon size: the label's cap height, so a mark never sets the row's. */
+const MARK_SIZE = 12;
 
 interface ChapterSidebarProps {
   /** Every section of the reader, in order; see `sections.ts`. */
@@ -162,34 +165,40 @@ function SidebarItem({
       >
         <span className={classes.index}>{sectionIndexLabel(section)}</span>
         <span className={classes.label}>{section.label}</span>
-        {read && (
-          <span className={classes.readMark} title="Read">
-            <span aria-hidden>✓</span>
-            <VisuallyHidden>read</VisuallyHidden>
-          </span>
-        )}
-        {/*
-         * The brief's chapters, marked where the reader already scans, so the
-         * five-minute read can be followed from the list as well as from the
-         * summary. Quiet on purpose: every chapter is still worth reading, and
-         * a loud mark would say the others are not.
-         */}
-        {core && (
-          <span className={classes.coreMark} title="Core chapter: in the brief reading plan">
-            <span aria-hidden>★</span>
-            <VisuallyHidden>core chapter</VisuallyHidden>
-          </span>
-        )}
-        {/*
-         * Which sections carry a picture, marked on the list the reader
-         * already scans. A separate "Diagrams" block was the alternative, but
-         * a diagram is not addressable apart from its section — both entries
-         * would navigate to the same place, and the sidebar would grow a
-         * fourth list to say what one glyph says here.
-         */}
-        {hasDiagram && (
-          <span className={classes.diagramMark} aria-label="has a diagram">
-            ◧
+        {(core || hasDiagram || read) && (
+          <span className={classes.rowMarks}>
+            {/*
+             * The brief's chapters, marked where the reader already scans, so
+             * the five-minute read can be followed from the list as well as
+             * from the summary. Quiet on purpose: every chapter is still worth
+             * reading, and a loud mark would say the others are not.
+             */}
+            {core && (
+              <span className={classes.rowMark} title="Core chapter: in the brief reading plan">
+                <IconStar size={MARK_SIZE} aria-hidden />
+                <VisuallyHidden>core chapter</VisuallyHidden>
+              </span>
+            )}
+            {/*
+             * Which sections carry a picture, marked on the list the reader
+             * already scans. A separate "Diagrams" block was the alternative,
+             * but a diagram is not addressable apart from its section — both
+             * entries would navigate to the same place, and the sidebar would
+             * grow a fourth list to say what one glyph says here.
+             */}
+            {hasDiagram && (
+              <span className={classes.rowMark} title="Has a diagram">
+                <IconSchema size={MARK_SIZE} aria-hidden />
+                <VisuallyHidden>has a diagram</VisuallyHidden>
+              </span>
+            )}
+            {/* Last, so the tick lands in the same place on every row the reader marks. */}
+            {read && (
+              <span className={classes.rowMark} title="Read">
+                <IconCheck size={MARK_SIZE} aria-hidden />
+                <VisuallyHidden>read</VisuallyHidden>
+              </span>
+            )}
           </span>
         )}
       </UnstyledButton>

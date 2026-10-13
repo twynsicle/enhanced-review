@@ -559,6 +559,15 @@ describe('formatSelectedHunkLabel', () => {
     expect(label).toBe('L8-10, orig L20-21');
   });
 
+  it('joins ranges that touch, as a split hunk’s parts do', () => {
+    const label = formatSelectedHunkLabel([
+      makeHunk({ fileOrder: 1, modified: { startLine: 10, lineCount: 5 } }),
+      makeHunk({ fileOrder: 2, modified: { startLine: 15, lineCount: 5 } }),
+      makeHunk({ fileOrder: 3, modified: { startLine: 30, lineCount: 2 } }),
+    ]);
+    expect(label).toBe('L10-19, L30-31');
+  });
+
   it('uses single-line forms for one-line spans', () => {
     const label = formatSelectedHunkLabel([
       makeHunk({

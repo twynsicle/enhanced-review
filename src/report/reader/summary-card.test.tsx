@@ -206,15 +206,15 @@ describe('<SummaryCard /> and the reading plan', () => {
     expect(within(rowOf('Full')).getByText('~7 min')).toBeDefined();
   });
 
-  it('lists under each longer plan only the chapters it adds', () => {
+  it('lists under each longer plan only the chapters it adds, numbered as the sidebar numbers them', () => {
     renderPlan({ brief: ['core'], standard: ['core', 'support'] });
     const names = (row: string) =>
       within(rowOf(row))
         .queryAllByRole('button')
         .map((button) => button.textContent);
-    expect(names('Brief')).toEqual(['The due check']);
-    expect(names('Standard')).toEqual(['Fixtures']);
-    expect(names('Full')).toEqual(['Wiring']);
+    expect(names('Brief')).toEqual(['01 The due check']);
+    expect(names('Standard')).toEqual(['02 Fixtures']);
+    expect(names('Full')).toEqual(['03 Wiring']);
   });
 
   it('says so when a plan adds nothing to the one before', () => {
@@ -225,7 +225,7 @@ describe('<SummaryCard /> and the reading plan', () => {
   it('sends the reader to the chapter a link names', () => {
     const selected: string[] = [];
     renderPlan({ brief: ['core'], standard: ['core', 'support'] }, (id) => selected.push(id));
-    fireEvent.click(screen.getByRole('button', { name: 'Fixtures' }));
+    fireEvent.click(screen.getByRole('button', { name: '02 Fixtures' }));
     expect(selected).toEqual(['support']);
   });
 

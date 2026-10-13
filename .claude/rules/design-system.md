@@ -69,9 +69,7 @@ code. There is no display serif.
 Colour is semantic tokens only (`token('muted-foreground')`, never a literal or
 a `color-mix` off `foreground`). Body text is `foreground`; anything secondary
 is `muted-foreground` — those two greys are the whole vocabulary. `subtle` is
-placeholder and decoration, never text — except for code comments when the
-reader has dimmed them from the display menu: a comment they asked to push
-back is decoration by their choice. Text on a `-soft` fill takes the
+placeholder and decoration, never text. Text on a `-soft` fill takes the
 matching `-ink` — enforced, not merely advised: the guardrail treats every
 `-soft` as a ground in its own right and scans components for a page-ground
 colour under an unconditional tint fill. The base accents are tuned against the
@@ -113,10 +111,19 @@ than on the line because the gutter never scrolls sideways, and a mark that
 leaves the viewport on a wide diff is no mark at all.
 
 Dimmed comments are the only registered themes, one dimmed pair, light and
-dark (`src/report/reader/monaco-themes.ts`): a comment's colour comes from the
+dark (`src/report/reader/monaco-themes.ts`): a comment is known only by the
 tokenizer's classes, which only a theme rule reaches. Each inherits `vs` or
-`vs-dark` and paints comments in that scheme's `subtle`, converted from the
-token by `src/report/theme/oklch.ts` rather than respelled, then mixed 30%
-over the editor's own background, so a dimmed comment keeps its lines but is
-all but unreadable. Mixed rather than given alpha, since Monaco drops the
-alpha of a token colour. Changing `subtle` restyles them too.
+`vs-dark` and gives comments a font style no base theme uses — italic,
+underline and strikethrough at once — which `theme.css` finds, strips of its
+lines and fades by opacity. Faded rather than recoloured: one fixed grey
+reads against the editor's background and nowhere else, and on an added or
+removed line's band it is grey on green or red, harder to read than the
+comment it stands for. Faded, a comment keeps its own colour and falls back into
+whatever is behind it, as a skim line does.
+
+Skim marks fade the same way, and are off until the reader turns them on: a
+skim hunk's text is faded and its line and gutter washed toward the editor's
+background, so the band and rail recede with the text — a full-strength band
+behind faded text still draws the eye. A fade is never left to explain
+itself: every faded region carries its reason as a label at the editor's
+right edge.

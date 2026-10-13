@@ -9,7 +9,7 @@ import type { AnchoredJudgementCall } from '@/report/reader/judgement-calls';
 import { MarkdownText } from '@/report/reader/markdown-text';
 import { ProsePassage } from '@/report/reader/prose-passage';
 import { formatMinutes, readingPlanRows, type PlanRow } from '@/report/reader/reading-time';
-import { sectionCardId, sectionHeadingId } from '@/report/reader/sections';
+import { formatChapterNumber, sectionCardId, sectionHeadingId } from '@/report/reader/sections';
 import { token } from '@/report/theme/tokens';
 import { DISPLAY_SIZE } from '@/report/theme/tokens';
 
@@ -192,6 +192,9 @@ function ReadingPlanBlock({
   review: NarrativeReview;
   onSelectChapter: (chapterId: string) => void;
 }) {
+  // Numbered as the sidebar numbers them, so a plan's chapter can be found
+  // there by the number as well as by the title.
+  const numbers = new Map(review.chapters.map((chapter, index) => [chapter.id, index + 1]));
   return (
     <Stack component="section" gap={12}>
       <Caption component="h3">Reading plan</Caption>
@@ -225,9 +228,14 @@ function ReadingPlanBlock({
                       fz="sm"
                       ta="left"
                       onClick={() => onSelectChapter(chapter.id)}
-                      style={{ textWrap: 'pretty', textDecoration: 'underline' }}
+                      style={{ textWrap: 'pretty' }}
                     >
-                      {chapter.title}
+                      <Text component="span" ff="monospace" fz="xs" c="dimmed">
+                        {formatChapterNumber(numbers.get(chapter.id) ?? 0)}
+                      </Text>{' '}
+                      <Text component="span" fz="inherit" td="underline">
+                        {chapter.title}
+                      </Text>
                     </UnstyledButton>
                   ))}
                 </Group>

@@ -4,13 +4,19 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type React
 import type { FilePair } from '@/review/bundle';
 import {
   buildInlineDiffSnippets,
-  formatSelectedHunkLabel,
   skimRanges,
   type InlineDiffSnippet,
   type LineRange,
 } from '@/report/reader/inline-diff-snippets';
+import { factTags, hunkMarks, type HunkMark } from '@/report/reader/hunk-marks';
 import { detectLanguage } from '@/review/language-map';
-import type { CitedHunk, DiffChunk, Insight, JudgementCall } from '@/review/narrative';
+import type {
+  CitedHunk,
+  DiffChunk,
+  DiffLineSpan,
+  Insight,
+  JudgementCall,
+} from '@/review/narrative';
 import { originVerb } from '@/report/reader/file-origin';
 import { useFilePair, useReviewFile } from '@/report/reader/file-source';
 import { InsightCallout, JudgementCallout } from '@/report/reader/insight-callout';
@@ -32,6 +38,7 @@ import {
   type DiffView,
 } from '@/report/stores/diff-view';
 import { useDiffWrap, type DiffWrap } from '@/report/stores/diff-wrap';
+import { useSkimMarks, type SkimMarks } from '@/report/stores/skim-marks';
 import { token, TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
 
@@ -176,9 +183,13 @@ function applyWordWrap(diffEditor: editor.IStandaloneDiffEditor, wrap: DiffWrap)
   diffEditor.layout();
 }
 
-const SKIM_HOVER = 'Skim: low-risk lines the review says to skim rather than read closely.';
-
-/** Whole lines, to the end of the last one, so the fade covers every character. */
+/**
+ * Whole lines, to the end of the last one. The text is faded, and the line
+ * and its gutter are washed toward the editor's background, so the diff's own
+ * band, rail and line number recede with the text rather than staying at full
+ * strength around it: a bright band behind faded text still draws the eye.
+ * The reason is the region's label, not a hover.
+ */
 function skimDecorations(
   model: editor.ITextModel | null,
   ranges: readonly LineRange[],
@@ -199,8 +210,8 @@ function skimDecorations(
         options: {
           isWholeLine: true,
           inlineClassName: classes.skim,
-          lineNumberClassName: classes.skim,
-          hoverMessage: { value: SKIM_HOVER },
+          className: classes.skimWash,
+          marginClassName: classes.skimWash,
         },
       },
     ];
@@ -208,8 +219,9 @@ function skimDecorations(
 }
 
 /**
- * Fades each side's skim lines. Decorations rather than a separate editor per
- * tier, so a file stays one piece.
+ * Fades each side's skim lines when the reader has asked for skim marks.
+ * Decorations rather than a separate editor per tier, so a file stays one
+ * piece.
  *
  * The stacked view draws deleted lines as view zones inside the modified
  * editor, which the original editor's decorations do not reach, so there a
@@ -219,9 +231,12 @@ function skimDecorations(
 function applySkimFade(
   diffEditor: editor.IStandaloneDiffEditor,
   snippet: InlineDiffSnippet,
+  marks: SkimMarks,
   collections: { current: editor.IEditorDecorationsCollection[] },
 ): void {
   for (const collection of collections.current) collection.clear();
+  collections.current = [];
+  if (marks === 'plain') return;
   const ranges = skimRanges(snippet);
   const original = diffEditor.getOriginalEditor();
   const modified = diffEditor.getModifiedEditor();
@@ -231,6 +246,97 @@ function applySkimFade(
   ];
 }
 
+/** Where a labelled region sits in the editor, in pixels from its top. */
+interface MarkBox {
+  mark: HunkMark;
+  top: number;
+  height: number;
+}
+
+/**
+ * One side of a hunk, as pixels in that side's editor. Stacked, the modified
+ * editor also holds the removed lines, as view zones: those just above the
+ * hunk's first line or just below its last are its own, and a side with no
+ * lines at all is the zone after the line git names. Side by side, those zones
+ * are the other pane's filler, and the other side is measured instead.
+ */
+function spanBox(
+  sideEditor: editor.ICodeEditor,
+  span: DiffLineSpan,
+  snippetStart: number,
+  stacked: boolean,
+): [top: number, bottom: number] | null {
+  const lineCount = sideEditor.getModel()?.getLineCount() ?? 0;
+  const first = span.startLine - snippetStart + 1;
+  if (span.lineCount <= 0) {
+    if (!stacked) return null;
+    const top = first >= 1 ? sideEditor.getBottomForLineNumber(Math.min(first, lineCount)) : 0;
+    const bottom =
+      first < lineCount ? sideEditor.getTopForLineNumber(first + 1) : sideEditor.getContentHeight();
+    return [top, bottom];
+  }
+  const last = Math.min(first + span.lineCount - 1, lineCount);
+  const top = sideEditor.getTopForLineNumber(first, stacked);
+  const bottom =
+    stacked && last < lineCount
+      ? sideEditor.getTopForLineNumber(last + 1)
+      : sideEditor.getBottomForLineNumber(last);
+  return [top, bottom];
+}
+
+function markBoxes(
+  diffEditor: editor.IStandaloneDiffEditor,
+  snippet: InlineDiffSnippet,
+  marks: readonly HunkMark[],
+  view: DiffView,
+): MarkBox[] {
+  const stacked = view === 'unified';
+  const original = diffEditor.getOriginalEditor();
+  const modified = diffEditor.getModifiedEditor();
+  return marks.flatMap((mark) => {
+    const boxes = mark.hunks
+      .flatMap((hunk) => [
+        spanBox(modified, hunk.modified, snippet.modifiedStartLine, stacked),
+        stacked ? null : spanBox(original, hunk.original, snippet.originalStartLine, false),
+      ])
+      .filter((box) => box !== null);
+    if (boxes.length === 0) return [];
+    const top = Math.min(...boxes.map(([start]) => start));
+    const bottom = Math.max(...boxes.map(([, end]) => end));
+    return bottom > top ? [{ mark, top, height: bottom - top }] : [];
+  });
+}
+
+function sameBoxes(a: readonly MarkBox[], b: readonly MarkBox[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (box, i) => box.mark === b[i]!.mark && box.top === b[i]!.top && box.height === b[i]!.height,
+    )
+  );
+}
+
+/**
+ * Each labelled region as a rule down the editor's right edge with its label
+ * at the top: right rather than left, where code is least likely to run, and
+ * over the editor rather than in a view zone, which would push the lines
+ * apart. Placed from the editors' own line geometry, which the reader never
+ * scrolls vertically, so a measure after each layout keeps it in place.
+ */
+function MarkOverlay({ boxes }: { boxes: readonly MarkBox[] }) {
+  return (
+    <div className={classes.marks}>
+      {boxes.map(({ mark, top, height }) => (
+        <div key={mark.key} className={classes.mark} style={{ top, height }}>
+          <span className={classes.markLabel} title={mark.detail}>
+            {mark.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SnippetEditor({
   chunkFilename,
   language,
@@ -238,6 +344,7 @@ function SnippetEditor({
   expanded,
   view,
   wrap,
+  skimMarks,
 }: {
   chunkFilename: string;
   language: string;
@@ -245,12 +352,18 @@ function SnippetEditor({
   expanded: boolean;
   view: DiffView;
   wrap: DiffWrap;
+  skimMarks: SkimMarks;
 }) {
   const theme = useEditorTheme();
   const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
+  const [boxes, setBoxes] = useState<MarkBox[]>([]);
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const disposables = useRef<IDisposable[]>([]);
   const skimFade = useRef<editor.IEditorDecorationsCollection[]>([]);
+  const marks = useMemo(
+    () => (skimMarks === 'marked' ? hunkMarks(snippet.hunks) : []),
+    [skimMarks, snippet.hunks],
+  );
   /*
    * `measure` below is frozen at mount but has to know the current view, and
    * it has to know it early: the editor library applies the new options from
@@ -270,6 +383,20 @@ function SnippetEditor({
    */
   const wrapRef = useRef(wrap);
   wrapRef.current = wrap;
+  // Mirrored for the frozen `measure`, as `viewRef` is.
+  const snippetRef = useRef(snippet);
+  snippetRef.current = snippet;
+  const marksRef = useRef(marks);
+  marksRef.current = marks;
+  const skimMarksRef = useRef(skimMarks);
+  skimMarksRef.current = skimMarks;
+
+  const measureMarks = useCallback(() => {
+    const diffEditor = editorRef.current;
+    if (!diffEditor) return;
+    const next = markBoxes(diffEditor, snippetRef.current, marksRef.current, viewRef.current);
+    setBoxes((previous) => (sameBoxes(previous, next) ? previous : next));
+  }, []);
 
   const onMount = useCallback(
     (diffEditor: editor.IStandaloneDiffEditor) => {
@@ -291,15 +418,17 @@ function SnippetEditor({
           MIN_EDITOR_HEIGHT - EDITOR_HEIGHT_PADDING,
         );
         setEditorHeight(contentHeight + EDITOR_HEIGHT_PADDING);
+        measureMarks();
       };
       disposables.current = [
         original.onDidContentSizeChange(measure),
         modified.onDidContentSizeChange(measure),
         diffEditor.onDidUpdateDiff(measure),
+        modified.onDidLayoutChange(measureMarks),
       ];
       applyWordWrap(diffEditor, wrapRef.current);
       applySnippetLayout(diffEditor, snippet, expanded);
-      applySkimFade(diffEditor, snippet, skimFade);
+      applySkimFade(diffEditor, snippet, skimMarksRef.current, skimFade);
       measure();
     },
     // The mount-time snippet/expanded are right for the first paint; later
@@ -315,8 +444,16 @@ function SnippetEditor({
   }, [snippet, expanded, view]);
 
   useEffect(() => {
-    if (editorRef.current) applySkimFade(editorRef.current, snippet, skimFade);
-  }, [snippet]);
+    if (editorRef.current) applySkimFade(editorRef.current, snippet, skimMarks, skimFade);
+  }, [snippet, skimMarks]);
+
+  // A flip of the view or the marks moves the lines after this render; the
+  // editors have laid out again by the next frame.
+  useEffect(() => {
+    measureMarks();
+    const frame = requestAnimationFrame(measureMarks);
+    return () => cancelAnimationFrame(frame);
+  }, [measureMarks, marks, view, wrap, expanded]);
 
   // `view` belongs here because Monaco re-pins the original editor's
   // `wordWrapOverride2` on every pass through the stacked view.
@@ -450,6 +587,7 @@ function SnippetEditor({
           options={options}
         />
       </Suspense>
+      {boxes.length > 0 && <MarkOverlay boxes={boxes} />}
     </div>
   );
 }
@@ -496,24 +634,6 @@ function AnchoredAsides({
       </Box>
     </Box>
   );
-}
-
-/** What the CLI proved about each of the card's hunks, with the lines it holds for. */
-function factTags(hunks: readonly CitedHunk[]): string[] {
-  return hunks
-    .toSorted((a, b) => a.fileOrder - b.fileOrder)
-    .flatMap((hunk) => {
-      const lines = formatSelectedHunkLabel([hunk]);
-      const facts: string[] = [];
-      if (hunk.whitespaceOnly) facts.push('Whitespace only');
-      if (hunk.movedFrom) {
-        facts.push(`Moved from ${hunk.movedFrom.filename} · ${String(hunk.movedFrom.similarity)}%`);
-      }
-      if (hunk.movedTo) {
-        facts.push(`Moved to ${hunk.movedTo.filename} · ${String(hunk.movedTo.similarity)}%`);
-      }
-      return facts.map((fact) => `${fact} · ${lines}`);
-    });
 }
 
 /**
@@ -593,9 +713,11 @@ export function CodeCardHeader({ filename, children }: { filename: string; child
  * each hunk group (`buildInlineDiffSnippets`) and shown in one Monaco
  * `DiffEditor` per group; "Show full file" swaps in the whole pair.
  *
- * A group is consecutive hunks whatever their tiers; a skim hunk's lines are
- * faded in place, never folded, so every line a chapter cites is on the page.
- * What the CLI proved about a hunk is tagged in the header, with its lines.
+ * A group is consecutive hunks whatever their tiers. With skim marks on, a
+ * skim hunk's lines are faded in place, never folded, so every line a chapter
+ * cites is on the page, and it and every hunk with a proven fact are labelled
+ * at the editor's right edge. What the CLI proved is also tagged in the
+ * header, one tag per fact with all the lines it holds for.
  *
  * `insights` are the chapter's insights that named this file, and
  * `judgementCalls` the review's questions this chapter draws for it. The other
@@ -616,6 +738,7 @@ export function InlineDiffChunk({
   const file = useReviewFile(chunk.filename);
   const stored = useDiffView((s) => s.view);
   const wrap = useDiffWrap((s) => s.wrap);
+  const skimMarks = useSkimMarks((s) => s.marks);
   const spaceLimited = useReaderColumn(selectSpaceLimited);
   // Too narrow for two panes is not a preference the column can honour.
   const view: DiffView = spaceLimited ? 'unified' : stored;
@@ -665,15 +788,16 @@ export function InlineDiffChunk({
         </Text>
         {tags.map((tag) => (
           <Text
-            key={tag}
+            key={tag.label}
             component="span"
             fz="xs"
             c="dimmed"
             px={6}
             py={1}
+            title={tag.detail}
             style={{ borderRadius: 4, border: `1px solid ${token('border')}` }}
           >
-            {tag}
+            {tag.label} · {tag.lines}
           </Text>
         ))}
         {state.kind === 'ok' && (
@@ -713,6 +837,7 @@ export function InlineDiffChunk({
               expanded={expanded}
               view={view}
               wrap={wrap}
+              skimMarks={skimMarks}
             />
           </Box>
         ))}

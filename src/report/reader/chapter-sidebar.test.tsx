@@ -204,7 +204,7 @@ describe('<ChapterSidebar />', () => {
         onSelectFile={noop}
       />,
     );
-    const marks = screen.getAllByLabelText('has a diagram');
+    const marks = screen.getAllByText('has a diagram');
     expect(marks).toHaveLength(1);
     expect(marks[0]?.closest('button')?.textContent).toContain('Risks and follow-ups');
   });

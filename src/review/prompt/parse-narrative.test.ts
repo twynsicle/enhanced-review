@@ -1162,6 +1162,34 @@ describe('a cited hunk’s tier', () => {
     expect(result.findings).toEqual([]);
   });
 
+  it('keeps a skim hunk’s reason, trimmed, and drops one on a read hunk or a blank one', () => {
+    const result = parse(
+      {
+        filename: 'src/a.ts',
+        language: 'typescript',
+        hunks: [
+          { id: 'H0001', tier: 'skim', skimReason: '  test fixtures ' },
+          { id: 'H0002', tier: 'skim', skimReason: ' ' },
+        ],
+      },
+      {
+        filename: 'src/b.ts',
+        language: 'typescript',
+        hunks: [{ id: 'H0003', tier: 'read', skimReason: 'imports' }],
+      },
+    );
+    const reasons = result.ok
+      ? result.data.chapters[0]!.diffChunks.flatMap((chunk) =>
+          chunk.hunks.map((hunk) => [hunk.id, hunk.skimReason]),
+        )
+      : null;
+    expect(reasons).toEqual([
+      ['H0001', 'test fixtures'],
+      ['H0002', undefined],
+      ['H0003', undefined],
+    ]);
+  });
+
   it('reads a bare id, a missing tier and an unknown one as read, in one warning', () => {
     const result = parse(
       {
