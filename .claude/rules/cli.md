@@ -31,8 +31,10 @@ src/cli/
                    fork point from the base's reflog when the base was rewritten since and `git cherry` finds every
                    commit in between still in it (a rebased stack); commits it no longer has at all are reviewed
                    as the change's own; either way a warning names the --base for the other answer; staged (the
-                   index as a dangling commit on HEAD); --base;
-                   locateTarget (repo root + slug only, for --from); TargetSchema
+                   index as a dangling commit on HEAD, dated as HEAD is, so an unchanged index is the same
+                   commit on every run); --base;
+                   locateTarget (repo root + slug only, for --from); TargetSchema; TargetMeta, the header less
+                   the two commits, which gather copies off the target
   git.ts           Shell: git (git-runner's non-interactive runner, run with the engineer's own gitconfig so
                    their credentials, proxy and safe.directory apply) and gh, bound to one directory
   git-runner.ts    spawn git non-interactively, the host's system and global gitconfig ignored unless a call asks
@@ -56,7 +58,8 @@ src/cli/
                    byte-order mark, UTF-16 (what Windows PowerShell writes), anything else refused
   run-folder.ts    <repo root>/er-reviews/<slug>/<stamp>/ and each stage's file; latestRunFolder; the runs folder
                    ignores itself
-  context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons and origins, each file's
+  context.ts       the gather stage → context.json (RunContextSchema): the meta completed with its stats and the
+                   target's base and head commits, files with skip reasons and origins, each file's
                    patch put through splitPatch (a hunk over --split-hunks changed lines becomes parts, each a real
                    hunk) before its hunks are numbered across the change, each hunk carrying what provenFacts
                    proved about it across the whole change (whitespace only, moved from/to another hunk), embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;

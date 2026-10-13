@@ -379,3 +379,32 @@
 .item[data-active] .coreMark {
   color: var(--er-before);
 }
+
+/*
+ * A chapter the reader marked read. Muted rather than `subtle` for the reason
+ * the core mark is: it is something they act on, here by skipping the row.
+ */
+.readMark {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1;
+  color: var(--er-muted-foreground);
+}
+
+.readMark + .coreMark,
+.readMark + .diagramMark {
+  margin-left: 0;
+}
+
+.item[data-active] .readMark {
+  color: var(--er-before);
+}
+
+.readCount {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--er-muted-foreground);
+}

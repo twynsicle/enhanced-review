@@ -1,5 +1,5 @@
 import { Box, Collapse, Group, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
 import { Caption } from '@/report/chrome/caption';
@@ -32,6 +32,7 @@ export function SummaryCard({
   judgementCalls = [],
   onSelectFile,
   onSelectChapter,
+  footer,
 }: {
   review: NarrativeReview;
   meta: ReviewMeta;
@@ -41,6 +42,8 @@ export function SummaryCard({
   onSelectFile?: (filename: string) => void;
   /** How the reading plan's links and the judgement-call index reach a chapter. */
   onSelectChapter: (chapterId: string) => void;
+  /** Drawn after everything else: where the reader goes next. */
+  footer?: ReactNode;
 }) {
   const { baseRefName: baseRef, headRefName: headRef, authorLogin: author, prNumber } = meta;
   const title = review.prTitle || meta.title;
@@ -162,6 +165,8 @@ export function SummaryCard({
       )}
 
       {meta.description && <AuthorDescription body={meta.description} />}
+
+      {footer}
     </article>
   );
 }

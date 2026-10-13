@@ -6,6 +6,7 @@ import {
   useRef,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from 'react';
 import { reviewCoverage } from '@/review/coverage';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/review/narrative';
@@ -20,11 +21,13 @@ import {
   type AnchoredJudgementCall,
 } from '@/report/reader/judgement-calls';
 import { RiskCard } from '@/report/reader/risk-card';
+import { SectionFooter } from '@/report/reader/section-footer';
 import { findSection, readerSections, type ReaderSection } from '@/report/reader/sections';
 import { SummaryCard } from '@/report/reader/summary-card';
 import { useNarrativeKeyboard } from '@/report/reader/use-narrative-keyboard';
 import { useReadingFile } from '@/report/reader/use-reading-file';
 import { useReaderColumn } from '@/report/stores/diff-view';
+import { reviewKey, useProgress, useReadChapters } from '@/report/stores/progress';
 import {
   applySidebarWidth,
   clampSidebarWidth,
@@ -103,6 +106,13 @@ export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderPr
   const coverage = useMemo(() => reviewCoverage(review), [review]);
   const sections = useMemo(() => readerSections(review), [review]);
   const judgementCalls = useMemo(() => anchorJudgementCalls(review), [review]);
+  const progressKey = reviewKey(meta);
+  const readIds = useReadChapters(progressKey);
+  const setRead = useProgress((state) => state.setRead);
+  const onSetRead = useCallback(
+    (chapterId: string, read: boolean) => setRead(progressKey, chapterId, read),
+    [setRead, progressKey],
+  );
   const urlActive = searchParams.get('ch');
   const urlFile = searchParams.get('file');
   const activeFile = urlFile && fileExists(urlFile, review) ? urlFile : null;
@@ -223,6 +233,7 @@ export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderPr
           files={review.files}
           coverage={coverage}
           activeId={activeId}
+          readIds={readIds}
           activeFile={activeFile}
           readingFile={activeFile === null ? readingFile : null}
           reviewTitle={review.prTitle}
@@ -263,6 +274,15 @@ export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderPr
             chapterIndex={activeIndex}
             onSelectFile={onSelectFile}
             onSelect={onSelect}
+            footer={
+              <SectionFooter
+                sections={sections}
+                section={activeSection}
+                readIds={readIds}
+                onSetRead={onSetRead}
+                onSelect={onSelect}
+              />
+            }
           />
         )}
       </section>
@@ -285,6 +305,7 @@ function SectionCard({
   chapterIndex,
   onSelectFile,
   onSelect,
+  footer,
 }: {
   section: ReaderSection;
   review: NarrativeReview;
@@ -293,10 +314,13 @@ function SectionCard({
   chapterIndex: number;
   onSelectFile: (filename: string) => void;
   onSelect: (id: string) => void;
+  footer: ReactNode;
 }) {
   switch (section.kind) {
     case 'risk':
-      return review.riskAssessment ? <RiskCard assessment={review.riskAssessment} /> : null;
+      return review.riskAssessment ? (
+        <RiskCard assessment={review.riskAssessment} footer={footer} />
+      ) : null;
     case 'chapter': {
       const chapter = review.chapters.find((ch) => ch.id === section.id);
       return chapter ? (
@@ -305,6 +329,7 @@ function SectionCard({
           chapterIndex={chapterIndex}
           judgementCalls={judgementCallsByFile(judgementCalls, chapter.id)}
           onSelectFile={onSelectFile}
+          footer={footer}
         />
       ) : null;
     }
@@ -316,6 +341,7 @@ function SectionCard({
           judgementCalls={judgementCalls}
           onSelectFile={onSelectFile}
           onSelectChapter={onSelect}
+          footer={footer}
         />
       );
   }

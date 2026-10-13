@@ -146,6 +146,13 @@ describe('the sample report bundle', () => {
     expect(plan && plan.standard.length < ids.length).toBe(true);
   });
 
+  it('names two full commits, so progress in the dev server is keyed like a real review’s', () => {
+    const { baseSha, headSha } = SAMPLE_BUNDLE.meta;
+    expect(baseSha).toMatch(/^[0-9a-f]{40}$/);
+    expect(headSha).toMatch(/^[0-9a-f]{40}$/);
+    expect(baseSha).not.toBe(headSha);
+  });
+
   it('covers every file-side state the reader draws', () => {
     const kinds = Object.values(SAMPLE_BUNDLE.files).flatMap((f) => [f.base.kind, f.head.kind]);
     expect(new Set(kinds)).toEqual(new Set(['content', 'absent', 'too-large']));

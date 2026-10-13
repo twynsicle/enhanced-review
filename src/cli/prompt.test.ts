@@ -29,6 +29,8 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
     meta: {
       repo: 'acme/widgets',
       title: 'Add a login form',
+      baseSha: 'a'.repeat(40),
+      headSha: 'b'.repeat(40),
       prNumber: 7,
       baseRefName: 'main',
       headRefName: 'feat/login',

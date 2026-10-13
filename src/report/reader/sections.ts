@@ -78,6 +78,12 @@ export function sectionIndexLabel(section: ReaderSection): string {
   return section.chapterNumber.toString().padStart(2, '0');
 }
 
+/** "2 of 5 chapters read", or "All 5 chapters read" once nothing is left. */
+export function readCountLabel(read: number, total: number): string {
+  if (total > 0 && read === total) return `All ${String(total)} chapters read`;
+  return `${String(read)} of ${String(total)} chapters read`;
+}
+
 /** The section a `?ch=` value names, or null when it names nothing here. */
 export function findSection(
   sections: readonly ReaderSection[],

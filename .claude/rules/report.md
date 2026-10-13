@@ -32,13 +32,21 @@ src/report/
                      dropdown: diffs, long lines, skim, layout, theme)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
-                     belongs to the file; each change is a history entry),
+                     belongs to the file; each change is a history entry; the review's read chapters from the
+                     progress store, handed to the sidebar and the footer alike),
                      sections.ts (readerSections: the one ordered list of sections — risk when there is an
-                     assessment, the summary, then the chapters — that the sidebar renders and the keyboard walks;
-                     a chapter in the reading plan's brief is `core`),
+                     assessment, the summary, then the chapters — that the sidebar renders, the keyboard walks
+                     and the footer's Next follows; a chapter in the reading plan's brief is `core`;
+                     readCountLabel, the "n of m chapters read" both the footer and the sidebar say),
+                     section-footer (the last thing in every section card: a chapter's Read checkbox and its
+                     count, then a primary "Next: <title>" that marks the chapter read and moves on, focusing
+                     the next heading as the keyboard does — opening a chapter never marks it; the last chapter's
+                     is "Back to summary", which marks it too; the summary and risk get Next alone, and a summary
+                     with nothing after it no footer),
                      chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, a row carrying
                      a diagram is marked, a core chapter carries a quiet ★ in muted-foreground with "core chapter"
-                     as hidden text, a skipped file is dimmed, a file the chapters left out carries ○ (none of
+                     as hidden text, a chapter marked read a ✓ the same way with "read", and the Chapters header
+                     "n/m read", a skipped file is dimmed, a file the chapters left out carries ○ (none of
                      its hunks cited) or ◐ (some) beside its stats with the reason in its title and hidden text,
                      and the file whose diff the reader has scrolled to carries a rail (use-reading-file.ts) that is
                      a quieter, separate mark from the wash on a file the file view shows;
@@ -108,7 +116,11 @@ src/report/
                      followSidebarWidth paints `--review-sidebar-width` on `<html>` — a drag writes the variable
                      directly and commits to the store once on release), fold-skim.ts (`er-fold-skim`, shown ⇄
                      folded: whether skim hunks fold like mechanical ones), all six on raw-preference.ts (one word
-                     or one number, not JSON).
+                     or one number, not JSON). progress.ts (`er-progress`) is the one record rather than a
+                     preference, so it is JSON and not on raw-preference: `{ [repo|baseSha|headSha]: { read:
+                     chapterId[], at } }`, the 50 most recently touched reviews kept; written over what storage
+                     holds at that moment, so another tab's review survives; read leniently, an unreadable
+                     review or value being no progress, and every storage call caught.
                      diff-view.ts also holds useReaderColumn, the only store here that is never persisted: the
                      column width chapter-reader measures, with selectSpaceLimited over it — under
                      SIDE_BY_SIDE_MIN_WIDTH the toggle disables and inline-diff-chunk forces unified. A per-frame

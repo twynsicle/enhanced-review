@@ -1,4 +1,5 @@
 import { Stack, Title } from '@mantine/core';
+import type { ReactNode } from 'react';
 import { RISK_SECTION_ID, type ReviewRiskAssessment } from '@/review/narrative';
 import { Caption } from '@/report/chrome/caption';
 import classes from '@/report/reader/article.module.css';
@@ -15,7 +16,14 @@ import { DISPLAY_SIZE } from '@/report/theme/tokens';
  * reader can aim at. Splitting it out is what gives the score, its rationale
  * and its factors room to be read as an argument.
  */
-export function RiskCard({ assessment }: { assessment: ReviewRiskAssessment }) {
+export function RiskCard({
+  assessment,
+  footer,
+}: {
+  assessment: ReviewRiskAssessment;
+  /** Drawn after everything else: where the reader goes next. */
+  footer?: ReactNode;
+}) {
   const normalized = normalizeRiskScore(assessment.score);
 
   return (
@@ -40,6 +48,8 @@ export function RiskCard({ assessment }: { assessment: ReviewRiskAssessment }) {
       </Stack>
 
       <RiskAssessmentBody assessment={assessment} />
+
+      {footer}
     </article>
   );
 }

@@ -15,6 +15,8 @@ vi.mock('@monaco-editor/react', () => ({
 const meta: ReviewMeta = {
   repo: 'acme/widgets',
   title: 'Add scheduled reviews',
+  baseSha: 'a'.repeat(40),
+  headSha: 'b'.repeat(40),
   prNumber: 7,
   baseRefName: null,
   headRefName: null,

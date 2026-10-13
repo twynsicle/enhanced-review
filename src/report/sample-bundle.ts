@@ -237,6 +237,8 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
   meta: {
     repo: 'acme/widgets',
     title: 'Add hourly and paused review schedules',
+    baseSha: '3f9c2a1d7e4b6058a1c2d3e4f5a6b7c8d9e0f1a2',
+    headSha: '8b1e4d7a0c3f6295b8e1d4a7c0f3b6e9d2a5c8f1',
     prNumber: 42,
     baseRefName: 'main',
     headRefName: 'feat/hourly-schedules',

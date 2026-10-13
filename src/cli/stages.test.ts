@@ -44,6 +44,8 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
     meta: {
       repo: 'acme/widgets',
       title: 'Staged changes on main',
+      baseSha: 'a'.repeat(40),
+      headSha: 'b'.repeat(40),
       prNumber: null,
       baseRefName: 'main',
       headRefName: 'staged',
@@ -289,7 +291,7 @@ describe('render', () => {
       ok: true,
       bundle: {
         generatedAt: at.toISOString(),
-        meta: { title: 'Staged changes on main' },
+        meta: { title: 'Staged changes on main', baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40) },
         review: { chapters: [{ title: 'a.ts' }, { title: 'b.ts' }] },
         files: { 'src/b.ts': { head: { kind: 'content', content: '</script>\n' } } },
       },

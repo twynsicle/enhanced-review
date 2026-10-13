@@ -228,6 +228,30 @@ describe('<ChapterSidebar />', () => {
     expect(screen.getAllByTitle('Core chapter: in the brief reading plan')).toHaveLength(1);
   });
 
+  it('checks the chapters marked read, in words a screen reader hears, and counts them', () => {
+    render(
+      <ChapterSidebar
+        sections={sections}
+        chapters={chapters}
+        activeId={SUMMARY_SECTION_ID}
+        readIds={new Set(['ch2', SUMMARY_SECTION_ID, 'gone'])}
+        reviewTitle="t"
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+    const read = screen.getByRole('button', { name: /Risks and follow-ups read/ });
+    expect(read).toHaveAttribute('data-read');
+    expect(screen.getByRole('button', { name: /Shape of the change/ })).not.toHaveAttribute(
+      'data-read',
+    );
+    // The summary is not a chapter, and an id no chapter has is not counted.
+    expect(screen.getByRole('button', { name: /Summary/ })).not.toHaveAttribute('data-read');
+    expect(screen.getAllByTitle('Read')).toHaveLength(1);
+    expect(screen.getByText('1/2 read')).toHaveAttribute('aria-hidden');
+    expect(screen.getByText('1 of 2 chapters read')).toBeInTheDocument();
+  });
+
   it('falls back to the files chapters selected hunks from', () => {
     render(
       <ChapterSidebar

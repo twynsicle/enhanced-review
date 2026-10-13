@@ -107,6 +107,14 @@ describe('gather', () => {
     });
   });
 
+  it('names the two commits under review, so the reader can key its progress on them', async () => {
+    branchOfEveryKind();
+    const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+
+    expect(context.meta.baseSha).toBe(repo.git('rev-parse', 'main').trim());
+    expect(context.meta.headSha).toBe(repo.git('rev-parse', 'HEAD').trim());
+  });
+
   it('numbers the reviewed files’ hunks across the change, in file order', async () => {
     branchOfEveryKind();
     const { context } = await gatherFor({ kind: 'branch', base: 'main' });

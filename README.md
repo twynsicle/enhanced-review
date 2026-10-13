@@ -225,6 +225,10 @@ again), `review.json` (the parsed review) and `findings.json` (what validating
 it turned up). A run folder is a complete record; delete the tree whenever you
 like.
 
+The report remembers which chapters you marked read in the browser's own
+storage, keyed by the repository and the two commits reviewed, so rendering
+the same range again keeps your place. Nothing about it leaves the browser.
+
 `er review` exits 0 for a clean review, 2 for one that was written but carries
 warnings — each of them printed as it finishes — and 1 when there is no review
 to open.

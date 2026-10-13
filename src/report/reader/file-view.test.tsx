@@ -33,6 +33,8 @@ function renderWithSource(files: ReviewFile[], cited: NarrativeChapter[]) {
     meta: {
       repo: 'a/r',
       title: 't',
+      baseSha: 'a'.repeat(40),
+      headSha: 'b'.repeat(40),
       prNumber: null,
       baseRefName: null,
       headRefName: null,

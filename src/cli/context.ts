@@ -8,11 +8,11 @@ import { DiffLineSpanSchema, HunkFactsSchema, ReviewFileSchema } from '../review
 import { buildDiffHunkIndex, type DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
 import { hunkLines, provenFacts, type HunkBody } from '../review/prompt/hunk-facts.ts';
 import { splitPatch } from '../review/prompt/split-hunks.ts';
-import { ReviewMetaSchema, type ReviewMeta } from '../review/review-meta.ts';
+import { ReviewMetaSchema } from '../review/review-meta.ts';
 import { skipReasons, toReviewFiles } from './skip-reasons.ts';
 import type { Shell } from './git.ts';
 import { RUNS_DIR, type RunFiles } from './run-folder.ts';
-import { TargetSchema, type Target } from './targets.ts';
+import { TargetSchema, type Target, type TargetMeta } from './targets.ts';
 
 /**
  * The gather stage: everything later stages need, read from git once and
@@ -74,7 +74,7 @@ export interface GatherOptions {
 
 export async function gather(
   target: Target,
-  meta: ReviewMeta,
+  meta: TargetMeta,
   shell: Shell,
   run: RunFiles,
   { splitLines, checkReviewed = () => undefined }: GatherOptions,
@@ -97,6 +97,8 @@ export async function gather(
     target,
     meta: {
       ...meta,
+      baseSha,
+      headSha,
       stats: {
         changedFiles: files.length,
         additions: files.reduce((sum, file) => sum + file.additions, 0),

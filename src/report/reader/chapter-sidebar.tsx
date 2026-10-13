@@ -16,16 +16,20 @@ import {
 } from '@/report/reader/file-tree';
 import { originSentence } from '@/report/reader/file-origin';
 import { RiskInlineLabel, RiskScoreBars } from '@/report/reader/risk-score';
-import { sectionIndexLabel, type ReaderSection } from '@/report/reader/sections';
+import { readCountLabel, sectionIndexLabel, type ReaderSection } from '@/report/reader/sections';
 import { SKIP_REASON_LABEL } from '@/report/reader/skipped-file';
 import { useFileListView } from '@/report/stores/file-list-view';
 import classes from './chapter-sidebar.module.css';
+
+const NONE_READ: ReadonlySet<string> = new Set();
 
 interface ChapterSidebarProps {
   /** Every section of the reader, in order; see `sections.ts`. */
   sections: readonly ReaderSection[];
   chapters: readonly NarrativeChapter[];
   activeId: string;
+  /** Chapters the reader has marked read; an id no section has is ignored. */
+  readIds?: ReadonlySet<string>;
   /** Filename currently shown in the file-only view, or null. */
   activeFile?: string | null;
   /**
@@ -57,6 +61,7 @@ export function ChapterSidebar({
   sections,
   chapters,
   activeId,
+  readIds = NONE_READ,
   activeFile = null,
   readingFile = null,
   onSelect,
@@ -70,6 +75,8 @@ export function ChapterSidebar({
   // pointer event the sidebar's drag handle fires.
   const reviewFiles = useMemo(() => buildReviewFiles(chapters, files), [chapters, files]);
   const rows = sections.filter((section) => section.kind !== 'risk');
+  const chapterRows = rows.filter((section) => section.kind === 'chapter');
+  const readCount = chapterRows.filter((section) => readIds.has(section.id)).length;
 
   return (
     <nav aria-label="Review navigation" className={classes.nav}>
@@ -92,13 +99,24 @@ export function ChapterSidebar({
       )}
 
       <Stack component="section" gap={12}>
-        <Caption>Chapters</Caption>
+        <Group justify="space-between" align="baseline" gap={8} wrap="nowrap">
+          <Caption>Chapters</Caption>
+          {chapterRows.length > 0 && (
+            <span className={classes.readCount}>
+              <span aria-hidden>
+                {readCount}/{chapterRows.length} read
+              </span>
+              <VisuallyHidden>{readCountLabel(readCount, chapterRows.length)}</VisuallyHidden>
+            </span>
+          )}
+        </Group>
         <ul className={classes.list}>
           {rows.map((section) => (
             <SidebarItem
               key={section.id}
               section={section}
               active={section.id === activeId}
+              read={section.kind === 'chapter' && readIds.has(section.id)}
               onSelect={onSelect}
             />
           ))}
@@ -124,10 +142,12 @@ export function ChapterSidebar({
 function SidebarItem({
   section,
   active,
+  read,
   onSelect,
 }: {
   section: ReaderSection;
   active: boolean;
+  read: boolean;
   onSelect: (id: string) => void;
 }) {
   const { hasDiagram, core } = section;
@@ -137,10 +157,17 @@ function SidebarItem({
         className={classes.item}
         aria-current={active ? 'true' : undefined}
         data-active={active || undefined}
+        data-read={read || undefined}
         onClick={() => onSelect(section.id)}
       >
         <span className={classes.index}>{sectionIndexLabel(section)}</span>
         <span className={classes.label}>{section.label}</span>
+        {read && (
+          <span className={classes.readMark} title="Read">
+            <span aria-hidden>✓</span>
+            <VisuallyHidden>read</VisuallyHidden>
+          </span>
+        )}
         {/*
          * The brief's chapters, marked where the reader already scans, so the
          * five-minute read can be followed from the list as well as from the

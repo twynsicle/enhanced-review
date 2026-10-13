@@ -6,7 +6,6 @@ import { reviewCoverage } from '../review/coverage.ts';
 import { MAX_VALIDATION_RETRIES } from './validation-stop-hook.ts';
 import type { Finding } from '../review/findings.ts';
 import type { NarrativeReview } from '../review/narrative.ts';
-import type { ReviewMeta } from '../review/review-meta.ts';
 import { splitPart } from '../review/prompt/split-hunks.ts';
 import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
 import { gather, readContext, type RunContext } from './context.ts';
@@ -19,7 +18,13 @@ import { writePrompt } from './prompt.ts';
 import { HOST_RENDER_DEPS, renderRun, type RenderDeps } from './render.ts';
 import { createRunFolder, latestRunFolder, reportFileName, type RunFiles } from './run-folder.ts';
 import { writeStubRun } from './stub-run.ts';
-import { locateTarget, resolveTarget, type Target, type TargetRequest } from './targets.ts';
+import {
+  locateTarget,
+  resolveTarget,
+  type Target,
+  type TargetMeta,
+  type TargetRequest,
+} from './targets.ts';
 import { note, stage, warn } from './terminal.ts';
 import {
   addWorktree,
@@ -342,7 +347,7 @@ async function resume(
   return { run, context: await readContext(run) };
 }
 
-export function describeTarget(target: Target, meta: ReviewMeta): string {
+export function describeTarget(target: Target, meta: TargetMeta): string {
   const range = `${target.baseSha.slice(0, 7)}..${target.headSha.slice(0, 7)}`;
   const what =
     meta.prNumber === null

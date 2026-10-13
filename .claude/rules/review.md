@@ -57,7 +57,8 @@ src/review/
   diagram.ts         Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk
                      grounding, DIAGRAM_LIMITS, hasUniformChange
-  review-meta.ts     ReviewMeta: the report's summary header
+  review-meta.ts     ReviewMeta: the report's summary header, and the base and head commits the reader keys a
+                     reader's progress on
   bundle.ts          ReviewBundle: a review + meta + both sides of each file, for rendering offline;
                      schemaVersion, no back-compat; parseBundle, filePair
   bundle-html.ts     the bundle as the text of the report's er-bundle element: injectBundle escapes every <,

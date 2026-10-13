@@ -1,4 +1,5 @@
 import { Group, Stack, Text, Title } from '@mantine/core';
+import type { ReactNode } from 'react';
 import { plural } from '@/review/plural';
 import type { DiffChunk, Insight, JudgementCall, NarrativeChapter } from '@/review/narrative';
 import { Caption } from '@/report/chrome/caption';
@@ -102,6 +103,7 @@ export function ChapterCard({
   chapterIndex,
   judgementCalls,
   onSelectFile,
+  footer,
 }: {
   chapter: NarrativeChapter;
   /** 1-based index for the eyebrow ("Chapter Two"). */
@@ -114,6 +116,8 @@ export function ChapterCard({
   judgementCalls?: ReadonlyMap<string, JudgementCall[]>;
   /** Threaded down so a grounded diagram node can open its file. */
   onSelectFile?: (filename: string) => void;
+  /** Drawn after everything else: where the reader goes next. */
+  footer?: ReactNode;
 }) {
   const fileCount = chapter.diffChunks.length;
   const insightCount = chapter.insights.length;
@@ -198,6 +202,8 @@ export function ChapterCard({
           ))}
         </Stack>
       )}
+
+      {footer}
     </article>
   );
 }

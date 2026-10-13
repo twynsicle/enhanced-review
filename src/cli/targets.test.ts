@@ -367,6 +367,21 @@ describe('staged target', () => {
     });
   });
 
+  it('gives an unchanged index the same commit on every run, so its progress is kept', async () => {
+    repo.write('README.md', '# fixture\n\nstaged line\n');
+    repo.git('add', 'README.md');
+
+    const first = await resolveTarget({ kind: 'staged' }, shell().shell, { warn });
+    const second = await resolveTarget({ kind: 'staged' }, shell().shell, { warn });
+
+    expect(second.target.headSha).toBe(first.target.headSha);
+    // Dated as its parent rather than by the clock, so a run a second later agrees too.
+    const dates = (sha: string) => repo.git('log', '-1', '--format=%at %ct', sha).trim();
+    expect(dates(first.target.headSha)).toBe(
+      repo.git('log', '-1', '--format=%ct %ct', initial).trim(),
+    );
+  });
+
   it('refuses an empty index, whatever the working tree holds', async () => {
     repo.write('README.md', 'unstaged edit\n');
     await expect(resolveTarget({ kind: 'staged' }, shell().shell, { warn })).rejects.toThrow(
