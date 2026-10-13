@@ -66,6 +66,7 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   keepWorktree: false,
   allowLarge: false,
   instructions: null,
+  splitLines: 0,
   ...overrides,
 });
 

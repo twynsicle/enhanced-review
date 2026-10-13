@@ -57,6 +57,12 @@ src/review/
                      `src/cli/skip-reasons.ts` layers the repository's own marks between them),
                      diff-hunk-catalog (H0001… ids; PromptGrounding/groundingFor, what a model's answer is
                      checked against),
+                     split-hunks (splitPatch: one file's patch with each hunk over the target rewritten as parts,
+                     each a real hunk with a synthesised `@@ … @@ (part k of n)` header, so nothing downstream
+                     needs to know a part from a hunk; cut where a paragraph opens at the shallowest indentation in
+                     range, a block still over the target cut again one level in, never inside a run of changed
+                     lines that both removes and adds, then packed greedily up to the target; splitPart reads a
+                     header's part number back),
                      instructions.ts (NARRATIVE_SYSTEM_PROMPT, the review instructions and output schema, and
                      LOCAL_WORKING_TREE, the closing paragraph saying where the agent is standing),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; every repair it makes

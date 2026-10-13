@@ -617,9 +617,10 @@ export function InlineDiffChunk({
       originalLineCount: state.data.originalLineCount,
       modifiedLineCount: state.data.modifiedLineCount,
       contextLines: CONTEXT_LINES,
+      fileHunks: file?.hunks,
     });
     return collapsed.length > 0 ? collapsed : [fullFile('fallback-full-file', state.data)];
-  }, [state, expanded, chunk.hunks]);
+  }, [state, expanded, chunk.hunks, file?.hunks]);
 
   const language = state.kind === 'ok' ? state.data.language : chunk.language;
   const { dirname, basename } = splitFilename(chunk.filename);

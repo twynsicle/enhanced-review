@@ -7,6 +7,7 @@ import { MAX_VALIDATION_RETRIES } from './validation-stop-hook.ts';
 import type { Finding } from '../review/findings.ts';
 import type { NarrativeReview } from '../review/narrative.ts';
 import type { ReviewMeta } from '../review/review-meta.ts';
+import { splitPart } from '../review/prompt/split-hunks.ts';
 import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
 import { gather, readContext, type RunContext } from './context.ts';
 import { Shell } from './git.ts';
@@ -72,6 +73,8 @@ export interface ReviewOptions {
   allowLarge: boolean;
   /** The engineer's own guidance for the model, written into the prompt. */
   instructions: string | null;
+  /** Split a hunk with more changed lines than this into parts; `0` keeps git's hunks. */
+  splitLines: number;
 }
 
 export interface ReviewDeps {
@@ -97,7 +100,7 @@ export async function review(
 
   const { run, context } = options.from
     ? await resume(options.request, options.from, deps.shell)
-    : await startRun(options.request, deps.shell, limits);
+    : await startRun(options.request, deps.shell, limits, options.splitLines);
 
   if (runs('prompt')) {
     const started = performance.now();
@@ -296,6 +299,7 @@ async function startRun(
   request: TargetRequest,
   shell: Shell,
   limits: SizeLimits | null,
+  splitLines: number,
 ): Promise<{ run: RunFiles; context: RunContext }> {
   let started = performance.now();
   const { target, meta } = await resolveTarget(request, shell, { warn });
@@ -308,7 +312,10 @@ async function startRun(
     : undefined;
   let context: RunContext;
   try {
-    context = await gather(target, meta, shell.at(target.repoRoot), run, checkReviewed);
+    context = await gather(target, meta, shell.at(target.repoRoot), run, {
+      splitLines,
+      checkReviewed,
+    });
   } catch (error) {
     // A failed gather leaves at most part of a run, which --from would take
     // for this target's newest and so hide the last run that finished. The
@@ -372,7 +379,11 @@ function describeUsage(usage: ClaudeRunResult['usage']): string {
 function describeGather(context: RunContext): string {
   const skipped = context.files.filter((file) => file.skipped).length;
   const files = plural(context.files.length, 'file');
-  return `${files}${skipped > 0 ? ` (${String(skipped)} skipped)` : ''}, ${plural(context.hunks.length, 'hunk')}`;
+  const parts = context.hunks.filter((hunk) => splitPart(hunk.header) !== null);
+  const split = parts.filter((hunk) => splitPart(hunk.header)?.part === 1).length;
+  const from =
+    split > 0 ? ` (${String(parts.length)} of them parts of ${plural(split, 'split hunk')})` : '';
+  return `${files}${skipped > 0 ? ` (${String(skipped)} skipped)` : ''}, ${plural(context.hunks.length, 'hunk')}${from}`;
 }
 
 function dirtyWarning(context: RunContext): string {

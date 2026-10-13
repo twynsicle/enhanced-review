@@ -6,6 +6,7 @@ import { listChangedFileDetails, type ChangedFile } from './diff-files.ts';
 import { argBatches, mapLimit, PARALLEL_GIT } from './git-runner.ts';
 import { DiffLineSpanSchema, ReviewFileSchema } from '../review/narrative.ts';
 import { buildDiffHunkIndex, type DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
+import { splitPatch } from '../review/prompt/split-hunks.ts';
 import { ReviewMetaSchema, type ReviewMeta } from '../review/review-meta.ts';
 import { skipReasons, toReviewFiles } from './skip-reasons.ts';
 import type { Shell } from './git.ts';
@@ -59,17 +60,23 @@ export const MAX_EMBED_BYTES = 1_000_000;
 const MAX_COMMITS = 200;
 const LITERAL = '--literal-pathspecs';
 
-/**
- * `checkReviewed` sees how many files will be reviewed before any of them is
- * diffed or embedded, so a change too big to run is refused before gather
- * reads every blob in it.
- */
+export interface GatherOptions {
+  /** A hunk with more changed lines than this is split into parts of about this size; `0` keeps git's. */
+  splitLines: number;
+  /**
+   * Sees how many files will be reviewed before any of them is diffed or
+   * embedded, so a change too big to run is refused before gather reads every
+   * blob in it.
+   */
+  checkReviewed?: (count: number) => void;
+}
+
 export async function gather(
   target: Target,
   meta: ReviewMeta,
   shell: Shell,
   run: RunFiles,
-  checkReviewed: (count: number) => void = () => undefined,
+  { splitLines, checkReviewed = () => undefined }: GatherOptions,
 ): Promise<RunContext> {
   const { baseSha, headSha } = target;
   const changed = await listChangedFileDetails(shell.runners.git, shell.cwd, baseSha, headSha);
@@ -78,7 +85,9 @@ export async function gather(
   const reviewed = changed.filter((file) => !reasons.has(file.filename));
   checkReviewed(reviewed.length);
 
-  const diffs = await mapLimit(reviewed, PARALLEL_GIT, (file) => fileDiff(shell, target, file));
+  const diffs = (
+    await mapLimit(reviewed, PARALLEL_GIT, (file) => fileDiff(shell, target, file))
+  ).map((patch) => splitPatch(patch, splitLines));
   const hunks = numberHunks(reviewed, diffs);
   const diffFile = annotatedDiffFile(reviewed, diffs, hunks);
   const contents = await embedContents(shell, target, reviewed);

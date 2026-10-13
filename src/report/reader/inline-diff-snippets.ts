@@ -1,4 +1,4 @@
-import type { ResolvedDiffHunk } from '@/review/narrative';
+import type { DiffLineSpan, ResolvedDiffHunk } from '@/review/narrative';
 
 /**
  * Pure logic for slicing a base/head file pair down to the lines around each
@@ -20,6 +20,13 @@ interface BuildInlineDiffSnippetsParams {
   originalLineCount?: number;
   modifiedLineCount?: number;
   contextLines?: number;
+  /**
+   * Every hunk of the file, cited or not. Context around a group stops short
+   * of its neighbours, so a chapter never draws lines another hunk changed as
+   * though they were its own — which a split hunk's parts, sitting flush
+   * against each other, would otherwise do on every snippet.
+   */
+  fileHunks?: readonly ResolvedDiffHunk[];
 }
 
 function countLines(text: string): number {
@@ -59,17 +66,47 @@ function getSpanStartLine(startLine: number, lineCount: number): number {
 function buildSliceBounds(
   startLine: number,
   endLine: number,
-  contextLines: number,
+  context: { before: number; after: number },
   maxLine: number,
 ): { startLine: number; endLine: number } | null {
   if (maxLine <= 0) return null;
 
-  const unclampedStart = Math.max(1, startLine - contextLines);
-  const unclampedEnd = Math.max(unclampedStart, endLine + contextLines);
+  const unclampedStart = Math.max(1, startLine - context.before);
+  const unclampedEnd = Math.max(unclampedStart, endLine + context.after);
   const clampedStart = Math.min(unclampedStart, maxLine);
   const clampedEnd = Math.max(clampedStart, Math.min(unclampedEnd, maxLine));
 
   return { startLine: clampedStart, endLine: clampedEnd };
+}
+
+/**
+ * Unchanged lines between two hunks of one file, `earlier` before `later`.
+ * The same count on either side, since nothing between them changed; a side
+ * where either hunk has no lines places it after the line it names.
+ */
+function linesBetween(earlier: DiffLineSpan, later: DiffLineSpan): number {
+  const after =
+    earlier.lineCount > 0 ? earlier.startLine + earlier.lineCount : earlier.startLine + 1;
+  const first = later.lineCount > 0 ? later.startLine : later.startLine + 1;
+  return Math.max(0, first - after);
+}
+
+/** How much context a group may take before and after it without reaching another hunk. */
+function contextFor(
+  group: readonly ResolvedDiffHunk[],
+  fileHunks: readonly ResolvedDiffHunk[],
+  contextLines: number,
+): { before: number; after: number } {
+  const first = group[0]!;
+  const last = group.at(-1)!;
+  const previous = fileHunks.find((hunk) => hunk.fileOrder === first.fileOrder - 1);
+  const next = fileHunks.find((hunk) => hunk.fileOrder === last.fileOrder + 1);
+  const gap = (a: ResolvedDiffHunk, b: ResolvedDiffHunk) =>
+    Math.min(linesBetween(a.original, b.original), linesBetween(a.modified, b.modified));
+  return {
+    before: previous ? Math.min(contextLines, gap(previous, first)) : contextLines,
+    after: next ? Math.min(contextLines, gap(last, next)) : contextLines,
+  };
 }
 
 /** Consecutive hunks (by `fileOrder`) form one group; a gap starts a new one. */
@@ -116,6 +153,7 @@ export function buildInlineDiffSnippets({
   originalLineCount = countLines(original),
   modifiedLineCount = countLines(modified),
   contextLines = 5,
+  fileHunks = [],
 }: BuildInlineDiffSnippetsParams): InlineDiffSnippet[] {
   const snippets: InlineDiffSnippet[] = [];
 
@@ -123,17 +161,18 @@ export function buildInlineDiffSnippets({
     const firstHunk = group[0];
     const lastHunk = group.at(-1);
     if (!firstHunk || !lastHunk) continue;
+    const context = contextFor(group, fileHunks, contextLines);
 
     const originalBounds = buildSliceBounds(
       getSpanStartLine(firstHunk.original.startLine, firstHunk.original.lineCount),
       getSpanEndLine(lastHunk.original.startLine, lastHunk.original.lineCount),
-      contextLines,
+      context,
       originalLineCount,
     );
     const modifiedBounds = buildSliceBounds(
       getSpanStartLine(firstHunk.modified.startLine, firstHunk.modified.lineCount),
       getSpanEndLine(lastHunk.modified.startLine, lastHunk.modified.lineCount),
-      contextLines,
+      context,
       modifiedLineCount,
     );
 

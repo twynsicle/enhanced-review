@@ -135,6 +135,7 @@ What you have staged, against `HEAD` — a review before the commit.
 | `--timeout <minutes>`        | every review | give up on the model run after `<minutes>` (default: `15`)                                     |
 | `--instructions <text>`      | every review | add your own guidance to the prompt — what to focus on, what to explain — see below            |
 | `--instructions-file <path>` | every review | the same, read from a file, for anything long or multi-line                                    |
+| `--split-hunks <lines>`      | every review | split a hunk of more changed lines than this into parts of about this size — see below         |
 | `--stub`                     | every review | write a mechanical review instead of running a model — see below                               |
 | `--from <stage>`             | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below      |
 | `--no-open`                  | every review | write the report without opening it                                                            |
@@ -159,6 +160,14 @@ Instructions that start with a dash, such as a bullet list, need the `=` form:
 file and pass `--instructions-file`, which reads UTF-8 or the UTF-16 Windows
 PowerShell writes. The text is part of the prompt, so it is paid for on every
 turn; the prompt stage line counts it in.
+
+`--split-hunks` sets how finely a long hunk is cut. Git makes a hunk out of
+nearby changes, so a new file is one hunk however many things it does, and a
+chapter that wants one function of it has to show all of it. `er` cuts any hunk
+of more than 20 changed lines (the default) into parts of about that size,
+between declarations, and the model can then tell each part in the chapter it
+belongs to. `0` keeps git's hunks. It cannot be given with `--from`, which
+reuses the hunks the last run numbered.
 
 The instructions are written into `prompt.md`, so `--from run` reuses them;
 they cannot be given with `--from run`, `parse` or `render`, which write no

@@ -26,11 +26,14 @@ afterEach(() => {
 
 const noGh = async () => ({ stdout: '', stderr: 'no gh in tests', exitCode: 1 });
 
-async function gatherFor(request: TargetRequest, git: GitRunner = runGit) {
+async function gatherFor(request: TargetRequest, git: GitRunner = runGit, splitLines = 0) {
   const shell = new Shell(repo.work, { git, gh: noGh });
   const { target, meta } = await resolveTarget(request, shell, { warn: () => undefined });
   const run = await createRunFolder(runsRoot, target.slug, new Date(2026, 8, 11, 14, 30, 5));
-  return { context: await gather(target, meta, shell.at(target.repoRoot), run), run };
+  return {
+    context: await gather(target, meta, shell.at(target.repoRoot), run, { splitLines }),
+    run,
+  };
 }
 
 const lines = (count: number, label: string) =>
@@ -223,6 +226,34 @@ describe('gather', () => {
       expect(text[at + 1]).toBe(hunk.header);
     }
     expect(text.join('\n')).not.toContain('package-lock.json');
+  });
+
+  it('splits a long new file into parts, each catalogued and annotated as a hunk', async () => {
+    repo.write('README.md', 'base\n');
+    repo.commit('base');
+    repo.git('push', '--quiet', 'origin', 'main');
+    repo.git('checkout', '--quiet', '-b', 'feat/long-file');
+    const fn = (name: string) =>
+      [
+        `export function ${name}() {`,
+        ...lines(15, '  step').split('\n').slice(0, -1),
+        '}',
+        '',
+      ].join('\n');
+    repo.write('src/long.ts', [fn('load'), fn('save'), fn('clear')].join('\n'));
+    repo.commit('add a long file');
+
+    const { context, run } = await gatherFor({ kind: 'branch', base: 'main' }, runGit, 20);
+
+    expect(context.hunks.map((hunk) => hunk.header)).toEqual([
+      '@@ -0,0 +1,18 @@ (part 1 of 3)',
+      '@@ -0,0 +19,18 @@ (part 2 of 3)',
+      '@@ -0,0 +37,17 @@ (part 3 of 3)',
+    ]);
+    const text = readFileSync(run.diff, 'utf8').split('\n');
+    for (const hunk of context.hunks) {
+      expect(text[text.indexOf(`# ${hunk.id}`) + 1]).toBe(hunk.header);
+    }
   });
 
   it('records the commits and the working-tree changes the review leaves out', async () => {

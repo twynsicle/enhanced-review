@@ -16,7 +16,8 @@ comes only through `host-env.ts`.
 src/cli/
   er.ts            the bin (`npm link` puts it on PATH): parseArgs → review; usage errors reprint the usage;
                    --instructions or --instructions-file becomes ReviewOptions.instructions, refused with a
-                   --from past prompt, which writes no new prompt;
+                   --from past prompt, which writes no new prompt; --split-hunks <lines> becomes
+                   ReviewOptions.splitLines, refused with any --from, since hunks are numbered at gather;
                    the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
                    --keep-worktree, --model, --max-turns, --timeout, --allow-large, --instructions; past 300 reviewed files a model run is
@@ -55,8 +56,9 @@ src/cli/
                    byte-order mark, UTF-16 (what Windows PowerShell writes), anything else refused
   run-folder.ts    <repo root>/er-reviews/<slug>/<stamp>/ and each stage's file; latestRunFolder; the runs folder
                    ignores itself
-  context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons and origins, hunks numbered
-                   across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
+  context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons and origins, each file's
+                   patch put through splitPatch (a hunk over --split-hunks changed lines becomes parts, each a real
+                   hunk) before its hunks are numbered across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
                    one diff file carrying every reviewed file's annotated patch (a patch holding two file sections
                    where the list paired one fails the stage), its line count carried as
                    `diffLines` so the prompt can ask the agent to Read it in one call; pr.md

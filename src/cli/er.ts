@@ -5,6 +5,7 @@ import { toolVersion } from './platform.ts';
 import { runInterruptCleanups } from './interrupts.ts';
 import { reaches, RESUMABLE_STAGES, review, type ReviewOptions } from './review.ts';
 import { reviewerInstructions } from './reviewer-instructions.ts';
+import { DEFAULT_SPLIT_LINES } from '../review/prompt/split-hunks.ts';
 import type { TargetRequest } from './targets.ts';
 import { fail, line } from './terminal.ts';
 
@@ -28,6 +29,9 @@ Options:
                        add your own guidance to the prompt: what to focus on or explain
   --instructions-file <path>
                        the same, read from a file
+  --split-hunks <lines>
+                       split a hunk of more changed lines than this into parts of about this
+                       size, at declaration boundaries; 0 keeps git's hunks (default: ${String(DEFAULT_SPLIT_LINES)})
   --stub               write a mechanical review instead of running a model
   --from <stage>       resume the newest run for this target at prompt, run, parse or render
   --no-open            write the report without opening it
@@ -71,6 +75,7 @@ async function main(argv: string[]): Promise<number> {
       'allow-large': { type: 'boolean' },
       instructions: { type: 'string' },
       'instructions-file': { type: 'string' },
+      'split-hunks': { type: 'string' },
     },
   });
   if (values.version) {
@@ -98,6 +103,11 @@ async function main(argv: string[]): Promise<number> {
       `--from ${from} reuses the prompt already written, so it cannot take new instructions; use --from prompt`,
     );
   }
+  if (values['split-hunks'] !== undefined && from !== null) {
+    throw new UsageError(
+      `--from ${from} reuses the hunks the last run numbered, so it cannot split them again; run without --from`,
+    );
+  }
   return review({
     request: targetRequest(args, values),
     cwd: process.cwd(),
@@ -110,7 +120,18 @@ async function main(argv: string[]): Promise<number> {
     keepWorktree: values['keep-worktree'] ?? false,
     allowLarge: values['allow-large'] ?? false,
     instructions,
+    splitLines: lineCount(values['split-hunks'], '--split-hunks', DEFAULT_SPLIT_LINES),
   });
+}
+
+/** A flag that must be a whole number of lines, zero included. */
+function lineCount(value: string | undefined, flag: string, fallback: number): number {
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0 || value.trim() === '') {
+    throw new UsageError(`${flag} takes a whole number of lines, 0 or more, not ${value}`);
+  }
+  return parsed;
 }
 
 /** A flag that must be a number greater than zero; minutes or turns. */

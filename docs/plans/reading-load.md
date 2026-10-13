@@ -37,34 +37,57 @@ wants it; everything is still cited, still one click away.
 
 ## Phases
 
-### 1. Finer hunks (CLI, `src/review/prompt`)
+### 1. Finer hunks (CLI, `src/review/prompt`, reader snippets)
 
-Split a git hunk whose changed lines exceed a threshold at top-level
-declaration boundaries, found by indentation: a non-blank line at column zero
-following a blank line begins a block; closing brackets glue to the block
-before; a leading run of imports or module boilerplate is its own block.
-Operates on the unified diff text in `numberHunks` (`src/cli/context.ts`) by
-way of a pure splitter beside `diff-hunk-catalog.ts`, which walks the hunk body
-and computes both sides' spans for each part so the reader's snippets need no
-change.
+**Seam.** `splitPatch(patch, target)` in `src/review/prompt/split-hunks.ts`
+rewrites one file's unified diff so a large hunk becomes several real hunks,
+each with its own synthesised `@@ -a,b +c,d @@ (part k of n)` header. It runs
+in `gather` on each file's patch before `numberHunks`, so the catalog, the
+annotated `diff.patch` the agent reads, the prompt's hunk table, coverage, the
+stub and the reader all see parts as ordinary hunks without a change of their
+own. Pure, no Node, so it lives beside the catalog.
 
-- `--split-hunks <lines>` sets the threshold; `0` disables; default 20 until
-  experiment settles it. Written into the run's context so `--from` reuses it.
-- A part is a hunk in every downstream sense: catalog, prompt, citation,
-  coverage, snippets, file view.
-- Acceptance: a new 200-line file is cited across two chapters without either
-  showing the other's half; the coverage check still finds an uncited part; the
-  stub review renders parts; the prompt's hunk list names parts of one hunk.
-- Open question for the phase plan: whether the splitter needs the
-  `language-map.ts` id to skip languages where column-zero is not a boundary
-  (Python is fine; YAML and Markdown probably want the plain threshold split).
+**Where a hunk splits.** A boundary is a body line that starts a paragraph:
+non-blank, the line before it blank, not a closing bracket or `end`, and not a
+`+` directly after a `-` (that pair is one edit's before and after). Among the
+paragraph starts in a range, the shallowest indentation wins, so a top-level
+file splits between declarations and a class body between its members; a block
+still over the target is split again one level deeper, which is what separates
+a long function's signature and setup from its body. Doc comments and
+decorators glue to what follows them because no blank line separates them.
+Blocks are then packed greedily up to the target, so a file of many small
+functions becomes parts of about the target size rather than one per function.
+A part with no changed line joins its neighbour. `\ No newline` lines stay
+with the line they annotate.
+
+**Spans.** Each part's sides are counted from the hunk's start; a side with no
+lines is written the way git writes one, as the line it sits after.
+
+**Threshold.** `--split-hunks <lines>`: hunks with more changed lines than this
+are split into parts of about this size; `0` keeps git's hunks. Default 20.
+Refused with `--from`, since hunks are numbered at gather.
+
+**Prompt.** One rule in the chapter rules: parts carry `(part k of n)`, are
+hunks in their own right, and a large new file's parts belong in the chapters
+whose stories they tell, not all in one chapter or the same file in several.
+
+**Reader.** A snippet's context stops at the gap to the file's neighbouring
+hunks (`ReviewFile.hunks`), equally on both sides, so a chapter citing part 1
+never draws part 2's lines as its own. This also fixes an existing case: two
+git hunks seven lines apart could already bleed one changed line.
+
+**Tests.** Splitter unit tests (new file, class body, mixed edit kept whole,
+no-newline marker, packing, zero target, spans round-trip through
+`buildDiffHunkIndex`); a gather test that a long new file comes back as several
+hunks and `diff.patch` carries each id; snippet tests for the fence; flag
+parsing.
 
 ### 2. Attention tiers and proven facts (schema, prompt, CLI, reader)
 
 - `diffChunks[].hunks: [{ id, tier: 'read' | 'skim' | 'mechanical', reason? }]`
   replaces `hunkIds`. Parser repairs as decided above.
 - CLI facts per hunk: `whitespaceOnly` (the hunk vanishes under `git diff -w
-  --ignore-blank-lines`), `movedFrom: { filename, similarity }` (a part whose
+--ignore-blank-lines`), `movedFrom: { filename, similarity }` (a part whose
   normalised lines match a removed part elsewhere at or above a threshold).
   Both shown in the catalog as hints, both carried on the resolved hunk.
 - Reader: snippet groups never merge across tiers; a `mechanical` group draws
