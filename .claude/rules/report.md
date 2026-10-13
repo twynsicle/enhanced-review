@@ -40,7 +40,8 @@ src/report/
                      assessment, the summary, then the chapters — that the sidebar renders, the keyboard walks
                      and the footer's Next follows; a chapter in the reading plan's brief is `core`;
                      readCountLabel, the "n of m chapters read" both the footer and the sidebar say),
-                     section-footer (the last thing in every section card: a chapter's Read checkbox and its
+                     section-footer (the last thing in every section card, bled to the full column so its rule
+                     spans the diffs and Next sits bottom right: a chapter's Read checkbox and its
                      count, then a primary "Next: <title>" that marks the chapter read and moves on, focusing
                      the next heading as the keyboard does — opening a chapter never marks it; the last chapter's
                      is "Back to summary", which marks it too; the summary and risk get Next alone, and a summary

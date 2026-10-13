@@ -13,6 +13,11 @@ import { token } from '@/report/theme/tokens';
  * glanced at on the way somewhere else has not been read. The walk is the
  * sidebar's and the keyboard's order, and the last chapter leads back to the
  * summary rather than to nothing.
+ *
+ * It bleeds to the full column, as a diff does, so its rule spans the diffs
+ * above it and Next sits at the bottom right, where a reader finishing a wide
+ * diff looks for it. At the prose measure the rule would stop mid-page, under
+ * diffs it has nothing to do with.
  */
 export function SectionFooter({
   sections,
@@ -47,6 +52,7 @@ export function SectionFooter({
   return (
     <Group
       component="footer"
+      data-bleed
       justify="space-between"
       align="center"
       gap={16}

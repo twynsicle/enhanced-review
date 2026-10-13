@@ -124,6 +124,11 @@ describe('the section footer', () => {
     expect(readIds()).toEqual([]);
   });
 
+  it('spans the full column, as the diffs above it do', () => {
+    open('ch1');
+    expect(footer()).toHaveAttribute('data-bleed');
+  });
+
   it('counts only chapters this review still has', () => {
     useProgress.getState().setRead(KEY, 'gone', true);
     open('ch1');
