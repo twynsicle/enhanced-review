@@ -323,8 +323,11 @@ function SectionCard({
       ) : null;
     case 'chapter': {
       const chapter = review.chapters.find((ch) => ch.id === section.id);
+      // Keyed so the folds and full-file views a reader opened stay with the
+      // chapter they were opened in, rather than with a card in the same place.
       return chapter ? (
         <ChapterCard
+          key={chapter.id}
           chapter={chapter}
           meta={meta}
           chapterIndex={chapterIndex}

@@ -34,7 +34,8 @@ src/report/
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
                      belongs to the file; each change is a history entry; the review's read chapters from the
-                     progress store, handed to the sidebar and the footer alike),
+                     progress store, handed to the sidebar and the footer alike; the chapter card keyed by its
+                     chapter, so a fold or full-file view opened in one never carries into the next),
                      sections.ts (readerSections: the one ordered list of sections — risk when there is an
                      assessment, the summary, then the chapters — that the sidebar renders, the keyboard walks
                      and the footer's Next follows; a chapter in the reading plan's brief is `core`;
