@@ -50,6 +50,7 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
     },
     meta: {
       repo: 'acme/widgets',
+      kind: 'branch',
       title: 'Staged changes on main',
       baseSha: 'a'.repeat(40),
       headSha: 'b'.repeat(40),

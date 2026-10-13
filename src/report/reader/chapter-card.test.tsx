@@ -62,6 +62,7 @@ describe('<ChapterCard /> with a mix of insights', () => {
       generatedAt: '2026-09-11T10:00:00.000Z',
       meta: {
         repo: 'a/r',
+        kind: 'branch',
         title: 't',
         baseSha: 'a'.repeat(40),
         headSha: 'b'.repeat(40),
@@ -79,6 +80,7 @@ describe('<ChapterCard /> with a mix of insights', () => {
       <EmbeddedFileSource bundle={bundle}>
         <ChapterCard
           chapter={chapter}
+          meta={bundle.meta}
           chapterIndex={1}
           {...(judgementCalls ? { judgementCalls } : {})}
         />

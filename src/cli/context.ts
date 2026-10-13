@@ -97,6 +97,7 @@ export async function gather(
     target,
     meta: {
       ...meta,
+      kind: target.kind,
       baseSha,
       headSha,
       stats: {

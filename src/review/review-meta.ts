@@ -8,12 +8,14 @@ import { z } from 'zod';
  * `title` is the fallback for a review whose `prTitle` is empty; `stats` is the
  * fallback for one with no `files` list. The two commits are what the reader
  * keys a reader's progress on, so rendering the same range again keeps it.
+ * `kind` is what was reviewed, so nothing has to guess it from a ref's name.
  * Everything past them is nullable because a review of staged changes has no
  * PR, and a branch has no description.
  */
 export const ReviewMetaSchema = z.object({
   /** Display label, `owner/name` for a GitHub repository. */
   repo: z.string(),
+  kind: z.enum(['pr', 'branch', 'staged']),
   title: z.string(),
   baseSha: z.string().min(1),
   headSha: z.string().min(1),

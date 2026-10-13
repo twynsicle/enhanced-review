@@ -45,6 +45,7 @@ function renderChunk() {
     generatedAt: '2026-09-11T10:00:00.000Z',
     meta: {
       repo: 'acme/widgets',
+      kind: 'branch',
       title: 'A change',
       baseSha: 'a'.repeat(40),
       headSha: 'b'.repeat(40),

@@ -40,6 +40,7 @@ function renderChunk(files: ReviewBundle['files'], insights?: Insight[]) {
     generatedAt: '2026-09-11T10:00:00.000Z',
     meta: {
       repo: 'a/r',
+      kind: 'branch',
       title: 't',
       baseSha: 'a'.repeat(40),
       headSha: 'b'.repeat(40),
@@ -173,6 +174,7 @@ describe('<InlineDiffChunk /> by attention tier', () => {
       generatedAt: '2026-09-11T10:00:00.000Z',
       meta: {
         repo: 'a/r',
+        kind: 'branch',
         title: 't',
         baseSha: 'a'.repeat(40),
         headSha: 'b'.repeat(40),

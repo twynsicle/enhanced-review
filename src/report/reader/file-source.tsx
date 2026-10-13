@@ -33,6 +33,11 @@ export function useReviewFile(path: string): ReviewFile | undefined {
   return useFileSource().files.get(path);
 }
 
+/** The review's record of every changed file, by path. */
+export function useReviewFiles(): ReadonlyMap<string, ReviewFile> {
+  return useFileSource().files;
+}
+
 /** Both sides of every file the bundle carries. */
 export function EmbeddedFileSource({
   bundle,

@@ -107,10 +107,11 @@ describe('gather', () => {
     });
   });
 
-  it('names the two commits under review, so the reader can key its progress on them', async () => {
+  it('names the kind of review and its two commits, copied off the target', async () => {
     branchOfEveryKind();
     const { context } = await gatherFor({ kind: 'branch', base: 'main' });
 
+    expect(context.meta.kind).toBe('branch');
     expect(context.meta.baseSha).toBe(repo.git('rev-parse', 'main').trim());
     expect(context.meta.headSha).toBe(repo.git('rev-parse', 'HEAD').trim());
   });

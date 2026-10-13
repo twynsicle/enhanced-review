@@ -37,7 +37,7 @@ export type TargetRequest =
   | { kind: 'branch'; base: string | null }
   | { kind: 'staged' };
 
-export type TargetMeta = Omit<ReviewMeta, 'baseSha' | 'headSha'>;
+export type TargetMeta = Omit<ReviewMeta, 'kind' | 'baseSha' | 'headSha'>;
 
 export interface ResolvedTarget {
   target: Target;

@@ -2,9 +2,13 @@ import { Group, Stack, Text, Title } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { plural } from '@/review/plural';
 import type { DiffChunk, Insight, JudgementCall, NarrativeChapter } from '@/review/narrative';
+import type { ReviewMeta } from '@/review/review-meta';
 import { Caption } from '@/report/chrome/caption';
 import classes from '@/report/reader/article.module.css';
+import { AskClaudeCode } from '@/report/reader/ask-claude-code';
+import { askPrompt } from '@/report/reader/ask-prompt';
 import { ContextExcerptCard } from '@/report/reader/context-excerpt';
+import { useReviewFiles } from '@/report/reader/file-source';
 import { InlineDiffChunk } from '@/report/reader/inline-diff-chunk';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
 import { InsightCallout } from '@/report/reader/insight-callout';
@@ -101,12 +105,15 @@ export function SectionRule({ label, count }: { label: string; count: number }) 
 /** One chapter as an article: eyebrow, title, passage, insights grid, files. */
 export function ChapterCard({
   chapter,
+  meta,
   chapterIndex,
   judgementCalls,
   onSelectFile,
   footer,
 }: {
   chapter: NarrativeChapter;
+  /** Where the review came from, which the Ask button's prompt names. */
+  meta: ReviewMeta;
   /** 1-based index for the eyebrow ("Chapter Two"). */
   chapterIndex: number;
   /**
@@ -124,6 +131,7 @@ export function ChapterCard({
   const insightCount = chapter.insights.length;
   const excerpts = chapter.contextExcerpts ?? [];
   const { anchored, unanchored } = groupInsightsByFile(chapter.insights);
+  const reviewFiles = useReviewFiles();
   return (
     <article
       className={classes.article}
@@ -131,7 +139,11 @@ export function ChapterCard({
       aria-labelledby={sectionHeadingId(chapter.id)}
     >
       <Stack component="header" gap={12}>
-        <Caption tone="before">{chapterEyebrow(chapterIndex)}</Caption>
+        <AskClaudeCode
+          key={chapter.id}
+          prompt={askPrompt(meta, chapter, reviewFiles)}
+          label={<Caption tone="before">{chapterEyebrow(chapterIndex)}</Caption>}
+        />
         <Title
           order={1}
           id={sectionHeadingId(chapter.id)}

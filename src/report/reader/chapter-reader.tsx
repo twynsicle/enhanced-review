@@ -326,6 +326,7 @@ function SectionCard({
       return chapter ? (
         <ChapterCard
           chapter={chapter}
+          meta={meta}
           chapterIndex={chapterIndex}
           judgementCalls={judgementCallsByFile(judgementCalls, chapter.id)}
           onSelectFile={onSelectFile}

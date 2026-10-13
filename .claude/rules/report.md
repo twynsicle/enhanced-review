@@ -59,8 +59,26 @@ src/report/
                      row), chapter-card (groupInsightsByFile splits the chapter's insights: an anchored one goes
                      down to its diff card, the rest stay in the Insights section above them; the chapter's
                      judgement calls arrive keyed by file and go down the same way; the header's meta line ends
-                     in the chapter's estimate, "~3 min"; the chapter's excerpts of unchanged code come after its
-                     diffs under "Unchanged code it affects", and are not counted as files touched),
+                     in the chapter's estimate, "~3 min"; the eyebrow shares its row with the Ask button; the
+                     chapter's excerpts of unchanged code come after its diffs under "Unchanged code it affects",
+                     and are not counted as files touched),
+                     ask-claude-code (AskClaudeCode: the quiet icon button, "Copy a prompt for Claude Code", on
+                     every chapter's header and nowhere else — the clipboard API, then a hidden-textarea
+                     execCommand copy, and when both fail the prompt in a read-only block, focused and selected,
+                     to copy by hand; what happened is said beside the button in a polite live region, a
+                     confirmation clearing after CONFIRMATION_MS, and all of it cleared on a chapter change
+                     because the card keys it by chapter; the button and status sit out of flow, so the eyebrow
+                     row keeps the caption's height and a chapter's title starts where the summary's does; the
+                     manual block is wrapped in aria-live="off", since the reader's column is itself a polite
+                     region that would read the whole prompt out; no toast, no notifications package),
+                     ask-prompt.ts (pure: askPrompt(meta, chapter, files), the copied text — the change by
+                     meta.kind (PR number and title, the branch, or the staged changes), the range as
+                     12-character shas with its `git diff`, the chapter's title and lede, each cited hunk with
+                     both its sides, `head 40-45, base 40-48` — a cited hunk carries git's context lines, so
+                     neither side alone is the change — the base side under a renamed file's origin path, and
+                     only the side that exists for a new or deleted file, marked `(new)` or `(gone at head)`;
+                     the chapter's excerpts, then a line left for the reader's question; never any code, since
+                     Claude Code stands in the repository),
                      context-excerpt (+ .module.css; ContextExcerptCard: a CodeCard with the path,
                      "unchanged · L3–14" and the reason, then a read-only Monaco editor holding only the
                      excerpt's lines, its gutter offset to the file's own numbers as a collapsed diff snippet's
@@ -88,8 +106,8 @@ src/report/
                      prose-passage (a Prose: the lede one step up the scale, the body as Markdown beneath),
                      markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                      file-source (EmbeddedFileSource: both sides of every file the bundle carries, and the review's
-                     record of each changed file; useFilePair, useReviewFile — an excerpted file has a pair and
-                     no record, which is what keeps it out of every changed-file list), file-origin.ts (the "Renamed from … · N% similar"
+                     record of each changed file; useFilePair, useReviewFile, useReviewFiles — an excerpted file
+                     has a pair and no record, which is what keeps it out of every changed-file list), file-origin.ts (the "Renamed from … · N% similar"
                      wording the file view, the diff card header and the sidebar row share),
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group
                      (inline-diff-snippets.ts: a group is consecutive hunks of one tier, and its context stops at

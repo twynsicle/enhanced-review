@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { BUNDLE_SCHEMA_VERSION } from '@/review/bundle';
 import { RISK_SECTION_ID, SUMMARY_SECTION_ID, type NarrativeReview } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
+import { EmbeddedFileSource } from '@/report/reader/file-source';
 import { PROGRESS_KEY, reviewKey, useProgress } from '@/report/stores/progress';
 import { fireEvent, render, screen, waitFor, within } from '@/report/test/render';
 import { ChapterReader } from './chapter-reader';
@@ -8,6 +10,7 @@ import { sectionHeadingId } from './sections';
 
 const meta: ReviewMeta = {
   repo: 'acme/widgets',
+  kind: 'pr',
   title: 'Add scheduled reviews',
   baseSha: 'a'.repeat(40),
   headSha: 'b'.repeat(40),
@@ -32,7 +35,19 @@ const review: NarrativeReview = {
 
 function open(section: string | null): void {
   window.history.replaceState(null, '', section === null ? '#/' : `#/?ch=${section}`);
-  render(<ChapterReader review={review} meta={meta} initialActiveId={SUMMARY_SECTION_ID} />);
+  render(
+    <EmbeddedFileSource
+      bundle={{
+        schemaVersion: BUNDLE_SCHEMA_VERSION,
+        generatedAt: '2026-09-11T10:00:00.000Z',
+        meta,
+        review,
+        files: {},
+      }}
+    >
+      <ChapterReader review={review} meta={meta} initialActiveId={SUMMARY_SECTION_ID} />
+    </EmbeddedFileSource>,
+  );
 }
 
 const footer = () => screen.getByRole('contentinfo');
