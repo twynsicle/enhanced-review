@@ -63,6 +63,23 @@ describe('excerpts held to the head commit', () => {
     expect(checked.dropped).toBeNull();
   });
 
+  it('keeps a root file named after an object member as a file of its own', async () => {
+    repo.write('constructor', 'one\n');
+    repo.write('__proto__', 'two\n');
+    const withNames = repo.commit('add files named after object members');
+    const checked = await checkExcerpts(
+      review([excerpt('constructor', 1, 1), excerpt('__proto__', 1, 1)]),
+      withNames,
+      [],
+      shell,
+    );
+    expect(checked.dropped).toBeNull();
+    expect(Object.entries(checked.contents)).toEqual([
+      ['constructor', 'one\n'],
+      ['__proto__', 'two\n'],
+    ]);
+  });
+
   it('reads no git for a review without excerpts', async () => {
     const noGit = new Shell(repo.work, {
       git: () => Promise.reject(new Error('read git')),

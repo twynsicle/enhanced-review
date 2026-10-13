@@ -5,7 +5,7 @@ import { BUNDLE_SCHEMA_VERSION, ReviewBundleSchema, type EmbeddedFile } from '..
 import { injectBundle } from '../review/bundle-html.ts';
 import type { ContextExcerpt, NarrativeReview } from '../review/narrative.ts';
 import type { RunContext } from './context.ts';
-import { readExcerpts, type ExcerptContents } from './excerpts.ts';
+import { readExcerpts, textLineCount, type ExcerptContents } from './excerpts.ts';
 import { runNpmScript, TOOL_ROOT } from './platform.ts';
 import type { RunFiles } from './run-folder.ts';
 import { note } from './terminal.ts';
@@ -65,43 +65,45 @@ function excerptFiles(
   context: RunContext,
   contents: ExcerptContents,
 ): Record<string, EmbeddedFile> {
-  const spans = new Map<string, ContextExcerpt[]>();
+  // Maps, not the records' own keys: a file at the repository root may be
+  // called `constructor` or `toString`, which a plain object already answers to.
+  const texts = new Map(Object.entries(contents));
+  const changed = new Set(Object.keys(context.contents));
+  const spans = new Map<string, { text: string; excerpts: ContextExcerpt[] }>();
   for (const chapter of review.chapters) {
     for (const excerpt of chapter.contextExcerpts ?? []) {
-      const content = contents[excerpt.filename];
+      const text = texts.get(excerpt.filename);
       if (
-        content === undefined ||
-        excerpt.filename in context.contents ||
-        excerpt.endLine > lineCount(content)
+        text === undefined ||
+        changed.has(excerpt.filename) ||
+        excerpt.endLine > textLineCount(text)
       ) {
         throw new Error(
           `the review's excerpt of ${excerpt.filename} does not match the parse that wrote it; run from parse`,
         );
       }
-      spans.set(excerpt.filename, [...(spans.get(excerpt.filename) ?? []), excerpt]);
+      const file = spans.get(excerpt.filename) ?? { text, excerpts: [] };
+      file.excerpts.push(excerpt);
+      spans.set(excerpt.filename, file);
     }
   }
-  const files: Record<string, EmbeddedFile> = {};
-  for (const [filename, excerpts] of spans) {
-    const last = Math.max(...excerpts.map((excerpt) => excerpt.endLine));
-    const shown = contents[filename]!.split('\n')
-      .slice(0, last)
-      .map((line, at) =>
-        excerpts.some((excerpt) => at + 1 >= excerpt.startLine && at + 1 <= excerpt.endLine)
-          ? line
-          : '',
-      );
-    files[filename] = {
-      base: { kind: 'absent' },
-      head: { kind: 'content', content: shown.join('\n') },
-    };
-  }
-  return files;
-}
-
-function lineCount(text: string): number {
-  if (text === '') return 0;
-  return (text.endsWith('\n') ? text.slice(0, -1) : text).split('\n').length;
+  return Object.fromEntries(
+    [...spans].map(([filename, { text, excerpts }]): [string, EmbeddedFile] => {
+      const last = Math.max(...excerpts.map((excerpt) => excerpt.endLine));
+      const shown = text
+        .split('\n')
+        .slice(0, last)
+        .map((line, at) =>
+          excerpts.some((excerpt) => at + 1 >= excerpt.startLine && at + 1 <= excerpt.endLine)
+            ? line
+            : '',
+        );
+      return [
+        filename,
+        { base: { kind: 'absent' }, head: { kind: 'content', content: shown.join('\n') } },
+      ];
+    }),
+  );
 }
 
 /**

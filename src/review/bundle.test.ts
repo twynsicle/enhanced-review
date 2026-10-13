@@ -80,4 +80,11 @@ describe('filePair', () => {
     expect(pair.base).toEqual({ kind: 'absent' });
     expect(pair.head).toEqual({ kind: 'absent' });
   });
+
+  it('reads a path named after an object member, which the bundle does not hold, as absent', () => {
+    expect(filePair(bundle, 'constructor')).toEqual({
+      base: { kind: 'absent' },
+      head: { kind: 'absent' },
+    });
+  });
 });

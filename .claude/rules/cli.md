@@ -105,9 +105,12 @@ src/cli/
   excerpts.ts      the half of an excerpt's checking only git can do, at the head commit: the file is there, a
                    blob and not a symbolic link, within gather's embed limit, not binary (a NUL byte, git's own
                    test), not dirty on disk (the agent numbered its lines from the working tree, not the commit) and at
-                   least as long as the span; each drop goes in one `excerpt-dropped` warning and the excerpt leaves the
+                   least as long as the span (textLineCount, which render checks the span against too); each drop
+                   goes in one `excerpt-dropped` warning and the excerpt leaves the
                    review; the surviving files' text is what excerpts.json holds (readExcerpts reads it back,
-                   refusing one missing or half-written); a review with no excerpts reads no git
+                   refusing one missing or half-written); a review with no excerpts reads no git; paths are
+                   looked up in Maps, never as a plain object's keys, since a root file may be `constructor`
+                   or `__proto__`
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks, tiered by fact alone —
                    whitespace-only or moved is `mechanical` with the fact as its reason, the rest `read` — and
                    a reading plan of the first chapter for the brief and every chapter for the standard read,

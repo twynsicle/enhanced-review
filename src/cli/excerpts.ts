@@ -53,7 +53,9 @@ export async function checkExcerpts(
   const onDisk = new Set(dirty);
 
   const drops: ExcerptDrop[] = [];
-  const contents: ExcerptContents = {};
+  // A Map until the end: assigning a path such as `__proto__` into a plain
+  // object would set its prototype rather than add the file.
+  const contents = new Map<string, string>();
   const chapters = review.chapters.map((chapter) => {
     if (!chapter.contextExcerpts) return chapter;
     const kept = chapter.contextExcerpts.filter((excerpt) => {
@@ -65,7 +67,7 @@ export async function checkExcerpts(
       if ('unusable' in file) return drop(file.unusable);
       if (onDisk.has(excerpt.filename)) return drop('changed on disk since the reviewed commit');
       if (excerpt.endLine > file.lines) return drop(`the file has ${String(file.lines)} lines`);
-      contents[excerpt.filename] = file.text;
+      contents.set(excerpt.filename, file.text);
       return true;
     });
     const { contextExcerpts: _all, ...rest } = chapter;
@@ -74,7 +76,7 @@ export async function checkExcerpts(
 
   return {
     review: { ...review, chapters },
-    contents,
+    contents: Object.fromEntries(contents),
     dropped: drops.length > 0 ? excerptsDropped(drops) : null,
   };
 }
@@ -95,8 +97,17 @@ async function headFile(shell: Shell, entry: TreeEntry | undefined): Promise<Hea
   if (entry.size > MAX_EMBED_BYTES) return { unusable: 'too large to embed in the report' };
   const text = await shell.git(['cat-file', 'blob', entry.oid]);
   if (text.includes('\0')) return { unusable: 'a binary file' };
-  const body = text.endsWith('\n') ? text.slice(0, -1) : text;
-  return { text, lines: text === '' ? 0 : body.split('\n').length };
+  return { text, lines: textLineCount(text) };
+}
+
+/**
+ * The lines an excerpt's span is held to, a final newline ending the last
+ * line rather than opening one more. The parse and render stages both check
+ * a span against it, so they cannot disagree on a file's length.
+ */
+export function textLineCount(text: string): number {
+  if (text === '') return 0;
+  return (text.endsWith('\n') ? text.slice(0, -1) : text).split('\n').length;
 }
 
 /**

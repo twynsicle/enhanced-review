@@ -286,8 +286,8 @@ describe('stub run → parse', () => {
   });
 });
 
-function excerpt(startLine: number, endLine: number) {
-  return { filename: 'src/runner.ts', startLine, endLine, reason: 'Reads it.' };
+function excerpt(startLine: number, endLine: number, filename = 'src/runner.ts') {
+  return { filename, startLine, endLine, reason: 'Reads it.' };
 }
 
 describe('render', () => {
@@ -317,6 +317,7 @@ describe('render', () => {
   it.each([
     ['an excerpt excerpts.json does not have', 'src/runner.ts', {}],
     ['an excerpt of a changed file', 'src/a.ts', { 'src/a.ts': 'a' }],
+    ['an excerpt named after an object member excerpts.json does not have', 'toString', {}],
     [
       'an excerpt past the end of the text excerpts.json holds',
       'src/runner.ts',
@@ -372,6 +373,29 @@ describe('render', () => {
     expect(embedded.bundle.files['src/runner.ts']).toEqual({
       base: { kind: 'absent' },
       head: { kind: 'content', content: ['', 'line 2', 'line 3', '', '', 'line 6'].join('\n') },
+    });
+  });
+
+  it('embeds a root file named after an object member like any other', async () => {
+    await writeStubRun(context(), run);
+    const { review } = await parseRun(context(), run, noGit);
+    writeFileSync(run.excerpts, JSON.stringify({ constructor: 'one\ntwo\n' }));
+    const [first, ...rest] = review.chapters;
+    const excerpted = {
+      ...review,
+      chapters: [{ ...first!, contextExcerpts: [excerpt(2, 2, 'constructor')] }, ...rest],
+    };
+
+    await renderRun(context(), excerpted, run, { reportShell: async () => shellHtml });
+
+    const html = readFileSync(run.html, 'utf8');
+    const text = html.slice(html.indexOf('application/json">') + 18, html.lastIndexOf('</script>'));
+    const embedded = readEmbeddedBundle(text);
+    if (!embedded.ok) throw new Error(`no bundle: ${embedded.reason}`);
+    expect(Object.hasOwn(embedded.bundle.files, 'constructor')).toBe(true);
+    expect(embedded.bundle.files['constructor']?.head).toEqual({
+      kind: 'content',
+      content: '\ntwo',
     });
   });
 });

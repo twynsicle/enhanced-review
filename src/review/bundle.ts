@@ -78,6 +78,7 @@ function toSide(side: EmbeddedSide | undefined, path: string): FileSide {
 
 /** Look a file up in a bundle; a path it does not hold is missing on both sides. */
 export function filePair(bundle: ReviewBundle, path: string): FilePair {
-  const file = bundle.files[path];
+  // Own keys only: a path such as `constructor` must not find Object's member.
+  const file = Object.hasOwn(bundle.files, path) ? bundle.files[path] : undefined;
   return { base: toSide(file?.base, path), head: toSide(file?.head, path) };
 }
