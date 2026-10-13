@@ -1,13 +1,16 @@
 import { ActionIcon, Box, Skeleton, Text, UnstyledButton } from '@mantine/core';
-import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
-import type { editor, IDisposable, IRange } from 'monaco-editor';
+import {
+  IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
+  IconChevronUp,
+} from '@tabler/icons-react';
+import type { editor, IDisposable } from 'monaco-editor';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FilePair } from '@/review/bundle';
 import {
   buildInlineDiffSnippets,
-  skimRanges,
   type InlineDiffSnippet,
-  type LineRange,
 } from '@/report/reader/inline-diff-snippets';
 import { factTags, hunkMarks, type HunkMark } from '@/report/reader/hunk-marks';
 import { detectLanguage } from '@/review/language-map';
@@ -185,88 +188,38 @@ function applyWordWrap(diffEditor: editor.IStandaloneDiffEditor, wrap: DiffWrap)
   diffEditor.layout();
 }
 
-/**
- * Whole lines, to the end of the last one. The text is faded, and the line
- * and its gutter are washed toward the editor's background, so the diff's own
- * band, rail and line number recede with the text rather than staying at full
- * strength around it: a bright band behind faded text still draws the eye.
- * The reason is the region's label, not a hover.
- */
-function skimDecorations(
-  model: editor.ITextModel | null,
-  ranges: readonly LineRange[],
-): editor.IModelDeltaDecoration[] {
-  if (!model) return [];
-  const last = model.getLineCount();
-  return ranges.flatMap(([start, end]) => {
-    if (start > last) return [];
-    const range: IRange = {
-      startLineNumber: start,
-      startColumn: 1,
-      endLineNumber: Math.min(end, last),
-      endColumn: model.getLineMaxColumn(Math.min(end, last)),
-    };
-    return [
-      {
-        range,
-        options: {
-          isWholeLine: true,
-          inlineClassName: classes.skim,
-          className: classes.skimWash,
-          marginClassName: classes.skimWash,
-        },
-      },
-    ];
-  });
+/** A rectangle over the editor, in pixels from its top left. */
+interface Rect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
 }
 
 /**
- * Fades each side's skim lines when the reader has asked for skim marks.
- * Decorations rather than a separate editor per tier, so a file stays one
- * piece.
- *
- * The stacked view draws deleted lines as view zones inside the modified
- * editor, which the original editor's decorations do not reach, so there a
- * skim hunk's removed lines keep full strength. They carry the removed band,
- * and fading them would need Monaco's private zone DOM.
+ * Where a labelled region sits: its rule's run down the editor, and for a
+ * skim region the rectangle over each pane's lines that fades them.
  */
-function applySkimFade(
-  diffEditor: editor.IStandaloneDiffEditor,
-  snippet: InlineDiffSnippet,
-  marks: SkimMarks,
-  collections: { current: editor.IEditorDecorationsCollection[] },
-): void {
-  for (const collection of collections.current) collection.clear();
-  collections.current = [];
-  if (marks === 'plain') return;
-  const ranges = skimRanges(snippet);
-  const original = diffEditor.getOriginalEditor();
-  const modified = diffEditor.getModifiedEditor();
-  collections.current = [
-    original.createDecorationsCollection(skimDecorations(original.getModel(), ranges.original)),
-    modified.createDecorationsCollection(skimDecorations(modified.getModel(), ranges.modified)),
-  ];
-}
-
-/** Where a labelled region sits in the editor, in pixels from its top. */
 interface MarkBox {
   mark: HunkMark;
   top: number;
   height: number;
+  washes: Rect[];
 }
 
 /**
  * One side of a hunk, as pixels in that side's editor. Stacked, the modified
  * editor also holds the removed lines, as view zones: those just above the
- * hunk's first line or just below its last are its own, and a side with no
- * lines at all is the zone after the line git names. Side by side, those zones
- * are the other pane's filler, and the other side is measured instead.
+ * hunk's first line are its own, as are those just below its last unless the
+ * next hunk starts there, and a side with no lines at all is the zone after
+ * the line git names. Side by side, those zones are the other pane's filler,
+ * and the other side is measured instead.
  */
 function spanBox(
   sideEditor: editor.ICodeEditor,
   span: DiffLineSpan,
   snippetStart: number,
-  stacked: boolean,
+  { stacked, ownsBelow }: { stacked: boolean; ownsBelow: boolean },
 ): [top: number, bottom: number] | null {
   const lineCount = sideEditor.getModel()?.getLineCount() ?? 0;
   const first = span.startLine - snippetStart + 1;
@@ -280,71 +233,183 @@ function spanBox(
   const last = Math.min(first + span.lineCount - 1, lineCount);
   const top = sideEditor.getTopForLineNumber(first, stacked);
   const bottom =
-    stacked && last < lineCount
+    stacked && ownsBelow && last < lineCount
       ? sideEditor.getTopForLineNumber(last + 1)
       : sideEditor.getBottomForLineNumber(last);
   return [top, bottom];
 }
 
+/**
+ * Whether the view zones under a hunk's last line are its own: not when the
+ * next hunk starts on the line after, or is a deletion sitting after that
+ * line, since the zones there hold the next hunk's removed lines.
+ */
+function ownsZoneBelow(hunk: CitedHunk, hunks: readonly CitedHunk[]): boolean {
+  const next = hunks.find((other) => other.fileOrder === hunk.fileOrder + 1);
+  if (!next) return true;
+  const last = hunk.modified.startLine + hunk.modified.lineCount - 1;
+  return next.modified.lineCount > 0
+    ? next.modified.startLine !== last + 1
+    : next.modified.startLine !== last;
+}
+
+/**
+ * A pane's left edge and width, in pixels from the editor's own left.
+ * Stacked, the one pane is the whole editor: the modified editor starts after
+ * a column of the original's line numbers, which belong to its removed lines.
+ */
+function paneOf(
+  sideEditor: editor.ICodeEditor,
+  host: HTMLElement,
+  stacked: boolean,
+): Pick<Rect, 'left' | 'width'> {
+  if (stacked) return { left: 0, width: host.clientWidth };
+  const pane = sideEditor.getContainerDomNode().getBoundingClientRect();
+  return { left: pane.left - host.getBoundingClientRect().left, width: pane.width };
+}
+
+/** The extent of several spans, or null when none of them drew anything. */
+function extent(spans: readonly ([number, number] | null)[]): [number, number] | null {
+  const drawn = spans.filter((span) => span !== null);
+  if (drawn.length === 0) return null;
+  const top = Math.min(...drawn.map(([start]) => start));
+  const bottom = Math.max(...drawn.map(([, end]) => end));
+  return bottom > top ? [top, bottom] : null;
+}
+
+/**
+ * Each mark measured from the editors' own line geometry. The rule and the
+ * wash come from the one measurement, so a region the reader is told is skim
+ * is always the region that fades.
+ */
 function markBoxes(
   diffEditor: editor.IStandaloneDiffEditor,
+  host: HTMLElement,
   snippet: InlineDiffSnippet,
   marks: readonly HunkMark[],
   view: DiffView,
 ): MarkBox[] {
   const stacked = view === 'unified';
-  const original = diffEditor.getOriginalEditor();
-  const modified = diffEditor.getModifiedEditor();
+  const modified = {
+    sideEditor: diffEditor.getModifiedEditor(),
+    side: 'modified',
+    start: snippet.modifiedStartLine,
+  } as const;
+  const original = {
+    sideEditor: diffEditor.getOriginalEditor(),
+    side: 'original',
+    start: snippet.originalStartLine,
+  } as const;
+  const sides = stacked ? [modified] : [original, modified];
   return marks.flatMap((mark) => {
-    const boxes = mark.hunks
-      .flatMap((hunk) => [
-        spanBox(modified, hunk.modified, snippet.modifiedStartLine, stacked),
-        stacked ? null : spanBox(original, hunk.original, snippet.originalStartLine, false),
-      ])
-      .filter((box) => box !== null);
-    if (boxes.length === 0) return [];
-    const top = Math.min(...boxes.map(([start]) => start));
-    const bottom = Math.max(...boxes.map(([, end]) => end));
-    return bottom > top ? [{ mark, top, height: bottom - top }] : [];
+    const perSide = sides.map(({ sideEditor, side, start }) => ({
+      sideEditor,
+      span: extent(
+        mark.hunks.map((hunk) =>
+          spanBox(sideEditor, hunk[side], start, {
+            stacked,
+            ownsBelow: ownsZoneBelow(hunk, snippet.hunks),
+          }),
+        ),
+      ),
+    }));
+    const whole = extent(perSide.map(({ span }) => span));
+    if (!whole) return [];
+    const washes = mark.skim
+      ? perSide.flatMap(({ sideEditor, span }) =>
+          span
+            ? [{ top: span[0], height: span[1] - span[0], ...paneOf(sideEditor, host, stacked) }]
+            : [],
+        )
+      : [];
+    return [{ mark, top: whole[0], height: whole[1] - whole[0], washes }];
   });
 }
 
-function sameBoxes(a: readonly MarkBox[], b: readonly MarkBox[]): boolean {
-  return (
-    a.length === b.length &&
-    a.every(
-      (box, i) => box.mark === b[i]!.mark && box.top === b[i]!.top && box.height === b[i]!.height,
-    )
+function boxesKey(boxes: readonly MarkBox[]): string {
+  return JSON.stringify(
+    boxes.map(({ mark, top, height, washes }) => [mark.key, top, height, washes]),
   );
 }
 
 /**
  * Each labelled region as a rule down the editor's right edge with its label
- * at the top: right rather than left, where code is least likely to run, and
- * over the editor rather than in a view zone, which would push the lines
- * apart. Placed from the editors' own line geometry, which the reader never
- * scrolls vertically, so a measure after each layout keeps it in place.
+ * at the top, and a skim region's lines washed toward the editor's background.
+ * Right rather than left, where code is least likely to run, and over the
+ * editor rather than in a view zone, which would push the lines apart. The
+ * wash is drawn over the editor rather than as Monaco decorations because the
+ * stacked view's removed lines are view zones no decoration reaches. Placed
+ * from the editors' own line geometry, which the reader never scrolls
+ * vertically, so a measure after each layout keeps it in place.
+ *
+ * A label folds to a tab, to read the code beneath it; the fold lasts as long
+ * as the diff is on the page.
  */
-function MarkOverlay({ boxes }: { boxes: readonly MarkBox[] }) {
-  // Two regions can start on one row — stacked, a hunk's removed lines and
-  // the next hunk's first line share a zone — so a label that would cover the
-  // one above it is moved down below it, its rule left where it is.
-  const placed = boxes
-    .toSorted((a, b) => a.top - b.top)
-    .reduce<(MarkBox & { labelOffset: number })[]>((done, box) => {
-      const previous = done.at(-1);
-      const below = previous ? previous.top + previous.labelOffset + LABEL_HEIGHT : box.top;
-      return [...done, { ...box, labelOffset: Math.max(box.top, below) - box.top }];
-    }, []);
+/**
+ * Where each label's top sits. Two regions can start on one row — stacked, a
+ * hunk's removed lines and the next hunk's first line share a zone — so a
+ * label that would cover the one above it moves down below it, its rule left
+ * where it is; and labels pushed past the editor's foot are lifted back up,
+ * each above the one under it, since the editor clips what runs past it.
+ */
+function labelTops(sorted: readonly MarkBox[], editorHeight: number): number[] {
+  const tops: number[] = [];
+  for (const box of sorted) {
+    const under = tops.at(-1);
+    tops.push(under === undefined ? box.top : Math.max(box.top, under + LABEL_HEIGHT));
+  }
+  let limit = editorHeight - LABEL_HEIGHT;
+  for (let i = tops.length - 1; i >= 0; i -= 1) {
+    tops[i] = Math.max(0, Math.min(tops[i]!, limit));
+    limit = tops[i]! - LABEL_HEIGHT;
+  }
+  return tops;
+}
+
+function MarkOverlay({ boxes, editorHeight }: { boxes: readonly MarkBox[]; editorHeight: number }) {
+  const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (key: string) =>
+    setFolded((previous) => {
+      const next = new Set(previous);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  const sorted = boxes.toSorted((a, b) => a.top - b.top);
+  const tops = labelTops(sorted, editorHeight);
+  const placed = sorted.map((box, i) => ({ ...box, labelOffset: tops[i]! - box.top }));
   return (
     <div className={classes.marks}>
-      {placed.map(({ mark, top, height, labelOffset }) => (
-        <div key={mark.key} className={classes.mark} style={{ top, height }}>
-          <span className={classes.markLabel} style={{ top: labelOffset }} title={mark.detail}>
-            {mark.label}
-          </span>
-        </div>
-      ))}
+      {placed.flatMap(({ mark, washes }) =>
+        washes.map((wash) => (
+          <div
+            key={`${mark.key}-${String(wash.left)}`}
+            className={classes.wash}
+            style={{ top: wash.top, left: wash.left, width: wash.width, height: wash.height }}
+          />
+        )),
+      )}
+      {placed.map(({ mark, top, height, labelOffset }) => {
+        const isFolded = folded.has(mark.key);
+        return (
+          <div key={mark.key} className={classes.mark} style={{ top, height }}>
+            <span
+              className={classes.markLabel}
+              data-folded={isFolded || undefined}
+              style={{ top: labelOffset }}
+              title={isFolded ? `${mark.label}. ${mark.detail}` : mark.detail}
+            >
+              {!isFolded && <span className={classes.markText}>{mark.label}</span>}
+              <UnstyledButton
+                className={classes.markFold}
+                aria-label={isFolded ? `Show label: ${mark.label}` : `Hide label: ${mark.label}`}
+                onClick={() => toggle(mark.key)}
+              >
+                {isFolded ? <IconChevronLeft size={12} /> : <IconChevronRight size={12} />}
+              </UnstyledButton>
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -374,7 +439,7 @@ function SnippetEditor({
   const [boxes, setBoxes] = useState<MarkBox[]>([]);
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const disposables = useRef<IDisposable[]>([]);
-  const skimFade = useRef<editor.IEditorDecorationsCollection[]>([]);
+  const host = useRef<HTMLDivElement | null>(null);
   const marks = useMemo(
     () => (skimMarks === 'marked' ? hunkMarks(snippet.hunks) : []),
     [skimMarks, snippet.hunks],
@@ -403,14 +468,18 @@ function SnippetEditor({
   snippetRef.current = snippet;
   const marksRef = useRef(marks);
   marksRef.current = marks;
-  const skimMarksRef = useRef(skimMarks);
-  skimMarksRef.current = skimMarks;
 
   const measureMarks = useCallback(() => {
     const diffEditor = editorRef.current;
-    if (!diffEditor) return;
-    const next = markBoxes(diffEditor, snippetRef.current, marksRef.current, viewRef.current);
-    setBoxes((previous) => (sameBoxes(previous, next) ? previous : next));
+    if (!diffEditor || !host.current) return;
+    const next = markBoxes(
+      diffEditor,
+      host.current,
+      snippetRef.current,
+      marksRef.current,
+      viewRef.current,
+    );
+    setBoxes((previous) => (boxesKey(previous) === boxesKey(next) ? previous : next));
   }, []);
 
   const onMount = useCallback(
@@ -443,7 +512,6 @@ function SnippetEditor({
       ];
       applyWordWrap(diffEditor, wrapRef.current);
       applySnippetLayout(diffEditor, snippet, expanded);
-      applySkimFade(diffEditor, snippet, skimMarksRef.current, skimFade);
       measure();
     },
     // The mount-time snippet/expanded are right for the first paint; later
@@ -457,10 +525,6 @@ function SnippetEditor({
   useEffect(() => {
     if (editorRef.current) applySnippetLayout(editorRef.current, snippet, expanded);
   }, [snippet, expanded, view]);
-
-  useEffect(() => {
-    if (editorRef.current) applySkimFade(editorRef.current, snippet, skimMarks, skimFade);
-  }, [snippet, skimMarks]);
 
   // A flip of the view or the marks moves the lines after this render; the
   // editors have laid out again by the next frame.
@@ -482,8 +546,6 @@ function SnippetEditor({
     () => () => {
       for (const disposable of disposables.current) disposable.dispose();
       disposables.current = [];
-      for (const collection of skimFade.current) collection.clear();
-      skimFade.current = [];
       /*
        * Tear down in the order Monaco requires: detach the models from the
        * widget, then dispose them. @monaco-editor/react 4.7 does it the other
@@ -579,6 +641,7 @@ function SnippetEditor({
   const fallback = <Skeleton height={MIN_EDITOR_HEIGHT} radius={0} />;
   return (
     <div
+      ref={host}
       className={classes.editor}
       style={{ height: editorHeight }}
       onClick={onClick}
@@ -602,7 +665,7 @@ function SnippetEditor({
           options={options}
         />
       </Suspense>
-      {boxes.length > 0 && <MarkOverlay boxes={boxes} />}
+      {boxes.length > 0 && <MarkOverlay boxes={boxes} editorHeight={editorHeight} />}
     </div>
   );
 }

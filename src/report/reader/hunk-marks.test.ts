@@ -49,6 +49,14 @@ describe('factTags', () => {
       'Whitespace only · L51-60',
     ]);
   });
+
+  it('gives each part its own strength in the hover when the parts of one tag differ', () => {
+    const [tag] = factTags([makeHunk(1, moved(92)), makeHunk(4, moved(61))]);
+    expect(tag?.detail.split('\n')).toEqual([
+      'L11-20: 92% of these lines match the lines removed from src/old.ts',
+      'L41-50: 61% of these lines match the lines removed from src/old.ts',
+    ]);
+  });
 });
 
 describe('hunkMarks', () => {

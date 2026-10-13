@@ -16,15 +16,15 @@ import {
   IconViewportNarrow,
   IconViewportWide,
 } from '@tabler/icons-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { selectSpaceLimited, useDiffView, useReaderColumn } from '@/report/stores/diff-view';
 import { useDiffWrap } from '@/report/stores/diff-wrap';
-import { COMMENT_FADES, useCommentFade } from '@/report/stores/comment-fade';
+import { COMMENT_FADES, previewCommentFade, useCommentFade } from '@/report/stores/comment-fade';
 import { useDimComments } from '@/report/stores/dim-comments';
 import type { FadeRange } from '@/report/stores/fade';
 import { useFileHeaders } from '@/report/stores/file-headers';
 import { useLayoutWidth } from '@/report/stores/layout-width';
-import { SKIM_FADES, useSkimFade } from '@/report/stores/skim-fade';
+import { previewSkimFade, SKIM_FADES, useSkimFade } from '@/report/stores/skim-fade';
 import { useSkimMarks } from '@/report/stores/skim-marks';
 
 const ICON = 16;
@@ -86,23 +86,28 @@ function SettingItem({
 /**
  * How hard a setting above it fades, beneath that setting. Shown only while
  * the setting is on: a strength for a fade that is not drawn would be a
- * control that visibly does nothing.
+ * control that visibly does nothing. A drag paints each step and stores only
+ * where it ends.
  */
 function FadeSlider({
   name,
   range,
   value,
-  onChange,
+  onPreview,
+  onCommit,
 }: {
   name: string;
   range: FadeRange;
   value: number;
-  onChange: (value: number) => void;
+  onPreview: (value: number) => void;
+  onCommit: (value: number) => void;
 }) {
+  const [draft, setDraft] = useState<number | null>(null);
+  const shown = draft ?? value;
   return (
     <Box px="sm" pb="xs">
       <Text fz="xs" c="dimmed" mb={4}>
-        {name} · {value}%
+        {name} · {shown}%
       </Text>
       <Slider
         thumbLabel={name}
@@ -110,8 +115,15 @@ function FadeSlider({
         min={range.min}
         max={range.max}
         step={range.step}
-        value={value}
-        onChange={onChange}
+        value={shown}
+        onChange={(next) => {
+          setDraft(next);
+          onPreview(next);
+        }}
+        onChangeEnd={(next) => {
+          onCommit(next);
+          setDraft(null);
+        }}
         label={null}
       />
     </Box>
@@ -182,7 +194,8 @@ export function DisplayMenu() {
             name="Comment fade"
             range={COMMENT_FADES}
             value={commentFade}
-            onChange={setCommentFade}
+            onPreview={previewCommentFade}
+            onCommit={setCommentFade}
           />
         )}
         <SettingItem
@@ -199,7 +212,13 @@ export function DisplayMenu() {
           onClick={toggleMarks}
         />
         {marks === 'marked' && (
-          <FadeSlider name="Skim fade" range={SKIM_FADES} value={skimFade} onChange={setSkimFade} />
+          <FadeSlider
+            name="Skim fade"
+            range={SKIM_FADES}
+            value={skimFade}
+            onPreview={previewSkimFade}
+            onCommit={setSkimFade}
+          />
         )}
         <SettingItem
           icon={

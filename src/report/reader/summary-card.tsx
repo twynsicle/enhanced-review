@@ -9,7 +9,12 @@ import type { AnchoredJudgementCall } from '@/report/reader/judgement-calls';
 import { MarkdownText } from '@/report/reader/markdown-text';
 import { ProsePassage } from '@/report/reader/prose-passage';
 import { formatMinutes, readingPlanRows, type PlanRow } from '@/report/reader/reading-time';
-import { formatChapterNumber, sectionCardId, sectionHeadingId } from '@/report/reader/sections';
+import {
+  formatChapterNumber,
+  readerSections,
+  sectionCardId,
+  sectionHeadingId,
+} from '@/report/reader/sections';
 import { token } from '@/report/theme/tokens';
 import { DISPLAY_SIZE } from '@/report/theme/tokens';
 
@@ -192,9 +197,13 @@ function ReadingPlanBlock({
   review: NarrativeReview;
   onSelectChapter: (chapterId: string) => void;
 }) {
-  // Numbered as the sidebar numbers them, so a plan's chapter can be found
-  // there by the number as well as by the title.
-  const numbers = new Map(review.chapters.map((chapter, index) => [chapter.id, index + 1]));
+  // The sidebar's own numbers, so a plan's chapter can be found there by its
+  // number as well as by its title.
+  const numbers = new Map(
+    readerSections(review).flatMap((section) =>
+      section.chapterNumber === null ? [] : [[section.id, section.chapterNumber] as const],
+    ),
+  );
   return (
     <Stack component="section" gap={12}>
       <Caption component="h3">Reading plan</Caption>

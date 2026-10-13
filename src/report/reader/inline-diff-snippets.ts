@@ -217,25 +217,3 @@ export function buildInlineDiffSnippets({
 
   return snippets;
 }
-
-/** Inclusive line ranges, 1-based in the snippet's own numbering. */
-export type LineRange = readonly [start: number, end: number];
-
-/** A span renumbered from the snippet's first line; a side with no lines has nothing to fade. */
-export function rangeOnSide(span: DiffLineSpan, startLine: number): LineRange[] {
-  return span.lineCount > 0
-    ? [[span.startLine - startLine + 1, span.startLine - startLine + span.lineCount]]
-    : [];
-}
-
-/** The lines of a snippet's skim hunks on each side, in the snippet's own numbering, for the editor to fade. */
-export function skimRanges(snippet: InlineDiffSnippet): {
-  original: LineRange[];
-  modified: LineRange[];
-} {
-  const skim = snippet.hunks.filter((hunk) => hunk.tier === 'skim');
-  return {
-    original: skim.flatMap((hunk) => rangeOnSide(hunk.original, snippet.originalStartLine)),
-    modified: skim.flatMap((hunk) => rangeOnSide(hunk.modified, snippet.modifiedStartLine)),
-  };
-}

@@ -2,13 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { rawPreferenceStorage } from '@/report/stores/raw-preference';
 
-/**
- * A fade the reader sets with a slider: a percentage of strength taken away,
- * persisted raw as one number and painted as a fraction in a CSS variable on
- * `<html>`, as the sidebar's width is. The editors' classes read the variable,
- * so a change restyles every editor without re-rendering one. A number, so a
- * stored value is clamped to the slider's range rather than matched.
- */
 export interface FadeRange {
   min: number;
   max: number;
@@ -21,6 +14,16 @@ interface FadeState {
   setFade: (fade: number) => void;
 }
 
+/**
+ * A fade the reader sets with a slider: a percentage of strength taken away,
+ * persisted raw as one number and painted as a fraction in a CSS variable on
+ * `<html>`, as the sidebar's width is. The editors' classes read the variable,
+ * so a change restyles every editor without re-rendering one. A number, so a
+ * stored value is clamped to the slider's range rather than matched.
+ *
+ * `preview` paints a value without storing it, for a drag: storage is for the
+ * value the reader settles on, not each step on the way there.
+ */
 export function createFadePreference({
   key,
   variable,
@@ -66,5 +69,7 @@ export function createFadePreference({
     return useFade.subscribe((state) => paint(state.fade));
   };
 
-  return { useFade, follow };
+  const preview = (fade: number): void => paint(clamp(fade));
+
+  return { useFade, follow, preview };
 }

@@ -3,7 +3,6 @@ import {
   buildInlineDiffSnippets,
   formatSelectedHunkLabel,
   groupSelectedHunks,
-  skimRanges,
 } from './inline-diff-snippets';
 import type { CitedHunk } from '@/review/narrative';
 
@@ -59,60 +58,6 @@ describe('groupSelectedHunks', () => {
     expect(groups.map((group) => group.map((hunk) => hunk.id))).toEqual([
       ['H0001', 'H0002', 'H0003'],
     ]);
-  });
-});
-
-describe('skimRanges', () => {
-  it('gives each side the lines of its skim hunks, in the snippet’s numbering', () => {
-    const snippet = buildInlineDiffSnippets({
-      hunks: [
-        makeHunk({
-          id: 'H0001',
-          fileOrder: 1,
-          original: { startLine: 10, lineCount: 3 },
-          modified: { startLine: 10, lineCount: 4 },
-          changedLines: 4,
-        }),
-        makeHunk({
-          id: 'H0002',
-          fileOrder: 2,
-          original: { startLine: 13, lineCount: 2 },
-          modified: { startLine: 14, lineCount: 3 },
-          changedLines: 3,
-          tier: 'skim',
-        }),
-        makeHunk({
-          id: 'H0003',
-          fileOrder: 3,
-          original: { startLine: 14, lineCount: 0 },
-          modified: { startLine: 17, lineCount: 2 },
-          changedLines: 2,
-          tier: 'skim',
-        }),
-      ],
-      original: makeLines('o', 30),
-      modified: makeLines('m', 30),
-      contextLines: 5,
-    })[0]!;
-
-    expect(snippet.originalStartLine).toBe(5);
-    expect(snippet.modifiedStartLine).toBe(5);
-    expect(skimRanges(snippet)).toEqual({
-      original: [[9, 10]],
-      modified: [
-        [10, 12],
-        [13, 14],
-      ],
-    });
-  });
-
-  it('fades nothing in a snippet that is all read', () => {
-    const [snippet] = buildInlineDiffSnippets({
-      hunks: [makeHunk({})],
-      original: 'a',
-      modified: 'b',
-    });
-    expect(skimRanges(snippet!)).toEqual({ original: [], modified: [] });
   });
 });
 

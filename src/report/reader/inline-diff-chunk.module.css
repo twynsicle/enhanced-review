@@ -128,31 +128,16 @@
 }
 
 /*
- * A skim hunk's lines, when the reader has asked for skim marks: the text
- * faded, and the line and gutter washed most of the way to the editor's own
- * background, so the diff band, the rail and the line number recede with it.
- * Far enough back that the eye passes over them; the label says why.
+ * A skim region's lines, when the reader has asked for skim marks: washed
+ * toward the editor's own background, text, band, rail and line number alike,
+ * so nothing in them stays at full strength to catch the eye. How far is the
+ * reader's skim fade (`stores/skim-fade.ts`). The label says why.
  */
-/*
- * The wash is stacked above its siblings because Monaco orders a line's
- * decorations by its own rules, and the diff's band and gutter rail can land
- * after it. In the gutter that also puts it over the line number, which is
- * how the number fades.
- */
-/*
- * Both follow the reader's skim fade (`stores/skim-fade.ts`): the text loses
- * that share of its strength, and the band a little more, since a band left
- * stronger than its text is what catches the eye.
- */
-.skim {
-  opacity: calc(1 - var(--review-skim-fade, 0.6));
-}
-
-.skimWash {
-  z-index: 1;
+.wash {
+  position: absolute;
   background: color-mix(
     in srgb,
-    var(--vscode-editor-background) min(calc(var(--review-skim-fade, 0.6) * 100% + 10%), 95%),
+    var(--vscode-editor-background) calc(var(--review-skim-fade, 0.6) * 100%),
     transparent
   );
 }
@@ -185,9 +170,11 @@
   position: absolute;
   top: 0;
   right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
   max-width: 28rem;
-  overflow: hidden;
-  padding: 0 6px;
+  padding: 0 0 0 6px;
   border: 1px solid var(--er-border);
   border-radius: 4px;
   background: var(--er-card);
@@ -195,8 +182,32 @@
   font-size: var(--mantine-font-size-xs);
   line-height: 16px;
   white-space: nowrap;
-  text-overflow: ellipsis;
   pointer-events: auto;
+}
+
+/* Folded, the label is its button alone: a tab on the rule. */
+.markLabel[data-folded] {
+  padding: 0;
+}
+
+.markText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.markFold {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: inherit;
+}
+
+.markFold:hover {
+  color: var(--er-foreground);
 }
 
 /*

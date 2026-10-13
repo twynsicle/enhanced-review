@@ -12,7 +12,11 @@ export const COMMENT_FADE_KEY = 'er-comment-fade';
 
 export const COMMENT_FADES = { min: 20, max: 90, step: 5, default: 60 } as const;
 
-export const { useFade: useCommentFade, follow: followCommentFade } = createFadePreference({
+export const {
+  useFade: useCommentFade,
+  follow: followCommentFade,
+  preview: previewCommentFade,
+} = createFadePreference({
   key: COMMENT_FADE_KEY,
   variable: '--review-comment-fade',
   range: COMMENT_FADES,

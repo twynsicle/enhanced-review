@@ -118,13 +118,14 @@ src/report/
                      (inline-diff-snippets.ts: a group is consecutive hunks whatever their tiers, and its context
                      stops at the unchanged lines between it and the file's neighbouring hunks, so the flush parts
                      of a split hunk never draw each other's lines); nothing folds, and skim hunks are drawn like
-                     any other unless er-skim-marks says `marked`: then a skim hunk's lines, from skimRanges, are
-                     faded in place on each side by Monaco decorations (the text and the wash of the editor's
-                     background over the line, gutter and diff band both following `--review-skim-fade`), so a
-                     file stays one editor the find widget reaches — except a skim hunk's removed lines in the
-                     stacked view, which are view zones the original editor's decorations cannot reach — and each
-                     region hunk-marks.ts names is drawn as a rule down the editor's right edge with its label
-                     at the top, placed from the editors' line geometry after each layout; each proven fact is
+                     any other unless er-skim-marks says `marked`: then each region hunk-marks.ts names is
+                     measured from the editors' line geometry after each layout, stacked view zones included (a
+                     zone under a hunk's last line is the next hunk's when that hunk starts there), and drawn
+                     over the editor as a rule down its right edge with a label at the top that folds to a tab,
+                     and for a skim region a wash of the editor's background over each pane's lines at
+                     `--review-skim-fade` — an overlay rather than decorations, since no decoration reaches the
+                     stacked view's removed lines, and one measurement for both, so a labelled skim region is
+                     always the one that fades; the file stays one editor the find widget reaches; each proven fact is
                      one tag in the card's header over every line it holds for, the similarity in its hover;
                      the full-file view keeps the chapter's hunks, so its marks stay;
                      the asides for this file above the diff — judgement calls first, then the chapter's
@@ -151,7 +152,8 @@ src/report/
                      unchanged or with edits, the percentage kept for the hover; factTags, one header tag per
                      fact with its hunks' touching ranges joined; hunkMarks, the regions a diff labels — every
                      skim hunk, as "Skim · <fact> · <the review's reason>", and every hunk with a fact whatever
-                     its tier — neighbours saying the same joined into one),
+                     its tier — neighbours saying the same joined into one; hunks sharing a label but not a
+                     hover, such as two edited moves at different strengths, give each its own line in it),
                      monaco-themes.ts (the dimmed twins of vs and vs-dark: inherit the base, and give `comment`
                      and the sub-scopes Monaco's tokenizers emit italic, underline and strikethrough together,
                      a style no base theme uses, so theme.css finds them by `.mtki.mtku.mtks`, drops the lines and
@@ -181,10 +183,10 @@ src/report/
                      place), comment-fade.ts (`er-comment-fade`, how hard dimmed comments fade, clamped to
                      COMMENT_FADES; followCommentFade paints `--review-comment-fade`), skim-marks.ts (`er-skim-marks`, plain ⇄ marked, plain by default: skim hunks drawn
                      like any other, or faded and labelled), skim-fade.ts (`er-skim-fade`, how hard marked skim
-                     hunks fade, clamped to SKIM_FADES; followSkimFade paints `--review-skim-fade`, which the .skim
-                     and .skimWash classes read) — both made by fade.ts's createFadePreference, a percentage
-                     painted on `<html>` as a fraction, so a change restyles every editor without re-rendering
-                     one, file-headers.ts (`er-file-headers`, full ⇄ one-line:
+                     hunks fade, clamped to SKIM_FADES; followSkimFade paints `--review-skim-fade`, which the
+                     .wash class reads) — both made by fade.ts's createFadePreference, a percentage painted on
+                     `<html>` as a fraction, so a change restyles every editor without re-rendering one, and a
+                     preview that paints without storing, which the display menu's slider uses mid-drag, file-headers.ts (`er-file-headers`, full ⇄ one-line:
                      a code card header's facts on rows of their own, or kept beside the path), all ten on
                      raw-preference.ts (one word
                      or one number, not JSON). progress.ts (`er-progress`) is the one record rather than a

@@ -48,28 +48,47 @@ export interface FactTag extends HunkNote {
   lines: string;
 }
 
+/** Hunks that share a label, each with its own note. */
+type Held = { hunk: CitedHunk; note: HunkNote }[];
+
+/**
+ * One hover for hunks that share a label. Their details can still differ —
+ * two moves from one file with edits, matched at different strengths — and
+ * then each is given against its own lines rather than the first standing for
+ * all of them.
+ */
+function joinedDetail(held: Held): string {
+  const details = new Set(held.map(({ note }) => note.detail));
+  if (details.size === 1) return held[0]!.note.detail;
+  return held
+    .map(({ hunk, note }) => `${formatSelectedHunkLabel([hunk])}: ${note.detail}`)
+    .join('\n');
+}
+
 /**
  * The card header's tags: one per fact, not one per hunk, so a block split
  * into parts and moved whole is one tag over all of its lines.
  */
 export function factTags(hunks: readonly CitedHunk[]): FactTag[] {
-  const byLabel = new Map<string, { note: HunkNote; hunks: CitedHunk[] }>();
+  const byLabel = new Map<string, Held>();
   for (const hunk of hunks.toSorted((a, b) => a.fileOrder - b.fileOrder)) {
     const note = provenNote(hunk);
     if (!note) continue;
-    const entry = byLabel.get(note.label);
-    if (entry) entry.hunks.push(hunk);
-    else byLabel.set(note.label, { note, hunks: [hunk] });
+    const held = byLabel.get(note.label);
+    if (held) held.push({ hunk, note });
+    else byLabel.set(note.label, [{ hunk, note }]);
   }
-  return [...byLabel.values()].map(({ note, hunks: held }) => ({
-    ...note,
-    lines: formatSelectedHunkLabel(held),
+  return [...byLabel].map(([label, held]) => ({
+    label,
+    detail: joinedDetail(held),
+    lines: formatSelectedHunkLabel(held.map(({ hunk }) => hunk)),
   }));
 }
 
 /** A run of a snippet's hunks the diff labels as one region. */
 export interface HunkMark extends HunkNote {
   key: string;
+  /** Whether the region's lines are faded, which only a skim hunk's are. */
   skim: boolean;
   hunks: readonly CitedHunk[];
 }
@@ -81,22 +100,28 @@ export interface HunkMark extends HunkNote {
  * "Skim", since the label is what says why the lines are faded.
  */
 export function hunkMarks(hunks: readonly CitedHunk[]): HunkMark[] {
-  const marks: HunkMark[] = [];
+  const runs: Held[] = [];
   let previous: CitedHunk | undefined;
   for (const hunk of hunks.toSorted((a, b) => a.fileOrder - b.fileOrder)) {
     const note = markNote(hunk);
-    const last = marks.at(-1);
+    const run = runs.at(-1);
+    const last = run?.at(-1);
     const joins =
       last !== undefined &&
-      previous !== undefined &&
-      last.hunks.at(-1) === previous &&
-      hunk.fileOrder === previous.fileOrder + 1 &&
-      last.label === note?.label;
-    if (note && joins) last.hunks = [...last.hunks, hunk];
-    else if (note) marks.push({ key: hunk.id, ...note, skim: hunk.tier === 'skim', hunks: [hunk] });
+      last.hunk === previous &&
+      hunk.fileOrder === last.hunk.fileOrder + 1 &&
+      last.note.label === note?.label;
+    if (note && joins) run!.push({ hunk, note });
+    else if (note) runs.push([{ hunk, note }]);
     previous = hunk;
   }
-  return marks;
+  return runs.map((held) => ({
+    key: held[0]!.hunk.id,
+    label: held[0]!.note.label,
+    detail: joinedDetail(held),
+    skim: held[0]!.hunk.tier === 'skim',
+    hunks: held.map(({ hunk }) => hunk),
+  }));
 }
 
 function markNote(hunk: CitedHunk): HunkNote | null {

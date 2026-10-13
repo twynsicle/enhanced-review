@@ -14,7 +14,11 @@ export const SKIM_FADE_KEY = 'er-skim-fade';
 
 export const SKIM_FADES = { min: 20, max: 75, step: 5, default: 60 } as const;
 
-export const { useFade: useSkimFade, follow: followSkimFade } = createFadePreference({
+export const {
+  useFade: useSkimFade,
+  follow: followSkimFade,
+  preview: previewSkimFade,
+} = createFadePreference({
   key: SKIM_FADE_KEY,
   variable: '--review-skim-fade',
   range: SKIM_FADES,

@@ -123,11 +123,11 @@ whatever is behind it, as a skim line does. How hard is the reader's slider
 (20–90%) — further than skim may go, since a comment's fade is the reader
 asking for it out of the way rather than the review deciding it.
 
-Skim marks fade the same way, and are off until the reader turns them on: a
-skim hunk's text is faded and its line and gutter washed toward the editor's
-background, so the band and rail recede with the text — a full-strength band
-behind faded text still draws the eye. How hard is the reader's own slider
-(20–75%), since how faint is too faint depends on their screen and scheme;
-the cap keeps a skim line readable on demand. A fade is never left to
-explain itself: every faded region carries its reason as a label at the
-editor's right edge.
+Skim marks fade too, and are off until the reader turns them on: a skim
+region is washed toward the editor's background, text, band, rail and line
+number alike — a full-strength band behind faded text still draws the eye.
+How hard is the reader's own slider (20–75%), since how faint is too faint
+depends on their screen and scheme; the cap keeps a skim line readable on
+demand. A fade is never left to explain itself: every faded region carries
+its reason as a label at the editor's right edge, and the label folds to a
+tab so the code under it can be read.
