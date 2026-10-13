@@ -21,7 +21,7 @@
 const HEADER_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/;
 
 /** Hunks with more changed lines than this are split; `0` keeps git's hunks. */
-export const DEFAULT_SPLIT_LINES = 20;
+export const DEFAULT_SPLIT_LINES = 10;
 
 const PART_RE = /^@@ [^@]* @@ \(part (\d+) of (\d+)\)/;
 

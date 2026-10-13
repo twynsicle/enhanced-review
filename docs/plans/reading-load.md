@@ -64,7 +64,7 @@ with the line they annotate.
 lines is written the way git writes one, as the line it sits after.
 
 **Threshold.** `--split-hunks <lines>`: hunks with more changed lines than this
-are split into parts of about this size; `0` keeps git's hunks. Default 20.
+are split into parts of about this size; `0` keeps git's hunks. Default 10, chosen after a run at 10 told a new file and its tests across two chapters.
 Refused with `--from`, since hunks are numbered at gather.
 
 **Prompt.** One rule in the chapter rules: parts carry `(part k of n)`, are
