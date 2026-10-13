@@ -35,6 +35,12 @@ export interface RunProgress {
   activity(what: string, turn: number): void;
   /** A block of the answer, as it arrives. */
   text(chunk: string): void;
+  /**
+   * The answer was refused and the model is writing the whole of it again,
+   * so its chapters count from one: carrying on from the refused answer's
+   * count would read as a review twice as long.
+   */
+  answerAgain(): void;
   /** The run is over: stop the heartbeat. */
   stop(): void;
 }
@@ -97,6 +103,10 @@ export function startProgress(deps: ProgressDeps = HOST_PROGRESS_DEPS): RunProgr
         chapters += 1;
         print(`writing chapter ${String(chapters)}: ${match[2] ?? ''}`);
       }
+    },
+    answerAgain() {
+      chapters = 0;
+      scanned = answer.length;
     },
     stop() {
       heartbeat.stop();

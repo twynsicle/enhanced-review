@@ -132,6 +132,20 @@ describe('the run log', () => {
     progress.text('ee","title":"Three","insights":[]}]}');
     expect(h.last()).toContain('writing chapter 3: Three');
   });
+  it('counts a refused answer’s replacement from chapter one again', () => {
+    const h = harness();
+    const progress = startProgress(h.deps);
+
+    progress.text('{"chapters":[{"id":"a","title":"Alpha","insights":[]},');
+    progress.text('{"id":"b","title":"Beta","insights":[]}]}');
+    progress.answerAgain();
+    progress.text('{"chapters":[{"id":"a","title":"Alpha","insights":[]}]}');
+    expect(h.lines.filter((line) => line.includes('writing chapter'))).toEqual([
+      expect.stringContaining('writing chapter 1: Alpha'),
+      expect.stringContaining('writing chapter 2: Beta'),
+      expect.stringContaining('writing chapter 1: Alpha'),
+    ]);
+  });
 });
 
 describe('the heartbeat', () => {

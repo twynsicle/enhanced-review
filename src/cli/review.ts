@@ -169,7 +169,10 @@ export async function review(
             {
               onActivity: progress.activity,
               onText: progress.text,
-              onBlocked: blockedNote,
+              onBlocked: (attempt, defects) => {
+                blockedNote(attempt, defects);
+                progress.answerAgain();
+              },
               onHookError: hookErrorNote,
               ...deps.claude,
             },

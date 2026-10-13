@@ -99,7 +99,8 @@ src/cli/
                    2>/dev/null), substitution, variables, backslashes, launcher flags or a glob that could be a flag
   progress.ts      the run log: one elapsed-time-stamped line per tool use, carrying the SDK's own turn number
                    (one turn however many tools it asked for at once), plus a line per chapter title picked out
-                   of the answer as it streams, and a heartbeat line while a turn is quiet
+                   of the answer as it streams (counted from one again when a refused answer is written afresh),
+                   and a heartbeat line while a turn is quiet
   excerpts.ts      the half of an excerpt's checking only git can do, at the head commit: the file is there, a
                    blob and not a symbolic link, within gather's embed limit, not binary (a NUL byte, git's own
                    test), not dirty on disk (the agent numbered its lines from the working tree, not the commit) and at
