@@ -35,8 +35,9 @@ src/cli/
                    fork point from the base's reflog when the base was rewritten since and `git cherry` finds every
                    commit in between still in it (a rebased stack); commits it no longer has at all are reviewed
                    as the change's own; either way a warning names the --base for the other answer; staged (the
-                   index as a dangling commit on HEAD, dated as HEAD is, so an unchanged index is the same
-                   commit on every run); --base;
+                   index as a dangling commit on HEAD, dated as HEAD is and never signed, so an unchanged index
+                   is the same commit on every run, whatever the engineer's signing and log.showSignature
+                   settings); --base;
                    locateTarget (repo root + slug only, for --from); TargetSchema; TargetMeta, the header less
                    the kind and the two commits, which gather copies off the target
   git.ts           Shell: git (git-runner's non-interactive runner, run with the engineer's own gitconfig so

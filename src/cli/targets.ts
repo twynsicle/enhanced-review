@@ -220,10 +220,15 @@ async function resolveStaged(shell: Shell, repo: string): Promise<ResolvedTarget
   const tree = (await shell.git(['write-tree'])).trim();
   const baseTree = (await shell.git(['rev-parse', 'HEAD^{tree}'])).trim();
   if (tree === baseTree) throw new Error('nothing staged');
-  const parentDate = (await shell.git(['log', '-1', '--format=%cd', '--date=raw', baseSha])).trim();
+  // The engineer's gitconfig applies: log.showSignature prints a signed HEAD's
+  // check into the date, and a git that signs commit-tree under commit.gpgSign
+  // (older ones did) would sign with its own time, a new commit every run.
+  const parentDate = (
+    await shell.git(['log', '-1', '--no-show-signature', '--format=%cd', '--date=raw', baseSha])
+  ).trim();
   const headSha = (
     await shell.git(
-      ['commit-tree', tree, '-p', baseSha, '-m', 'er: staged changes'],
+      ['commit-tree', '--no-gpg-sign', tree, '-p', baseSha, '-m', 'er: staged changes'],
       stagedCommitEnv(parentDate),
     )
   ).trim();
