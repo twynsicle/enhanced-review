@@ -139,13 +139,22 @@
  * after it. In the gutter that also puts it over the line number, which is
  * how the number fades.
  */
+/*
+ * Both follow the reader's skim fade (`stores/skim-fade.ts`): the text loses
+ * that share of its strength, and the band a little more, since a band left
+ * stronger than its text is what catches the eye.
+ */
 .skim {
-  opacity: 0.4;
+  opacity: calc(1 - var(--review-skim-fade, 0.6));
 }
 
 .skimWash {
   z-index: 1;
-  background: color-mix(in srgb, var(--vscode-editor-background) 70%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--vscode-editor-background) min(calc(var(--review-skim-fade, 0.6) * 100% + 10%), 95%),
+    transparent
+  );
 }
 
 /*

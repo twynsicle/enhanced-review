@@ -124,6 +124,8 @@ whatever is behind it, as a skim line does.
 Skim marks fade the same way, and are off until the reader turns them on: a
 skim hunk's text is faded and its line and gutter washed toward the editor's
 background, so the band and rail recede with the text — a full-strength band
-behind faded text still draws the eye. A fade is never left to explain
-itself: every faded region carries its reason as a label at the editor's
-right edge.
+behind faded text still draws the eye. How hard is the reader's own slider
+(20–75%), since how faint is too faint depends on their screen and scheme;
+the cap keeps a skim line readable on demand. A fade is never left to
+explain itself: every faded region carries its reason as a label at the
+editor's right edge.

@@ -1,4 +1,4 @@
-import { ActionIcon, Menu, Text, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, Box, Menu, Slider, Text, useMantineColorScheme } from '@mantine/core';
 import {
   IconBlur,
   IconBlurOff,
@@ -22,6 +22,7 @@ import { useDiffWrap } from '@/report/stores/diff-wrap';
 import { useDimComments } from '@/report/stores/dim-comments';
 import { useFileHeaders } from '@/report/stores/file-headers';
 import { useLayoutWidth } from '@/report/stores/layout-width';
+import { SKIM_FADES, useSkimFade } from '@/report/stores/skim-fade';
 import { useSkimMarks } from '@/report/stores/skim-marks';
 
 const ICON = 16;
@@ -92,6 +93,8 @@ export function DisplayMenu() {
   const toggleHeaders = useFileHeaders((s) => s.toggle);
   const marks = useSkimMarks((s) => s.marks);
   const toggleMarks = useSkimMarks((s) => s.toggle);
+  const fade = useSkimFade((s) => s.fade);
+  const setFade = useSkimFade((s) => s.setFade);
   const width = useLayoutWidth((s) => s.width);
   const toggleWidth = useLayoutWidth((s) => s.toggle);
   const spaceLimited = useReaderColumn(selectSpaceLimited);
@@ -148,6 +151,27 @@ export function DisplayMenu() {
           hint="Marked fades the lines the review says to skim and labels why"
           onClick={toggleMarks}
         />
+        {/*
+         * Only while the marks are on: a strength for a fade that is not drawn
+         * would be a control that visibly does nothing.
+         */}
+        {marks === 'marked' && (
+          <Box px="sm" pb="xs">
+            <Text fz="xs" c="dimmed" mb={4}>
+              Skim fade · {fade}%
+            </Text>
+            <Slider
+              thumbLabel="Skim fade"
+              size="sm"
+              min={SKIM_FADES.min}
+              max={SKIM_FADES.max}
+              step={SKIM_FADES.step}
+              value={fade}
+              onChange={setFade}
+              label={null}
+            />
+          </Box>
+        )}
         <SettingItem
           icon={
             width === 'full' ? <IconViewportWide size={ICON} /> : <IconViewportNarrow size={ICON} />

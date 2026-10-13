@@ -30,7 +30,8 @@ src/report/
   chrome/            brand-mark (+ brand-mark.svg, imported so the build inlines it), caption (the one uppercase
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
                      topbar (TopbarFrame, Brand), display-menu (every display preference in one labelled
-                     dropdown: diffs, long lines, comments, file headers, skim hunks, layout, theme)
+                     dropdown: diffs, long lines, comments, file headers, skim hunks — with a fade slider beneath
+                     while they are marked — layout, theme)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
                      belongs to the file; each change is a history entry; the review's read chapters from the
@@ -118,8 +119,8 @@ src/report/
                      stops at the unchanged lines between it and the file's neighbouring hunks, so the flush parts
                      of a split hunk never draw each other's lines); nothing folds, and skim hunks are drawn like
                      any other unless er-skim-marks says `marked`: then a skim hunk's lines, from skimRanges, are
-                     faded in place on each side by Monaco decorations (the text at the .skim opacity, the line
-                     and gutter under a wash of the editor's background stacked above the diff's band), so a
+                     faded in place on each side by Monaco decorations (the text and the wash of the editor's
+                     background over the line, gutter and diff band both following `--review-skim-fade`), so a
                      file stays one editor the find widget reaches — except a skim hunk's removed lines in the
                      stacked view, which are view zones the original editor's decorations cannot reach — and each
                      region hunk-marks.ts names is drawn as a rule down the editor's right edge with its label
@@ -177,8 +178,11 @@ src/report/
                      directly and commits to the store once on release), dim-comments.ts (`er-dim-comments`,
                      normal ⇄ dimmed: comments in the code viewers at full strength or faded, every line kept in
                      place), skim-marks.ts (`er-skim-marks`, plain ⇄ marked, plain by default: skim hunks drawn
-                     like any other, or faded and labelled), file-headers.ts (`er-file-headers`, full ⇄ one-line:
-                     a code card header's facts on rows of their own, or kept beside the path), all eight on
+                     like any other, or faded and labelled), skim-fade.ts (`er-skim-fade`, how hard marked skim
+                     hunks fade, a percentage clamped to SKIM_FADES; followSkimFade paints `--review-skim-fade` on
+                     `<html>`, which the .skim and .skimWash classes read, so a change restyles every editor without
+                     re-rendering one), file-headers.ts (`er-file-headers`, full ⇄ one-line:
+                     a code card header's facts on rows of their own, or kept beside the path), all nine on
                      raw-preference.ts (one word
                      or one number, not JSON). progress.ts (`er-progress`) is the one record rather than a
                      preference, so it is JSON and not on raw-preference: `{ [repo|baseSha|headSha]: { read:

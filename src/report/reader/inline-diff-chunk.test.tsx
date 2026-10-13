@@ -6,6 +6,8 @@ import { EmbeddedFileSource } from '@/report/reader/file-source';
 import { render, screen, userEvent, within } from '@/report/test/render';
 import { useDimComments } from '@/report/stores/dim-comments';
 import { useFileHeaders } from '@/report/stores/file-headers';
+import { useSkimFade } from '@/report/stores/skim-fade';
+import { useSkimMarks } from '@/report/stores/skim-marks';
 import { DisplayMenu } from '@/report/chrome/display-menu';
 import { TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import { DIMMED_THEME } from './monaco-themes';
@@ -236,5 +238,15 @@ describe('<InlineDiffChunk /> by attention tier', () => {
     render(<DisplayMenu />);
     await userEvent.click(screen.getByRole('button', { name: 'Display settings' }));
     expect(await screen.findByRole('menuitem', { name: /^Skim hunks: Plain/ })).toBeDefined();
+    expect(screen.queryByRole('slider', { name: 'Skim fade' })).toBeNull();
+  });
+
+  it('offers a strength for the fade once skim marks are on', async () => {
+    useSkimMarks.setState({ marks: 'marked' });
+    render(<DisplayMenu />);
+    await userEvent.click(screen.getByRole('button', { name: 'Display settings' }));
+    const slider = await screen.findByRole('slider', { name: 'Skim fade' });
+    expect(slider.getAttribute('aria-valuenow')).toBe(String(useSkimFade.getState().fade));
+    useSkimMarks.setState({ marks: 'plain' });
   });
 });
