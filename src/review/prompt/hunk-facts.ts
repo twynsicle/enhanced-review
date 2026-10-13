@@ -89,7 +89,7 @@ const BACKSLASH = '\\';
 const WORD_CHAR_RE = /[\p{L}\p{N}_$]/u;
 const CLOSING_BRACKETS = new Set([')', ']', '}']);
 /** What operators are spelled with: `<-`, `=>`, `!=`, `::`, `?.`, `..`, `/*` and the rest. */
-const OPERATOR_CHARS = new Set([...'+-*/%<>=!&|^~?:.@']);
+const OPERATOR_CHARS = new Set('+-*/%<>=!&|^~?:.@');
 
 /** Languages the language map names whose indentation is syntax. */
 const INDENTED_LANGUAGES = new Set(['coffeescript', 'fsharp', 'markdown', 'pug', 'python', 'yaml']);
