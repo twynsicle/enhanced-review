@@ -109,6 +109,29 @@ describe('stub run → parse', () => {
     await expect(readReview(run)).resolves.toEqual(review);
   });
 
+  it('tiers by proven fact: a moved or whitespace-only hunk folds behind it, the rest is read', async () => {
+    const tiered = context({
+      hunks: [
+        hunk('H0001', 'src/a.ts', 1),
+        { ...hunk('H0002', 'src/a.ts', 2), whitespaceOnly: true },
+        { ...hunk('H0003', 'src/b.ts', 1), movedFrom: { filename: 'src/a.ts', similarity: 90 } },
+      ],
+    });
+    await writeStubRun(tiered, run);
+    const { review, findings } = await parseRun(tiered, run);
+
+    expect(findings).toEqual([]);
+    expect(
+      review.chapters.flatMap((chapter) =>
+        chapter.diffChunks.flatMap((chunk) => chunk.hunks.map((h) => [h.id, h.tier, h.reason])),
+      ),
+    ).toEqual([
+      ['H0001', 'read', undefined],
+      ['H0002', 'mechanical', 'whitespace only'],
+      ['H0003', 'mechanical', 'moved from src/a.ts'],
+    ]);
+  });
+
   it('still writes a review when every file was skipped', async () => {
     const onlySkipped = context({ files: [context().files[2]!], hunks: [], contents: {} });
     await writeStubRun(onlySkipped, run);

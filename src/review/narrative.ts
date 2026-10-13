@@ -91,7 +91,33 @@ export const DiffLineSpanSchema = z.object({
 });
 export type DiffLineSpan = z.infer<typeof DiffLineSpanSchema>;
 
-export const ResolvedDiffHunkSchema = z.object({
+/**
+ * The other end of a hunk's move: the file whose hunk removed the lines this
+ * one added (`movedFrom`), or added the lines this one removed (`movedTo`).
+ * `similarity` is how much of the block survived the move: of the significant
+ * lines the two hunks share, the smaller of their percentage of the adding
+ * hunk's lines and of the removing hunk's, the same number at both ends.
+ */
+export const HunkMoveSchema = z.object({
+  filename: z.string(),
+  similarity: z.number().int().min(0).max(100),
+});
+export type HunkMove = z.infer<typeof HunkMoveSchema>;
+
+/**
+ * What the CLI can prove about a hunk from the patch alone
+ * (`prompt/hunk-facts.ts`). The model is shown them as hints and the reader
+ * draws them as badges; neither ever decides a tier, because a fact says what
+ * the lines are and not whether they matter.
+ */
+export const HunkFactsSchema = z.object({
+  whitespaceOnly: z.literal(true).optional(),
+  movedFrom: HunkMoveSchema.optional(),
+  movedTo: HunkMoveSchema.optional(),
+});
+export type HunkFacts = z.infer<typeof HunkFactsSchema>;
+
+export const ResolvedDiffHunkSchema = HunkFactsSchema.extend({
   id: z.string(),
   fileOrder: z.number().int(),
   original: DiffLineSpanSchema,
@@ -99,10 +125,29 @@ export const ResolvedDiffHunkSchema = z.object({
 });
 export type ResolvedDiffHunk = z.infer<typeof ResolvedDiffHunkSchema>;
 
+/**
+ * How hard the model says a reviewer must look at a hunk, most attentive
+ * first: `read` is what judging the change rests on, `skim` is needed to
+ * follow the story, and `mechanical` can be judged from its reason alone.
+ */
+export const HunkTierSchema = z.enum(['read', 'skim', 'mechanical']);
+export type HunkTier = z.infer<typeof HunkTierSchema>;
+
+/**
+ * A hunk as a chapter cites it. `reason` says what kind of change a
+ * `mechanical` hunk is, and is present on that tier only: a fold that does not
+ * say what it hides asks the reader to trust it blind.
+ */
+export const CitedHunkSchema = ResolvedDiffHunkSchema.extend({
+  tier: HunkTierSchema,
+  reason: z.string().optional(),
+});
+export type CitedHunk = z.infer<typeof CitedHunkSchema>;
+
 export const DiffChunkSchema = z.object({
   filename: z.string(),
   language: z.string(),
-  hunks: z.array(ResolvedDiffHunkSchema),
+  hunks: z.array(CitedHunkSchema),
 });
 export type DiffChunk = z.infer<typeof DiffChunkSchema>;
 

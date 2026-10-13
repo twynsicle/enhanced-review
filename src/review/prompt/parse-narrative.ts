@@ -1,22 +1,24 @@
 import { plural } from '../plural.ts';
-import { judgementCallOwner } from '../coverage.ts';
+import { judgementCallOwner, mergeCitations } from '../coverage.ts';
 import { findingLog, type Finding, type FindingLog } from '../findings.ts';
 import {
+  HunkTierSchema,
   InsightTypeSchema,
   MAX_JUDGEMENT_CALLS,
   NarrativeReviewSchema,
   ReviewRiskFactorImpactSchema,
+  type CitedHunk,
   type DiffChunk,
+  type HunkTier,
   type Insight,
   type JudgementCall,
   type NarrativeReview,
   type Prose,
-  type ResolvedDiffHunk,
   type ReviewRiskAssessment,
   type ReviewRiskFactorImpact,
   type ReviewRiskScore,
 } from '../narrative.ts';
-import type { DiffHunk, PromptGrounding } from './diff-hunk-catalog.ts';
+import { toResolvedHunk, type DiffHunk, type PromptGrounding } from './diff-hunk-catalog.ts';
 import { sanitizeDiagram } from './parse-diagram.ts';
 
 /**
@@ -24,7 +26,9 @@ import { sanitizeDiagram } from './parse-diagram.ts';
  * Lenient on purpose: missing ids/titles are synthesised, unknown insight
  * types fall back to `context`, an out-of-range risk score drops the whole
  * assessment, and hunk ids are resolved against what the prompt showed
- * (unknown or wrong-file ids are dropped). Diagrams go through `parse-diagram.ts`,
+ * (unknown or wrong-file ids are dropped). A cited hunk with no usable tier is
+ * read as `read`, and a `mechanical` one with no reason as `skim`: both lean
+ * toward more of the reader's attention, never less. Diagrams go through `parse-diagram.ts`,
  * which validates each one on its own so a malformed picture cannot take the
  * review down with it. The result is validated against
  * `NarrativeReviewSchema`, so whatever lands in `review.json` parses back
@@ -140,56 +144,123 @@ function sanitizeRiskAssessment(raw: unknown, log: FindingLog): ReviewRiskAssess
   return { score, summary, rationale, factors };
 }
 
+/**
+ * The hunks whose tier had to be repaired, across the whole answer. A model
+ * that forgets tiers forgets them everywhere, so these are reported once per
+ * review with a count rather than once per hunk.
+ */
+interface TierRepairs {
+  /** No tier, or one that is not read, skim or mechanical: read as `read`. */
+  tierMissing: Set<string>;
+  /** `mechanical` with no reason: read as `skim`. */
+  reasonMissing: Set<string>;
+  /** A reason on a tier that does not fold, which nothing would draw. */
+  reasonDropped: Set<string>;
+}
+
+/**
+ * One entry of a chunk's `hunks`. A bare string is an id with no tier: the
+ * shape the model falls back to when it forgets the object, which is leniency
+ * toward the model's answer and not toward any stored shape.
+ */
+function readCitation(raw: unknown): { id: unknown; tier: unknown; reason: unknown } {
+  if (isRecord(raw)) return { id: raw['id'], tier: raw['tier'], reason: raw['reason'] };
+  return { id: raw, tier: undefined, reason: undefined };
+}
+
+function citedHunk(
+  hunk: DiffHunk,
+  rawTier: unknown,
+  rawReason: unknown,
+  repairs: TierRepairs,
+): CitedHunk {
+  const parsed = HunkTierSchema.safeParse(rawTier);
+  let tier: HunkTier = parsed.success ? parsed.data : 'read';
+  if (!parsed.success) repairs.tierMissing.add(hunk.id);
+  const reason = typeof rawReason === 'string' ? rawReason.trim() : '';
+  if (tier === 'mechanical' && reason.length === 0) {
+    tier = 'skim';
+    repairs.reasonMissing.add(hunk.id);
+  }
+  if (tier !== 'mechanical' && reason.length > 0) repairs.reasonDropped.add(hunk.id);
+  return { ...toResolvedHunk(hunk), tier, ...(tier === 'mechanical' ? { reason } : {}) };
+}
+
 function resolveHunks(
   chunk: Rec,
   grounding: PromptGrounding | undefined,
   chapterId: string,
   log: FindingLog,
-): ResolvedDiffHunk[] {
+  repairs: TierRepairs,
+): CitedHunk[] {
   // Nothing to resolve against: no prompt showed this answer any hunks, so a
   // chunk citing none of them is not a chunk that lost anything.
   if (!grounding) return [];
   const filename = typeof chunk['filename'] === 'string' ? chunk['filename'] : '';
-  const rawIds: unknown[] = Array.isArray(chunk['hunkIds']) ? chunk['hunkIds'] : [];
-  if (rawIds.length === 0) {
+  const rawHunks: unknown[] = Array.isArray(chunk['hunks']) ? chunk['hunks'] : [];
+  if (rawHunks.length === 0) {
     // Recorded here rather than where the empty chunk is finally dropped:
     // this is the last place that knows which file's diff went with it.
     log.add(
       'chunk-dropped',
-      `Chapter ${chapterId} showed ${filename || 'a file it did not name'} with no hunk id to resolve, so that diff was dropped.`,
+      `Chapter ${chapterId} showed ${filename || 'a file it did not name'} with no hunk to resolve, so that diff was dropped.`,
       { chapterId, ...(filename ? { filename } : {}) },
     );
     return [];
   }
   const where = { chapterId, ...(filename ? { filename } : {}) };
-  const deduped = new Map<string, ResolvedDiffHunk>();
+  const deduped = new Map<string, CitedHunk>();
   let repeated = 0;
-  for (const hunkId of rawIds) {
-    const hunk = typeof hunkId === 'string' ? grounding.shown.byId[hunkId] : undefined;
+  for (const raw of rawHunks) {
+    const { id, tier, reason } = readCitation(raw);
+    const hunk = typeof id === 'string' ? grounding.shown.byId[id] : undefined;
     if (!hunk || hunk.filename !== filename) {
       log.add(
         'hunk-id-dropped',
-        `Chapter ${chapterId} cited ${typeof hunkId === 'string' ? hunkId : 'a hunk id that is not a string'} for ${filename || 'a chunk with no filename'}, which resolved against nothing.`,
+        `Chapter ${chapterId} cited ${typeof id === 'string' ? id : 'a hunk id that is not a string'} for ${filename || 'a chunk with no filename'}, which resolved against nothing.`,
         where,
       );
       continue;
     }
-    if (deduped.has(hunk.id)) repeated += 1;
-    deduped.set(hunk.id, {
-      id: hunk.id,
-      fileOrder: hunk.fileOrder,
-      original: { ...hunk.original },
-      modified: { ...hunk.modified },
-    });
+    const cited = citedHunk(hunk, tier, reason, repairs);
+    const earlier = deduped.get(hunk.id);
+    if (earlier) repeated += 1;
+    deduped.set(hunk.id, earlier ? mergeCitations(earlier, cited) : cited);
   }
   if (repeated > 0) {
     log.add(
       'chunks-merged',
-      `Chapter ${chapterId} cited ${plural(repeated, 'hunk')} twice over in its ${filename} chunk; the repeats were dropped.`,
+      `Chapter ${chapterId} cited ${plural(repeated, 'hunk')} twice over in its ${filename} chunk; the repeats were merged.`,
       where,
     );
   }
   return [...deduped.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
+}
+
+/** The one finding per kind of tier repair the whole answer needed. */
+function reportTierRepairs(repairs: TierRepairs, log: FindingLog): void {
+  const { tierMissing, reasonMissing, reasonDropped } = repairs;
+  if (tierMissing.size > 0) {
+    log.add(
+      'hunk-tier-missing',
+      `${plural(tierMissing.size, 'cited hunk')} came with no tier of read, skim or mechanical, so ${tierMissing.size > 1 ? 'they are' : 'it is'} marked to be read.`,
+      { hunkIds: [...tierMissing] },
+    );
+  }
+  if (reasonMissing.size > 0) {
+    log.add(
+      'hunk-reason-missing',
+      `${plural(reasonMissing.size, 'cited hunk')} marked mechanical gave no reason, so ${reasonMissing.size > 1 ? 'they are' : 'it is'} marked skim rather than folded behind nothing.`,
+      { hunkIds: [...reasonMissing] },
+    );
+  }
+  if (reasonDropped.size > 0) {
+    log.add(
+      'hunk-reason-dropped',
+      `${plural(reasonDropped.size, 'cited hunk')} gave a reason on a tier that is not folded, where nothing would show it, so the reason was dropped.`,
+      { hunkIds: [...reasonDropped] },
+    );
+  }
 }
 
 /**
@@ -447,10 +518,60 @@ function sanitizeJudgementCalls(
 }
 
 /**
+ * The chapters with every hunk a judgement call asks about raised to `read` on
+ * the card that draws the call. A question sitting on a folded hunk would be
+ * asked about lines the reader was told to pass over, so the question wins
+ * over the tier; one note per review records how often it had to.
+ */
+function raiseJudgedHunks(
+  calls: readonly JudgementCall[],
+  chapters: readonly SanitizedChapter[],
+  log: FindingLog,
+): SanitizedChapter[] {
+  const judged = new Map<SanitizedChapter, Map<string, Set<string>>>();
+  for (const call of calls) {
+    const owner = judgementCallOwner(call, chapters);
+    if (!owner) continue;
+    const byFile = judged.get(owner) ?? new Map<string, Set<string>>();
+    const ids = byFile.get(call.filename) ?? new Set<string>();
+    for (const id of call.hunkIds) ids.add(id);
+    byFile.set(call.filename, ids);
+    judged.set(owner, byFile);
+  }
+
+  const raised: string[] = [];
+  const result = chapters.map((chapter) => {
+    const byFile = judged.get(chapter);
+    if (!byFile) return chapter;
+    const diffChunks = chapter.diffChunks.map((chunk) => {
+      const ids = byFile.get(chunk.filename);
+      if (!ids) return chunk;
+      const hunks = chunk.hunks.map((hunk): CitedHunk => {
+        if (!ids.has(hunk.id) || hunk.tier === 'read') return hunk;
+        raised.push(hunk.id);
+        const { reason: _reason, ...rest } = hunk;
+        return { ...rest, tier: 'read' };
+      });
+      return { ...chunk, hunks };
+    });
+    return { ...chapter, diffChunks };
+  });
+
+  if (raised.length > 0) {
+    log.add(
+      'hunk-tier-raised',
+      `${plural(raised.length, 'cited hunk')} a judgement call asks about ${raised.length > 1 ? 'were' : 'was'} tiered to be skimmed or folded, so ${raised.length > 1 ? 'they are' : 'it is'} marked to be read.`,
+      { hunkIds: raised },
+    );
+  }
+  return result;
+}
+
+/**
  * One chunk per file in a chapter. The reader keys a file's insights and its
  * file count on the filename, so a chapter the model split across two chunks
  * for one file drew every insight anchored there twice and counted the file
- * twice over.
+ * twice over. A hunk both chunks cite keeps its more attentive tier.
  */
 function mergeChunksByFile(chunks: DiffChunk[], chapterId: string, log: FindingLog): DiffChunk[] {
   const merged = new Map<string, DiffChunk>();
@@ -466,7 +587,10 @@ function mergeChunksByFile(chunks: DiffChunk[], chapterId: string, log: FindingL
       { chapterId, filename: chunk.filename },
     );
     const hunks = new Map(existing.hunks.map((hunk) => [hunk.id, hunk]));
-    for (const hunk of chunk.hunks) hunks.set(hunk.id, hunk);
+    for (const hunk of chunk.hunks) {
+      const earlier = hunks.get(hunk.id);
+      hunks.set(hunk.id, earlier ? mergeCitations(earlier, hunk) : hunk);
+    }
     existing.hunks = [...hunks.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
   }
   return [...merged.values()];
@@ -479,6 +603,7 @@ function sanitizeChapter(
   index: number,
   grounding: PromptGrounding | undefined,
   log: FindingLog,
+  repairs: TierRepairs,
 ): SanitizedChapter {
   const n = String(index + 1);
   let id: string;
@@ -517,7 +642,7 @@ function sanitizeChapter(
           {
             filename: chunk['filename'],
             language: typeof chunk['language'] === 'string' ? chunk['language'] : 'plaintext',
-            hunks: resolveHunks(chunk, grounding, id, log),
+            hunks: resolveHunks(chunk, grounding, id, log, repairs),
           },
         ];
       })
@@ -756,9 +881,15 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     return fail(log);
   }
 
+  const repairs: TierRepairs = {
+    tierMissing: new Set(),
+    reasonMissing: new Set(),
+    reasonDropped: new Set(),
+  };
   const chapters = parsed['chapters'].map((chapter, index) =>
-    sanitizeChapter(isRecord(chapter) ? chapter : {}, index, grounding, log),
+    sanitizeChapter(isRecord(chapter) ? chapter : {}, index, grounding, log, repairs),
   );
+  reportTierRepairs(repairs, log);
   if (reportEmptyChapters(chapters, grounding, log)) return fail(log);
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment'], log);
@@ -774,7 +905,7 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     overviewSummary,
     ...(riskAssessment ? { riskAssessment } : {}),
     ...(overviewDiagram ? { overviewDiagram } : {}),
-    chapters,
+    chapters: raiseJudgedHunks(judgementCalls, chapters, log),
     ...(judgementCalls.length > 0 ? { judgementCalls } : {}),
   };
 

@@ -53,7 +53,7 @@ export function buildPrompt(
     workingDirectory(context, run),
     `## Files Changed (${String(reviewed.length)})\n${formatFileList(reviewed)}${renames(files)}`,
     formatSkippedSection(files),
-    `## Changed Hunks (Use These IDs in diffChunks.hunkIds)\n${formatHunkCatalog(hunks)}`,
+    `## Changed Hunks (Use These IDs in diffChunks.hunks)\n${formatHunkCatalog(hunks)}`,
     '## Diff\n' +
       `The full patch for this change is at \`${display(run.diff)}\`, ${String(diffLines)} lines. ` +
       `Pass Read a limit of at least ${String(diffLines)} so you get the whole file in one call ` +
@@ -186,15 +186,33 @@ function formatFileList(files: readonly ReviewFile[]): string {
     .join('\n');
 }
 
-/** The Changed Hunks list the model cites ids from. */
+/** The Changed Hunks list the model cites ids from, each hunk's proven facts after it. */
 function formatHunkCatalog(hunks: readonly DiffHunk[]): string {
   if (hunks.length === 0) return '  (No patch hunks were detected in the provided diff.)';
   return hunks
     .map(
       (hunk) =>
-        `  ${hunk.id}  ${hunk.filename}  ${hunk.header}  original ${formatLineSpan(hunk.original.startLine, hunk.original.lineCount)}  modified ${formatLineSpan(hunk.modified.startLine, hunk.modified.lineCount)}`,
+        `  ${hunk.id}  ${hunk.filename}  ${hunk.header}  original ${formatLineSpan(hunk.original.startLine, hunk.original.lineCount)}  modified ${formatLineSpan(hunk.modified.startLine, hunk.modified.lineCount)}${formatHints(hunk)}`,
     )
     .join('\n');
+}
+
+/**
+ * What the CLI proved about a hunk, as hints for the tier. Hints and not
+ * verdicts: a function moved unchanged is mechanical where it landed, unless
+ * the move is the point of the change.
+ */
+function formatHints(hunk: DiffHunk): string {
+  const hints = [
+    hunk.whitespaceOnly ? '[whitespace only]' : null,
+    hunk.movedFrom
+      ? `[moved from ${hunk.movedFrom.filename}, ${String(hunk.movedFrom.similarity)}%]`
+      : null,
+    hunk.movedTo
+      ? `[moved to ${hunk.movedTo.filename}, ${String(hunk.movedTo.similarity)}%]`
+      : null,
+  ].filter((hint) => hint !== null);
+  return hints.length > 0 ? `  ${hints.join(' ')}` : '';
 }
 
 function formatLineSpan(startLine: number, lineCount: number): string {

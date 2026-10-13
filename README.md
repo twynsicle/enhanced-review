@@ -198,7 +198,8 @@ er review --stub
 ```
 
 A mechanical review with one chapter per file — no model, no cost, and the
-right way to iterate on the reader.
+right way to iterate on the reader. A hunk `er` can prove is whitespace-only
+or moved from elsewhere is marked mechanical, so the reader's folds show too.
 
 ```bash
 er review --from parse

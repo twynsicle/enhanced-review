@@ -58,12 +58,14 @@ src/cli/
                    ignores itself
   context.ts       the gather stage → context.json (RunContextSchema): files with skip reasons and origins, each file's
                    patch put through splitPatch (a hunk over --split-hunks changed lines becomes parts, each a real
-                   hunk) before its hunks are numbered across the change, embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
+                   hunk) before its hunks are numbered across the change, each hunk carrying what provenFacts
+                   proved about it across the whole change (whitespace only, moved from/to another hunk), embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
                    one diff file carrying every reviewed file's annotated patch (a patch holding two file sections
                    where the list paired one fails the stage), its line count carried as
                    `diffLines` so the prompt can ask the agent to Read it in one call; pr.md
   prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
-                   commits, where the agent is, Files Changed, Not Reviewed, the hunk table, and where the diff
+                   commits, where the agent is, Files Changed, Not Reviewed, the hunk table (each hunk's proven
+                   facts after it as hints: `[whitespace only]`, `[moved from <path>, N%]`), and where the diff
                    file is, with its length, then the engineer's own instructions when given
   claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl
                    (tool uses, refusals, blocked stops, and a result event carrying turns, cost and the token
@@ -88,7 +90,9 @@ src/cli/
   progress.ts      the run log: one elapsed-time-stamped line per tool use, carrying the SDK's own turn number
                    (one turn however many tools it asked for at once), plus a line per chapter title picked out
                    of the answer as it streams, and a heartbeat line while a turn is quiet
-  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks; no model. It also
+  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks, tiered by fact alone —
+                   whitespace-only or moved is `mechanical` with the fact as its reason, the rest `read` — so
+                   the reader's folds can be seen without a model. It also
                    overwrites events.jsonl with one clean result event, so the parse stage reads how this run
                    ended and never an earlier run's log
   parse.ts         raw.txt → validateReview (the same verdict the Stop hook uses) → review.json + findings.json,

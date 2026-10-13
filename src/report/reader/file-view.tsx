@@ -17,7 +17,8 @@ import { token } from '@/report/theme/tokens';
  * than joining the merge: what the reviewer passed over is the one thing this
  * view must not blur into what it discussed.
  * A file listed in `files[]` with nothing to show gets a note instead: why it
- * was skipped, or why there is no diff.
+ * was skipped, or why there is no diff. Nothing here folds: a reader who opens
+ * a file has asked for all of it.
  *
  * `coverage` is the reader's, computed once over the whole review rather than
  * recomputed per file here: the two could disagree, and the sidebar's mark
@@ -151,14 +152,14 @@ export function FileView({
 
       {cited !== null && (
         <Stack component="section">
-          <InlineDiffChunk chunk={cited} />
+          <InlineDiffChunk chunk={cited} fold={false} />
         </Stack>
       )}
 
       {leftover && (
         <Stack component="section" gap={12} aria-label="Hunks not discussed in any chapter">
           {cited !== null && <Caption>Not discussed in any chapter</Caption>}
-          <InlineDiffChunk chunk={leftover} />
+          <InlineDiffChunk chunk={leftover} fold={false} />
         </Stack>
       )}
 

@@ -1,4 +1,4 @@
-import type { DiffLineSpan, ResolvedDiffHunk } from '@/review/narrative';
+import type { CitedHunk, DiffLineSpan, HunkTier, ResolvedDiffHunk } from '@/review/narrative';
 
 /**
  * Pure logic for slicing a base/head file pair down to the lines around each
@@ -11,10 +11,14 @@ export interface InlineDiffSnippet {
   modified: string;
   originalStartLine: number;
   modifiedStartLine: number;
+  /** The one tier every hunk in the snippet shares. */
+  tier: HunkTier;
+  /** The cited hunks the snippet draws; none for a whole file. */
+  hunks: readonly CitedHunk[];
 }
 
 interface BuildInlineDiffSnippetsParams {
-  hunks: readonly ResolvedDiffHunk[];
+  hunks: readonly CitedHunk[];
   original: string;
   modified: string;
   originalLineCount?: number;
@@ -91,16 +95,21 @@ function linesBetween(earlier: DiffLineSpan, later: DiffLineSpan): number {
   return Math.max(0, first - after);
 }
 
-/** How much context a group may take before and after it without reaching another hunk. */
+/**
+ * How much context a group may take before and after it without reaching
+ * another hunk. `neighbours` holds the cited hunks as well as the file's, so
+ * two flush groups of different tiers stop short of each other even where the
+ * file carries no catalog.
+ */
 function contextFor(
   group: readonly ResolvedDiffHunk[],
-  fileHunks: readonly ResolvedDiffHunk[],
+  neighbours: readonly ResolvedDiffHunk[],
   contextLines: number,
 ): { before: number; after: number } {
   const first = group[0]!;
   const last = group.at(-1)!;
-  const previous = fileHunks.find((hunk) => hunk.fileOrder === first.fileOrder - 1);
-  const next = fileHunks.find((hunk) => hunk.fileOrder === last.fileOrder + 1);
+  const previous = neighbours.find((hunk) => hunk.fileOrder === first.fileOrder - 1);
+  const next = neighbours.find((hunk) => hunk.fileOrder === last.fileOrder + 1);
   const gap = (a: ResolvedDiffHunk, b: ResolvedDiffHunk) =>
     Math.min(linesBetween(a.original, b.original), linesBetween(a.modified, b.modified));
   return {
@@ -109,15 +118,23 @@ function contextFor(
   };
 }
 
-/** Consecutive hunks (by `fileOrder`) form one group; a gap starts a new one. */
-export function groupSelectedHunks(hunks: readonly ResolvedDiffHunk[]): ResolvedDiffHunk[][] {
+/**
+ * Consecutive hunks (by `fileOrder`) of one tier form one group; a gap or a
+ * change of tier starts a new one, since a group is what the reader folds.
+ */
+export function groupSelectedHunks(hunks: readonly CitedHunk[]): CitedHunk[][] {
   const sorted = hunks.toSorted((a, b) => a.fileOrder - b.fileOrder);
-  const groups: ResolvedDiffHunk[][] = [];
+  const groups: CitedHunk[][] = [];
 
   for (const hunk of sorted) {
     const current = groups.at(-1);
     const previous = current?.at(-1);
-    if (current && previous && hunk.fileOrder === previous.fileOrder + 1) {
+    if (
+      current &&
+      previous &&
+      hunk.fileOrder === previous.fileOrder + 1 &&
+      hunk.tier === previous.tier
+    ) {
       current.push(hunk);
     } else {
       groups.push([hunk]);
@@ -156,12 +173,13 @@ export function buildInlineDiffSnippets({
   fileHunks = [],
 }: BuildInlineDiffSnippetsParams): InlineDiffSnippet[] {
   const snippets: InlineDiffSnippet[] = [];
+  const neighbours = [...fileHunks, ...hunks];
 
   for (const group of groupSelectedHunks(hunks)) {
     const firstHunk = group[0];
     const lastHunk = group.at(-1);
     if (!firstHunk || !lastHunk) continue;
-    const context = contextFor(group, fileHunks, contextLines);
+    const context = contextFor(group, neighbours, contextLines);
 
     const originalBounds = buildSliceBounds(
       getSpanStartLine(firstHunk.original.startLine, firstHunk.original.lineCount),
@@ -191,8 +209,21 @@ export function buildInlineDiffSnippets({
       modified: modifiedSnippet,
       originalStartLine: originalBounds?.startLine ?? 1,
       modifiedStartLine: modifiedBounds?.startLine ?? 1,
+      tier: firstHunk.tier,
+      hunks: group,
     });
   }
 
   return snippets;
+}
+
+/**
+ * The lines a group's hunks span, the longer side of each: what a reader
+ * opening a fold is about to be shown, context lines and all.
+ */
+export function groupLineCount(hunks: readonly ResolvedDiffHunk[]): number {
+  return hunks.reduce(
+    (sum, hunk) => sum + Math.max(hunk.original.lineCount, hunk.modified.lineCount),
+    0,
+  );
 }

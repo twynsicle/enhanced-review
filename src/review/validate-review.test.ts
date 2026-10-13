@@ -28,7 +28,11 @@ function review(chunks: { filename: string; hunkIds: string[] }[]): string {
         id: 'c',
         title: 'C',
         insights: [],
-        diffChunks: chunks.map((chunk) => ({ ...chunk, language: 'typescript' })),
+        diffChunks: chunks.map(({ filename, hunkIds }) => ({
+          filename,
+          language: 'typescript',
+          hunks: hunkIds.map((id) => ({ id, tier: 'read' })),
+        })),
       },
     ],
   })}</narrative_review>`;

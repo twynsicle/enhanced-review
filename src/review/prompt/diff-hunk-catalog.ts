@@ -1,11 +1,11 @@
-import type { DiffLineSpan } from '../narrative.ts';
+import type { DiffLineSpan, HunkFacts, ResolvedDiffHunk } from '../narrative.ts';
 
 /**
  * Numbers every hunk in a unified diff (`H0001`, `H0002`, …) so the prompt
  * can list them and the model can reference them by id instead of quoting
  * code. `parseNarrativeReview` resolves the ids back to line spans.
  */
-export interface DiffHunk {
+export interface DiffHunk extends HunkFacts {
   id: string;
   filename: string;
   header: string;
@@ -13,6 +13,19 @@ export interface DiffHunk {
   fileOrder: number;
   original: DiffLineSpan;
   modified: DiffLineSpan;
+}
+
+/** A catalog hunk as a review stores it: no filename or header, its facts kept. */
+export function toResolvedHunk(hunk: DiffHunk): ResolvedDiffHunk {
+  return {
+    id: hunk.id,
+    fileOrder: hunk.fileOrder,
+    original: { ...hunk.original },
+    modified: { ...hunk.modified },
+    ...(hunk.whitespaceOnly ? { whitespaceOnly: true as const } : {}),
+    ...(hunk.movedFrom ? { movedFrom: { ...hunk.movedFrom } } : {}),
+    ...(hunk.movedTo ? { movedTo: { ...hunk.movedTo } } : {}),
+  };
 }
 
 export interface DiffHunkIndex {

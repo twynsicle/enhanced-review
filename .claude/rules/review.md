@@ -24,8 +24,11 @@ src/review/
                      that raised it;
                      ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
                      ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
-                     reviewable and not only what was cited; SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's
-                     synthesised sections
+                     reviewable and not only what was cited; HunkFacts (whitespaceOnly?, movedFrom?/movedTo? —
+                     what the CLI proved, carried on every ResolvedDiffHunk); DiffChunk.hunks is CitedHunk[], a
+                     resolved hunk plus its HunkTier (read | skim | mechanical, the model's call on how hard to
+                     look) and a reason on mechanical only, since a fold must say what it hides;
+                     SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's synthesised sections
   findings.ts        Finding: code, severity, message and where it happened, plus the ONE map from code to
                      severity — fatal disqualifies the answer, warning ships and is shown, note is only recorded;
                      FindingLog, the collector the parsers write to; FindingSchema, since findings.json is read
@@ -37,9 +40,12 @@ src/review/
                      files at parse; reviewCoverage subtracts what the chapters cite, per hunk, and returns the
                      totals and byFile, one FileCoverage per catalogued file carrying its leftovers and their DiffChunk; plus chaptersCiting,
                      judgementCallOwner (the first chapter whose card for the call's file shows one of its hunks —
-                     the parser and the reader must agree on it) and
-                     citedChunk (every chapter's hunks for one file merged into a single chunk, deduplicated and in
-                     file order, so the file view draws one diff rather than one per citing chapter); a file
+                     the parser and the reader must agree on it),
+                     mergeCitations (one hunk cited twice: the more attentive tier wins, read over skim over
+                     mechanical, the reason kept only on a mechanical result) and
+                     citedChunk (every chapter's hunks for one file merged into a single chunk, deduplicated by
+                     mergeCitations and in file order, so the file view draws one diff rather than one per citing
+                     chapter); a leftover chunk's hunks are `read`, since no chapter judged them; a file
                      without a catalog reports nothing. A shown hunk no chapter cites is fatal and `er` shows the
                      model every hunk, so a review that passed validation has no leftovers; the file view's label
                      for them and the sidebar's ○/◐ are what one would look like
@@ -51,12 +57,22 @@ src/review/
                      schemaVersion, no back-compat; parseBundle, filePair
   bundle-html.ts     the bundle as the text of the report's er-bundle element: injectBundle escapes every <,
                      readEmbeddedBundle
-  language-map.ts    path → Monaco language id
+  language-map.ts    path → Monaco language id, which hunk-facts also reads for whether indentation is syntax
   plural.ts
   prompt/            ai-file-filter (builtInSkipReason over lockfiles, bundles and snapshots, binarySkipReason;
                      `src/cli/skip-reasons.ts` layers the repository's own marks between them),
                      diff-hunk-catalog (H0001… ids; PromptGrounding/groundingFor, what a model's answer is
-                     checked against),
+                     checked against; toResolvedHunk, a catalog hunk as a review stores it, facts kept),
+                     hunk-facts (hunkLines reads each hunk's removed and added lines in catalog order;
+                     provenFacts: whitespaceOnly when the two sides match with every whitespace character outside
+                     a string literal gone, and where indentation is syntax (Python, YAML, Markdown, makefiles…)
+                     each line keeps its own indentation too; movedFrom/movedTo between a hunk that only adds and
+                     one that only removes, when the significant lines they share, as a multiset, are at least 80%
+                     of each side and include three distinct distinctive ones (8+ characters with a word that is
+                     not a keyword or markup filler), similarity the smaller share, best overlap winning and the
+                     removing hunk naming its best destination; any file, never a hunk that edits in place; facts
+                     are hints for the tier and badges in the reader, never the tier itself; each errs toward
+                     proving nothing, since a fact can fold a hunk),
                      split-hunks (splitPatch: one file's patch with each hunk over the target rewritten as parts,
                      each a real hunk with a synthesised `@@ … @@ (part k of n)` header, so nothing downstream
                      needs to know a part from a hunk; cut where a paragraph opens at the shallowest indentation in
@@ -86,8 +102,14 @@ src/review/
                      card shows, and the reader picks the owner the same way; the cap is
                      applied here rather than by the schema, which could only refuse the whole review;
                      sanitizeProse takes a `{ lede, body? }` object or a bare string, which is promoted to the
-                     lede, as is a body that arrived without one; a chapter's diffChunks are merged to one per
-                     filename, since the reader keys a file's insights and its count on the name; and an insight's
+                     lede, as is a body that arrived without one; a diffChunk's `hunks` entry may arrive as a bare
+                     id string, and a missing or unknown tier is read as `read` and a mechanical one without a
+                     reason as `skim` — leniency toward the model, each kind recorded once per review as a
+                     `hunk-tier-missing` or `hunk-reason-missing` warning naming the hunks, never a reason to
+                     fail; a reason on a tier that does not fold is dropped, in one `hunk-reason-dropped` note;
+                     every hunk a judgement call cites is raised to `read` on its owner's card, in one
+                     `hunk-tier-raised` note, since a question must not sit on lines folded away; a chapter's diffChunks are merged to one per filename (a hunk in both through
+                     mergeCitations), since the reader keys a file's insights and its count on the name; and an insight's
                      `filename` survives only when the chapter's own diffChunks cite it — anchored elsewhere it
                      would be drawn nowhere, so the anchor goes and the insight stays),
                      parse-diagram (same leniency for diagrams, and the same record of it: drops the invalid part,

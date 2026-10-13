@@ -7,6 +7,7 @@ import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-rep
 import { gather, MAX_EMBED_BYTES, readContext } from './context.ts';
 import { Shell } from './git.ts';
 import { createRunFolder } from './run-folder.ts';
+import { stubReview } from './stub-run.ts';
 import { resolveTarget, type TargetRequest } from './targets.ts';
 
 // Real git, many spawns per test — see GIT_TEST_TIMEOUT.
@@ -297,6 +298,80 @@ describe('gather', () => {
     await expect(gatherFor({ kind: 'branch', base: 'main' }, unpaired)).rejects.toThrow(
       'git diffed src/old-name.ts and src/new-name.ts as 2 files where the file list paired them as one',
     );
+  });
+
+  it('proves a function moved between files under a new name, and a rewrap, and the stub folds them', async () => {
+    const body = [
+      '  const cut = price * (percent / 100);',
+      '  const rounded = Math.round(cut * 100) / 100;',
+      '  const floor = Math.max(0, price - rounded);',
+      '  const capped = Math.min(price, floor);',
+      '  return capped;',
+      '}',
+    ];
+    const total = [
+      'export function total(items: number[]): number {',
+      '  return items.reduce((sum, item) => sum + item, 0);',
+      '}',
+    ];
+    repo.write(
+      'src/billing.ts',
+      [
+        ...total,
+        '',
+        'export function applyDiscount(price: number, percent: number): number {',
+        ...body,
+        '',
+      ].join('\n'),
+    );
+    repo.write('src/pricing.ts', "export const CURRENCY = 'EUR';\n");
+    repo.write(
+      'src/pad.ts',
+      "export function pad(s: string): string { return s.padStart(4, ' '); }\n",
+    );
+    repo.commit('pricing before the move');
+    repo.git('push', '--quiet', 'origin', 'main');
+    repo.git('checkout', '--quiet', '-b', 'feat/move');
+    repo.write('src/billing.ts', [...total, ''].join('\n'));
+    repo.write(
+      'src/pricing.ts',
+      [
+        "export const CURRENCY = 'EUR';",
+        '',
+        'export function discounted(price: number, percent: number): number {',
+        ...body,
+        '',
+      ].join('\n'),
+    );
+    repo.write(
+      'src/pad.ts',
+      ['export function pad(s: string): string {', "  return s.padStart(4, ' ');", '}', ''].join(
+        '\n',
+      ),
+    );
+    repo.commit('move the discount into pricing');
+
+    const { context } = await gatherFor({ kind: 'branch', base: 'main' });
+    const facts = Object.fromEntries(
+      context.hunks.map((hunk) => [
+        hunk.filename,
+        { whitespaceOnly: hunk.whitespaceOnly, movedFrom: hunk.movedFrom, movedTo: hunk.movedTo },
+      ]),
+    );
+    expect(facts).toEqual({
+      'src/billing.ts': { movedTo: { filename: 'src/pricing.ts', similarity: 83 } },
+      'src/pad.ts': { whitespaceOnly: true },
+      'src/pricing.ts': { movedFrom: { filename: 'src/billing.ts', similarity: 83 } },
+    });
+
+    const citations = stubReview(context).chapters.flatMap((chapter) =>
+      chapter.diffChunks.flatMap((chunk) => chunk.hunks),
+    );
+    expect(citations.map((citation) => [citation.tier, citation.reason])).toEqual([
+      ['mechanical', 'moved to src/pricing.ts'],
+      ['mechanical', 'whitespace only'],
+      ['mechanical', 'moved from src/billing.ts'],
+    ]);
   });
 
   it('says what to do when a context is missing', async () => {

@@ -1,12 +1,14 @@
 import { detectLanguage } from './language-map.ts';
 import type {
+  CitedHunk,
   DiffChunk,
+  HunkTier,
   NarrativeChapter,
   NarrativeReview,
   ResolvedDiffHunk,
   ReviewFile,
 } from './narrative.ts';
-import type { DiffHunk } from './prompt/diff-hunk-catalog.ts';
+import { toResolvedHunk, type DiffHunk } from './prompt/diff-hunk-catalog.ts';
 
 /**
  * What the chapters left out, file by file. A hunk the reviewer was shown and
@@ -54,17 +56,28 @@ export function withFileHunks(
   const byFile = new Map<string, ResolvedDiffHunk[]>();
   for (const hunk of hunks) {
     const list = byFile.get(hunk.filename) ?? [];
-    list.push({
-      id: hunk.id,
-      fileOrder: hunk.fileOrder,
-      original: { ...hunk.original },
-      modified: { ...hunk.modified },
-    });
+    list.push(toResolvedHunk(hunk));
     byFile.set(hunk.filename, list);
   }
   return files.map((file) =>
     file.skipped ? file : { ...file, hunks: byFile.get(file.filename) ?? [] },
   );
+}
+
+const ATTENTION: Record<HunkTier, number> = { read: 0, skim: 1, mechanical: 2 };
+
+/**
+ * One hunk cited twice, as one citation: the more attentive tier wins, since
+ * a hunk one chapter says must be read is not made skimmable by another
+ * calling it routine. A reason belongs to a mechanical result only, which
+ * both citations were; the first one's reason stands.
+ */
+export function mergeCitations(first: CitedHunk, second: CitedHunk): CitedHunk {
+  const tier = ATTENTION[second.tier] < ATTENTION[first.tier] ? second.tier : first.tier;
+  const { reason, ...rest } = { ...first, tier };
+  if (tier !== 'mechanical') return rest;
+  const kept = reason ?? second.reason;
+  return kept === undefined ? rest : { ...rest, reason: kept };
 }
 
 /** Every hunk id some chapter's diffChunks cite. */
@@ -108,7 +121,8 @@ export function judgementCallOwner<C extends Pick<NarrativeChapter, 'diffChunks'
 }
 
 /**
- * Every hunk the chapters cited from one file, as a single chunk. The file
+ * Every hunk the chapters cited from one file, as a single chunk, a hunk two
+ * chapters cite merged by `mergeCitations`. The file
  * view draws this rather than a chunk per chapter: slicing the file around
  * each chapter's hunks separately repeats the lines between two neighbouring
  * hunks, once in each slice, and orders the editors by chapter instead of by
@@ -126,8 +140,7 @@ export function citedChunk(
   filename: string,
   chapters: readonly NarrativeChapter[],
 ): DiffChunk | null {
-  const hunks: ResolvedDiffHunk[] = [];
-  const seen = new Set<string>();
+  const hunks = new Map<string, CitedHunk>();
   let language: string | null = null;
 
   for (const chapter of chapters) {
@@ -135,15 +148,18 @@ export function citedChunk(
       if (chunk.filename !== filename) continue;
       language ??= chunk.language;
       for (const hunk of chunk.hunks) {
-        if (seen.has(hunk.id)) continue;
-        seen.add(hunk.id);
-        hunks.push(hunk);
+        const earlier = hunks.get(hunk.id);
+        hunks.set(hunk.id, earlier ? mergeCitations(earlier, hunk) : hunk);
       }
     }
   }
 
   if (language === null) return null;
-  return { filename, language, hunks: hunks.toSorted((a, b) => a.fileOrder - b.fileOrder) };
+  return {
+    filename,
+    language,
+    hunks: [...hunks.values()].toSorted((a, b) => a.fileOrder - b.fileOrder),
+  };
 }
 
 /**
@@ -164,7 +180,13 @@ export function fileCoverage(file: ReviewFile, cited: ReadonlySet<string>): File
     chunk:
       uncited.length === 0
         ? null
-        : { filename: file.filename, language: detectLanguage(file.filename), hunks: uncited },
+        : {
+            filename: file.filename,
+            language: detectLanguage(file.filename),
+            // No chapter judged these, so nothing has earned them less than
+            // full attention.
+            hunks: uncited.map((hunk) => ({ ...hunk, tier: 'read' as const })),
+          },
   };
 }
 

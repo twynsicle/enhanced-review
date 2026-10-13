@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { citedChunk, fileCoverage, reviewCoverage, withFileHunks } from './coverage.ts';
+import {
+  citedChunk,
+  fileCoverage,
+  mergeCitations,
+  reviewCoverage,
+  withFileHunks,
+} from './coverage.ts';
 import type {
+  CitedHunk,
+  HunkTier,
   NarrativeChapter,
   NarrativeReview,
   ResolvedDiffHunk,
@@ -23,6 +31,10 @@ function catalog(id: string, filename: string, fileOrder: number): DiffHunk {
 
 function resolved(id: string, fileOrder: number): ResolvedDiffHunk {
   return { id, fileOrder, original: span(fileOrder * 10, 1), modified: span(fileOrder * 10, 2) };
+}
+
+function cited(id: string, fileOrder: number, tier: HunkTier = 'read', reason?: string): CitedHunk {
+  return { ...resolved(id, fileOrder), tier, ...(reason !== undefined ? { reason } : {}) };
 }
 
 const HUNKS: DiffHunk[] = [
@@ -55,7 +67,7 @@ function review(cites: Record<string, string[]>): NarrativeReview {
         diffChunks: Object.entries(cites).map(([filename, ids]) => ({
           filename,
           language: 'typescript',
-          hunks: ids.map((id) => resolved(id, Number(id.slice(-1)))),
+          hunks: ids.map((id) => cited(id, Number(id.slice(-1)))),
         })),
       },
     ],
@@ -74,6 +86,16 @@ describe('withFileHunks', () => {
     ]);
     // The catalog's filename and header stay behind: the file already says which it is.
     expect(files[0]?.hunks?.[0]).toEqual(resolved('H0001', 1));
+  });
+
+  it('carries the facts the catalog proved onto the file', () => {
+    const moved: DiffHunk = {
+      ...catalog('H0004', 'src/b.ts', 1),
+      movedFrom: { filename: 'src/a.ts', similarity: 92 },
+    };
+    const files = withFileHunks(FILES, [{ ...HUNKS[0]!, whitespaceOnly: true }, moved]);
+    expect(files[0]?.hunks?.[0]?.whitespaceOnly).toBe(true);
+    expect(files[1]?.hunks?.[0]?.movedFrom).toEqual({ filename: 'src/a.ts', similarity: 92 });
   });
 });
 
@@ -95,6 +117,14 @@ describe('reviewCoverage', () => {
     // A file with nothing to cite still has an entry; one with no catalog has none.
     expect(coverage.byFile.get('src/mode-only.sh')).toMatchObject({ cited: 0, total: 0 });
     expect(coverage.byFile.has('yarn.lock')).toBe(false);
+  });
+
+  it('marks every leftover hunk to be read, since no chapter judged it', () => {
+    const coverage = reviewCoverage(review({ 'src/a.ts': ['H0002'] }));
+    expect(coverage.byFile.get('src/a.ts')?.chunk?.hunks.map((hunk) => hunk.tier)).toEqual([
+      'read',
+      'read',
+    ]);
   });
 
   it('turns a file’s uncited hunks into one chunk, with a detected language', () => {
@@ -174,7 +204,7 @@ describe('FileCoverage.chunk', () => {
 
 function chapter(
   id: string,
-  hunks: ResolvedDiffHunk[],
+  hunks: CitedHunk[],
   { filename = 'src/a.ts', language = 'typescript' } = {},
 ): NarrativeChapter {
   return { id, title: id, insights: [], diffChunks: [{ filename, language, hunks }] };
@@ -183,8 +213,8 @@ function chapter(
 describe('citedChunk', () => {
   it('merges the chapters’ hunks into one chunk, ordered by the file rather than the narrative', () => {
     const chunk = citedChunk('src/a.ts', [
-      chapter('ch1', [resolved('H0001', 1), resolved('H0003', 3)]),
-      chapter('ch2', [resolved('H0002', 2)]),
+      chapter('ch1', [cited('H0001', 1), cited('H0003', 3)]),
+      chapter('ch2', [cited('H0002', 2)]),
     ]);
     // Chapter order would give H0001, H0003, H0002 — and slice H0002's
     // context out of a second copy of the file.
@@ -193,21 +223,29 @@ describe('citedChunk', () => {
 
   it('carries a hunk two chapters both cite once', () => {
     const chunk = citedChunk('src/a.ts', [
-      chapter('ch1', [resolved('H0001', 1), resolved('H0002', 2)]),
-      chapter('ch2', [resolved('H0002', 2)]),
+      chapter('ch1', [cited('H0001', 1), cited('H0002', 2)]),
+      chapter('ch2', [cited('H0002', 2)]),
     ]);
     expect(chunk?.hunks.map((hunk) => hunk.id)).toEqual(['H0001', 'H0002']);
   });
 
+  it('keeps the most attentive tier of a hunk two chapters cite', () => {
+    const chunk = citedChunk('src/a.ts', [
+      chapter('ch1', [cited('H0001', 1, 'mechanical', 'imports only'), cited('H0002', 2, 'skim')]),
+      chapter('ch2', [cited('H0001', 1, 'skim'), cited('H0002', 2, 'read')]),
+    ]);
+    expect(chunk?.hunks).toEqual([cited('H0001', 1, 'skim'), cited('H0002', 2, 'read')]);
+  });
+
   it('ignores chapters citing other files', () => {
     const chunk = citedChunk('src/a.ts', [
-      chapter('ch1', [resolved('H0004', 1)], { filename: 'src/b.ts' }),
-      chapter('ch2', [resolved('H0001', 1)]),
+      chapter('ch1', [cited('H0004', 1)], { filename: 'src/b.ts' }),
+      chapter('ch2', [cited('H0001', 1)]),
     ]);
     expect(chunk).toEqual({
       filename: 'src/a.ts',
       language: 'typescript',
-      hunks: [resolved('H0001', 1)],
+      hunks: [cited('H0001', 1)],
     });
   });
 
@@ -224,9 +262,36 @@ describe('citedChunk', () => {
 
   it('takes the language from the first citing chapter', () => {
     const chunk = citedChunk('src/a.ts', [
-      chapter('ch1', [resolved('H0001', 1)], { language: 'tsx' }),
-      chapter('ch2', [resolved('H0002', 2)], { language: 'typescript' }),
+      chapter('ch1', [cited('H0001', 1)], { language: 'tsx' }),
+      chapter('ch2', [cited('H0002', 2)], { language: 'typescript' }),
     ]);
     expect(chunk?.language).toBe('tsx');
+  });
+});
+
+describe('mergeCitations', () => {
+  it('takes read over skim over mechanical, whichever comes first', () => {
+    const tiers: HunkTier[] = ['read', 'skim', 'mechanical'];
+    for (const [i, first] of tiers.entries()) {
+      for (const [j, second] of tiers.entries()) {
+        const merged = mergeCitations(
+          cited('H0001', 1, first, first === 'mechanical' ? 'a' : undefined),
+          cited('H0001', 1, second, second === 'mechanical' ? 'b' : undefined),
+        );
+        expect(merged.tier).toBe(tiers[Math.min(i, j)]);
+      }
+    }
+  });
+
+  it('keeps a reason only on a mechanical result, the first citation’s', () => {
+    expect(
+      mergeCitations(cited('H0001', 1, 'mechanical', 'a rename'), cited('H0001', 1, 'skim')),
+    ).toEqual(cited('H0001', 1, 'skim'));
+    expect(
+      mergeCitations(
+        cited('H0001', 1, 'mechanical', 'a rename'),
+        cited('H0001', 1, 'mechanical', 'imports'),
+      ),
+    ).toEqual(cited('H0001', 1, 'mechanical', 'a rename'));
   });
 });

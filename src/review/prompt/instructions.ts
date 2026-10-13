@@ -50,7 +50,13 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
         {
           "filename": "string — path of the file (must match a path from the Files Changed list)",
           "language": "string — programming language",
-          "hunkIds": ["string — one or more hunk IDs from the Changed Hunks list (example: H0007)"]
+          "hunks": [
+            {
+              "id": "string — a hunk ID from the Changed Hunks list (example: H0007)",
+              "tier": "read | skim | mechanical — how hard the reviewer must look at this hunk. See Attention tiers below",
+              "reason": "string — required when tier is mechanical, and only then. At most 12 words naming what kind of change it is, e.g. 'the same rename at 14 call sites'"
+            }
+          ]
         }
       ],
       "diagram": "optional object — see Diagrams below. At most one per chapter"
@@ -98,6 +104,19 @@ Guidelines:
 - Adjust the baseline score for modifiers: add weight for large diffs, many changed files, subtle algorithms, concurrency, migrations, distributed systems, ambiguous requirements, weak rollout/rollback story, or sparse tests around risky paths.
 - Lower the score only when the evidence is strong: focused change size, excellent relevant tests, feature flags, backward-compatible migration strategy, clear rollback, or mostly mechanical changes.
 - In riskAssessment.factors include 3-6 concrete factors. Cover size/complexity and test coverage when the diff gives evidence either way. Say when evidence is absent rather than inventing test coverage.
+
+Attention tiers:
+
+Every hunk a chapter cites carries a tier, so the reader knows where to look hard and what they may pass over. The reader folds a mechanical hunk behind its reason, one click from the code, so a tier never hides anything; it says how much of the reader's attention each hunk deserves.
+
+- "read": what a reviewer must understand to judge the change — new behaviour, logic, edge cases, error handling, anything risky. When unsure, choose "read".
+- "skim": needed to follow the story but low-risk — plain wiring, test setup, docs that matter.
+- "mechanical": judged from its reason alone — a rename's call sites, imports, formatting, code moved unchanged, boilerplate, generated output.
+
+- A mechanical hunk's "reason" is what the reader sees instead of the code, so it must say what kind of change it is: "the same rename at 14 call sites", "imports for the new helper", "moved unchanged from src/a.ts". "Mechanical change" or "minor" tells them nothing. A mechanical hunk without a reason is shown as skim.
+- Tier each hunk on its own lines, not by its file or chapter. A test file can hold a setup hunk to skim and an assertion to read; a part of a split hunk is tiered like any other hunk.
+- Some hunks in Changed Hunks carry hints the tool proved from the patch: "[whitespace only]", or "[moved from <path>, N%]" and "[moved to <path>, N%]" when most of a hunk's lines were lifted from, or to, another hunk that holds little else. A hint informs the tier and never decides it: a function moved unchanged is mechanical, but if the move changes what can reach it, or what it can reach, the hunk is read.
+- Neither extreme helps the reader: a review that tiers everything "read" has told them nothing, and one that folds the change's own logic has hidden it.
 
 Writing the prose:
 

@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { plural } from '../review/plural.ts';
 import { detectLanguage } from '../review/language-map.ts';
+import type { DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
 
@@ -28,7 +29,8 @@ const STUB_RESULT = JSON.stringify({
  * `--stub`: the run stage without a model. It writes
  * `raw.txt` in the shape the model answers in, one chapter per reviewed file
  * citing every one of its hunks, so parse and render run on a real change
- * for free. The prose says plainly that nothing read the code.
+ * for free. The prose says plainly that nothing read the code. Tiers come from
+ * the proven facts alone, so the reader's folds can be seen without a model.
  */
 export async function writeStubRun(context: RunContext, run: RunFiles): Promise<number> {
   const review = stubReview(context);
@@ -40,20 +42,36 @@ export async function writeStubRun(context: RunContext, run: RunFiles): Promise<
   return review.chapters.length;
 }
 
+/**
+ * With no model there is no judgement, so a proven fact is the only thing that
+ * can put a hunk behind a fold: whitespace-only and moved hunks are
+ * `mechanical`, the fact their reason, and everything else is `read`.
+ */
+export function stubCitation(hunk: DiffHunk) {
+  if (hunk.whitespaceOnly) return { id: hunk.id, tier: 'mechanical', reason: 'whitespace only' };
+  if (hunk.movedFrom) {
+    return { id: hunk.id, tier: 'mechanical', reason: `moved from ${hunk.movedFrom.filename}` };
+  }
+  if (hunk.movedTo) {
+    return { id: hunk.id, tier: 'mechanical', reason: `moved to ${hunk.movedTo.filename}` };
+  }
+  return { id: hunk.id, tier: 'read' };
+}
+
 export function stubReview({ meta, files, hunks }: RunContext) {
-  const idsByFile = new Map<string, string[]>();
+  const byFile = new Map<string, DiffHunk[]>();
   for (const hunk of hunks) {
-    idsByFile.set(hunk.filename, [...(idsByFile.get(hunk.filename) ?? []), hunk.id]);
+    byFile.set(hunk.filename, [...(byFile.get(hunk.filename) ?? []), hunk]);
   }
   const chapters = files
-    .filter((file) => !file.skipped && idsByFile.has(file.filename))
+    .filter((file) => !file.skipped && byFile.has(file.filename))
     .map((file, index) => {
-      const ids = idsByFile.get(file.filename)!;
+      const fileHunks = byFile.get(file.filename)!;
       return {
         id: `file-${String(index + 1)}`,
         title: file.filename.split('/').at(-1)!,
         description: {
-          lede: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${plural(ids.length, 'hunk')}.`,
+          lede: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${plural(fileHunks.length, 'hunk')}.`,
         },
         insights: [
           {
@@ -63,7 +81,11 @@ export function stubReview({ meta, files, hunks }: RunContext) {
           },
         ],
         diffChunks: [
-          { filename: file.filename, language: detectLanguage(file.filename), hunkIds: ids },
+          {
+            filename: file.filename,
+            language: detectLanguage(file.filename),
+            hunks: fileHunks.map(stubCitation),
+          },
         ],
       };
     });

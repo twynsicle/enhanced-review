@@ -1,12 +1,22 @@
 import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/review/bundle';
-import type { DiffChunk, ResolvedDiffHunk } from '@/review/narrative';
+import type {
+  CitedHunk,
+  DiffChunk,
+  HunkFacts,
+  HunkTier,
+  ResolvedDiffHunk,
+} from '@/review/narrative';
 
 /**
  * The report's committed sample: a small, made-up change to a made-up repo,
  * shaped so one page exercises every state the reader has: an overview
  * diagram, a risk assessment, a chapter diagram, Monaco diffs for a modified,
  * an added and a removed file, a file too large to embed, a line far too long
- * for its column, and a chunk whose file the bundle does not carry. Its paths
+ * for its column, and a chunk whose file the bundle does not carry. Its
+ * chapters cite hunks at all three attention tiers, so the reader folds a
+ * mechanical group and can fold the skim ones, and its hunks carry both proven
+ * facts: a test clock moved out of a shared helpers file, and the helper left
+ * behind rewrapped by the formatter. Its paths
  * put a directory between files of its parent (the scheduler's `fixtures`
  * sorts between `cadence.ts` and `index.ts`), the tree view's hardest case to read:
  * a file below the nested directory could belong to either level.
@@ -131,6 +141,31 @@ const FAKE_CLOCK_HEAD = lines(
   '}',
 );
 
+const TEST_HELPERS_BASE = lines(
+  "import type { Clock } from '../src/scheduler/clock';",
+  '',
+  '/** A clock a test moves by hand, so a cadence can come due without waiting for it. */',
+  'export function fakeClock(start = 0): Clock & { advance(ms: number): void } {',
+  '  let now = start;',
+  '  return {',
+  '    now: () => now,',
+  '    advance(ms) {',
+  '      now += ms;',
+  '    },',
+  '  };',
+  '}',
+  '',
+  '/** The owner/name form every schedule is keyed by. */',
+  "export function repoKey(owner: string, name: string): string { return owner + '/' + name; }",
+);
+
+const TEST_HELPERS_HEAD = lines(
+  '/** The owner/name form every schedule is keyed by. */',
+  'export function repoKey(owner: string, name: string): string {',
+  "  return owner + '/' + name;",
+  '}',
+);
+
 const SCHEDULES_HEAD = lines(
   "import type { Schedule } from '../cadence';",
   '',
@@ -144,12 +179,14 @@ function hunk(
   fileOrder: number,
   original: [number, number],
   modified: [number, number],
+  facts: HunkFacts = {},
 ): ResolvedDiffHunk {
   return {
     id,
     fileOrder,
     original: { startLine: original[0], lineCount: original[1] },
     modified: { startLine: modified[0], lineCount: modified[1] },
+    ...facts,
   };
 }
 
@@ -169,11 +206,24 @@ const H = {
   schema: hunk('H0008', 0, [1, 4], [1, 2400]),
   docs: hunk('H0009', 0, [12, 3], [12, 9]),
   index: hunk('H0010', 0, [1, 1], [1, 2]),
-  fakeClock: hunk('H0011', 0, [0, 0], [1, 12]),
+  fakeClock: hunk('H0011', 0, [0, 0], [1, 12], {
+    movedFrom: { filename: 'test/helpers.ts', similarity: 88 },
+  }),
   schedules: hunk('H0012', 0, [0, 0], [1, 5]),
+  helpersMove: hunk('H0013', 0, [1, 13], [0, 0], {
+    movedTo: { filename: 'src/scheduler/fixtures/fake-clock.ts', similarity: 88 },
+  }),
+  helpersRewrap: hunk('H0014', 1, [14, 2], [1, 4], { whitespaceOnly: true }),
 };
 
-const chunk = (filename: string, language: string, hunks: ResolvedDiffHunk[]): DiffChunk => ({
+/** A hunk as a chapter cites it; `reason` goes with `mechanical`, as the parser holds it to. */
+const cite = (resolved: ResolvedDiffHunk, tier: HunkTier, reason?: string): CitedHunk => ({
+  ...resolved,
+  tier,
+  ...(reason !== undefined ? { reason } : {}),
+});
+
+const chunk = (filename: string, language: string, hunks: CitedHunk[]): DiffChunk => ({
   filename,
   language,
   hunks,
@@ -264,6 +314,13 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         additions: 5,
         deletions: 0,
         hunks: [H.schedules],
+      },
+      {
+        filename: 'test/helpers.ts',
+        status: 'modified',
+        additions: 3,
+        deletions: 14,
+        hunks: [H.helpersMove, H.helpersRewrap],
       },
       {
         filename: 'src/legacy/cron.ts',
@@ -363,7 +420,12 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
             filename: 'src/scheduler/cadence.ts',
           },
         ],
-        diffChunks: [chunk('src/scheduler/cadence.ts', 'typescript', [H.intervals, H.lookup])],
+        diffChunks: [
+          chunk('src/scheduler/cadence.ts', 'typescript', [
+            cite(H.intervals, 'read'),
+            cite(H.lookup, 'read'),
+          ]),
+        ],
       },
       {
         id: 'pausing',
@@ -386,10 +448,19 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
           },
         ],
         diffChunks: [
-          chunk('src/scheduler/cadence.ts', 'typescript', [H.paused, H.pausedGuard]),
-          chunk('src/scheduler/queue.ts', 'typescript', [H.queue]),
-          chunk('src/scheduler/fixtures/schedules.ts', 'typescript', [H.schedules]),
-          chunk('src/scheduler/fixtures/fake-clock.ts', 'typescript', [H.fakeClock]),
+          chunk('src/scheduler/cadence.ts', 'typescript', [
+            cite(H.paused, 'read'),
+            cite(H.pausedGuard, 'read'),
+          ]),
+          chunk('src/scheduler/queue.ts', 'typescript', [cite(H.queue, 'read')]),
+          chunk('src/scheduler/fixtures/schedules.ts', 'typescript', [cite(H.schedules, 'skim')]),
+          chunk('src/scheduler/fixtures/fake-clock.ts', 'typescript', [
+            cite(H.fakeClock, 'mechanical', 'the test clock, moved unchanged from test/helpers.ts'),
+          ]),
+          chunk('test/helpers.ts', 'typescript', [
+            cite(H.helpersMove, 'mechanical', 'fakeClock moved out to the scheduler fixtures'),
+            cite(H.helpersRewrap, 'mechanical', 'repoKey rewrapped by the formatter'),
+          ]),
         ],
         diagram: {
           id: 'due-check',
@@ -481,9 +552,11 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
           },
         ],
         diffChunks: [
-          chunk('src/legacy/cron.ts', 'typescript', [H.cron]),
-          chunk('src/generated/schedule.schema.json', 'json', [H.schema]),
-          chunk('docs/scheduling.md', 'markdown', [H.docs]),
+          chunk('src/legacy/cron.ts', 'typescript', [cite(H.cron, 'read')]),
+          chunk('src/generated/schedule.schema.json', 'json', [
+            cite(H.schema, 'mechanical', 'regenerated from the Schedule type'),
+          ]),
+          chunk('docs/scheduling.md', 'markdown', [cite(H.docs, 'skim')]),
         ],
       },
     ],
@@ -522,6 +595,10 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
     'src/scheduler/fixtures/schedules.ts': {
       base: { kind: 'absent' },
       head: { kind: 'content', content: SCHEDULES_HEAD },
+    },
+    'test/helpers.ts': {
+      base: { kind: 'content', content: TEST_HELPERS_BASE },
+      head: { kind: 'content', content: TEST_HELPERS_HEAD },
     },
     'src/legacy/cron.ts': {
       base: { kind: 'content', content: CRON_BASE },

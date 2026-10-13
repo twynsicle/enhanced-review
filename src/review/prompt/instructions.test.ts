@@ -3,10 +3,21 @@ import { DIAGRAM_LIMITS } from '../diagram.ts';
 import { LOCAL_WORKING_TREE, NARRATIVE_SYSTEM_PROMPT } from './instructions.ts';
 
 describe('the review instructions', () => {
-  it('ask for the tagged block and the hunk ids', () => {
+  it('ask for the tagged block and the hunks each chapter cites', () => {
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('<narrative_review>');
-    expect(NARRATIVE_SYSTEM_PROMPT).toContain('hunkIds');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"hunks": [');
     expect(NARRATIVE_SYSTEM_PROMPT).not.toContain('working tree');
+  });
+
+  it('define every attention tier, a mechanical hunk’s reason, and what the hints are for', () => {
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"tier": "read | skim | mechanical');
+    for (const tier of ['read', 'skim', 'mechanical']) {
+      expect(NARRATIVE_SYSTEM_PROMPT).toContain(`- "${tier}":`);
+    }
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('When unsure, choose "read"');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('required when tier is mechanical');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('[whitespace only]');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('never decides it');
   });
 
   it('state the diagram contract with the real limits, not a template hole', () => {

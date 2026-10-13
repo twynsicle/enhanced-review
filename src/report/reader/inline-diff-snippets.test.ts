@@ -2,16 +2,18 @@ import { describe, expect, it } from 'vitest';
 import {
   buildInlineDiffSnippets,
   formatSelectedHunkLabel,
+  groupLineCount,
   groupSelectedHunks,
 } from './inline-diff-snippets';
-import type { ResolvedDiffHunk } from '@/review/narrative';
+import type { CitedHunk } from '@/review/narrative';
 
-function makeHunk(overrides: Partial<ResolvedDiffHunk>): ResolvedDiffHunk {
+function makeHunk(overrides: Partial<CitedHunk>): CitedHunk {
   return {
     id: 'H0001',
     fileOrder: 1,
     original: { startLine: 1, lineCount: 1 },
     modified: { startLine: 1, lineCount: 1 },
+    tier: 'read',
     ...overrides,
   };
 }
@@ -46,9 +48,72 @@ describe('groupSelectedHunks', () => {
   it('returns no groups for no hunks', () => {
     expect(groupSelectedHunks([])).toEqual([]);
   });
+
+  it('starts a new group where the tier changes, since a group is what folds', () => {
+    const groups = groupSelectedHunks([
+      makeHunk({ id: 'H0001', fileOrder: 1, tier: 'read' }),
+      makeHunk({ id: 'H0002', fileOrder: 2, tier: 'mechanical', reason: 'imports' }),
+      makeHunk({ id: 'H0003', fileOrder: 3, tier: 'mechanical', reason: 'imports' }),
+      makeHunk({ id: 'H0004', fileOrder: 4, tier: 'skim' }),
+    ]);
+    expect(groups.map((group) => group.map((hunk) => hunk.id))).toEqual([
+      ['H0001'],
+      ['H0002', 'H0003'],
+      ['H0004'],
+    ]);
+  });
+});
+
+describe('groupLineCount', () => {
+  it('counts the longer side of each hunk', () => {
+    expect(
+      groupLineCount([
+        makeHunk({
+          original: { startLine: 1, lineCount: 3 },
+          modified: { startLine: 1, lineCount: 5 },
+        }),
+        makeHunk({
+          original: { startLine: 9, lineCount: 4 },
+          modified: { startLine: 11, lineCount: 0 },
+        }),
+      ]),
+    ).toBe(9);
+  });
 });
 
 describe('buildInlineDiffSnippets', () => {
+  it('gives each tier its own snippet, carrying the tier and its hunks, without sharing lines', () => {
+    const read = makeHunk({
+      id: 'H0001',
+      fileOrder: 1,
+      original: { startLine: 0, lineCount: 0 },
+      modified: { startLine: 1, lineCount: 10 },
+    });
+    const mechanical = makeHunk({
+      id: 'H0002',
+      fileOrder: 2,
+      original: { startLine: 0, lineCount: 0 },
+      modified: { startLine: 11, lineCount: 10 },
+      tier: 'mechanical',
+      reason: 'boilerplate',
+    });
+    const snippets = buildInlineDiffSnippets({
+      hunks: [read, mechanical],
+      original: '',
+      modified: makeLines('m', 20),
+      contextLines: 5,
+    });
+
+    expect(snippets.map((snippet) => [snippet.key, snippet.tier])).toEqual([
+      ['group-1-1', 'read'],
+      ['group-2-2', 'mechanical'],
+    ]);
+    expect(snippets[1]?.hunks).toEqual([mechanical]);
+    // Flush against each other, so neither draws the other's lines as context.
+    expect(snippets[0]?.modified.split('\n')).toEqual(takeLines('m', 1, 10));
+    expect(snippets[1]?.modified.split('\n')).toEqual(takeLines('m', 11, 20));
+  });
+
   it('builds one snippet for consecutive hunks and expands with context', () => {
     const snippets = buildInlineDiffSnippets({
       hunks: [

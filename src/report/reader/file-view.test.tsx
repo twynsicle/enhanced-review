@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/review/bundle';
 import { reviewCoverage } from '@/review/coverage';
-import type { NarrativeChapter, ResolvedDiffHunk, ReviewFile } from '@/review/narrative';
+import type { CitedHunk, NarrativeChapter, ReviewFile } from '@/review/narrative';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
 import { render, screen } from '@/report/test/render';
 import { FileView } from './file-view';
@@ -17,11 +17,12 @@ const chapters: NarrativeChapter[] = [
   { id: 'ch1', title: 'Shape of the change', insights: [], diffChunks: [] },
 ];
 
-const hunk = (id: string, fileOrder: number): ResolvedDiffHunk => ({
+const hunk = (id: string, fileOrder: number): CitedHunk => ({
   id,
   fileOrder,
   original: { startLine: fileOrder, lineCount: 1 },
   modified: { startLine: fileOrder, lineCount: 1 },
+  tier: 'read',
 });
 
 /** The view inside an embedded source carrying both sides of the one fixture file. */
@@ -219,6 +220,31 @@ describe('FileView with hunks the chapters left out', () => {
     expect(screen.getByText(/Discussed in/).textContent).toContain('Shape of the change');
     expect(screen.getByText(/Discussed in/).textContent).toContain('And its neighbour');
     expect(screen.queryByText('Not discussed in any chapter')).toBeNull();
+  });
+
+  it('never folds a mechanical hunk, since the reader asked for the whole file', async () => {
+    const cited: NarrativeChapter[] = [
+      {
+        id: 'ch1',
+        title: 'Shape of the change',
+        insights: [],
+        diffChunks: [
+          {
+            filename: 'src/app.ts',
+            language: 'typescript',
+            hunks: [
+              hunk('H0001', 1),
+              { ...hunk('H0002', 2), tier: 'mechanical', reason: 'the same rename' },
+            ],
+          },
+        ],
+      },
+    ];
+    renderWithSource(files, cited);
+
+    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(2);
+    expect(screen.getByText('the same rename')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
   });
 
   it('shows a file no chapter cites as one diff, and says so in the header', () => {

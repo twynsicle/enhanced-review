@@ -14,10 +14,13 @@ import {
 import type { FilePair } from '@/review/bundle';
 import {
   buildInlineDiffSnippets,
+  groupLineCount,
   type InlineDiffSnippet,
 } from '@/report/reader/inline-diff-snippets';
 import { detectLanguage } from '@/review/language-map';
-import type { DiffChunk, Insight, JudgementCall } from '@/review/narrative';
+import type { CitedHunk, DiffChunk, HunkTier, Insight, JudgementCall } from '@/review/narrative';
+import { plural } from '@/review/plural';
+import { Caption } from '@/report/chrome/caption';
 import { originVerb } from '@/report/reader/file-origin';
 import { useFilePair, useReviewFile } from '@/report/reader/file-source';
 import { InsightCallout, JudgementCallout } from '@/report/reader/insight-callout';
@@ -30,6 +33,7 @@ import {
   type DiffView,
 } from '@/report/stores/diff-view';
 import { useDiffWrap, type DiffWrap } from '@/report/stores/diff-wrap';
+import { useFoldSkim } from '@/report/stores/fold-skim';
 import { token, TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
 
@@ -154,6 +158,8 @@ function fullFile(key: string, data: FileData): InlineDiffSnippet {
     modified: data.modified,
     originalStartLine: 1,
     modifiedStartLine: 1,
+    tier: 'read',
+    hunks: [],
   };
 }
 
@@ -576,11 +582,112 @@ function AnchoredAsides({
   );
 }
 
+const TIER_LABEL: Record<HunkTier, string> = {
+  read: 'Read',
+  skim: 'Skim',
+  mechanical: 'Mechanical',
+};
+
+/** What the CLI proved about a group's hunks, each fact worded once. */
+function factBadges(hunks: readonly CitedHunk[]): string[] {
+  const badges = new Set<string>();
+  for (const hunk of hunks) {
+    if (hunk.whitespaceOnly) badges.add('Whitespace only');
+    if (hunk.movedFrom) {
+      badges.add(`Moved from ${hunk.movedFrom.filename} · ${String(hunk.movedFrom.similarity)}%`);
+    }
+    if (hunk.movedTo) {
+      badges.add(`Moved to ${hunk.movedTo.filename} · ${String(hunk.movedTo.similarity)}%`);
+    }
+  }
+  return [...badges];
+}
+
+/**
+ * The line above a group that is not plainly to be read, or that carries a
+ * proven fact: its tier, the reasons a mechanical group gives, its facts, and
+ * the control that opens or closes a fold. A folded group is this line alone, so it carries everything a reader
+ * needs to decide whether to open it — what kind of change it is and how much
+ * of it there is.
+ */
+function GroupRow({
+  snippet,
+  badges,
+  foldable,
+  open,
+  onToggle,
+}: {
+  snippet: InlineDiffSnippet;
+  badges: readonly string[];
+  foldable: boolean;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const reasons = [...new Set(snippet.hunks.flatMap((hunk) => (hunk.reason ? [hunk.reason] : [])))];
+  return (
+    <Group
+      gap={8}
+      px={12}
+      py={6}
+      fz="sm"
+      style={{
+        rowGap: 4,
+        ...(open ? { borderBottom: `1px solid ${token('border')}` } : {}),
+      }}
+    >
+      {snippet.tier !== 'read' && <Caption>{TIER_LABEL[snippet.tier]}</Caption>}
+      {reasons.length > 0 && (
+        <Text component="span" fz="sm">
+          {reasons.join(' · ')}
+        </Text>
+      )}
+      {foldable && (
+        <Text component="span" fz="xs" c="dimmed">
+          {plural(groupLineCount(snippet.hunks), 'line')}
+        </Text>
+      )}
+      {badges.map((badge) => (
+        <Text
+          key={badge}
+          component="span"
+          fz="xs"
+          c="dimmed"
+          px={6}
+          py={1}
+          style={{ borderRadius: 4, border: `1px solid ${token('border')}` }}
+        >
+          {badge}
+        </Text>
+      ))}
+      {foldable && (
+        <UnstyledButton
+          ml="auto"
+          px={8}
+          py={2}
+          fz="sm"
+          c="dimmed"
+          style={{ borderRadius: 4 }}
+          aria-expanded={open}
+          onClick={onToggle}
+        >
+          {open ? 'Hide' : 'Show'}
+        </UnstyledButton>
+      )}
+    </Group>
+  );
+}
+
 /**
  * One file's reviewer-selected hunks: both sides come from the bundle through
  * `useFilePair`, are sliced to the lines around
  * each hunk group (`buildInlineDiffSnippets`) and shown in one Monaco
  * `DiffEditor` per group; "Show full file" swaps in the whole pair.
+ *
+ * A group is consecutive hunks of one tier. A `mechanical` group is folded to
+ * its row, and so is a `skim` one when the reader has asked for that; Show
+ * opens it in place. `fold` is off where the reader came for the whole file
+ * rather than a chapter's argument about it — the file view — and there every
+ * group is open, its row still saying what the chapters made of it.
  *
  * `insights` are the chapter's insights that named this file, and
  * `judgementCalls` the review's questions this chapter draws for it. The other
@@ -592,10 +699,12 @@ export function InlineDiffChunk({
   chunk,
   insights = [],
   judgementCalls = [],
+  fold = true,
 }: {
   chunk: DiffChunk;
   insights?: readonly Insight[];
   judgementCalls?: readonly JudgementCall[];
+  fold?: boolean;
 }) {
   const pair = useFilePair(chunk.filename);
   const file = useReviewFile(chunk.filename);
@@ -605,6 +714,16 @@ export function InlineDiffChunk({
   // Too narrow for two panes is not a preference the column can honour.
   const view: DiffView = spaceLimited ? 'unified' : stored;
   const [expanded, setExpanded] = useState(false);
+  const foldSkim = useFoldSkim((s) => s.skim) === 'folded';
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleOpened = useCallback((key: string) => {
+    setOpened((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
   const state = useMemo(() => resolveFileState(pair, chunk.filename), [pair, chunk.filename]);
 
   const snippets = useMemo<InlineDiffSnippet[]>(() => {
@@ -717,17 +836,41 @@ export function InlineDiffChunk({
         </Text>
       )}
       {state.kind === 'ok' &&
-        snippets.map((snippet) => (
-          <SnippetEditor
-            key={snippet.key}
-            chunkFilename={chunk.filename}
-            language={language}
-            snippet={snippet}
-            expanded={expanded}
-            view={view}
-            wrap={wrap}
-          />
-        ))}
+        snippets.map((snippet, index) => {
+          const foldable =
+            fold && (snippet.tier === 'mechanical' || (snippet.tier === 'skim' && foldSkim));
+          const open = !foldable || opened.has(snippet.key);
+          const badges = factBadges(snippet.hunks);
+          return (
+            <Box
+              key={snippet.key}
+              {...(snippet.hunks.length > 0
+                ? { role: 'group', 'aria-label': `${TIER_LABEL[snippet.tier]} lines` }
+                : {})}
+              style={index > 0 ? { borderTop: `1px solid ${token('border')}` } : undefined}
+            >
+              {(snippet.tier !== 'read' || badges.length > 0) && (
+                <GroupRow
+                  snippet={snippet}
+                  badges={badges}
+                  foldable={foldable}
+                  open={open}
+                  onToggle={() => toggleOpened(snippet.key)}
+                />
+              )}
+              {open && (
+                <SnippetEditor
+                  chunkFilename={chunk.filename}
+                  language={language}
+                  snippet={snippet}
+                  expanded={expanded}
+                  view={view}
+                  wrap={wrap}
+                />
+              )}
+            </Box>
+          );
+        })}
     </Box>
   );
 }

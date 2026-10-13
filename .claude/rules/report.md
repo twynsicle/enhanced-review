@@ -29,7 +29,7 @@ src/report/
   chrome/            brand-mark (+ brand-mark.svg, imported so the build inlines it), caption (the one uppercase
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
                      topbar (TopbarFrame, Brand), display-menu (every display preference in one labelled
-                     dropdown: diffs, long lines, layout, theme)
+                     dropdown: diffs, long lines, skim, layout, theme)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
                      belongs to the file; each change is a history entry),
@@ -53,7 +53,8 @@ src/report/
                      overview diagram, overview, the judgement-call index — titles linking to the chapter that
                      draws each — and the author's description collapsed last), risk-card, risk-score,
                      file-view (one diff over every hunk the chapters cited, merged by coverage.ts's citedChunk,
-                     then its uncited hunks under their own label, or why it has none), skipped-file.ts (the copy
+                     then its uncited hunks under their own label, or why it has none; it never folds — a reader
+                     who opens a file asked for all of it), skipped-file.ts (the copy
                      for ReviewFile.skipped reasons), insight-callout (InsightCallout and JudgementCallout over one
                      marginalia treatment), article.module.css (the reading measure + the diff bleed lane),
                      prose-passage (a Prose: the lede one step up the scale, the body as Markdown beneath),
@@ -62,9 +63,14 @@ src/report/
                      record of each; useFilePair, useReviewFile), file-origin.ts (the "Renamed from … · N% similar"
                      wording the file view, the diff card header and the sidebar row share),
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group
-                     (inline-diff-snippets.ts, whose context stops at the unchanged lines between a group and the
-                     file's neighbouring hunks, so the flush parts of a split hunk never draw each other's lines),
-                     the asides for this file above the diff — judgement calls first, then the chapter's insights that named it — and a lazy Monaco DiffEditor, vs/vs-dark following
+                     (inline-diff-snippets.ts: a group is consecutive hunks of one tier, and its context stops at
+                     the unchanged lines between it and the file's neighbouring hunks, so the flush parts of a
+                     split hunk never draw each other's lines); a group not plainly `read`, or carrying a fact,
+                     gets a row above it — its tier as a Caption, a mechanical group's reasons, its line count,
+                     fact badges; a `mechanical` group is folded to that row, and a `skim` one when er-fold-skim
+                     says so, with Show/Hide opening it in place, unless `fold` is off (the file view),
+                     the asides for this file above the diff — judgement calls first, then the chapter's
+                     insights that named it — and a lazy Monaco DiffEditor, vs/vs-dark following
                      the scheme; the wrap preference goes to the live widget as diffWordWrap, never through its
                      construction options, so a flip reflows in place instead of remounting; its lazy factory is
                      the one place that imports the editor, because it is where loader.config pins the CDN and
@@ -88,7 +94,8 @@ src/report/
                      Monaco spells diffWordWrap), file-list-view.ts (`er-file-list`, flat ⇄ tree), sidebar-width.ts
                      (`er-sidebar`, the navigation column in pixels, clamped to SIDEBAR_WIDTHS rather than matched;
                      followSidebarWidth paints `--review-sidebar-width` on `<html>` — a drag writes the variable
-                     directly and commits to the store once on release), all five on raw-preference.ts (one word
+                     directly and commits to the store once on release), fold-skim.ts (`er-fold-skim`, shown ⇄
+                     folded: whether skim hunks fold like mechanical ones), all six on raw-preference.ts (one word
                      or one number, not JSON).
                      diff-view.ts also holds useReaderColumn, the only store here that is never persisted: the
                      column width chapter-reader measures, with selectSpaceLimited over it — under

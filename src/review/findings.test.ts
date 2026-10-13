@@ -28,6 +28,8 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {
   'diagram-dropped': 'warning',
   'insight-anchor-dropped': 'warning',
   'judgement-call-dropped': 'warning',
+  'hunk-tier-missing': 'warning',
+  'hunk-reason-missing': 'warning',
   'commands-refused': 'warning',
   'passed-after-retry': 'warning',
   'chapter-id-synthesised': 'note',
@@ -43,6 +45,8 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {
   'diagram-part-dropped': 'note',
   'hunk-id-dropped': 'note',
   'risk-part-dropped': 'note',
+  'hunk-reason-dropped': 'note',
+  'hunk-tier-raised': 'note',
 };
 
 describe('the finding table', () => {

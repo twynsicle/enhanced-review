@@ -30,6 +30,8 @@ const HUNK_ANCHORS: Record<string, string> = {
   H0010: 'export { isDue, type Cadence',
   H0011: "import type { Clock } from '../clock'",
   H0012: "import type { Schedule } from '../cadence'",
+  H0013: "import type { Clock } from '../src/scheduler/clock'",
+  H0014: '/** The owner/name form',
 };
 
 describe('the sample report bundle', () => {
@@ -120,6 +122,19 @@ describe('the sample report bundle', () => {
     expect(
       scheduler?.kind === 'directory' ? scheduler.children.map((node) => node.kind) : [],
     ).toEqual(['file', 'directory', 'file', 'file']);
+  });
+
+  it('cites hunks at every tier and carries both proven facts, so the reader folds and badges', () => {
+    const cited = SAMPLE_BUNDLE.review.chapters.flatMap((chapter) =>
+      chapter.diffChunks.flatMap((chunk) => chunk.hunks),
+    );
+    expect(new Set(cited.map((hunk) => hunk.tier))).toEqual(
+      new Set(['read', 'skim', 'mechanical']),
+    );
+    expect(cited.filter((hunk) => hunk.tier === 'mechanical' && !hunk.reason)).toEqual([]);
+    expect(cited.some((hunk) => hunk.whitespaceOnly)).toBe(true);
+    expect(cited.some((hunk) => hunk.movedFrom)).toBe(true);
+    expect(cited.some((hunk) => hunk.movedTo)).toBe(true);
   });
 
   it('covers every file-side state the reader draws', () => {

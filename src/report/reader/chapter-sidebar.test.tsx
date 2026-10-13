@@ -61,6 +61,7 @@ const hunk = (id: string, fileOrder: number) => ({
   fileOrder,
   original: { startLine: fileOrder * 10, lineCount: 1 },
   modified: { startLine: fileOrder * 10, lineCount: 2 },
+  tier: 'read' as const,
 });
 
 describe('<ChapterSidebar />', () => {

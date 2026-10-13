@@ -93,7 +93,13 @@ const answer = (hunkIds: string[]) =>
         id: 'c1',
         title: 'The change',
         insights: [],
-        diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds }],
+        diffChunks: [
+          {
+            filename: 'src/a.ts',
+            language: 'typescript',
+            hunks: hunkIds.map((id) => ({ id, tier: 'read' })),
+          },
+        ],
       },
     ],
   })}</narrative_review>`;

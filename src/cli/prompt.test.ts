@@ -99,6 +99,29 @@ describe('the local prompt', () => {
     expect(prompt).toContain('- 2222222 Add the login form\n    With validation.');
   });
 
+  it('hints what the CLI proved about a hunk after its line, and nothing after one it proved nothing about', () => {
+    const base = context().hunks[0]!;
+    const prompt = buildPrompt(
+      context({
+        hunks: [
+          { ...base, id: 'H0001', whitespaceOnly: true },
+          { ...base, id: 'H0002', movedFrom: { filename: 'src/old-form.ts', similarity: 92 } },
+          { ...base, id: 'H0003', movedTo: { filename: 'src/form.ts', similarity: 88 } },
+          { ...base, id: 'H0004' },
+        ],
+      }),
+      run,
+      null,
+    );
+    const line = (id: string) => prompt.split('\n').find((row) => row.startsWith(`  ${id}  `));
+
+    expect(prompt).toContain('## Changed Hunks (Use These IDs in diffChunks.hunks)');
+    expect(line('H0001')).toMatch(/modified L1-10  \[whitespace only\]$/);
+    expect(line('H0002')).toMatch(/  \[moved from src\/old-form\.ts, 92%\]$/);
+    expect(line('H0003')).toMatch(/  \[moved to src\/form\.ts, 88%\]$/);
+    expect(line('H0004')).toMatch(/modified L1-10$/);
+  });
+
   it('points at pr.md instead of inlining a long description', () => {
     const long = 'x'.repeat(9000);
     const prompt = buildPrompt(

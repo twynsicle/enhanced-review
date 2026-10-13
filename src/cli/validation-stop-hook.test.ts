@@ -23,7 +23,13 @@ function answer(hunkIds: string[]): string {
         id: 'c',
         title: 'C',
         insights: [],
-        diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds }],
+        diffChunks: [
+          {
+            filename: 'src/a.ts',
+            language: 'typescript',
+            hunks: hunkIds.map((id) => ({ id, tier: 'read' })),
+          },
+        ],
       },
     ],
   })}</narrative_review>`;

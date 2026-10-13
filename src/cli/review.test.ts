@@ -80,7 +80,7 @@ const MODEL_REVIEW = `<narrative_review>
       "title": "App",
       "description": "src/app.ts changed.",
       "insights": [{ "type": "context", "title": "From the test model", "text": "Not a real run." }],
-      "diffChunks": [{ "filename": "src/app.ts", "language": "typescript", "hunkIds": ["H0001"] }]
+      "diffChunks": [{ "filename": "src/app.ts", "language": "typescript", "hunks": [{ "id": "H0001", "tier": "read" }] }]
     }
   ]
 }
@@ -89,12 +89,12 @@ const MODEL_REVIEW = `<narrative_review>
 /** MODEL_REVIEW, with its one diff chunk replaced by the ones given. */
 const citing = (...chunks: string[]) =>
   MODEL_REVIEW.replace(
-    '{ "filename": "src/app.ts", "language": "typescript", "hunkIds": ["H0001"] }',
+    '{ "filename": "src/app.ts", "language": "typescript", "hunks": [{ "id": "H0001", "tier": "read" }] }',
     chunks.join(', '),
   );
 
 const chunk = (filename: string, id: string) =>
-  `{ "filename": "${filename}", "language": "typescript", "hunkIds": ["${id}"] }`;
+  `{ "filename": "${filename}", "language": "typescript", "hunks": [{ "id": "${id}", "tier": "read" }] }`;
 
 const assistantText = (text: string) =>
   ({ type: 'assistant', message: { content: [{ type: 'text', text }] } }) as never;

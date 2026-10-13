@@ -4,8 +4,9 @@ import { z } from 'zod';
 import { EmbeddedFileSchema, type EmbeddedFile, type EmbeddedSide } from '../review/bundle.ts';
 import { listChangedFileDetails, type ChangedFile } from './diff-files.ts';
 import { argBatches, mapLimit, PARALLEL_GIT } from './git-runner.ts';
-import { DiffLineSpanSchema, ReviewFileSchema } from '../review/narrative.ts';
+import { DiffLineSpanSchema, HunkFactsSchema, ReviewFileSchema } from '../review/narrative.ts';
 import { buildDiffHunkIndex, type DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
+import { hunkLines, provenFacts, type HunkBody } from '../review/prompt/hunk-facts.ts';
 import { splitPatch } from '../review/prompt/split-hunks.ts';
 import { ReviewMetaSchema, type ReviewMeta } from '../review/review-meta.ts';
 import { skipReasons, toReviewFiles } from './skip-reasons.ts';
@@ -20,7 +21,7 @@ import { TargetSchema, type Target } from './targets.ts';
  * every reviewed file's patch for the agent to read, and the PR description
  * when there is one.
  */
-export const DiffHunkSchema = z.object({
+export const DiffHunkSchema = HunkFactsSchema.extend({
   id: z.string(),
   filename: z.string(),
   header: z.string(),
@@ -169,20 +170,33 @@ async function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promis
 }
 
 /**
- * Hunk ids across the whole change, in file order. Each patch is catalogued
- * under a plain `diff --git` line naming the file, so user diff settings
- * (prefixes, quoting) cannot hide its hunks from the catalog.
+ * Hunk ids across the whole change, in file order, each carrying what
+ * `provenFacts` can show about it. Each patch is catalogued under a plain
+ * `diff --git` line naming the file, so user diff settings (prefixes, quoting)
+ * cannot hide its hunks from the catalog. Facts are found across the whole
+ * change at once, since a move is as likely to cross files as not.
  */
 function numberHunks(files: readonly ChangedFile[], diffs: readonly string[]): DiffHunk[] {
   const hunks: DiffHunk[] = [];
+  const bodies: HunkBody[] = [];
   files.forEach((file, index) => {
     const body = diffs[index]!.split('\n').slice(1).join('\n');
     const header = `diff --git a/${file.filename} b/${file.filename}`;
-    for (const hunk of buildDiffHunkIndex(`${header}\n${body}`).hunks) {
-      hunks.push({ ...hunk, id: `H${String(hunks.length + 1).padStart(4, '0')}` });
+    const catalogued = buildDiffHunkIndex(`${header}\n${body}`).hunks;
+    const lines = hunkLines(`${header}\n${body}`);
+    if (lines.length !== catalogued.length) {
+      throw new Error(
+        `${file.filename}: read ${String(lines.length)} hunk bodies where the catalog numbered ${String(catalogued.length)}`,
+      );
     }
+    catalogued.forEach((hunk, at) => {
+      const id = `H${String(hunks.length + 1).padStart(4, '0')}`;
+      hunks.push({ ...hunk, id });
+      bodies.push({ id, filename: file.filename, ...lines[at]! });
+    });
   });
-  return hunks;
+  const facts = provenFacts(bodies);
+  return hunks.map((hunk) => ({ ...hunk, ...facts.get(hunk.id) }));
 }
 
 /** `context/diff.patch`'s text: every reviewed file's patch, in file order, each hunk's id on the line above its header. */

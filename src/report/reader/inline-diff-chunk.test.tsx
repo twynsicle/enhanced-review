@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUNDLE_SCHEMA_VERSION, type EmbeddedSide, type ReviewBundle } from '@/review/bundle';
-import type { DiffChunk, Insight } from '@/review/narrative';
+import type { CitedHunk, DiffChunk, Insight } from '@/review/narrative';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
-import { render, screen } from '@/report/test/render';
+import { act, render, screen, userEvent, within } from '@/report/test/render';
+import { useFoldSkim } from '@/report/stores/fold-skim';
+import { DisplayMenu } from '@/report/chrome/display-menu';
 import { TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import { InlineDiffChunk } from './inline-diff-chunk';
 
@@ -22,6 +24,7 @@ const chunk: DiffChunk = {
       fileOrder: 1,
       original: { startLine: 1, lineCount: 1 },
       modified: { startLine: 1, lineCount: 2 },
+      tier: 'read',
     },
   ],
 };
@@ -122,5 +125,118 @@ describe('<InlineDiffChunk /> with anchored insights', () => {
 
     expect(screen.getAllByText('Why this constant is 14')).toHaveLength(1);
     expect(screen.getAllByText(/Risk/)).toHaveLength(1);
+  });
+});
+
+describe('<InlineDiffChunk /> by attention tier', () => {
+  const lines = Array.from({ length: 40 }, (_, i) => `line ${String(i + 1)}`).join('\n');
+  const tiered = (hunks: Partial<CitedHunk>[], fold?: boolean): ReturnType<typeof render> => {
+    const cited: DiffChunk = {
+      ...chunk,
+      hunks: hunks.map((hunk, i) => ({
+        id: `H000${String(i + 1)}`,
+        fileOrder: i + 1,
+        original: { startLine: i * 10 + 1, lineCount: 10 },
+        modified: { startLine: i * 10 + 1, lineCount: 10 },
+        tier: 'read',
+        ...hunk,
+      })),
+    };
+    const bundle: ReviewBundle = {
+      schemaVersion: BUNDLE_SCHEMA_VERSION,
+      generatedAt: '2026-09-11T10:00:00.000Z',
+      meta: {
+        repo: 'a/r',
+        title: 't',
+        prNumber: null,
+        baseRefName: null,
+        headRefName: null,
+        authorLogin: null,
+        description: null,
+        stats: null,
+      },
+      review: { prTitle: 't', overviewSummary: { lede: '' }, chapters: [] },
+      files: { [chunk.filename]: { base: content(lines), head: content(lines) } },
+    };
+    return render(
+      <EmbeddedFileSource bundle={bundle}>
+        <InlineDiffChunk chunk={cited} {...(fold === undefined ? {} : { fold })} />
+      </EmbeddedFileSource>,
+    );
+  };
+
+  beforeEach(() => useFoldSkim.setState({ skim: 'shown' }));
+
+  it('draws consecutive hunks of one tier as one group, and a change of tier as another', async () => {
+    tiered([{}, {}, { tier: 'skim' }]);
+    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(2);
+    expect(screen.getByRole('group', { name: 'Read lines' })).toBeDefined();
+    expect(screen.getByRole('group', { name: 'Skim lines' })).toBeDefined();
+  });
+
+  it('folds a mechanical group to one row saying what it is, and opens it in place', async () => {
+    tiered([
+      {},
+      { tier: 'mechanical', reason: 'imports for the new helper' },
+      { tier: 'mechanical', reason: 'the same rename at 14 call sites' },
+    ]);
+    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(1);
+
+    const group = screen.getByRole('group', { name: 'Mechanical lines' });
+    expect(within(group).getByText('Mechanical')).toBeDefined();
+    expect(
+      within(group).getByText('imports for the new helper · the same rename at 14 call sites'),
+    ).toBeDefined();
+    expect(within(group).getByText('20 lines')).toBeDefined();
+    const show = within(group).getByRole('button', { name: 'Show' });
+    expect(show.getAttribute('aria-expanded')).toBe('false');
+
+    await userEvent.click(show);
+    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(2);
+    expect(within(group).getByRole('button', { name: 'Hide' })).toBeDefined();
+  });
+
+  it('folds skim only when the reader has asked for it', async () => {
+    tiered([{}, { tier: 'skim' }]);
+    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(2);
+    const group = screen.getByRole('group', { name: 'Skim lines' });
+    expect(within(group).queryByRole('button')).toBeNull();
+
+    act(() => useFoldSkim.setState({ skim: 'folded' }));
+    expect(screen.getAllByTestId('diff-editor')).toHaveLength(1);
+    expect(within(group).getByRole('button', { name: 'Show' })).toBeDefined();
+  });
+
+  it('badges the facts on the group’s row, even on a group that is read', async () => {
+    tiered([
+      { movedFrom: { filename: 'src/old.ts', similarity: 92 } },
+      { tier: 'mechanical', reason: 'reformatted', whitespaceOnly: true },
+    ]);
+    await screen.findAllByTestId('diff-editor');
+    const read = screen.getByRole('group', { name: 'Read lines' });
+    expect(within(read).getByText('Moved from src/old.ts · 92%')).toBeDefined();
+    expect(within(read).queryByText('Read')).toBeNull();
+    const mechanical = screen.getByRole('group', { name: 'Mechanical lines' });
+    expect(within(mechanical).getByText('Whitespace only')).toBeDefined();
+  });
+
+  it('is folded from the display menu, which names how skim is set', async () => {
+    render(<DisplayMenu />);
+    await userEvent.click(screen.getByRole('button', { name: 'Display settings' }));
+    const row = await screen.findByRole('menuitem', { name: /^Skim:/ });
+    expect(row).toHaveAccessibleName('Skim: Shown');
+
+    await userEvent.click(row);
+    expect(useFoldSkim.getState().skim).toBe('folded');
+    expect(row).toHaveAccessibleName('Skim: Folded');
+  });
+
+  it('never folds where it is told not to, the file view', async () => {
+    useFoldSkim.setState({ skim: 'folded' });
+    tiered([{ tier: 'skim' }, { tier: 'mechanical', reason: 'boilerplate' }], false);
+    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
+    // The row still says what the chapters made of the lines.
+    expect(screen.getByText('boilerplate')).toBeDefined();
   });
 });
