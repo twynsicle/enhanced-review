@@ -1363,3 +1363,157 @@ describe('a reading plan', () => {
     expect(parse(undefined, []).findings).toEqual([]);
   });
 });
+
+const excerpt = (filename: string, startLine: unknown, endLine: unknown, reason: unknown) => ({
+  filename,
+  startLine,
+  endLine,
+  reason,
+});
+
+const excerptsOf = (result: ParseResult) =>
+  result.ok ? result.data.chapters.map((each) => each.contextExcerpts) : null;
+
+describe('excerpts of unchanged code', () => {
+  // src/c.ts is in the change but skipped, so the prompt showed none of its hunks.
+  const grounding = groundingFor(
+    buildDiffHunkIndex(DIFF).hunks,
+    ['src/a.ts', 'src/b.ts'],
+    ['src/a.ts', 'src/b.ts', 'src/c.ts'],
+  );
+  const parse = (contextExcerpts: unknown) =>
+    parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          {
+            id: 'c1',
+            title: 'C',
+            insights: [],
+            diffChunks: [cite('src/a.ts', ['H0001', 'H0002']), cite('src/b.ts', ['H0003'])],
+            contextExcerpts,
+          },
+        ],
+      }),
+      grounding,
+    );
+
+  it('keeps an excerpt that keeps the rules, its reason trimmed, with nothing to report', () => {
+    const result = parse([excerpt('src/runner.ts', 10, 30, ' Calls isDue every pass. ')]);
+    expect(excerptsOf(result)).toEqual([
+      [
+        {
+          filename: 'src/runner.ts',
+          startLine: 10,
+          endLine: 30,
+          reason: 'Calls isDue every pass.',
+        },
+      ],
+    ]);
+    expect(result.findings).toEqual([]);
+  });
+
+  it('leaves the field off a chapter that sent none, or an empty list', () => {
+    const result = parse(undefined);
+    expect(result.ok && 'contextExcerpts' in result.data.chapters[0]!).toBe(false);
+    expect(parse([]).findings).toEqual([]);
+  });
+
+  it('drops each excerpt that breaks a rule, and says which and why in one warning', () => {
+    const result = parse([
+      excerpt('src/a.ts', 1, 5, 'Changed here.'),
+      excerpt('src/c.ts', 1, 5, 'Skipped, but still changed.'),
+      excerpt('src/runner.ts', 30, 10, 'Backwards.'),
+      excerpt('src/runner.ts', 1, 61, 'Too long.'),
+      excerpt('src/runner.ts', 0, 5, 'From line zero.'),
+      excerpt('src/runner.ts', 1.5, 5, 'Half a line.'),
+      excerpt('src/runner.ts', 1, 5, '  '),
+      excerpt('', 1, 5, 'No file.'),
+      'src/runner.ts',
+    ]);
+    expect(result.ok).toBe(true);
+    expect(excerptsOf(result)).toEqual([undefined]);
+    expect(codes(result)).toEqual(['excerpt-dropped']);
+    expect(result.findings[0]).toMatchObject({ severity: 'warning' });
+    expect(result.findings[0]?.message).toBe(
+      '9 excerpts of unchanged code were dropped: ' +
+        'src/a.ts L1–5 in chapter c1 (a file this change touches); ' +
+        'src/c.ts L1–5 in chapter c1 (a file this change touches); ' +
+        'src/runner.ts L30–10 in chapter c1 (its span runs backwards); ' +
+        'src/runner.ts L1–61 in chapter c1 (61 lines, over the 60-line limit); ' +
+        'src/runner.ts L0–5 in chapter c1 (its lines are not whole numbers from 1); ' +
+        'src/runner.ts L1.5–5 in chapter c1 (its lines are not whole numbers from 1); ' +
+        'src/runner.ts L1–5 in chapter c1 (it gives no reason); ' +
+        'an excerpt L1–5 in chapter c1 (it names no file); ' +
+        'an excerpt in chapter c1 (not an object).',
+    );
+  });
+
+  it('drops a path git would not read as one from the repository root', () => {
+    const result = parse([
+      excerpt('../outside.ts', 1, 5, 'Above the repository.'),
+      excerpt('/etc/hosts', 1, 5, 'Absolute.'),
+      excerpt('C:/repo/src/x.ts', 1, 5, 'A drive.'),
+      excerpt('./src/x.ts', 1, 5, 'A dot segment.'),
+      excerpt(`src${String.fromCharCode(92)}x.ts`, 1, 5, 'A Windows separator.'),
+    ]);
+    expect(excerptsOf(result)).toEqual([undefined]);
+    expect(result.findings[0]?.message).toMatch(/^5 excerpts of unchanged code were dropped: /);
+    expect(result.findings[0]?.message.match(/not a path from the repository root/g)).toHaveLength(
+      5,
+    );
+  });
+
+  it('keeps sixty lines exactly', () => {
+    const result = parse([excerpt('src/runner.ts', 41, 100, 'Sixty lines.')]);
+    expect(excerptsOf(result)?.[0]).toHaveLength(1);
+    expect(result.findings).toEqual([]);
+  });
+
+  it('keeps the first two that pass, and drops the rest as past the cap', () => {
+    const result = parse([
+      excerpt('src/a.ts', 1, 5, 'Changed, so not counted against the cap.'),
+      excerpt('src/one.ts', 1, 5, 'First.'),
+      excerpt('src/two.ts', 1, 5, 'Second.'),
+      excerpt('src/three.ts', 1, 5, 'Third.'),
+    ]);
+    expect(excerptsOf(result)?.[0]?.map((kept) => kept.filename)).toEqual([
+      'src/one.ts',
+      'src/two.ts',
+    ]);
+    expect(result.findings[0]?.message).toContain(
+      'src/three.ts L1–5 in chapter c1 (past the 2 a chapter may show)',
+    );
+  });
+
+  it('reports the drops of every chapter in the one warning', () => {
+    const both = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          {
+            id: 'first',
+            title: 'First',
+            insights: [],
+            diffChunks: [cite('src/a.ts', ['H0001', 'H0002'])],
+            contextExcerpts: [excerpt('src/a.ts', 1, 5, 'Changed.')],
+          },
+          {
+            id: 'second',
+            title: 'Second',
+            insights: [],
+            diffChunks: [cite('src/b.ts', ['H0003'])],
+            contextExcerpts: 'src/runner.ts',
+          },
+        ],
+      }),
+      grounding,
+    );
+    expect(codes(both)).toEqual(['excerpt-dropped']);
+    expect(both.findings[0]?.message).toBe(
+      '2 excerpts of unchanged code were dropped: src/a.ts L1–5 in chapter first (a file this change touches); its excerpts in chapter second (not a list).',
+    );
+  });
+});

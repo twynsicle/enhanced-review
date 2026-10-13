@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/review/bundle';
 import type { DiffChunk } from '@/review/narrative';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
+import { SAMPLE_BUNDLE } from '@/report/sample-bundle';
 import { render, screen, waitFor } from '@/report/test/render';
+import { ContextExcerptCard } from './context-excerpt';
 import { InlineDiffChunk } from './inline-diff-chunk';
 
 /**
@@ -16,6 +18,7 @@ import { InlineDiffChunk } from './inline-diff-chunk';
  */
 vi.mock('@monaco-editor/react', () => ({
   DiffEditor: () => <div data-testid="diff-editor" />,
+  Editor: () => <div data-testid="code-editor" />,
   loader: {
     config: () => {},
     init: () => Promise.reject(new Error('the CDN is unreachable')),
@@ -81,5 +84,22 @@ describe('a diff whose editor never arrives', () => {
     const message = await screen.findByText(/code viewer didn’t load/);
     expect(message).toHaveTextContent(/reloading the page/i);
     expect(message.textContent ?? '').not.toMatch(/monaco/i);
+  });
+});
+
+describe('an excerpt whose editor never arrives', () => {
+  it('fails the same way a diff does, under its own name', async () => {
+    const bundle = SAMPLE_BUNDLE;
+    const [excerpt] = bundle.review.chapters.flatMap((chapter) => chapter.contextExcerpts ?? []);
+    render(
+      <EmbeddedFileSource bundle={bundle}>
+        <ContextExcerptCard excerpt={excerpt!} modelKey="excerpt" />
+      </EmbeddedFileSource>,
+    );
+    const message = await screen.findByText(/code viewer didn’t load/);
+    expect(message).toHaveTextContent(/so this excerpt can’t be shown\. Reloading the page/);
+    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument();
+    // The reason still reads: only the lines are missing.
+    expect(screen.getByText(excerpt!.reason)).toBeInTheDocument();
   });
 });

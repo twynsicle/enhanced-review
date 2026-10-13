@@ -101,6 +101,16 @@ describe('a chapter’s reading time', () => {
     expect(chapterSeconds(split)).toBe(20);
   });
 
+  it('skims each excerpt of unchanged code, and reads its reason as prose', () => {
+    const withExcerpt = chapter('c', [], {
+      contextExcerpts: [
+        { filename: 'src/runner.ts', startLine: 11, endLine: 30, reason: words(40) },
+      ],
+    });
+    // 20 lines skimmed at 40 a minute, and 40 words at 200.
+    expect(chapterSeconds(withExcerpt)).toBe(42);
+  });
+
   it('rounds up to a whole minute, and never down to none', () => {
     expect(chapterMinutes(chapter('c', [hunk('read', 0, 12)]))).toBe(1);
     expect(chapterMinutes(chapter('c', [hunk('read', 0, 13)]))).toBe(2);

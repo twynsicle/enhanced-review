@@ -1,4 +1,10 @@
-import type { CitedHunk, DiffChunk, NarrativeChapter, NarrativeReview } from '@/review/narrative';
+import type {
+  CitedHunk,
+  ContextExcerpt,
+  DiffChunk,
+  NarrativeChapter,
+  NarrativeReview,
+} from '@/review/narrative';
 import { groupSelectedHunks } from '@/report/reader/inline-diff-snippets';
 
 /**
@@ -58,13 +64,22 @@ function chunkSeconds(chunk: DiffChunk): number {
   );
 }
 
+/** An excerpt of unchanged code is context for the change, not the change, so it is skimmed. */
+function excerptSeconds(excerpt: ContextExcerpt): number {
+  return ((excerpt.endLine - excerpt.startLine + 1) * 60) / SKIM_LINES_PER_MINUTE;
+}
+
 export function chapterSeconds(chapter: NarrativeChapter): number {
+  const excerpts = chapter.contextExcerpts ?? [];
   const prose = proseSeconds([
     chapter.description?.lede,
     chapter.description?.body,
     ...chapter.insights.map((insight) => insight.text),
+    ...excerpts.map((excerpt) => excerpt.reason),
   ]);
-  const code = chapter.diffChunks.reduce((sum, chunk) => sum + chunkSeconds(chunk), 0);
+  const code =
+    chapter.diffChunks.reduce((sum, chunk) => sum + chunkSeconds(chunk), 0) +
+    excerpts.reduce((sum, excerpt) => sum + excerptSeconds(excerpt), 0);
   return prose + code + (chapter.diagram ? DIAGRAM_SECONDS : 0);
 }
 

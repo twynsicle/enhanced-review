@@ -219,12 +219,37 @@ export const ReviewRiskAssessmentSchema = z.object({
 });
 export type ReviewRiskAssessment = z.infer<typeof ReviewRiskAssessmentSchema>;
 
+/** At most two excerpts a chapter, each at most sixty lines. */
+export const MAX_CONTEXT_EXCERPTS = 2;
+export const MAX_EXCERPT_LINES = 60;
+
+/**
+ * Unchanged code whose behaviour the chapter's change alters without editing
+ * it — a caller, a subclass, a contract — or a definition the changed code now
+ * leans on in a way the diff hides. Never a file the change touches: its lines
+ * are read at the head commit, and a changed file already has a diff to read.
+ *
+ * Lines are 1-based and inclusive, as an editor numbers them at the head
+ * commit. The parser holds the span to the cap; the parse stage holds it to
+ * the file, which only git can see.
+ */
+export const ContextExcerptSchema = z.object({
+  filename: z.string(),
+  startLine: z.number().int().min(1),
+  endLine: z.number().int().min(1),
+  /** One sentence: what this code has to do with the change. */
+  reason: z.string(),
+});
+export type ContextExcerpt = z.infer<typeof ContextExcerptSchema>;
+
 export const NarrativeChapterSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: ProseSchema.optional(),
   insights: z.array(InsightSchema),
   diffChunks: z.array(DiffChunkSchema),
+  /** Absent and empty mean the same: nothing outside the diff needed showing. */
+  contextExcerpts: z.array(ContextExcerptSchema).max(MAX_CONTEXT_EXCERPTS).optional(),
   /**
    * At most one diagram per chapter. One, not many: a chapter that earns three
    * pictures is a chapter that should have been split, and the reader is a

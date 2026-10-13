@@ -1,13 +1,22 @@
 import { plural } from '../plural.ts';
 import { judgementCallOwner, mergeCitations } from '../coverage.ts';
-import { findingLog, type Finding, type FindingLog } from '../findings.ts';
+import {
+  excerptsDropped,
+  findingLog,
+  type ExcerptDrop,
+  type Finding,
+  type FindingLog,
+} from '../findings.ts';
 import {
   HunkTierSchema,
   InsightTypeSchema,
+  MAX_CONTEXT_EXCERPTS,
+  MAX_EXCERPT_LINES,
   MAX_JUDGEMENT_CALLS,
   NarrativeReviewSchema,
   ReviewRiskFactorImpactSchema,
   type CitedHunk,
+  type ContextExcerpt,
   type DiffChunk,
   type HunkTier,
   type Insight,
@@ -30,7 +39,8 @@ import { sanitizeDiagram } from './parse-diagram.ts';
  * read as `read`, and a `mechanical` one with no reason as `skim`: both lean
  * toward more of the reader's attention, never less. A reading plan keeps only
  * real chapters, its standard read widened to hold its brief, and is dropped
- * when no brief chapter is left. Diagrams go through `parse-diagram.ts`,
+ * when no brief chapter is left. An excerpt of unchanged code that breaks a
+ * rule is dropped, never trimmed to fit. Diagrams go through `parse-diagram.ts`,
  * which validates each one on its own so a malformed picture cannot take the
  * review down with it. The result is validated against
  * `NarrativeReviewSchema`, so whatever lands in `review.json` parses back
@@ -569,6 +579,84 @@ function raiseJudgedHunks(
   return result;
 }
 
+function isLineNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1;
+}
+
+/**
+ * A path as git names a file from the repository root. Anything else — an
+ * absolute path, a `..`, a Windows separator — is not a file this review can
+ * show, and handed to git as a pathspec it would fail the parse stage rather
+ * than the one excerpt.
+ */
+function isRepositoryPath(filename: string): boolean {
+  return (
+    !filename.includes(BACKSLASH) &&
+    !/^[A-Za-z]:/.test(filename) &&
+    filename.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
+  );
+}
+
+/** An excerpt as a finding names it: its path and span, as far as it gave them. */
+function describeExcerpt(raw: Rec): string {
+  const filename =
+    typeof raw['filename'] === 'string' && raw['filename'] !== '' ? raw['filename'] : 'an excerpt';
+  const start = raw['startLine'];
+  const end = raw['endLine'];
+  return typeof start === 'number' && typeof end === 'number'
+    ? `${filename} L${String(start)}–${String(end)}`
+    : filename;
+}
+
+/**
+ * The chapter's excerpts of unchanged code, held to what can be judged
+ * without git: a file, a forward span of at most MAX_EXCERPT_LINES, a reason,
+ * and never a path the change touches, since those lines have a diff of their
+ * own. The first MAX_CONTEXT_EXCERPTS that pass are kept. Whether the file and
+ * span exist at the head commit is the parse stage's to check.
+ */
+function sanitizeContextExcerpts(
+  raw: unknown,
+  chapterId: string,
+  grounding: PromptGrounding | undefined,
+  drops: ExcerptDrop[],
+): ContextExcerpt[] {
+  if (!arrived(raw)) return [];
+  if (!Array.isArray(raw)) {
+    drops.push({ chapterId, excerpt: 'its excerpts', why: 'not a list' });
+    return [];
+  }
+  const kept: ContextExcerpt[] = [];
+  for (const item of raw as unknown[]) {
+    const drop = (excerpt: string, why: string): void => {
+      drops.push({ chapterId, excerpt, why });
+    };
+    if (!isRecord(item) || Array.isArray(item)) {
+      drop('an excerpt', 'not an object');
+      continue;
+    }
+    const described = describeExcerpt(item);
+    const { filename, startLine, endLine } = item;
+    const reason = typeof item['reason'] === 'string' ? item['reason'].trim() : '';
+    if (typeof filename !== 'string' || filename === '') drop(described, 'it names no file');
+    else if (!isRepositoryPath(filename)) drop(described, 'not a path from the repository root');
+    else if (!isLineNumber(startLine) || !isLineNumber(endLine)) {
+      drop(described, 'its lines are not whole numbers from 1');
+    } else if (startLine > endLine) drop(described, 'its span runs backwards');
+    else if (endLine - startLine + 1 > MAX_EXCERPT_LINES) {
+      drop(
+        described,
+        `${String(endLine - startLine + 1)} lines, over the ${String(MAX_EXCERPT_LINES)}-line limit`,
+      );
+    } else if (reason === '') drop(described, 'it gives no reason');
+    else if (grounding?.changed.has(filename)) drop(described, 'a file this change touches');
+    else if (kept.length >= MAX_CONTEXT_EXCERPTS) {
+      drop(described, `past the ${String(MAX_CONTEXT_EXCERPTS)} a chapter may show`);
+    } else kept.push({ filename, startLine, endLine, reason });
+  }
+  return kept;
+}
+
 /** Ids, quoted and listed once each, for a finding's sentence. */
 function listed(ids: Iterable<string>): string {
   return [...new Set(ids)].map((id) => `"${id}"`).join(', ');
@@ -683,6 +771,7 @@ function sanitizeChapter(
   grounding: PromptGrounding | undefined,
   log: FindingLog,
   repairs: TierRepairs,
+  excerptDrops: ExcerptDrop[],
 ): SanitizedChapter {
   const n = String(index + 1);
   let id: string;
@@ -733,6 +822,12 @@ function sanitizeChapter(
   );
 
   const diagram = sanitizeDiagram(raw['diagram'], `${id}-diagram`, grounding, log);
+  const contextExcerpts = sanitizeContextExcerpts(
+    raw['contextExcerpts'],
+    id,
+    grounding,
+    excerptDrops,
+  );
 
   return {
     id,
@@ -745,6 +840,7 @@ function sanitizeChapter(
       log,
     ),
     diffChunks,
+    ...(contextExcerpts.length > 0 ? { contextExcerpts } : {}),
     ...(diagram ? { diagram } : {}),
   };
 }
@@ -965,10 +1061,15 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     reasonMissing: new Set(),
     reasonDropped: new Set(),
   };
+  const excerptDrops: ExcerptDrop[] = [];
   const chapters = parsed['chapters'].map((chapter, index) =>
-    sanitizeChapter(isRecord(chapter) ? chapter : {}, index, grounding, log, repairs),
+    sanitizeChapter(isRecord(chapter) ? chapter : {}, index, grounding, log, repairs, excerptDrops),
   );
   reportTierRepairs(repairs, log);
+  if (excerptDrops.length > 0) {
+    const dropped = excerptsDropped(excerptDrops);
+    log.add(dropped.code, dropped.message);
+  }
   if (reportEmptyChapters(chapters, grounding, log)) return fail(log);
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment'], log);

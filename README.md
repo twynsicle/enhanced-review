@@ -2,8 +2,9 @@
 
 AI code review: a chaptered narrative with an overview, a risk assessment,
 insights, diagrams of what changed, inline diffs you can open beside the prose,
-a reading plan for when you have five minutes rather than fifty, and — where
-the code cannot settle it — a question or two put back to you.
+the unchanged code a change reaches without editing it, a reading plan for
+when you have five minutes rather than fifty, and — where the code cannot
+settle it — a question or two put back to you.
 It runs as `er`, one command inside the repository you want reviewed. The
 hosted web app was removed; it is kept at the git tag `hosted-app-final`.
 
@@ -221,8 +222,9 @@ it is written unless you pass `--no-open`. Beside it sit the stage files:
 `context.json` (what changed), `prompt.md` and `system.md` (what was asked),
 `raw.txt` (what the model said), `events.jsonl` (what it did, what it cost,
 any command the read-only gate refused and any answer it was asked to write
-again), `review.json` (the parsed review) and `findings.json` (what validating
-it turned up). A run folder is a complete record; delete the tree whenever you
+again), `review.json` (the parsed review), `findings.json` (what validating
+it turned up) and `excerpts.json` (the unchanged files the review shows
+excerpts of, as the reviewed commit has them). A run folder is a complete record; delete the tree whenever you
 like.
 
 The report remembers which chapters you marked read in the browser's own

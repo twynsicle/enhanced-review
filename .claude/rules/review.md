@@ -32,12 +32,18 @@ src/review/
                      field for it; ReadingPlan / readingPlan? — `brief` (the one to three chapters where the
                      risk is, and the only mark of a core chapter) within `standard` (what approving needs),
                      chapter ids in chapter order; full is every chapter and has no field, and no minutes are
-                     stored, since the reader computes them;
+                     stored, since the reader computes them; ContextExcerpt / chapter.contextExcerpts? —
+                     unchanged code the chapter's change reaches without editing it (a caller, a subclass, a
+                     contract, a definition the diff hides), at most MAX_CONTEXT_EXCERPTS (2) a chapter of at
+                     most MAX_EXCERPT_LINES (60) lines each, 1-based and inclusive at the head commit, never a
+                     file the change touches;
                      SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's synthesised sections
   findings.ts        Finding: code, severity, message and where it happened, plus the ONE map from code to
                      severity — fatal disqualifies the answer, warning ships and is shown, note is only recorded;
                      FindingLog, the collector the parsers write to; FindingSchema, since findings.json is read
-                     back; runStoppedEarly/passedAfterRetry, the two findings a run earns by how it behaved
+                     back; runStoppedEarly/passedAfterRetry, the two findings a run earns by how it behaved;
+                     excerptsDropped, the one `excerpt-dropped` warning a check writes, naming each excerpt it
+                     dropped and why — the parser and the parse stage each write their own
   validate-review.ts validateReview(text, grounding) → { review, findings }: the parse plus the coverage check,
                      and the one verdict the Stop hook and the parse stage both ask for; a hunk the prompt showed
                      that no chapter cites is fatal
@@ -59,8 +65,10 @@ src/review/
                      grounding, DIAGRAM_LIMITS, hasUniformChange
   review-meta.ts     ReviewMeta: the report's summary header, and the base and head commits the reader keys a
                      reader's progress on
-  bundle.ts          ReviewBundle: a review + meta + both sides of each file, for rendering offline;
-                     schemaVersion, no back-compat; parseBundle, filePair
+  bundle.ts          ReviewBundle: a review + meta + both sides of each file, for rendering offline — each
+                     reviewed file, and each file an excerpt shows with the same text on both sides; the
+                     changed files are review.files, never the keys of `files`; schemaVersion, no back-compat;
+                     parseBundle, filePair
   bundle-html.ts     the bundle as the text of the report's er-bundle element: injectBundle escapes every <,
                      readEmbeddedBundle
   language-map.ts    path → Monaco language id, which hunk-facts also reads for whether indentation is syntax
@@ -68,7 +76,7 @@ src/review/
   prompt/            ai-file-filter (builtInSkipReason over lockfiles, bundles and snapshots, binarySkipReason;
                      `src/cli/skip-reasons.ts` layers the repository's own marks between them),
                      diff-hunk-catalog (H0001… ids; PromptGrounding/groundingFor, what a model's answer is
-                     checked against; toResolvedHunk, a catalog hunk as a review stores it, facts kept),
+                     checked against, `changed` being every path the change touches, skipped files included; toResolvedHunk, a catalog hunk as a review stores it, facts kept),
                      hunk-facts (hunkLines reads each hunk's removed and added lines in catalog order;
                      provenFacts: whitespaceOnly when the two sides match with every whitespace character outside
                      a string literal gone, and where indentation is syntax (Python, YAML, Markdown, makefiles…)
@@ -122,7 +130,13 @@ src/review/
                      `reading-plan-id-dropped` note, widens `standard` to hold `brief` (a
                      `reading-plan-widened` note), and is dropped — a `reading-plan-dropped` warning, the review
                      shipping without one — when it is missing, not an object, or has no brief left; a review
-                     with no chapters has nothing to plan and is not warned),
+                     with no chapters has nothing to plan and is not warned; an excerpt of unchanged code is
+                     dropped whole, never trimmed, when it names no file or no plain path from the repository
+                     root (absolute, `..`, a backslash — git would fail the stage on it), its lines are not whole numbers from
+                     1, its span runs backwards or past MAX_EXCERPT_LINES, it gives no reason, or it names a
+                     path in `changed`, and past the first two that pass; every drop across the review goes in
+                     one `excerpt-dropped` warning; whether the file and span exist is the parse stage's to
+                     check, since only git knows),
                      parse-diagram (same leniency for diagrams, and the same record of it: drops the invalid part,
                      validates each diagram on its own
                      so a bad picture cannot fail the review; a node's filename checked against the reviewed file

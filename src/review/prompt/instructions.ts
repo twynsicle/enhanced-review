@@ -1,4 +1,5 @@
 import { DIAGRAM_LIMITS } from '../diagram.ts';
+import { MAX_CONTEXT_EXCERPTS, MAX_EXCERPT_LINES } from '../narrative.ts';
 
 /**
  * What the model is asked to do: the review instructions and output schema,
@@ -59,6 +60,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
           ]
         }
       ],
+      "contextExcerpts": "optional list — see Affected unchanged code below. At most ${String(MAX_CONTEXT_EXCERPTS)} per chapter",
       "diagram": "optional object — see Diagrams below. At most one per chapter"
     }
   ],
@@ -131,6 +133,22 @@ Not every reader has time for every chapter, and "readingPlan" tells them which 
 - "standard": the chapters a reviewer approving the change should read. It holds every brief chapter, and leaves out what can be judged from its title and lede alone: wiring, docs, mechanical edits.
 - Reading every chapter is the third plan, and needs no field.
 - Use each chapter's "id" exactly as you wrote it. A plan whose brief names no chapter of this review is dropped.
+
+Affected unchanged code:
+
+A chapter may show up to ${String(MAX_CONTEXT_EXCERPTS)} excerpts of code the change does not touch, in "contextExcerpts", and most chapters need none. The reader sees each one after the chapter's diffs, with its reason above it. Each excerpt is:
+
+{
+  "filename": "string — a file this change does not touch, as a path from the repository root",
+  "startLine": "number — the first line to show, numbered as Read numbers the file",
+  "endLine": "number — the last line to show, at most ${String(MAX_EXCERPT_LINES)} lines after startLine counting both",
+  "reason": "string — one sentence: what this unchanged code has to do with the change"
+}
+
+- Show one only where this change alters what unchanged code does without editing it: a caller whose input now differs, a subclass of a changed base, a config or contract the new code must still honour. Or the definition a changed call now leans on, when what it does is not visible in the diff.
+- Never a file listed in Files Changed or Not Reviewed: those lines changed in this review, and an excerpt shows unchanged code. An excerpt of one is dropped.
+- Only lines you have read in this session. Number them as Read numbers them, and keep the span to the lines that make the point: at most ${String(MAX_EXCERPT_LINES)}, and usually ten or twenty. An excerpt whose file or lines are not there is dropped.
+- The "reason" is one sentence saying what this code has to do with the change, e.g. "Still passes the old cadence string, which the new table no longer accepts". Not what the code is.
 
 Writing the prose:
 

@@ -15,6 +15,8 @@ import { NarrativeReviewSchema, type NarrativeReview } from '../review/narrative
 import { groundingFor, type PromptGrounding } from '../review/prompt/diff-hunk-catalog.ts';
 import { validateReview } from '../review/validate-review.ts';
 import type { RunContext } from './context.ts';
+import { checkExcerpts } from './excerpts.ts';
+import type { Shell } from './git.ts';
 import type { RunFiles } from './run-folder.ts';
 
 /**
@@ -22,7 +24,9 @@ import type { RunFiles } from './run-folder.ts';
  * with hunk ids resolved against the catalog gather wrote, and the changed
  * file list attached from context rather than trusted from the model. Each
  * file carries its share of that catalog, so the report knows what was
- * reviewable and not only what was cited.
+ * reviewable and not only what was cited. Excerpts of unchanged code are held
+ * to the head commit here, with `shell` the repository's, since this is the
+ * last stage that reads git.
  *
  * What the answer cost is two things joined: what validating the answer found,
  * and what the run itself did. The second is read back from `events.jsonl`
@@ -35,7 +39,11 @@ export interface ParsedRun {
   findings: Finding[];
 }
 
-export async function parseRun(context: RunContext, run: RunFiles): Promise<ParsedRun> {
+export async function parseRun(
+  context: RunContext,
+  run: RunFiles,
+  shell: Shell,
+): Promise<ParsedRun> {
   let raw: string;
   try {
     raw = await readFile(run.raw, 'utf8');
@@ -55,6 +63,7 @@ export async function parseRun(context: RunContext, run: RunFiles): Promise<Pars
     // run's.
     await writeFile(run.findings, `${JSON.stringify(findings, null, 2)}\n`);
     await rm(run.review, { force: true });
+    await rm(run.excerpts, { force: true });
     // Only a defect in the answer itself can be fixed in `raw.txt`. A run that
     // stopped early is about turns the reviewer never took, and offering an
     // edit-and-reparse for that contradicts the finding's own instruction.
@@ -72,11 +81,19 @@ export async function parseRun(context: RunContext, run: RunFiles): Promise<Pars
     throw new Error(`the answer in ${run.raw} is not a usable review`);
   }
 
+  const excerpts = await checkExcerpts(
+    validation.review,
+    context.target.headSha,
+    context.dirty,
+    shell,
+  );
+  if (excerpts.dropped) findings.push(excerpts.dropped);
   const review: NarrativeReview = {
-    ...validation.review,
+    ...excerpts.review,
     files: withFileHunks(context.files, context.hunks),
   };
   await writeFile(run.review, `${JSON.stringify(review, null, 2)}\n`);
+  await writeFile(run.excerpts, `${JSON.stringify(excerpts.contents, null, 2)}\n`);
   await writeFile(run.findings, `${JSON.stringify(findings, null, 2)}\n`);
   return { review, findings };
 }
@@ -87,7 +104,11 @@ function reviewedFiles(context: RunContext): string[] {
 
 /** The grounding the run stage holds the model's answer against. */
 export function groundingForRun(context: RunContext): PromptGrounding {
-  return groundingFor(context.hunks, reviewedFiles(context));
+  return groundingFor(
+    context.hunks,
+    reviewedFiles(context),
+    context.files.map((file) => file.filename),
+  );
 }
 
 /** One line per SDK message; only the fields findings are drawn from. */

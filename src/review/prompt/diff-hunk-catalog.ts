@@ -45,22 +45,30 @@ export interface PromptGrounding {
   shown: DiffHunkIndex;
   /** The paths the review covers. */
   filenames: ReadonlySet<string>;
+  /**
+   * Every path the change touches, skipped files included: what an excerpt of
+   * unchanged code may never name.
+   */
+  changed: ReadonlySet<string>;
 }
 
 /**
  * Grounding over the hunks a prompt showed. `filenames` defaults to the files
  * those hunks belong to, which is the whole change wherever nothing was
- * trimmed away.
+ * trimmed away, and `changed` to `filenames`.
  */
 export function groundingFor(
   shown: readonly DiffHunk[],
   filenames?: Iterable<string>,
+  changed?: Iterable<string>,
 ): PromptGrounding {
   const byId: Partial<Record<string, DiffHunk>> = {};
   for (const hunk of shown) byId[hunk.id] = hunk;
+  const covered = new Set(filenames ?? shown.map((hunk) => hunk.filename));
   return {
     shown: { hunks: [...shown], byId },
-    filenames: new Set(filenames ?? shown.map((hunk) => hunk.filename)),
+    filenames: covered,
+    changed: changed ? new Set(changed) : covered,
   };
 }
 

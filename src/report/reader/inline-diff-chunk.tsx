@@ -1,16 +1,6 @@
 import { Box, Group, Skeleton, Text, UnstyledButton, useComputedColorScheme } from '@mantine/core';
-import type { DiffEditorProps } from '@monaco-editor/react';
 import type { editor, IDisposable } from 'monaco-editor';
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ComponentType,
-} from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FilePair } from '@/review/bundle';
 import {
   buildInlineDiffSnippets,
@@ -24,7 +14,15 @@ import { Caption } from '@/report/chrome/caption';
 import { originVerb } from '@/report/reader/file-origin';
 import { useFilePair, useReviewFile } from '@/report/reader/file-source';
 import { InsightCallout, JudgementCallout } from '@/report/reader/insight-callout';
-import { MONACO_VS_URL } from '@/report/reader/monaco-cdn';
+import {
+  DiffEditor,
+  EDITOR_HEIGHT_PADDING,
+  lineNumberWidth,
+  makeOffsetLineNumbers,
+  MIN_EDITOR_HEIGHT,
+  useLayoutOnColumnSettle,
+  useScrollKeptOnFocus,
+} from '@/report/reader/monaco-editors';
 import {
   selectSpaceLimited,
   SIDE_BY_SIDE_MIN_WIDTH,
@@ -37,79 +35,7 @@ import { useFoldSkim } from '@/report/stores/fold-skim';
 import { token, TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
 
-/**
- * Stands in for a diff whose editor never arrived. The reader is told what is
- * missing and what to try, because the alternative — and what this replaced —
- * is a card with a header and an empty body, which reads as a file with no
- * changes in it rather than as a failure.
- *
- * It names no library: "Monaco" is not a word the recipient of a review has
- * any reason to know. Reloading is named in prose rather than offered as a
- * button, matching the report's other failure surface; a control inside a
- * diff strip that silently reloads the whole page is a bigger action than it
- * would look.
- */
-function DiffUnavailable() {
-  return (
-    <Box px={12} py={10}>
-      <Text fz="sm" c="dimmed">
-        The code viewer didn&rsquo;t load, so this diff can&rsquo;t be shown. Reloading the page may
-        fix it.
-      </Text>
-    </Box>
-  );
-}
-
-/**
- * Monaco is loaded lazily, so the report paints before the editor arrives.
- *
- * Pointing the CDN at the declared version happens here, rather than as a
- * side effect of importing `monaco-cdn.ts`, so that the loader ships with the
- * editor instead of riding in the initial bundle — and so that the pin is a
- * call someone can see, not an import that looks unused. `lazy` runs its
- * factory once, so the configuration is in place before anything reads it.
- *
- * `init` is awaited here rather than left to the editor because this is the
- * only place its failure can be caught. The library calls it on mount, logs
- * whatever it rejects with and renders nothing further, so the failure
- * reaches no error boundary — a rejected promise is not a throw — and every
- * diff on the page was left an empty box with no explanation. Awaiting it
- * here makes "the editor is unavailable" a question of which component
- * `lazy` resolves to, which is answerable.
- *
- * One "Uncaught (in promise)" survives in the console and is not ours to
- * catch: `makeCancelable` in `@monaco-editor/loader` calls `.then(onFulfilled)`
- * with no rejection handler beside its `.catch`, so the promise that derives
- * from leaks once per `init`. What did go is the library's own
- * "Monaco initialization: error" — the editor is never mounted now, so it
- * never makes the call that would log it.
- */
-const DiffEditor = lazy<ComponentType<DiffEditorProps>>(async () => {
-  const mod = await import('@monaco-editor/react');
-  mod.loader.config({ paths: { vs: MONACO_VS_URL } });
-  try {
-    await mod.loader.init();
-  } catch {
-    return { default: DiffUnavailable };
-  }
-  return { default: mod.DiffEditor };
-});
-
 const CONTEXT_LINES = 5;
-const MIN_EDITOR_HEIGHT = 60;
-const EDITOR_HEIGHT_PADDING = 12;
-/**
- * How long the measured column has to hold still before the editors are laid
- * out against it. The width arrives about once an animation frame for as long
- * as the sidebar handle is dragged or the window edge held, and a relayout
- * reflows every line of every editor on the page — so this is the trailing edge
- * of a drag, not a frame of it. Long enough to coalesce a drag, short enough
- * that a reader who lets go does not watch the diff catch up.
- */
-const COLUMN_SETTLE_MS = 120;
-
-/** How long a pointerdown's scroll offset stays good for the focus it expects. */
-const PENDING_SCROLL_MS = 300;
 
 interface FileData {
   original: string;
@@ -172,29 +98,6 @@ function splitFilename(path: string): { dirname: string; basename: string } {
   const slash = path.lastIndexOf('/');
   if (slash === -1) return { dirname: '', basename: path };
   return { dirname: path.slice(0, slash), basename: path.slice(slash + 1) };
-}
-
-function makeOffsetLineNumbers(offset: number): editor.LineNumbersType {
-  return (lineNumber: number): string => String(lineNumber + offset - 1);
-}
-
-/**
- * How wide to hold a side's line-number column, in characters.
- *
- * Monaco sizes that column from the model it was handed, but a collapsed
- * snippet's model starts again at 1 while the numbers drawn over it are the
- * file's own — so a twenty-line snippet lifted from line 176 is measured for
- * two digits and asked to paint three, and the number ends up flush against
- * the edge of the gutter with nothing either side of it. Measuring the largest
- * number actually rendered is what keeps the column honest.
- *
- * The extra character is the breathing room: Monaco right-aligns the digits in
- * whatever width it is given, so a column sized to exactly fit them leaves no
- * space on the left at all.
- */
-function lineNumberWidth(startLine: number, text: string): number {
-  const lastLine = startLine + text.split('\n').length - 1;
-  return Math.max(3, String(lastLine).length + 1);
 }
 
 function buildModelPath(filename: string, key: string, side: 'original' | 'modified'): string {
@@ -360,31 +263,7 @@ function SnippetEditor({
     if (editorRef.current) applyWordWrap(editorRef.current, wrap);
   }, [wrap, view]);
 
-  /*
-   * The column the reader gives this diff is the one width `automaticLayout`
-   * cannot see — the blind spot `applySnippetLayout` describes — and nothing
-   * else here notices it: a window resize that does not cross
-   * `SIDE_BY_SIDE_MIN_WIDTH` changes no snippet, no flag and no preference.
-   * Unwrapped that only left a stale horizontal scrollbar; wrapped, the wrap
-   * column is stale too, so lines break at a width the pane no longer has and
-   * the overflow is clipped rather than scrollable.
-   *
-   * Subscribed to rather than read as state: the width arrives once a frame for
-   * as long as a drag lasts, and a hook would put every editor on the page
-   * through a render for each of them.
-   */
-  useEffect(() => {
-    let settled: number | undefined;
-    const unsubscribe = useReaderColumn.subscribe((state, previous) => {
-      if (state.columnWidth === previous.columnWidth || state.columnWidth === null) return;
-      window.clearTimeout(settled);
-      settled = window.setTimeout(() => editorRef.current?.layout(), COLUMN_SETTLE_MS);
-    });
-    return () => {
-      window.clearTimeout(settled);
-      unsubscribe();
-    };
-  }, []);
+  useLayoutOnColumnSettle(editorRef);
 
   useEffect(
     () => () => {
@@ -422,33 +301,7 @@ function SnippetEditor({
     center.querySelector<HTMLElement>('a[role="button"]')?.click();
   }, []);
 
-  /*
-   * Monaco's hidden input carries the caret wherever the mouse puts it, but it
-   * starts a click at wherever it was left, and the browser's own "scroll the
-   * newly-focused element into view" runs before it catches up — on a page
-   * this long, that yanks the whole window to the input's stale position.
-   * Capturing the scroll offset on the preceding pointerdown and putting it
-   * straight back once focus lands undoes that in the same task, before the
-   * browser paints, so the reader never sees the jump. Keyed off pointerdown
-   * rather than firing on every focus so a genuine keyboard Tab into the
-   * editor keeps the browser's own scroll-into-view.
-   *
-   * The offset expires because only the focus that follows its own pointerdown
-   * may spend it. A press that never lands focus — Monaco still loading behind
-   * the skeleton, or a drag released elsewhere — otherwise leaves the offset
-   * sitting there, and the next keyboard Tab into this editor scrolls the page
-   * back to wherever the reader clicked earlier: the very jump this prevents,
-   * on the path it means to leave alone.
-   */
-  const pendingScroll = useRef<{ x: number; y: number; at: number } | null>(null);
-  const onPointerDown = useCallback(() => {
-    pendingScroll.current = { x: window.scrollX, y: window.scrollY, at: performance.now() };
-  }, []);
-  const onFocus = useCallback(() => {
-    const pos = pendingScroll.current;
-    pendingScroll.current = null;
-    if (pos && performance.now() - pos.at < PENDING_SCROLL_MS) window.scrollTo(pos.x, pos.y);
-  }, []);
+  const keepScroll = useScrollKeptOnFocus();
 
   // Memoised so the library only re-applies options when `expanded` or the
   // view flips; a fresh object each render would reset the per-side line
@@ -514,8 +367,8 @@ function SnippetEditor({
       className={classes.editor}
       style={{ height: editorHeight }}
       onClick={onClick}
-      onPointerDown={onPointerDown}
-      onFocus={onFocus}
+      onPointerDown={keepScroll.onPointerDown}
+      onFocus={keepScroll.onFocus}
     >
       <Suspense fallback={fallback}>
         <DiffEditor
@@ -678,6 +531,77 @@ function GroupRow({
 }
 
 /**
+ * The frame every code card in a chapter shares, a diff's or an excerpt's,
+ * so the two read as one kind of thing. Only a diff names its file in
+ * `data-diff-file`, which the sidebar reads to mark the changed file being
+ * read; an excerpt's file is not in that list.
+ */
+export function CodeCard({
+  label,
+  diffFile,
+  children,
+}: {
+  label: string;
+  diffFile?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Box
+      role="figure"
+      aria-label={label}
+      data-diff-file={diffFile}
+      style={{
+        /*
+         * `clip`, not `hidden`: both round the card's corners, but `hidden`
+         * makes this box a scroll container, and the header below sticks to
+         * the nearest one. Against a card that cannot scroll, its offset
+         * resolved to "56px down from the top of the card" and it sat over
+         * the first lines of the diff for good.
+         */
+        overflow: 'clip',
+        borderRadius: 8,
+        boxShadow: `0 0 0 1px ${token('border')}`,
+        background: token('card'),
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+/** A code card's path, stuck under the topbar, then whatever the card adds beside it. */
+export function CodeCardHeader({ filename, children }: { filename: string; children: ReactNode }) {
+  const { dirname, basename } = splitFilename(filename);
+  return (
+    <Group
+      gap={8}
+      px={12}
+      py={8}
+      fz="sm"
+      style={{
+        position: 'sticky',
+        top: TOPBAR_HEIGHT,
+        zIndex: 10,
+        borderBottom: `1px solid ${token('border')}`,
+        background: `color-mix(in oklab, ${token('muted')} 30%, ${token('card')})`,
+      }}
+    >
+      <Text component="span" ff="monospace" fz="inherit" miw={0} style={{ wordBreak: 'break-all' }}>
+        {dirname.length > 0 && (
+          <Text component="span" fz="xs" c="dimmed">
+            {dirname}/
+          </Text>
+        )}
+        <Text component="span" fz="sm" fw={600}>
+          {basename}
+        </Text>
+      </Text>
+      {children}
+    </Group>
+  );
+}
+
+/**
  * One file's reviewer-selected hunks: both sides come from the bundle through
  * `useFilePair`, are sliced to the lines around
  * each hunk group (`buildInlineDiffSnippets`) and shown in one Monaco
@@ -742,57 +666,10 @@ export function InlineDiffChunk({
   }, [state, expanded, chunk.hunks, file?.hunks]);
 
   const language = state.kind === 'ok' ? state.data.language : chunk.language;
-  const { dirname, basename } = splitFilename(chunk.filename);
 
   return (
-    <Box
-      role="figure"
-      aria-label={`Diff for ${chunk.filename}`}
-      /* Read back by `use-reading-file.ts` to mark this file in the sidebar. */
-      data-diff-file={chunk.filename}
-      style={{
-        /*
-         * `clip`, not `hidden`: both round the card's corners, but `hidden`
-         * makes this box a scroll container, and the header below sticks to
-         * the nearest one. Against a card that cannot scroll, its offset
-         * resolved to "56px down from the top of the card" and it sat over
-         * the first lines of the diff for good.
-         */
-        overflow: 'clip',
-        borderRadius: 8,
-        boxShadow: `0 0 0 1px ${token('border')}`,
-        background: token('card'),
-      }}
-    >
-      <Group
-        gap={8}
-        px={12}
-        py={8}
-        fz="sm"
-        style={{
-          position: 'sticky',
-          top: TOPBAR_HEIGHT,
-          zIndex: 10,
-          borderBottom: `1px solid ${token('border')}`,
-          background: `color-mix(in oklab, ${token('muted')} 30%, ${token('card')})`,
-        }}
-      >
-        <Text
-          component="span"
-          ff="monospace"
-          fz="inherit"
-          miw={0}
-          style={{ wordBreak: 'break-all' }}
-        >
-          {dirname.length > 0 && (
-            <Text component="span" fz="xs" c="dimmed">
-              {dirname}/
-            </Text>
-          )}
-          <Text component="span" fz="sm" fw={600}>
-            {basename}
-          </Text>
-        </Text>
+    <CodeCard label={`Diff for ${chunk.filename}`} diffFile={chunk.filename}>
+      <CodeCardHeader filename={chunk.filename}>
         {file?.origin && (
           <Text component="span" fz="xs" c="dimmed" miw={0} style={{ wordBreak: 'break-all' }}>
             {originVerb(file).toLowerCase()}{' '}
@@ -824,7 +701,7 @@ export function InlineDiffChunk({
             {expanded ? 'Show changes only' : 'Show full file'}
           </UnstyledButton>
         )}
-      </Group>
+      </CodeCardHeader>
 
       {(insights.length > 0 || judgementCalls.length > 0) && (
         <AnchoredAsides insights={insights} judgementCalls={judgementCalls} />
@@ -871,6 +748,6 @@ export function InlineDiffChunk({
             </Box>
           );
         })}
-    </Box>
+    </CodeCard>
   );
 }

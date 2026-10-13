@@ -4,6 +4,7 @@ import { plural } from '@/review/plural';
 import type { DiffChunk, Insight, JudgementCall, NarrativeChapter } from '@/review/narrative';
 import { Caption } from '@/report/chrome/caption';
 import classes from '@/report/reader/article.module.css';
+import { ContextExcerptCard } from '@/report/reader/context-excerpt';
 import { InlineDiffChunk } from '@/report/reader/inline-diff-chunk';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
 import { InsightCallout } from '@/report/reader/insight-callout';
@@ -121,6 +122,7 @@ export function ChapterCard({
 }) {
   const fileCount = chapter.diffChunks.length;
   const insightCount = chapter.insights.length;
+  const excerpts = chapter.contextExcerpts ?? [];
   const { anchored, unanchored } = groupInsightsByFile(chapter.insights);
   return (
     <article
@@ -198,6 +200,24 @@ export function ChapterCard({
               chunk={chunk}
               insights={anchored.get(chunk.filename) ?? []}
               judgementCalls={judgementCalls?.get(chunk.filename) ?? []}
+            />
+          ))}
+        </Stack>
+      )}
+
+      {/*
+       * After the diffs, never among them: the reader meets what changed before
+       * what it reaches, and a card that is not a changed file is not counted
+       * as one above.
+       */}
+      {excerpts.length > 0 && (
+        <Stack component="section" gap={20} data-bleed>
+          <SectionRule label="Unchanged code it affects" count={excerpts.length} />
+          {excerpts.map((excerpt, i) => (
+            <ContextExcerptCard
+              key={`${excerpt.filename}-${String(i)}`}
+              excerpt={excerpt}
+              modelKey={`${chapter.id}-${String(i)}`}
             />
           ))}
         </Stack>

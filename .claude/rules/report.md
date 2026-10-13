@@ -25,7 +25,8 @@ src/report/
   report-problem.tsx the one "cannot show the review" surface: ReportProblem for a missing / version-mismatch /
                      invalid bundle, ReportCrashed for a reader that threw — nothing taken off the error, which
                      React has already logged
-  sample-bundle.ts   what `report:dev` renders unless ER_BUNDLE names a JSON file
+  sample-bundle.ts   what `report:dev` renders unless ER_BUNDLE names a JSON file; it carries one excerpt of
+                     unchanged code (SAMPLE_EXCERPT_FILE) in the cadence-table chapter
   chrome/            brand-mark (+ brand-mark.svg, imported so the build inlines it), caption (the one uppercase
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
                      topbar (TopbarFrame, Brand), display-menu (every display preference in one labelled
@@ -58,12 +59,19 @@ src/report/
                      row), chapter-card (groupInsightsByFile splits the chapter's insights: an anchored one goes
                      down to its diff card, the rest stay in the Insights section above them; the chapter's
                      judgement calls arrive keyed by file and go down the same way; the header's meta line ends
-                     in the chapter's estimate, "~3 min"),
+                     in the chapter's estimate, "~3 min"; the chapter's excerpts of unchanged code come after its
+                     diffs under "Unchanged code it affects", and are not counted as files touched),
+                     context-excerpt (+ .module.css; ContextExcerptCard: a CodeCard with the path,
+                     "unchanged · L3–14" and the reason, then a read-only Monaco editor holding only the
+                     excerpt's lines, its gutter offset to the file's own numbers as a collapsed diff snippet's
+                     is, theme and wrap following the diff's; the file comes through useFilePair, and a file
+                     the bundle lacks is a line of text, never an empty editor),
                      reading-time.ts (pure, and the only place a reading speed is stated: prose at 200 words a
                      minute — a chapter's lede, body and insight texts, the overview's lede and body — a `read`
                      hunk at 12 lines a minute, `skim` at 40, each folded row of adjacent `mechanical` hunks five
                      seconds however many it holds (grouped by groupSelectedHunks, as the diff card draws them),
-                     a diagram 30 seconds; a hunk's lines are the longer of its two spans; a chapter rounds up to whole
+                     a diagram 30 seconds, an excerpt's lines at the skim speed and its reason as prose; a
+                     hunk's lines are the longer of its two spans; a chapter rounds up to whole
                      minutes, at least one; readingPlanRows: Brief, Standard and Full, each the overview plus
                      its chapters' own rounded estimates, so a plan adds up to what the headers show, listing
                      only the chapters it adds to the plan before it), judgement-calls.ts (pure:
@@ -80,7 +88,8 @@ src/report/
                      prose-passage (a Prose: the lede one step up the scale, the body as Markdown beneath),
                      markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                      file-source (EmbeddedFileSource: both sides of every file the bundle carries, and the review's
-                     record of each; useFilePair, useReviewFile), file-origin.ts (the "Renamed from … · N% similar"
+                     record of each changed file; useFilePair, useReviewFile — an excerpted file has a pair and
+                     no record, which is what keeps it out of every changed-file list), file-origin.ts (the "Renamed from … · N% similar"
                      wording the file view, the diff card header and the sidebar row share),
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group
                      (inline-diff-snippets.ts: a group is consecutive hunks of one tier, and its context stops at
@@ -92,10 +101,15 @@ src/report/
                      the asides for this file above the diff — judgement calls first, then the chapter's
                      insights that named it — and a lazy Monaco DiffEditor, vs/vs-dark following
                      the scheme; the wrap preference goes to the live widget as diffWordWrap, never through its
-                     construction options, so a flip reflows in place instead of remounting; its lazy factory is
-                     the one place that imports the editor, because it is where loader.config pins the CDN and
-                     where loader.init is awaited — a CDN that cannot be reached resolves the lazy to
-                     DiffUnavailable, a line of text in the card instead of an empty body),
+                     construction options, so a flip reflows in place instead of remounting; CodeCard and
+                     CodeCardHeader, the frame and sticky path header a diff card and an excerpt card share —
+                     only a diff's carries data-diff-file),
+                     monaco-editors (the one place that imports the editor: one shared load, where
+                     loader.config pins the CDN and loader.init is awaited, behind two lazies — DiffEditor and
+                     CodeEditor, the plain editor an excerpt uses — so a CDN that cannot be reached resolves each
+                     to a line of text in its card ("this diff" / "this excerpt can't be shown") instead of an
+                     empty body; the offset gutter helpers, the relayout once the reader's column settles, and
+                     the scroll kept on a click's focus, which both editors share),
                      monaco-cdn.ts (MONACO_VERSION / MONACO_VS_URL: which Monaco the CDN serves, held to the
                      declared monaco-editor — the types' version — by the monaco-version guardrail),
                      use-reading-file.ts (which file's diff card is pinned under the topbar, re-read on scroll and

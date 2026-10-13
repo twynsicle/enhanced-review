@@ -125,7 +125,7 @@ function workingDirectory({ target, dirty }: RunContext, run: RunFiles): string 
         : 'Your working directory is the repository itself. Only the staged changes are under review, and the diff file below is the source of truth for them.';
   const extra =
     dirty.length > 0
-      ? `\n\nThese paths hold changes on disk that are not part of this review, so what you read there may differ from the reviewed version:\n${dirty.map((name) => `  ${name}`).join('\n')}`
+      ? `\n\nThese paths hold changes on disk that are not part of this review, so what you read there may differ from the reviewed version. Take no excerpt of unchanged code from them:\n${dirty.map((name) => `  ${name}`).join('\n')}`
       : '';
   return (
     `## Where You Are\n${where}${extra}\n\n` +

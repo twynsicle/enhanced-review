@@ -222,7 +222,9 @@ function annotatedDiffFile(
   return patches.join('\n');
 }
 
-interface TreeEntry {
+export interface TreeEntry {
+  /** `120000` is a symbolic link, whose blob is the path it points at. */
+  mode: string;
   type: string;
   oid: string;
   size: number;
@@ -262,8 +264,8 @@ async function embedSide(shell: Shell, entry: TreeEntry | undefined): Promise<Em
   return { kind: 'content', content: await shell.git(['cat-file', 'blob', entry.oid]) };
 }
 
-/** `git ls-tree -l` for just these paths: type, object id and size. */
-async function treeEntries(
+/** `git ls-tree -l` for just these paths: mode, type, object id and size. */
+export async function treeEntries(
   shell: Shell,
   commit: string,
   paths: readonly string[],
@@ -285,8 +287,8 @@ async function treeEntries(
     for (const record of out.split('\0')) {
       const tab = record.indexOf('\t');
       if (tab === -1) continue;
-      const [, type = '', oid = '', size = '0'] = record.slice(0, tab).split(/\s+/);
-      entries.set(record.slice(tab + 1), { type, oid, size: Number(size) || 0 });
+      const [mode = '', type = '', oid = '', size = '0'] = record.slice(0, tab).split(/\s+/);
+      entries.set(record.slice(tab + 1), { mode, type, oid, size: Number(size) || 0 });
     }
   }
   return entries;
@@ -314,7 +316,7 @@ async function listCommits(shell: Shell, baseSha: string, headSha: string): Prom
  * `git status` entries the review does not contain: anything uncommitted for
  * a branch review; unstaged and untracked changes for a staged one.
  */
-async function dirtyPaths(shell: Shell, kind: 'branch' | 'staged'): Promise<string[]> {
+export async function dirtyPaths(shell: Shell, kind: 'branch' | 'staged'): Promise<string[]> {
   const out = await shell.git(['status', '--porcelain=v1', '-z']);
   const paths: string[] = [];
   const fields = out.split('\0');

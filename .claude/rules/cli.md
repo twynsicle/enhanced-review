@@ -56,8 +56,8 @@ src/cli/
   reviewer-instructions.ts
                    --instructions / --instructions-file → the text, trimmed; the file read as UTF-8 or, by its
                    byte-order mark, UTF-16 (what Windows PowerShell writes), anything else refused
-  run-folder.ts    <repo root>/er-reviews/<slug>/<stamp>/ and each stage's file; latestRunFolder; the runs folder
-                   ignores itself
+  run-folder.ts    <repo root>/er-reviews/<slug>/<stamp>/ and each stage's file (excerpts.json among them, so
+                   --from render reads no git); latestRunFolder; the runs folder ignores itself
   context.ts       the gather stage → context.json (RunContextSchema): the meta completed with its stats and the
                    target's base and head commits, files with skip reasons and origins, each file's
                    patch put through splitPatch (a hunk over --split-hunks changed lines becomes parts, each a real
@@ -69,7 +69,8 @@ src/cli/
   prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
                    commits, where the agent is, Files Changed, Not Reviewed, the hunk table (each hunk's proven
                    facts after it as hints: `[whitespace only]`, `[moved from <path>, N%]`), and where the diff
-                   file is, with its length, then the engineer's own instructions when given
+                   file is, with its length, then the engineer's own instructions when given; the dirty paths
+                   under Where You Are, with a line asking for no excerpt from them
   claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl
                    (tool uses, refusals, blocked stops, and a result event carrying turns, cost and the token
                    usage); validationStopHook registered on Stop over the run's own copy of the answer,
@@ -93,25 +94,37 @@ src/cli/
   progress.ts      the run log: one elapsed-time-stamped line per tool use, carrying the SDK's own turn number
                    (one turn however many tools it asked for at once), plus a line per chapter title picked out
                    of the answer as it streams, and a heartbeat line while a turn is quiet
+  excerpts.ts      the half of an excerpt's checking only git can do, at the head commit: the file is there, a
+                   blob and not a symbolic link, within gather's embed limit, not binary (a NUL byte, git's own
+                   test), not dirty on disk (the agent numbered its lines from the working tree, not the commit) and at
+                   least as long as the span; each drop goes in one `excerpt-dropped` warning and the excerpt leaves the
+                   review; the surviving files' text is what excerpts.json holds (readExcerpts reads it back,
+                   refusing one missing or half-written); a review with no excerpts reads no git
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks, tiered by fact alone —
                    whitespace-only or moved is `mechanical` with the fact as its reason, the rest `read` — and
                    a reading plan of the first chapter for the brief and every chapter for the standard read,
-                   so the reader's folds and its plan can be seen without a model. It also
+                   so the reader's folds and its plan can be seen without a model, and no excerpts, since
+                   choosing what unchanged code matters is a judgement and a stub has none. It also
                    overwrites events.jsonl with one clean result event, so the parse stage reads how this run
                    ended and never an earlier run's log
-  parse.ts         raw.txt → validateReview (the same verdict the Stop hook uses) → review.json + findings.json,
-                   files taken from context, each carrying its share of the hunk catalog; what the run itself cost
+  parse.ts         raw.txt → validateReview (the same verdict the Stop hook uses) → review.json + findings.json
+                   + excerpts.json, files taken from context, each carrying its share of the hunk catalog; the
+                   grounding's `changed` is every file in context, skipped ones too; the excerpts are held to
+                   the head commit through the repository's Shell (excerpts.ts), the last git this run reads; what the run itself cost
                    is read back off events.jsonl rather than passed down, so --from parse reports the same
                    findings without paying for the model again: refusals → one `commands-refused` warning, a
                    result that is missing or not a clean success → a fatal `run-stopped-early`, blocked stops →
                    `passed-after-retry`; no events.jsonl at all is itself a fatal `run-stopped-early`, since an
                    empty findings list and no record of the run must not read alike, and any other read error is
                    rethrown. A fatal finding fails the stage, having written findings.json and deleted any
-                   review.json first, so the record of the failure survives it and no later --from render draws a
-                   stale review; the failure points at raw.txt only when the defect is in the answer, since a
+                   review.json and excerpts.json first, so the record of the failure survives it and no later
+                   --from render draws a stale review; the failure points at raw.txt only when the defect is in the answer, since a
                    run-stopped-early is about turns nobody can put back by editing it. readFindings reads that
                    file back for the render stage, and refuses one that is missing, half-written or fatal
-  render.ts        the bundle into the report shell → review.html; reportShell rebuilds build/report when stale
+  render.ts        the bundle into the report shell → review.html, each excerpted file added to its `files`
+                   from excerpts.json with both sides the same and never to the review's file list; an excerpt
+                   whose file excerpts.json lacks, or that is a changed file, fails the stage, since the two
+                   files came from different parses; reportShell rebuilds build/report when stale
   shell-stamp.ts   hash of the report's sources; the report build writes it, render compares it
   worktree.ts      a PR's run happens in a detached worktree of its head in the temp dir (er-pr<n>-<pid>-<stamp>),
                    added without hooks or LFS downloads, removed after the run or on interrupt; the sweep removes

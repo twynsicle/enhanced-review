@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { filePair, parseBundle } from '@/review/bundle';
 import { reviewCoverage } from '@/review/coverage';
 import { buildFileTree, type FileTreeNode } from '@/report/reader/file-tree';
-import { SAMPLE_BUNDLE, SAMPLE_MISSING_FILE } from './sample-bundle';
+import { SAMPLE_BUNDLE, SAMPLE_EXCERPT_FILE, SAMPLE_MISSING_FILE } from './sample-bundle';
 
 const coverage = reviewCoverage(SAMPLE_BUNDLE.review);
 /** Every chunk the reader draws: the chapters' own, and each file's leftovers. */
@@ -91,6 +91,24 @@ describe('the sample report bundle', () => {
     }
     expect(misplaced).toEqual([]);
     expect(anchored.toSorted()).toEqual(Object.keys(HUNK_ANCHORS).toSorted());
+  });
+
+  it('shows one excerpt of unchanged code, embedded the same on both sides and listed nowhere as changed', () => {
+    const excerpts = SAMPLE_BUNDLE.review.chapters.flatMap(
+      (chapter) => chapter.contextExcerpts ?? [],
+    );
+    expect(excerpts.map((excerpt) => excerpt.filename)).toEqual([SAMPLE_EXCERPT_FILE]);
+    const [excerpt] = excerpts;
+    const { base, head } = filePair(SAMPLE_BUNDLE, SAMPLE_EXCERPT_FILE);
+    expect(base).toEqual(head);
+    expect(head.kind === 'content' && head.content.split('\n')[excerpt!.startLine - 1]).toBe(
+      '/** Reviews one repo may run in a day before the runner backs off. */',
+    );
+    expect(head.kind === 'content' && head.content.split('\n')[excerpt!.endLine - 1]).toBe('}');
+    expect(SAMPLE_BUNDLE.review.files?.map((file) => file.filename)).not.toContain(
+      SAMPLE_EXCERPT_FILE,
+    );
+    expect(chunks.map((chunk) => chunk.filename)).not.toContain(SAMPLE_EXCERPT_FILE);
   });
 
   it('lists skipped files, which no chunk points at', () => {

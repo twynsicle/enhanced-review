@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DIAGRAM_LIMITS } from '../diagram.ts';
+import { MAX_CONTEXT_EXCERPTS, MAX_EXCERPT_LINES } from '../narrative.ts';
 import { LOCAL_WORKING_TREE, NARRATIVE_SYSTEM_PROMPT } from './instructions.ts';
 
 describe('the review instructions', () => {
@@ -34,6 +35,20 @@ describe('the review instructions', () => {
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('Reading plan:');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('It holds every brief chapter');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('do not estimate a time');
+  });
+
+  it('offer excerpts of unchanged code, capped as the parser caps them, never of a changed file', () => {
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"contextExcerpts": "optional list');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"startLine": "number');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('Affected unchanged code:');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain(
+      `up to ${String(MAX_CONTEXT_EXCERPTS)} excerpts of code the change does not touch`,
+    );
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain(`at most ${String(MAX_EXCERPT_LINES)}`);
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain(
+      'Never a file listed in Files Changed or Not Reviewed',
+    );
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('Only lines you have read');
   });
 
   it('state the diagram contract with the real limits, not a template hole', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  excerptsDropped,
   fatalFindings,
   finding,
   findingLog,
@@ -31,6 +32,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {
   'hunk-tier-missing': 'warning',
   'hunk-reason-missing': 'warning',
   'reading-plan-dropped': 'warning',
+  'excerpt-dropped': 'warning',
   'commands-refused': 'warning',
   'passed-after-retry': 'warning',
   'chapter-id-synthesised': 'note',
@@ -116,5 +118,25 @@ describe('what a run earns by how it behaved', () => {
     expect(passedAfterRetry(1).message).toContain('after 1 further attempt.');
     expect(passedAfterRetry(2).message).toContain('after 2 further attempts.');
     expect(passedAfterRetry(2).severity).toBe('warning');
+  });
+});
+
+describe('excerpts that will not be shown', () => {
+  it('are one warning naming each excerpt, its chapter and why it went', () => {
+    const dropped = excerptsDropped([
+      {
+        chapterId: 'queue',
+        excerpt: 'src/runner.ts L1–90',
+        why: '90 lines, over the 60-line limit',
+      },
+      { chapterId: 'clean-up', excerpt: 'src/gone.ts L3–9', why: 'not in the head commit' },
+    ]);
+    expect(dropped).toEqual(
+      finding(
+        'excerpt-dropped',
+        '2 excerpts of unchanged code were dropped: src/runner.ts L1–90 in chapter queue (90 lines, over the 60-line limit); src/gone.ts L3–9 in chapter clean-up (not in the head commit).',
+      ),
+    );
+    expect(dropped.severity).toBe('warning');
   });
 });

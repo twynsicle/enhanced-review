@@ -1,0 +1,15 @@
+/*
+ * The excerpt's editor, set as a diff's is: clipped to the measured content,
+ * on the scheme's code background while it loads, in a stacking context of its
+ * own so Monaco's furniture stays under the sticky header above it.
+ */
+.editor {
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--er-hljs-bg);
+}
+
+/* The code's inset from the gutter, as in a diff; see inline-diff-chunk.module.css. */
+.editor :global(.view-line) {
+  padding-left: 4px;
+}

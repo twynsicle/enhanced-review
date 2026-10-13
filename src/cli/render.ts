@@ -1,10 +1,11 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
-import { BUNDLE_SCHEMA_VERSION, ReviewBundleSchema } from '../review/bundle.ts';
+import { BUNDLE_SCHEMA_VERSION, ReviewBundleSchema, type EmbeddedFile } from '../review/bundle.ts';
 import { injectBundle } from '../review/bundle-html.ts';
 import type { NarrativeReview } from '../review/narrative.ts';
 import type { RunContext } from './context.ts';
+import { readExcerpts, type ExcerptContents } from './excerpts.ts';
 import { runNpmScript, TOOL_ROOT } from './platform.ts';
 import type { RunFiles } from './run-folder.ts';
 import { note } from './terminal.ts';
@@ -12,7 +13,10 @@ import { SHELL_STAMP_FILE, shellSourceStamp } from './shell-stamp.ts';
 
 /**
  * The render stage: the review, its header and both sides of every reviewed
- * file, packed into the report shell as one `review.html`.
+ * file, packed into the report shell as one `review.html`. Each file an
+ * excerpt shows rides along with the same text on both sides, read back from
+ * `excerpts.json`; it is in the bundle's `files` only, never the review's, so
+ * nothing that counts changed files can count it.
  */
 export interface RenderDeps {
   /** The built report shell, placeholder and all. */
@@ -33,7 +37,7 @@ export async function renderRun(
     generatedAt: now.toISOString(),
     meta: context.meta,
     review,
-    files: context.contents,
+    files: { ...context.contents, ...excerptFiles(review, context, await readExcerpts(run)) },
   });
   if (!bundle.success) {
     throw new Error(
@@ -43,6 +47,35 @@ export async function renderRun(
   const html = injectBundle(await deps.reportShell(), bundle.data);
   await writeFile(run.html, html);
   return Buffer.byteLength(html);
+}
+
+/**
+ * The excerpted files as the bundle carries them. A path the review's excerpts
+ * name and the parse stage did not read, or one that is also a changed file,
+ * means `review.json` and `excerpts.json` came from different parses, and the
+ * report would show text that is not the head commit's.
+ */
+function excerptFiles(
+  review: NarrativeReview,
+  context: RunContext,
+  contents: ExcerptContents,
+): Record<string, EmbeddedFile> {
+  const files: Record<string, EmbeddedFile> = {};
+  for (const chapter of review.chapters) {
+    for (const { filename } of chapter.contextExcerpts ?? []) {
+      const content = contents[filename];
+      if (content === undefined || filename in context.contents) {
+        throw new Error(
+          `the review's excerpt of ${filename} does not match the parse that wrote it; run from parse`,
+        );
+      }
+      files[filename] = {
+        base: { kind: 'content', content },
+        head: { kind: 'content', content },
+      };
+    }
+  }
+  return files;
 }
 
 /**

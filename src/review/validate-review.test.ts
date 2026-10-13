@@ -81,6 +81,7 @@ describe('validateReview', () => {
     const result = validateReview(review([{ filename: 'src/a.ts', hunkIds: ['H0001'] }]), {
       shown: { hunks, byId: Object.fromEntries(hunks.map((h) => [h.id, h])) },
       filenames: new Set(['src/a.ts']),
+      changed: new Set(['src/a.ts']),
     });
     // The count leads: a reader who stops after the first line still knows
     // how bad it is.

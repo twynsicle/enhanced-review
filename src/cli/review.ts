@@ -183,7 +183,7 @@ export async function review(
   let findings: Finding[];
   if (runs('parse')) {
     const started = performance.now();
-    const result = await parseRun(context, run);
+    const result = await parseRun(context, run, deps.shell.at(context.target.repoRoot));
     parsed = result.review;
     findings = result.findings;
     stage(

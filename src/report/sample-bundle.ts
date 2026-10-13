@@ -18,7 +18,9 @@ import type {
  * facts: a test clock moved out of a shared helpers file, and the helper left
  * behind rewrapped by the formatter. Its reading plan puts a chapter in each
  * row: the queue is the brief, the cadence table joins it for the standard
- * read, and the clean-up is left to the full one. Its paths
+ * read, and the clean-up is left to the full one. The cadence table shows one
+ * excerpt of unchanged code, the runner's daily cap, whose file the bundle
+ * carries with both sides the same and the review does not list. Its paths
  * put a directory between files of its parent (the scheduler's `fixtures`
  * sorts between `cadence.ts` and `index.ts`), the tree view's hardest case to read:
  * a file below the nested directory could belong to either level.
@@ -175,6 +177,27 @@ const SCHEDULES_HEAD = lines(
   "export const DAILY: Schedule = { repo: 'acme/web', cadence: 'daily', paused: false };",
   "export const PAUSED: Schedule = { repo: 'acme/docs', cadence: 'weekly', paused: true };",
 );
+
+/** Unchanged by the change, and shown beside it: the cap an hourly cadence runs into. */
+const BUDGET = lines(
+  "import type { Schedule } from '../scheduler/cadence';",
+  '',
+  '/** Reviews one repo may run in a day before the runner backs off. */',
+  'export const DAILY_RUNS_PER_REPO = 2;',
+  '',
+  '/**',
+  ' * Whether a schedule may run again today. Sized for the nightly job, which',
+  ' * ran each repo once; the second run is the retry after a failure.',
+  ' */',
+  'export function withinBudget(schedule: Schedule, runsToday: number): boolean {',
+  '  if (runsToday < DAILY_RUNS_PER_REPO) return true;',
+  "  // Over budget, it waits for tomorrow's first pass.",
+  '  return false;',
+  '}',
+);
+
+/** Where the sample's one excerpt of unchanged code is from. */
+export const SAMPLE_EXCERPT_FILE = 'src/runner/budget.ts';
 
 function hunk(
   id: string,
@@ -430,6 +453,15 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
             cite(H.lookup, 'read'),
           ]),
         ],
+        contextExcerpts: [
+          {
+            filename: SAMPLE_EXCERPT_FILE,
+            startLine: 3,
+            endLine: 14,
+            reason:
+              'Caps every repo at two runs a day, so an hourly schedule stops after its second.',
+          },
+        ],
       },
       {
         id: 'pausing',
@@ -615,6 +647,10 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
     'src/generated/schedule.schema.json': {
       base: { kind: 'content', content: SCHEMA_BASE },
       head: { kind: 'too-large' },
+    },
+    [SAMPLE_EXCERPT_FILE]: {
+      base: { kind: 'content', content: BUDGET },
+      head: { kind: 'content', content: BUDGET },
     },
   },
 };

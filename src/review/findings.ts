@@ -78,6 +78,13 @@ const SEVERITY_BY_CODE = {
    * reader short of time has lost only the advice on which to read.
    */
   'reading-plan-dropped': 'warning',
+  /**
+   * Excerpts of unchanged code that could not be shown: past the cap, too
+   * long, a file the change touches, or a file or span the head commit does
+   * not have. The chapters and their diffs are whole; the reader has lost a
+   * pointer to code outside them. One per check, naming each excerpt and why.
+   */
+  'excerpt-dropped': 'warning',
   /** The sandbox refused commands the reviewer asked to run. */
   'commands-refused': 'warning',
   /** The first answer was disqualifying and a retry produced this one. */
@@ -200,6 +207,28 @@ export function runStoppedEarly(ended: string): Finding {
   return finding(
     'run-stopped-early',
     `The run did not finish cleanly (${ended}), so the reviewer stopped short of the change. Raise --max-turns or --timeout and run again from the run stage.`,
+  );
+}
+
+/** One excerpt that will not be shown, and why, for `excerptsDropped`. */
+export interface ExcerptDrop {
+  chapterId: string;
+  /** The excerpt as the model gave it: a path and span, or what was wrong with it. */
+  excerpt: string;
+  why: string;
+}
+
+/**
+ * Every excerpt one check dropped, in one finding. The parser and the parse
+ * stage each check what only they can see, so a review can carry one of each.
+ */
+export function excerptsDropped(drops: readonly ExcerptDrop[]): Finding {
+  const listed = drops
+    .map((drop) => `${drop.excerpt} in chapter ${drop.chapterId} (${drop.why})`)
+    .join('; ');
+  return finding(
+    'excerpt-dropped',
+    `${plural(drops.length, 'excerpt')} of unchanged code ${drops.length > 1 ? 'were' : 'was'} dropped: ${listed}.`,
   );
 }
 
