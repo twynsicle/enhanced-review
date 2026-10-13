@@ -65,6 +65,7 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
         fileOrder: 1,
         original: { startLine: 1, lineCount: 0 },
         modified: { startLine: 1, lineCount: 10 },
+        changedLines: 10,
       },
     ],
     contents: {},

@@ -87,13 +87,12 @@ src/report/
                      the bundle lacks is a line of text, never an empty editor),
                      reading-time.ts (pure, and the only place a reading speed is stated: prose at 200 words a
                      minute — a chapter's lede, body and insight texts, the overview's lede and body — a `read`
-                     hunk at 12 lines a minute, `skim` at 40;
-                     a diagram 30 seconds, an excerpt's lines at the skim speed and its reason as prose; a
-                     hunk's lines are hunkLineCount's (inline-diff-snippets.ts), the longer of its two spans;
-                     a chapter rounds up to whole
-                     minutes, at least one; readingPlanRows: Brief, Standard and Full, each the overview plus
-                     its chapters' own rounded estimates, so a plan adds up to what the headers show, listing
-                     only the chapters it adds to the plan before it), judgement-calls.ts (pure:
+                     hunk at 25 changed lines a minute, `skim` at 100, a hunk's changedLines being what it adds
+                     and removes, git's context left out; a diagram 30 seconds, an excerpt's lines at the skim
+                     speed and its reason as prose; a chapter rounds up to whole minutes, at least one;
+                     readingPlanRows: Brief, Standard and Full, each the overview plus its chapters' seconds,
+                     rounded once — summing the headers' rounded minutes would charge every chapter up to a
+                     minute it does not take — listing only the chapters it adds to the plan before it), judgement-calls.ts (pure:
                      anchorJudgementCalls pairs each question with the first chapter citing its file, so the
                      summary's index and the chapter that draws it cannot disagree), summary-card (title/meta,
                      overview, the reading plan — Brief, Standard and Full, each with its estimate and the

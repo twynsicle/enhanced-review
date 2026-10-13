@@ -142,6 +142,7 @@ function chapter(id: string, title: string): NarrativeChapter {
             fileOrder: 1,
             original: { startLine: 1, lineCount: 10 },
             modified: { startLine: 1, lineCount: 10 },
+            changedLines: 10,
             tier: 'read',
           },
           {
@@ -149,6 +150,7 @@ function chapter(id: string, title: string): NarrativeChapter {
             fileOrder: 2,
             original: { startLine: 21, lineCount: 10 },
             modified: { startLine: 21, lineCount: 10 },
+            changedLines: 10,
             tier: 'skim',
           },
         ],

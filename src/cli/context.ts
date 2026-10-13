@@ -28,6 +28,7 @@ export const DiffHunkSchema = HunkFactsSchema.extend({
   fileOrder: z.number().int(),
   original: DiffLineSpanSchema,
   modified: DiffLineSpanSchema,
+  changedLines: z.number().int().min(0),
 });
 
 export const CommitSchema = z.object({

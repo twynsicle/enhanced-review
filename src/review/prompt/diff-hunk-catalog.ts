@@ -13,6 +13,8 @@ export interface DiffHunk extends HunkFacts {
   fileOrder: number;
   original: DiffLineSpan;
   modified: DiffLineSpan;
+  /** Added and removed lines in the hunk's body. */
+  changedLines: number;
 }
 
 /** A catalog hunk as a review stores it: no filename or header, its facts kept. */
@@ -22,6 +24,7 @@ export function toResolvedHunk(hunk: DiffHunk): ResolvedDiffHunk {
     fileOrder: hunk.fileOrder,
     original: { ...hunk.original },
     modified: { ...hunk.modified },
+    changedLines: hunk.changedLines,
     ...(hunk.whitespaceOnly ? { whitespaceOnly: true as const } : {}),
     ...(hunk.movedFrom ? { movedFrom: { ...hunk.movedFrom } } : {}),
     ...(hunk.movedTo ? { movedTo: { ...hunk.movedTo } } : {}),
@@ -100,16 +103,22 @@ export function buildDiffHunkIndex(diff: string): DiffHunkIndex {
   const byId: Partial<Record<string, DiffHunk>> = {};
   const fileHunkOrder = new Map<string, number>();
   let currentFilename: string | null = null;
+  let current: DiffHunk | null = null;
   let counter = 0;
 
   for (const line of diff.split('\n')) {
     const fileMatch = DIFF_FILE_HEADER_RE.exec(line);
     if (fileMatch) {
       currentFilename = fileMatch[2] ?? null;
+      // The next file's `---` and `+++` lines come before its first hunk.
+      current = null;
       continue;
     }
     const hunkMatch = HUNK_HEADER_RE.exec(line);
-    if (!hunkMatch || currentFilename === null) continue;
+    if (!hunkMatch || currentFilename === null) {
+      if (current && (line.startsWith('+') || line.startsWith('-'))) current.changedLines += 1;
+      continue;
+    }
 
     counter += 1;
     const fileOrder = (fileHunkOrder.get(currentFilename) ?? 0) + 1;
@@ -121,9 +130,11 @@ export function buildDiffHunkIndex(diff: string): DiffHunkIndex {
       fileOrder,
       original: toLineSpan(hunkMatch[1] ?? '1', hunkMatch[2]),
       modified: toLineSpan(hunkMatch[3] ?? '1', hunkMatch[4]),
+      changedLines: 0,
     };
     hunks.push(hunk);
     byId[hunk.id] = hunk;
+    current = hunk;
   }
 
   return { hunks, byId };

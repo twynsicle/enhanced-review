@@ -123,6 +123,12 @@ export const ResolvedDiffHunkSchema = HunkFactsSchema.extend({
   fileOrder: z.number().int(),
   original: DiffLineSpanSchema,
   modified: DiffLineSpanSchema,
+  /**
+   * The lines the hunk adds and removes, git's context lines left out: what a
+   * reader actually has to read, where the spans also count the unchanged
+   * lines around it.
+   */
+  changedLines: z.number().int().min(0),
 });
 export type ResolvedDiffHunk = z.infer<typeof ResolvedDiffHunkSchema>;
 

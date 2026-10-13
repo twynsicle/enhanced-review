@@ -41,6 +41,7 @@ function hunk(
     fileOrder,
     original: { startLine: original[0], lineCount: original[1] },
     modified: { startLine: modified[0], lineCount: modified[1] },
+    changedLines: modified[1],
     tier: 'read',
   };
 }

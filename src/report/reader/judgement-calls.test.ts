@@ -7,6 +7,7 @@ const hunk = (id: string) => ({
   fileOrder: 0,
   original: { startLine: 1, lineCount: 1 },
   modified: { startLine: 1, lineCount: 1 },
+  changedLines: 1,
   tier: 'read' as const,
 });
 

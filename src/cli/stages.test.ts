@@ -35,6 +35,7 @@ const hunk = (id: string, filename: string, fileOrder: number) => ({
   fileOrder,
   original: { startLine: fileOrder * 10, lineCount: 3 },
   modified: { startLine: fileOrder * 10, lineCount: 4 },
+  changedLines: 4,
 });
 
 function context(overrides: Partial<RunContext> = {}): RunContext {

@@ -26,11 +26,18 @@ function catalog(id: string, filename: string, fileOrder: number): DiffHunk {
     fileOrder,
     original: span(fileOrder * 10, 1),
     modified: span(fileOrder * 10, 2),
+    changedLines: 1,
   };
 }
 
 function resolved(id: string, fileOrder: number): ResolvedDiffHunk {
-  return { id, fileOrder, original: span(fileOrder * 10, 1), modified: span(fileOrder * 10, 2) };
+  return {
+    id,
+    fileOrder,
+    original: span(fileOrder * 10, 1),
+    modified: span(fileOrder * 10, 2),
+    changedLines: 1,
+  };
 }
 
 function cited(id: string, fileOrder: number, tier: HunkTier = 'read'): CitedHunk {

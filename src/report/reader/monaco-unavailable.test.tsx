@@ -34,6 +34,7 @@ const chunk: DiffChunk = {
       fileOrder: 1,
       original: { startLine: 1, lineCount: 1 },
       modified: { startLine: 1, lineCount: 2 },
+      changedLines: 2,
       tier: 'read',
     },
   ],

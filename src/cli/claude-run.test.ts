@@ -66,6 +66,7 @@ const hunk = (id: string) => ({
   fileOrder: 1,
   original: { startLine: 1, lineCount: 3 },
   modified: { startLine: 1, lineCount: 4 },
+  changedLines: 4,
 });
 
 const options = {

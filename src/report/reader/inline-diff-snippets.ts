@@ -211,14 +211,6 @@ export function buildInlineDiffSnippets({
   return snippets;
 }
 
-/**
- * A hunk's lines: the longer of its two spans, git's own context lines inside
- * the hunk included. What the eye covers on the busier side.
- */
-export function hunkLineCount(hunk: ResolvedDiffHunk): number {
-  return Math.max(hunk.original.lineCount, hunk.modified.lineCount);
-}
-
 /** Inclusive line ranges, 1-based in the snippet's own numbering. */
 export type LineRange = readonly [start: number, end: number];
 

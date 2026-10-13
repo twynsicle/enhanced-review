@@ -22,6 +22,7 @@ const hunk = (id: string, fileOrder: number): CitedHunk => ({
   fileOrder,
   original: { startLine: fileOrder, lineCount: 1 },
   modified: { startLine: fileOrder, lineCount: 1 },
+  changedLines: 1,
   tier: 'read',
 });
 

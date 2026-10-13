@@ -25,7 +25,8 @@ src/review/
                      ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
                      ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
                      reviewable and not only what was cited; HunkFacts (whitespaceOnly?, movedFrom?/movedTo? —
-                     what the CLI proved, carried on every ResolvedDiffHunk); provenSkim, the facts that make a
+                     what the CLI proved, carried on every ResolvedDiffHunk); ResolvedDiffHunk.changedLines, the
+                     lines it adds and removes without git's context, what the reader times; provenSkim, the facts that make a
                      hunk skim whatever the model said (whitespace only, or moved at 100%); DiffChunk.hunks is
                      CitedHunk[], a resolved hunk plus its HunkTier (read | skim, the model's call on how hard to
                      look; nothing folds, the reader fades skim lines in place);
@@ -77,7 +78,8 @@ src/review/
   plural.ts
   prompt/            ai-file-filter (builtInSkipReason over lockfiles, bundles and snapshots, binarySkipReason;
                      `src/cli/skip-reasons.ts` layers the repository's own marks between them),
-                     diff-hunk-catalog (H0001… ids; PromptGrounding/groundingFor, what a model's answer is
+                     diff-hunk-catalog (H0001… ids, each hunk's changedLines counted off its body;
+                     PromptGrounding/groundingFor, what a model's answer is
                      checked against, `changed` being every path the change touches, skipped files included; toResolvedHunk, a catalog hunk as a review stores it, facts kept),
                      hunk-facts (hunkLines reads each hunk's removed and added lines in catalog order;
                      provenFacts: whitespaceOnly when the two sides match with whitespace outside a string literal

@@ -52,6 +52,15 @@ describe('buildDiffHunkIndex', () => {
     });
   });
 
+  it('counts each hunk’s added and removed lines, not its context or the next file’s header', () => {
+    expect(buildDiffHunkIndex(DIFF).hunks.map((h) => [h.id, h.changedLines])).toEqual([
+      ['H0001', 1],
+      ['H0002', 3],
+      ['H0003', 2],
+      ['H0004', 2],
+    ]);
+  });
+
   it('keeps an insertion above the first line apart from one below it', () => {
     // `-0,0` and `-1,0` are different positions. Clamping both to line 1
     // makes the original side of a diff that starts at line 1 carry one line

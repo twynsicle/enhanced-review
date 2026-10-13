@@ -13,6 +13,7 @@ function makeHunk(overrides: Partial<CitedHunk>): CitedHunk {
     fileOrder: 1,
     original: { startLine: 1, lineCount: 1 },
     modified: { startLine: 1, lineCount: 1 },
+    changedLines: 1,
     tier: 'read',
     ...overrides,
   };
@@ -70,12 +71,14 @@ describe('skimRanges', () => {
           fileOrder: 1,
           original: { startLine: 10, lineCount: 3 },
           modified: { startLine: 10, lineCount: 4 },
+          changedLines: 4,
         }),
         makeHunk({
           id: 'H0002',
           fileOrder: 2,
           original: { startLine: 13, lineCount: 2 },
           modified: { startLine: 14, lineCount: 3 },
+          changedLines: 3,
           tier: 'skim',
         }),
         makeHunk({
@@ -83,6 +86,7 @@ describe('skimRanges', () => {
           fileOrder: 3,
           original: { startLine: 14, lineCount: 0 },
           modified: { startLine: 17, lineCount: 2 },
+          changedLines: 2,
           tier: 'skim',
         }),
       ],
@@ -119,12 +123,14 @@ describe('buildInlineDiffSnippets', () => {
       fileOrder: 1,
       original: { startLine: 0, lineCount: 0 },
       modified: { startLine: 1, lineCount: 10 },
+      changedLines: 10,
     });
     const skim = makeHunk({
       id: 'H0002',
       fileOrder: 2,
       original: { startLine: 0, lineCount: 0 },
       modified: { startLine: 11, lineCount: 10 },
+      changedLines: 10,
       tier: 'skim',
     });
     const snippets = buildInlineDiffSnippets({
@@ -147,12 +153,14 @@ describe('buildInlineDiffSnippets', () => {
           fileOrder: 1,
           original: { startLine: 10, lineCount: 1 },
           modified: { startLine: 10, lineCount: 1 },
+          changedLines: 1,
         }),
         makeHunk({
           id: 'H0002',
           fileOrder: 2,
           original: { startLine: 14, lineCount: 1 },
           modified: { startLine: 14, lineCount: 1 },
+          changedLines: 1,
         }),
       ],
       original: makeLines('o', 30),
@@ -176,18 +184,21 @@ describe('buildInlineDiffSnippets', () => {
         fileOrder: 1,
         original: { startLine: 0, lineCount: 0 },
         modified: { startLine: 1, lineCount: 20 },
+        changedLines: 20,
       }),
       makeHunk({
         id: 'H0002',
         fileOrder: 2,
         original: { startLine: 0, lineCount: 0 },
         modified: { startLine: 21, lineCount: 18 },
+        changedLines: 18,
       }),
       makeHunk({
         id: 'H0003',
         fileOrder: 3,
         original: { startLine: 0, lineCount: 0 },
         modified: { startLine: 39, lineCount: 18 },
+        changedLines: 18,
       }),
     ];
     const [middle] = buildInlineDiffSnippets({
@@ -212,12 +223,14 @@ describe('buildInlineDiffSnippets', () => {
       fileOrder: 1,
       original: { startLine: 4, lineCount: 4 },
       modified: { startLine: 4, lineCount: 5 },
+      changedLines: 5,
     });
     const second = makeHunk({
       id: 'H0002',
       fileOrder: 2,
       original: { startLine: 11, lineCount: 4 },
       modified: { startLine: 12, lineCount: 4 },
+      changedLines: 4,
     });
     const [snippet] = buildInlineDiffSnippets({
       hunks: [first],
@@ -241,12 +254,14 @@ describe('buildInlineDiffSnippets', () => {
           fileOrder: 1,
           original: { startLine: 5, lineCount: 1 },
           modified: { startLine: 5, lineCount: 1 },
+          changedLines: 1,
         }),
         makeHunk({
           id: 'H0003',
           fileOrder: 3,
           original: { startLine: 15, lineCount: 1 },
           modified: { startLine: 15, lineCount: 1 },
+          changedLines: 1,
         }),
       ],
       original: makeLines('o', 25),
@@ -264,6 +279,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 1, lineCount: 0 },
           modified: { startLine: 1, lineCount: 3 },
+          changedLines: 3,
         }),
       ],
       original: '',
@@ -275,6 +291,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 2, lineCount: 3 },
           modified: { startLine: 2, lineCount: 0 },
+          changedLines: 0,
         }),
       ],
       original: makeLines('o', 5),
@@ -302,6 +319,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 7, lineCount: 0 },
           modified: { startLine: 8, lineCount: 2 },
+          changedLines: 2,
         }),
       ],
       original: makeLines('o', 20),
@@ -323,6 +341,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 12, lineCount: 3 },
           modified: { startLine: 11, lineCount: 0 },
+          changedLines: 0,
         }),
       ],
       original: makeLines('o', 20),
@@ -346,12 +365,14 @@ describe('buildInlineDiffSnippets', () => {
           fileOrder: 1,
           original: { startLine: 7, lineCount: 0 },
           modified: { startLine: 8, lineCount: 2 },
+          changedLines: 2,
         }),
         makeHunk({
           id: 'H0002',
           fileOrder: 2,
           original: { startLine: 12, lineCount: 2 },
           modified: { startLine: 14, lineCount: 2 },
+          changedLines: 2,
         }),
       ],
       original: makeLines('o', 30),
@@ -383,12 +404,14 @@ describe('buildInlineDiffSnippets', () => {
           fileOrder: 1,
           original: { startLine: 5, lineCount: 2 },
           modified: { startLine: 5, lineCount: 2 },
+          changedLines: 2,
         }),
         makeHunk({
           id: 'H0002',
           fileOrder: 2,
           original: { startLine: 12, lineCount: 0 },
           modified: { startLine: 13, lineCount: 2 },
+          changedLines: 2,
         }),
       ],
       original: makeLines('o', 30),
@@ -420,6 +443,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 0, lineCount: 0 },
           modified: { startLine: 1, lineCount: 3 },
+          changedLines: 3,
         }),
       ],
       original: makeLines('o', 4),
@@ -447,6 +471,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 0, lineCount: 0 },
           modified: { startLine: 1, lineCount: 3 },
+          changedLines: 3,
         }),
       ],
       original: makeLines('o', 20),
@@ -471,6 +496,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 1, lineCount: 0 },
           modified: { startLine: 2, lineCount: 3 },
+          changedLines: 3,
         }),
       ],
       original: makeLines('o', 20),
@@ -489,6 +515,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 10, lineCount: 3 },
           modified: { startLine: 13, lineCount: 5 },
+          changedLines: 5,
         }),
       ],
       original: makeLines('o', 20),
@@ -519,12 +546,14 @@ describe('formatSelectedHunkLabel', () => {
         fileOrder: 2,
         original: { startLine: 20, lineCount: 2 },
         modified: { startLine: 30, lineCount: 0 },
+        changedLines: 0,
       }),
       makeHunk({
         id: 'H0001',
         fileOrder: 1,
         original: { startLine: 5, lineCount: 1 },
         modified: { startLine: 8, lineCount: 3 },
+        changedLines: 3,
       }),
     ]);
     expect(label).toBe('L8-10, orig L20-21');
@@ -536,11 +565,13 @@ describe('formatSelectedHunkLabel', () => {
         fileOrder: 1,
         original: { startLine: 4, lineCount: 1 },
         modified: { startLine: 4, lineCount: 0 },
+        changedLines: 0,
       }),
       makeHunk({
         fileOrder: 2,
         original: { startLine: 9, lineCount: 1 },
         modified: { startLine: 9, lineCount: 1 },
+        changedLines: 1,
       }),
     ]);
     expect(label).toBe('orig L4, L9');

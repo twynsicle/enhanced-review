@@ -77,6 +77,7 @@ describe('validateReview', () => {
       fileOrder: i + 1,
       original: { startLine: i + 1, lineCount: 1 },
       modified: { startLine: i + 1, lineCount: 1 },
+      changedLines: 1,
     }));
     const result = validateReview(review([{ filename: 'src/a.ts', hunkIds: ['H0001'] }]), {
       shown: { hunks, byId: Object.fromEntries(hunks.map((h) => [h.id, h])) },

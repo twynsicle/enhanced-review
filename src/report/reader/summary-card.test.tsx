@@ -162,6 +162,7 @@ const planHunk = (lines: number, tier: CitedHunk['tier']): CitedHunk => ({
   fileOrder: 0,
   original: { startLine: 1, lineCount: 0 },
   modified: { startLine: 1, lineCount: lines },
+  changedLines: lines,
   tier,
 });
 
@@ -176,12 +177,12 @@ const planChapter = (id: string, title: string, cited: CitedHunk): NarrativeChap
 const rowOf = (name: string) => screen.getByText(name).closest('li') as HTMLElement;
 
 describe('<SummaryCard /> and the reading plan', () => {
-  // 30 lines read is 150s, 3 min; 20 skimmed is 30s, 1 min; 4 skimmed is
-  // 1 min at the floor; the overview's seven words are a minute of their own.
+  // 100 lines read is 240s and 100 skimmed 60s; the overview's seven words
+  // are 2s, and each plan is rounded up once.
   const chapters = [
-    planChapter('core', 'The due check', planHunk(30, 'read')),
-    planChapter('support', 'Fixtures', planHunk(20, 'skim')),
-    planChapter('wiring', 'Wiring', planHunk(4, 'skim')),
+    planChapter('core', 'The due check', planHunk(100, 'read')),
+    planChapter('support', 'Fixtures', planHunk(100, 'skim')),
+    planChapter('wiring', 'Wiring', planHunk(100, 'skim')),
   ];
 
   function renderPlan(
@@ -200,9 +201,9 @@ describe('<SummaryCard /> and the reading plan', () => {
   it('gives each plan its time, the overview included in every one', () => {
     renderPlan({ brief: ['core'], standard: ['core', 'support'] });
     expect(screen.getByText('Reading plan')).toBeDefined();
-    expect(within(rowOf('Brief')).getByText('~4 min')).toBeDefined();
-    expect(within(rowOf('Standard')).getByText('~5 min')).toBeDefined();
-    expect(within(rowOf('Full')).getByText('~6 min')).toBeDefined();
+    expect(within(rowOf('Brief')).getByText('~5 min')).toBeDefined();
+    expect(within(rowOf('Standard')).getByText('~6 min')).toBeDefined();
+    expect(within(rowOf('Full')).getByText('~7 min')).toBeDefined();
   });
 
   it('lists under each longer plan only the chapters it adds', () => {

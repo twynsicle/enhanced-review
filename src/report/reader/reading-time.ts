@@ -4,7 +4,6 @@ import type {
   NarrativeChapter,
   NarrativeReview,
 } from '@/review/narrative';
-import { hunkLineCount } from '@/report/reader/inline-diff-snippets';
 
 /**
  * How long a chapter takes to read, and how long each reading plan does.
@@ -15,8 +14,13 @@ import { hunkLineCount } from '@/report/reader/inline-diff-snippets';
  * is stated, so a speed that turns out wrong is changed once.
  */
 export const PROSE_WORDS_PER_MINUTE = 200;
-export const READ_LINES_PER_MINUTE = 12;
-export const SKIM_LINES_PER_MINUTE = 40;
+/**
+ * Changed lines, git's context lines left out. Brisk next to the rates code
+ * review studies give for hunting defects, on purpose: this is the time to
+ * read a change through once, not to audit every line of it.
+ */
+export const READ_LINES_PER_MINUTE = 25;
+export const SKIM_LINES_PER_MINUTE = 100;
 export const DIAGRAM_SECONDS = 30;
 
 function words(text: string | undefined): number {
@@ -31,7 +35,7 @@ function proseSeconds(texts: readonly (string | undefined)[]): number {
 
 export function hunkSeconds(hunk: CitedHunk): number {
   const perMinute = hunk.tier === 'read' ? READ_LINES_PER_MINUTE : SKIM_LINES_PER_MINUTE;
-  return (hunkLineCount(hunk) * 60) / perMinute;
+  return (hunk.changedLines * 60) / perMinute;
 }
 
 /** An excerpt of unchanged code is context for the change, not the change, so it is skimmed. */
@@ -68,10 +72,14 @@ export function chapterMinutes(chapter: NarrativeChapter): number {
   return wholeMinutes(chapterSeconds(chapter));
 }
 
+function overviewSeconds(review: NarrativeReview): number {
+  const prose = proseSeconds([review.overviewSummary.lede, review.overviewSummary.body]);
+  return prose + (review.overviewDiagram ? DIAGRAM_SECONDS : 0);
+}
+
 /** The summary's overview, which every plan opens with. */
 export function overviewMinutes(review: NarrativeReview): number {
-  const prose = proseSeconds([review.overviewSummary.lede, review.overviewSummary.body]);
-  return wholeMinutes(prose + (review.overviewDiagram ? DIAGRAM_SECONDS : 0));
+  return wholeMinutes(overviewSeconds(review));
 }
 
 export function formatMinutes(minutes: number): string {
@@ -89,18 +97,18 @@ export interface PlanRow {
 /**
  * The three plans, shortest first, or none when the review carries no plan.
  *
- * A plan's minutes are the sum of its chapters' own rounded estimates, the
- * numbers their headers show, so a reader who adds them up gets the plan's
- * total rather than a figure a minute or two off it.
+ * A plan's minutes are its chapters' seconds and the overview's, rounded
+ * once. Summing the headers' rounded figures instead charges every chapter up
+ * to a minute it does not take, and a review of forty chapters forty minutes.
  */
 export function readingPlanRows(review: NarrativeReview): PlanRow[] {
   const plan = review.readingPlan;
   if (!plan) return [];
-  const overview = overviewMinutes(review);
+  const overview = overviewSeconds(review);
   const brief = new Set(plan.brief);
   const standard = new Set([...plan.brief, ...plan.standard]);
   const minutesOf = (chapters: readonly NarrativeChapter[]): number =>
-    chapters.reduce((sum, chapter) => sum + chapterMinutes(chapter), overview);
+    wholeMinutes(chapters.reduce((sum, chapter) => sum + chapterSeconds(chapter), overview));
   const inBrief = review.chapters.filter((chapter) => brief.has(chapter.id));
   const inStandard = review.chapters.filter((chapter) => standard.has(chapter.id));
   return [
