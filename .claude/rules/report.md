@@ -30,7 +30,7 @@ src/report/
   chrome/            brand-mark (+ brand-mark.svg, imported so the build inlines it), caption (the one uppercase
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
                      topbar (TopbarFrame, Brand), display-menu (every display preference in one labelled
-                     dropdown: diffs, long lines, comments, skim hunks, layout, theme)
+                     dropdown: diffs, long lines, comments, file headers, skim hunks, layout, theme)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
                      belongs to the file; each change is a history entry; the review's read chapters from the
@@ -131,7 +131,12 @@ src/report/
                      the wrap preference goes to the live widget as diffWordWrap, never through its
                      construction options, so a flip reflows in place instead of remounting; CodeCard and
                      CodeCardHeader, the frame and sticky path header a diff card and an excerpt card share —
-                     only a diff's carries data-diff-file),
+                     only a diff's carries data-diff-file; the header is a grid of path, facts and actions, the
+                     path never wrapping: its file name whole and its directory cut from the start behind an
+                     ellipsis, the whole path in its hover; no language badge, which the extension already says;
+                     a header whose facts can outgrow a line (a diff card with an origin or a fact tag) carries a
+                     chevron that flips er-file-headers for every card — facts beside the path, clipped, or on
+                     rows of their own below it),
                      monaco-editors (the one place that imports the editor: one shared load, where
                      loader.config pins the CDN and loader.init is awaited, behind two lazies — DiffEditor and
                      CodeEditor, the plain editor an excerpt uses — so a CDN that cannot be reached resolves each
@@ -172,7 +177,9 @@ src/report/
                      directly and commits to the store once on release), dim-comments.ts (`er-dim-comments`,
                      normal ⇄ dimmed: comments in the code viewers at full strength or faded, every line kept in
                      place), skim-marks.ts (`er-skim-marks`, plain ⇄ marked, plain by default: skim hunks drawn
-                     like any other, or faded and labelled), all seven on raw-preference.ts (one word
+                     like any other, or faded and labelled), file-headers.ts (`er-file-headers`, full ⇄ one-line:
+                     a code card header's facts on rows of their own, or kept beside the path), all eight on
+                     raw-preference.ts (one word
                      or one number, not JSON). progress.ts (`er-progress`) is the one record rather than a
                      preference, so it is JSON and not on raw-preference: `{ [repo|baseSha|headSha]: { read:
                      chapterId[], at } }`, the 50 most recently touched reviews kept; written over what storage

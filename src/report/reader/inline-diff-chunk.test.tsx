@@ -5,6 +5,7 @@ import type { CitedHunk, DiffChunk, Insight } from '@/review/narrative';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
 import { render, screen, userEvent, within } from '@/report/test/render';
 import { useDimComments } from '@/report/stores/dim-comments';
+import { useFileHeaders } from '@/report/stores/file-headers';
 import { DisplayMenu } from '@/report/chrome/display-menu';
 import { TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import { DIMMED_THEME } from './monaco-themes';
@@ -65,11 +66,11 @@ const renderPair = (base: EmbeddedSide, head: EmbeddedSide) =>
   renderChunk({ [chunk.filename]: { base, head } });
 
 describe('<InlineDiffChunk />', () => {
-  it('shows the path and language, and a Monaco editor for both sides', async () => {
+  it('shows the path, whole in its hover, and a Monaco editor for both sides', async () => {
     renderPair(content('line1\nline2\n'), content('line1\nline2\nline3\n'));
     expect(screen.getByText('src/')).toBeDefined();
-    expect(screen.getByText('main.ts')).toBeDefined();
-    expect(screen.getByText('typescript')).toBeDefined();
+    expect(screen.getByText('main.ts').parentElement?.getAttribute('title')).toBe('src/main.ts');
+    expect(screen.queryByText('typescript')).toBeNull();
     expect(screen.getByRole('figure', { name: 'Diff for src/main.ts' })).toBeDefined();
     expect(screen.getByText('Show full file')).toBeDefined();
     expect(await screen.findByTestId('diff-editor')).toBeDefined();
@@ -215,6 +216,20 @@ describe('<InlineDiffChunk /> by attention tier', () => {
       '92% of these lines match the lines removed from src/old.ts',
     );
     expect(within(header).getByText('Whitespace only · L21-30')).toBeDefined();
+  });
+
+  it('folds every file header onto one line from a chevron, and offers none with nothing to fold', async () => {
+    useFileHeaders.setState({ headers: 'full' });
+    tiered([{ movedFrom: { filename: 'src/old.ts', similarity: 100 } }]);
+    await screen.findAllByTestId('diff-editor');
+    const header = screen.getByText('main.ts').closest('div')!;
+    expect(header.hasAttribute('data-one-line')).toBe(false);
+    await userEvent.click(within(header).getByRole('button', { name: 'File headers on one line' }));
+    expect(useFileHeaders.getState().headers).toBe('one-line');
+    expect(header.hasAttribute('data-one-line')).toBe(true);
+    const plain = tiered([{}]).container;
+    await within(plain).findByTestId('diff-editor');
+    expect(within(plain).queryByRole('button', { name: 'File headers on one line' })).toBeNull();
   });
 
   it('offers skim marks in the display menu, off until the reader asks', async () => {

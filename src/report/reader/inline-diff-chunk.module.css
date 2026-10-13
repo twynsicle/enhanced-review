@@ -94,6 +94,18 @@
 }
 
 /*
+ * The same double paint on the stacked view's removed lines, which Monaco
+ * draws in a view zone with the highlight on the text's own spans rather than
+ * as a box. A line every span of which is highlighted is one with nothing
+ * opposite; a line that also keeps an unhighlighted span is a word-level
+ * change, and keeps its highlight. One whose every word changed reads as
+ * wholly removed, which the band still says.
+ */
+.editor :global(.view-zones .view-line:not(:has(> span > span:not(.char-delete))) .char-delete) {
+  background-color: transparent;
+}
+
+/*
  * The rail that carries a run. With the band this weak the eye needs a hard
  * edge to find where a change starts and stops — especially down a long file
  * where the tint alone is close to the ground.
@@ -176,4 +188,94 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   pointer-events: auto;
+}
+
+/*
+ * A code card's header. A grid rather than a wrapping row: a flex row wraps an
+ * item whole before it shrinks one, so a long path pushed the actions onto a
+ * line of their own instead of giving up its own leading directories. Side by
+ * side with the facts on one line, the path is sized first and the facts take
+ * what is left; otherwise they get a full-width row below it.
+ */
+.header {
+  z-index: 10;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'path actions'
+    'facts facts';
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--er-border);
+  background: color-mix(in oklab, var(--er-muted) 30%, var(--er-card));
+  font-size: var(--mantine-font-size-sm);
+}
+
+.header[data-one-line] {
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto;
+  grid-template-areas: 'path facts actions';
+}
+
+/* The file name is kept whole; the directory before it gives way first. */
+.path {
+  grid-area: path;
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  font-family: var(--mantine-font-family-monospace);
+  white-space: nowrap;
+}
+
+/*
+ * Right to left, so overflow is cut and the ellipsis drawn at the start of the
+ * directory rather than its end. The `bdi` inside keeps the path itself left
+ * to right, slashes and all.
+ */
+.dirname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  font-size: var(--mantine-font-size-xs);
+  color: var(--er-muted-foreground);
+}
+
+.basename {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.facts {
+  grid-area: facts;
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.header[data-one-line] .facts {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.fact {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* A full fact on a row of its own wraps rather than running off the card. */
+.header:not([data-one-line]) .fact {
+  flex-shrink: 1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }

@@ -1,4 +1,5 @@
-import { Box, Group, Skeleton, Text, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Box, Skeleton, Text, UnstyledButton } from '@mantine/core';
+import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import type { editor, IDisposable, IRange } from 'monaco-editor';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FilePair } from '@/review/bundle';
@@ -38,6 +39,7 @@ import {
   type DiffView,
 } from '@/report/stores/diff-view';
 import { useDiffWrap, type DiffWrap } from '@/report/stores/diff-wrap';
+import { useFileHeaders } from '@/report/stores/file-headers';
 import { useSkimMarks, type SkimMarks } from '@/report/stores/skim-marks';
 import { token, TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
@@ -324,11 +326,21 @@ function sameBoxes(a: readonly MarkBox[], b: readonly MarkBox[]): boolean {
  * scrolls vertically, so a measure after each layout keeps it in place.
  */
 function MarkOverlay({ boxes }: { boxes: readonly MarkBox[] }) {
+  // Two regions can start on one row — stacked, a hunk's removed lines and
+  // the next hunk's first line share a zone — so a label that would cover the
+  // one above it is moved down below it, its rule left where it is.
+  const placed = boxes
+    .toSorted((a, b) => a.top - b.top)
+    .reduce<(MarkBox & { labelOffset: number })[]>((done, box) => {
+      const previous = done.at(-1);
+      const below = previous ? previous.top + previous.labelOffset + LABEL_HEIGHT : box.top;
+      return [...done, { ...box, labelOffset: Math.max(box.top, below) - box.top }];
+    }, []);
   return (
     <div className={classes.marks}>
-      {boxes.map(({ mark, top, height }) => (
+      {placed.map(({ mark, top, height, labelOffset }) => (
         <div key={mark.key} className={classes.mark} style={{ top, height }}>
-          <span className={classes.markLabel} title={mark.detail}>
+          <span className={classes.markLabel} style={{ top: labelOffset }} title={mark.detail}>
             {mark.label}
           </span>
         </div>
@@ -336,6 +348,9 @@ function MarkOverlay({ boxes }: { boxes: readonly MarkBox[] }) {
     </div>
   );
 }
+
+/** A label's height and the gap under it: `.markLabel`'s line height and border, and 2px. */
+const LABEL_HEIGHT = 20;
 
 function SnippetEditor({
   chunkFilename,
@@ -675,35 +690,67 @@ export function CodeCard({
   );
 }
 
-/** A code card's path, stuck under the topbar, then whatever the card adds beside it. */
-export function CodeCardHeader({ filename, children }: { filename: string; children: ReactNode }) {
+/**
+ * A code card's path, stuck under the topbar, then the facts the card adds
+ * about its file, then its actions.
+ *
+ * The path keeps its file name whole and gives up the start of its directory
+ * first, behind an ellipsis, with the whole path in its hover: the leading
+ * directories are what a long path shares with its neighbours, and a path
+ * that wraps makes a header the code scrolls under twice as tall.
+ *
+ * `foldable` is for a header whose facts can outgrow one line. Its chevron
+ * flips the reader's file-headers preference, which every card follows: one
+ * line, the facts clipped where they meet the actions, or every fact on lines
+ * of its own below the path.
+ */
+export function CodeCardHeader({
+  filename,
+  facts,
+  actions,
+  foldable = false,
+}: {
+  filename: string;
+  facts?: ReactNode;
+  actions?: ReactNode;
+  foldable?: boolean;
+}) {
   const { dirname, basename } = splitFilename(filename);
+  const headers = useFileHeaders((s) => s.headers);
+  const toggleHeaders = useFileHeaders((s) => s.toggle);
+  const oneLine = !foldable || headers === 'one-line';
   return (
-    <Group
-      gap={8}
-      px={12}
-      py={8}
-      fz="sm"
-      style={{
-        position: 'sticky',
-        top: TOPBAR_HEIGHT,
-        zIndex: 10,
-        borderBottom: `1px solid ${token('border')}`,
-        background: `color-mix(in oklab, ${token('muted')} 30%, ${token('card')})`,
-      }}
+    <div
+      className={classes.header}
+      data-one-line={oneLine || undefined}
+      style={{ position: 'sticky', top: TOPBAR_HEIGHT }}
     >
-      <Text component="span" ff="monospace" fz="inherit" miw={0} style={{ wordBreak: 'break-all' }}>
+      <span className={classes.path} title={filename}>
         {dirname.length > 0 && (
-          <Text component="span" fz="xs" c="dimmed">
-            {dirname}/
-          </Text>
+          <span className={classes.dirname}>
+            <bdi>{dirname}/</bdi>
+          </span>
         )}
-        <Text component="span" fz="sm" fw={600}>
-          {basename}
-        </Text>
-      </Text>
-      {children}
-    </Group>
+        <span className={classes.basename}>{basename}</span>
+      </span>
+      {facts && <span className={classes.facts}>{facts}</span>}
+      <span className={classes.actions}>
+        {actions}
+        {foldable && (
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="sm"
+            aria-pressed={oneLine}
+            aria-label="File headers on one line"
+            title={oneLine ? 'Show every fact in file headers' : 'Keep file headers to one line'}
+            onClick={toggleHeaders}
+          >
+            {oneLine ? <IconChevronDown size={14} /> : <IconChevronUp size={14} />}
+          </ActionIcon>
+        )}
+      </span>
+    </div>
   );
 }
 
@@ -767,53 +814,53 @@ export function InlineDiffChunk({
 
   return (
     <CodeCard label={`Diff for ${chunk.filename}`} diffFile={chunk.filename}>
-      <CodeCardHeader filename={chunk.filename}>
-        {file?.origin && (
-          <Text component="span" fz="xs" c="dimmed" miw={0} style={{ wordBreak: 'break-all' }}>
-            {originVerb(file).toLowerCase()}{' '}
-            <Text component="span" ff="monospace" fz="inherit">
-              {file.origin.filename}
-            </Text>
-          </Text>
-        )}
-        <Text
-          component="span"
-          fz="inherit"
-          px={6}
-          py={2}
-          c="dimmed"
-          style={{ borderRadius: 4, background: token('muted') }}
-        >
-          {language}
-        </Text>
-        {tags.map((tag) => (
-          <Text
-            key={tag.label}
-            component="span"
-            fz="xs"
-            c="dimmed"
-            px={6}
-            py={1}
-            title={tag.detail}
-            style={{ borderRadius: 4, border: `1px solid ${token('border')}` }}
-          >
-            {tag.label} · {tag.lines}
-          </Text>
-        ))}
-        {state.kind === 'ok' && (
-          <UnstyledButton
-            ml="auto"
-            px={8}
-            py={2}
-            fz="sm"
-            c="dimmed"
-            style={{ borderRadius: 4 }}
-            onClick={() => setExpanded((prev) => !prev)}
-          >
-            {expanded ? 'Show changes only' : 'Show full file'}
-          </UnstyledButton>
-        )}
-      </CodeCardHeader>
+      <CodeCardHeader
+        filename={chunk.filename}
+        foldable={file?.origin !== undefined || tags.length > 0}
+        facts={
+          (file?.origin || tags.length > 0) && (
+            <>
+              {file?.origin && (
+                <Text component="span" fz="xs" c="dimmed" className={classes.fact}>
+                  {originVerb(file).toLowerCase()}{' '}
+                  <Text component="span" ff="monospace" fz="inherit">
+                    {file.origin.filename}
+                  </Text>
+                </Text>
+              )}
+              {tags.map((tag) => (
+                <Text
+                  key={tag.label}
+                  component="span"
+                  fz="xs"
+                  c="dimmed"
+                  px={6}
+                  py={1}
+                  title={tag.detail}
+                  className={classes.fact}
+                  style={{ borderRadius: 4, border: `1px solid ${token('border')}` }}
+                >
+                  {tag.label} · {tag.lines}
+                </Text>
+              ))}
+            </>
+          )
+        }
+        actions={
+          state.kind === 'ok' && (
+            <UnstyledButton
+              px={8}
+              py={2}
+              fz="sm"
+              c="dimmed"
+              style={{ borderRadius: 4 }}
+              onClick={() => setExpanded((prev) => !prev)}
+            >
+              {expanded ? 'Show changes only' : 'Show full file'}
+            </UnstyledButton>
+          )
+        }
+      />
 
       {(insights.length > 0 || judgementCalls.length > 0) && (
         <AnchoredAsides insights={insights} judgementCalls={judgementCalls} />

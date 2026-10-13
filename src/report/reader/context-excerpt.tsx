@@ -148,11 +148,14 @@ export function ContextExcerptCard({
   const range = lineRange(excerpt);
   return (
     <CodeCard label={`Unchanged code in ${excerpt.filename}, ${range}`}>
-      <CodeCardHeader filename={excerpt.filename}>
-        <Text component="span" fz="xs" c="dimmed">
-          unchanged · {range}
-        </Text>
-      </CodeCardHeader>
+      <CodeCardHeader
+        filename={excerpt.filename}
+        facts={
+          <Text component="span" fz="xs" c="dimmed">
+            unchanged · {range}
+          </Text>
+        }
+      />
       <Box
         px={12}
         py={10}

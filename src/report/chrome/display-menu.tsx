@@ -2,6 +2,8 @@ import { ActionIcon, Menu, Text, useMantineColorScheme } from '@mantine/core';
 import {
   IconBlur,
   IconBlurOff,
+  IconFold,
+  IconFoldDown,
   IconLayoutColumns,
   IconLayoutRows,
   IconMoon,
@@ -18,6 +20,7 @@ import type { ReactNode } from 'react';
 import { selectSpaceLimited, useDiffView, useReaderColumn } from '@/report/stores/diff-view';
 import { useDiffWrap } from '@/report/stores/diff-wrap';
 import { useDimComments } from '@/report/stores/dim-comments';
+import { useFileHeaders } from '@/report/stores/file-headers';
 import { useLayoutWidth } from '@/report/stores/layout-width';
 import { useSkimMarks } from '@/report/stores/skim-marks';
 
@@ -85,6 +88,8 @@ export function DisplayMenu() {
   const toggleWrap = useDiffWrap((s) => s.toggle);
   const comments = useDimComments((s) => s.comments);
   const toggleComments = useDimComments((s) => s.toggle);
+  const headers = useFileHeaders((s) => s.headers);
+  const toggleHeaders = useFileHeaders((s) => s.toggle);
   const marks = useSkimMarks((s) => s.marks);
   const toggleMarks = useSkimMarks((s) => s.toggle);
   const width = useLayoutWidth((s) => s.width);
@@ -129,6 +134,12 @@ export function DisplayMenu() {
           name="Comments"
           value={comments === 'dimmed' ? 'Dimmed' : 'Normal'}
           onClick={toggleComments}
+        />
+        <SettingItem
+          icon={headers === 'one-line' ? <IconFold size={ICON} /> : <IconFoldDown size={ICON} />}
+          name="File headers"
+          value={headers === 'one-line' ? 'One line' : 'Every fact'}
+          onClick={toggleHeaders}
         />
         <SettingItem
           icon={marks === 'marked' ? <IconTag size={ICON} /> : <IconTagOff size={ICON} />}
