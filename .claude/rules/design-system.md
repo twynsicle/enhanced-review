@@ -114,5 +114,7 @@ Dimmed comments are the only registered themes, one dimmed pair, light and
 dark (`src/report/reader/monaco-themes.ts`): a comment's colour comes from the
 tokenizer's classes, which only a theme rule reaches. Each inherits `vs` or
 `vs-dark` and paints comments in that scheme's `subtle`, converted from the
-token by `src/report/theme/oklch.ts` rather than respelled, so changing
-`subtle` restyles them too.
+token by `src/report/theme/oklch.ts` rather than respelled, then mixed 30%
+over the editor's own background, so a dimmed comment keeps its lines but is
+all but unreadable. Mixed rather than given alpha, since Monaco drops the
+alpha of a token colour. Changing `subtle` restyles them too.

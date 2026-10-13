@@ -3,19 +3,21 @@ import { oklchToHex } from '@/report/theme/oklch';
 import { darkTokens, lightTokens } from '@/report/theme/tokens';
 import {
   COMMENT_SCOPES,
+  COMMENT_STRENGTH,
   defineEditorThemes,
   DIMMED_THEME,
   dimmedThemeData,
   editorTheme,
+  mixHex,
 } from './monaco-themes';
 
 describe('the code viewers’ themes', () => {
   it.each([
-    ['light', 'vs', lightTokens.subtle],
-    ['dark', 'vs-dark', darkTokens.subtle],
+    ['light', 'vs', lightTokens.subtle, 'fffffe'],
+    ['dark', 'vs-dark', darkTokens.subtle, '1e1e1e'],
   ] as const)(
-    '%s: the dimmed theme inherits %s and paints every comment scope subtle and italic',
-    (scheme, base, subtle) => {
+    '%s: the dimmed theme inherits %s and paints every comment scope italic, subtle faded into the background',
+    (scheme, base, subtle, background) => {
       const data = dimmedThemeData(scheme);
       expect(data.base).toBe(base);
       expect(data.inherit).toBe(true);
@@ -25,7 +27,7 @@ describe('the code viewers’ themes', () => {
       expect(data.rules).toEqual(
         COMMENT_SCOPES.map((token) => ({
           token,
-          foreground: oklchToHex(subtle),
+          foreground: mixHex(oklchToHex(subtle), background, COMMENT_STRENGTH),
           fontStyle: 'italic',
         })),
       );
@@ -51,6 +53,14 @@ describe('the code viewers’ themes', () => {
     expect(editorTheme('dark', 'normal')).toBe('vs-dark');
     expect(editorTheme('light', 'dimmed')).toBe(DIMMED_THEME.light);
     expect(editorTheme('dark', 'dimmed')).toBe(DIMMED_THEME.dark);
+  });
+});
+
+describe('mixHex', () => {
+  it('lands on either end at 0 and 1, and between them per channel', () => {
+    expect(mixHex('ff8000', '000000', 1)).toBe('ff8000');
+    expect(mixHex('ff8000', '000000', 0)).toBe('000000');
+    expect(mixHex('ff8000', '204060', 0.5)).toBe('906030');
   });
 });
 

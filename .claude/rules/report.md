@@ -133,7 +133,9 @@ src/report/
                      setTheme, so a flip never remounts; the offset gutter helpers, the relayout once the
                      reader's column settles, and the scroll kept on a click's focus, which both editors share),
                      monaco-themes.ts (the dimmed twins of vs and vs-dark: inherit the base, and paint `comment`
-                     and the sub-scopes Monaco's tokenizers emit in the scheme's `subtle` token as hex, italic;
+                     and the sub-scopes Monaco's tokenizers emit italic, in the scheme's `subtle` mixed
+                     COMMENT_STRENGTH (30%) over the base's editor background by mixHex — nearly invisible but
+                     still taking its lines, since Monaco drops a token colour's alpha;
                      defineEditorThemes, editorTheme),
                      monaco-cdn.ts (MONACO_VERSION / MONACO_VS_URL: which Monaco the CDN serves, held to the
                      declared monaco-editor — the types' version — by the monaco-version guardrail),
