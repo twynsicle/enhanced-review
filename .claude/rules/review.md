@@ -92,7 +92,9 @@ src/review/
                      proving nothing, since a fact can fold a hunk),
                      split-hunks (splitPatch: one file's patch with each hunk over the target rewritten as parts,
                      each a real hunk with a synthesised `@@ … @@ (part k of n)` header, so nothing downstream
-                     needs to know a part from a hunk; cut where a paragraph opens at the shallowest indentation in
+                     needs to know a part from a hunk; a hunk's body is delimited by its header's counts, an
+                     empty line in it a blank context line (git's diff.suppressBlankEmpty), and a body that
+                     does not match them throws; cut where a paragraph opens at the shallowest indentation in
                      range, a block still over the target cut again one level in, never inside a run of changed
                      lines that both removes and adds, then packed greedily up to the target; splitPart reads a
                      header's part number back),

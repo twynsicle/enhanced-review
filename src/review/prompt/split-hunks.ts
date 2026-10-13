@@ -32,6 +32,7 @@ export function splitPart(header: string): { part: number; of: number } | null {
 }
 
 type Kind = ' ' | '+' | '-' | '\\';
+const KINDS: ReadonlySet<string> = new Set<Kind>([' ', '+', '-', '\\']);
 
 interface BodyLine {
   kind: Kind;
@@ -60,25 +61,50 @@ export function splitPatch(patch: string, target: number): string {
       i += 1;
       continue;
     }
-    let end = i + 1;
-    while (end < lines.length && isBodyLine(lines[end]!)) end += 1;
+    const end = bodyEnd(lines, i, header);
     out.push(...(splitHunk(header, lines.slice(i + 1, end), target) ?? lines.slice(i, end)));
     i = end;
   }
   return out.join('\n');
 }
 
-/** A hunk body line: context, addition, deletion, or git's no-newline marker. */
-function isBodyLine(line: string): boolean {
-  return (
-    line.startsWith(' ') || line.startsWith('+') || line.startsWith('-') || line.startsWith('\\')
-  );
+/**
+ * The index just past a hunk's body, counted off its header's two sides
+ * rather than read from line prefixes: with `diff.suppressBlankEmpty`, which
+ * `er` runs under when the engineer sets it, git writes a blank context line
+ * as an empty line, which no prefix tells from the end of the hunk. A
+ * no-newline marker counts toward neither side, so one straight after the
+ * last line is taken too.
+ */
+function bodyEnd(lines: readonly string[], headerAt: number, header: RegExpExecArray): number {
+  let original = sideCount(header[2]);
+  let modified = sideCount(header[4]);
+  let end = headerAt + 1;
+  while (original > 0 || modified > 0) {
+    const line = lines[end];
+    if (line === undefined) throw new Error(`hunk ${lines[headerAt]!} ends before its counts do`);
+    const kind = line[0] ?? ' ';
+    if (kind === ' ' || kind === '-') original -= 1;
+    if (kind === ' ' || kind === '+') modified -= 1;
+    if (!KINDS.has(kind) || original < 0 || modified < 0) {
+      throw new Error(`hunk ${lines[headerAt]!} does not match its counts at "${line}"`);
+    }
+    end += 1;
+  }
+  if (lines[end]?.startsWith('\\')) end += 1;
+  return end;
+}
+
+/** A header side's line count, which git leaves out when it is one. */
+function sideCount(countRaw: string | undefined): number {
+  return countRaw === undefined ? 1 : Number.parseInt(countRaw, 10);
 }
 
 /** The hunk as several, header and body each; null when it stays whole. */
 function splitHunk(header: RegExpExecArray, raw: string[], target: number): string[] | null {
+  // An empty line is a blank context line written without its space.
   const body: BodyLine[] = raw.map((line) => ({
-    kind: line[0] as Kind,
+    kind: (line[0] ?? ' ') as Kind,
     content: line.slice(1),
   }));
   if (changedIn(body, { start: 0, end: body.length }) <= target) return null;
@@ -189,13 +215,7 @@ function blocksOf(body: readonly BodyLine[], range: Range, floor: number, target
   );
 }
 
-/**
- * Adjacent blocks joined while they fit the target, so many small
- * declarations become a few parts rather than one each; a block that alone
- * exceeds it is left alone. A part that changes nothing but blank lines joins
- * the part before it, or the one after when it is first: on its own it is a
- * hunk with nothing in it to read, which still has to be cited and tiered.
- */
+/** Whether `range` adds or removes a line that is not blank. */
 function changesText(body: readonly BodyLine[], range: Range): boolean {
   for (let i = range.start; i < range.end; i += 1) {
     const line = body[i]!;
@@ -204,6 +224,13 @@ function changesText(body: readonly BodyLine[], range: Range): boolean {
   return false;
 }
 
+/**
+ * Adjacent blocks joined while they fit the target, so many small
+ * declarations become a few parts rather than one each; a block that alone
+ * exceeds it is left alone. A part that changes nothing but blank lines joins
+ * the part before it, or the one after when it is first: on its own it is a
+ * hunk with nothing in it to read, which still has to be cited and tiered.
+ */
 function pack(body: readonly BodyLine[], blocks: readonly Range[], target: number): Range[] {
   const packed: Range[] = [];
   for (const block of blocks) {

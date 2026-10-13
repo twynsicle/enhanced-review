@@ -177,13 +177,48 @@ describe('splitPatch', () => {
       'diff --git a/x.ts b/x.ts',
       '--- a/x.ts',
       '+++ b/x.ts',
-      `@@ -10,2 +10,${String(body.length - 1)} @@`,
+      `@@ -10,2 +10,${String(body.length)} @@`,
       ...body,
       '',
     ].join('\n');
     for (const hunk of hunksOf(splitPatch(patch, 10))) {
       expect(hunk.modified.lineCount - hunk.original.lineCount).toBeGreaterThan(1);
     }
+  });
+
+  it('reads a hunk by its header’s counts, so an empty line in it is a blank context line', () => {
+    // diff.suppressBlankEmpty: git writes each blank context line as an empty line.
+    const first = fn('a', 12)
+      .slice(0, -1)
+      .map((l) => `+${l}`);
+    const second = fn('b', 12)
+      .slice(0, -1)
+      .map((l) => `+${l}`);
+    const body = [' const header = 1;', '', ...first, '', ...second, ' const footer = 2;'];
+    const added = first.length + second.length;
+    const patch = [
+      'diff --git a/x.ts b/x.ts',
+      '--- a/x.ts',
+      '+++ b/x.ts',
+      `@@ -40,4 +40,${String(4 + added)} @@`,
+      ...body,
+      '@@ -90,1 +90,1 @@',
+      '-old',
+      '+new',
+      '',
+    ].join('\n');
+    const hunks = hunksOf(splitPatch(patch, 20));
+
+    expect(hunks.map((h) => h.header)).toEqual([
+      '@@ -40,3 +40,17 @@ (part 1 of 2)',
+      '@@ -43,1 +57,15 @@ (part 2 of 2)',
+      '@@ -90,1 +90,1 @@',
+    ]);
+  });
+
+  it('refuses a hunk whose body does not match its header’s counts', () => {
+    const patch = ['diff --git a/x.ts b/x.ts', '@@ -1,4 +1,4 @@', ' a', '-b', '+c', ''].join('\n');
+    expect(() => splitPatch(patch, 20)).toThrow(/does not match its counts|ends before/);
   });
 
   it('keeps git’s no-newline marker with the line it is about', () => {
