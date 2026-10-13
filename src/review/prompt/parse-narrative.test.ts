@@ -667,6 +667,50 @@ describe('what a repair records', () => {
     ]);
   });
 
+  it('gives a repeated chapter id a fresh one, the first holder keeping it, and warns', () => {
+    const result = parse(
+      [
+        { id: 'auth', title: 'A', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+        { id: 'auth', title: 'B', insights: [], diffChunks: [cite('src/a.ts', ['H0002'])] },
+        { id: '__summary__', title: 'C', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+      ],
+      { readingPlan: { brief: ['auth'], standard: ['auth'] } },
+    );
+    expect(result.ok && result.data.chapters.map((c) => c.id)).toEqual([
+      'auth',
+      'chapter-2',
+      'chapter-3',
+    ]);
+    expect(result.ok && result.data.readingPlan).toEqual({ brief: ['auth'], standard: ['auth'] });
+    expect(result.findings.filter((f) => f.code === 'chapter-id-duplicate')).toEqual([
+      expect.objectContaining({ severity: 'warning', chapterId: 'chapter-2' }),
+      expect.objectContaining({ severity: 'warning', chapterId: 'chapter-3' }),
+    ]);
+  });
+
+  it('keeps a model id that a synthesised one would have taken, and synthesises around it', () => {
+    const result = parse(
+      [
+        { title: 'A', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+        { id: 'chapter-1', title: 'B', insights: [], diffChunks: [cite('src/a.ts', ['H0002'])] },
+        { id: 'chapter-4', title: 'C', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+        { title: 'D', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+      ],
+      { readingPlan: { brief: ['chapter-1'], standard: ['chapter-1'] } },
+    );
+    expect(result.ok && result.data.chapters.map((c) => c.id)).toEqual([
+      'chapter-1',
+      'chapter-2',
+      'chapter-4',
+      'chapter-4-2',
+    ]);
+    expect(codes(result).filter((code) => code.startsWith('chapter-id'))).toEqual([
+      'chapter-id-synthesised',
+      'chapter-id-duplicate',
+      'chapter-id-synthesised',
+    ]);
+  });
+
   it('notes prose that arrived as a bare string, and prose that arrived with no lede', () => {
     const result = parse([
       {

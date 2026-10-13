@@ -32,6 +32,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {
   'hunk-tier-missing': 'warning',
   'hunk-reason-missing': 'warning',
   'reading-plan-dropped': 'warning',
+  'chapter-id-duplicate': 'warning',
   'excerpt-dropped': 'warning',
   'commands-refused': 'warning',
   'passed-after-retry': 'warning',

@@ -15,6 +15,8 @@ import {
   MAX_JUDGEMENT_CALLS,
   NarrativeReviewSchema,
   ReviewRiskFactorImpactSchema,
+  RISK_SECTION_ID,
+  SUMMARY_SECTION_ID,
   type CitedHunk,
   type ContextExcerpt,
   type DiffChunk,
@@ -32,7 +34,8 @@ import { sanitizeDiagram } from './parse-diagram.ts';
 
 /**
  * Turns the model's `<narrative_review>` block into a `NarrativeReview`.
- * Lenient on purpose: missing ids/titles are synthesised, unknown insight
+ * Lenient on purpose: missing ids/titles are synthesised, a repeated id is
+ * replaced (the first chapter keeps it), unknown insight
  * types fall back to `context`, an out-of-range risk score drops the whole
  * assessment, and hunk ids are resolved against what the prompt showed
  * (unknown or wrong-file ids are dropped). A cited hunk with no usable tier is
@@ -765,6 +768,17 @@ function mergeChunksByFile(chunks: DiffChunk[], chapterId: string, log: FindingL
 
 type SanitizedChapter = Rec & { id: string; title: string; diffChunks: DiffChunk[] };
 
+/** `chapter-<n>`, or the first `chapter-<n>-<k>` free when a model id already took it. */
+function freshChapterId(n: string, taken: ReadonlySet<string>): string {
+  let id = `chapter-${n}`;
+  for (let k = 2; taken.has(id); k += 1) id = `chapter-${n}-${String(k)}`;
+  return id;
+}
+
+/**
+ * `taken` holds the ids already given, starting with the reader's own
+ * section ids; the chapter's id is added to it.
+ */
 function sanitizeChapter(
   raw: Rec,
   index: number,
@@ -772,17 +786,29 @@ function sanitizeChapter(
   log: FindingLog,
   repairs: TierRepairs,
   excerptDrops: ExcerptDrop[],
+  taken: Set<string>,
 ): SanitizedChapter {
   const n = String(index + 1);
+  const given = typeof raw['id'] === 'string' && raw['id'].length > 0 ? raw['id'] : null;
   let id: string;
-  if (typeof raw['id'] === 'string' && raw['id'].length > 0) {
-    id = raw['id'];
-  } else {
-    id = `chapter-${n}`;
+  if (given === null) {
+    id = freshChapterId(n, taken);
     log.add('chapter-id-synthesised', `Chapter ${n} arrived with no id and was given ${id}.`, {
       chapterId: id,
     });
+  } else if (taken.has(given)) {
+    // The reading plan, the sidebar, reading progress and the footer's Next
+    // all key on a chapter's id, so a repeat would make two chapters one.
+    id = freshChapterId(n, taken);
+    log.add(
+      'chapter-id-duplicate',
+      `Chapter ${n}'s id ${given} was already taken, so it was given ${id}; the reading plan's ${given} means the first.`,
+      { chapterId: id },
+    );
+  } else {
+    id = given;
   }
+  taken.add(id);
   let title: string;
   if (typeof raw['title'] === 'string' && raw['title'].length > 0) {
     title = raw['title'];
@@ -1062,8 +1088,17 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     reasonDropped: new Set(),
   };
   const excerptDrops: ExcerptDrop[] = [];
+  const takenIds = new Set([SUMMARY_SECTION_ID, RISK_SECTION_ID]);
   const chapters = parsed['chapters'].map((chapter, index) =>
-    sanitizeChapter(isRecord(chapter) ? chapter : {}, index, grounding, log, repairs, excerptDrops),
+    sanitizeChapter(
+      isRecord(chapter) ? chapter : {},
+      index,
+      grounding,
+      log,
+      repairs,
+      excerptDrops,
+      takenIds,
+    ),
   );
   reportTierRepairs(repairs, log);
   if (excerptDrops.length > 0) {

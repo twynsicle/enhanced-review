@@ -79,6 +79,13 @@ const SEVERITY_BY_CODE = {
    */
   'reading-plan-dropped': 'warning',
   /**
+   * A chapter's id repeated an earlier chapter's, or a reader section's, and
+   * the chapter was given a fresh one. Every chapter is still drawn, but
+   * anything in the answer naming that id — the reading plan above all —
+   * now means the first holder, so a chapter can lose its place in the plan.
+   */
+  'chapter-id-duplicate': 'warning',
+  /**
    * Excerpts of unchanged code that could not be shown: past the cap, too
    * long, a file the change touches, or a file or span the head commit does
    * not have. The chapters and their diffs are whole; the reader has lost a
