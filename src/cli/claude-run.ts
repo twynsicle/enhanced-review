@@ -216,7 +216,7 @@ function sdkOptions(
     tools: [...TOOLS],
     allowedTools: [...PRE_APPROVED],
     canUseTool: (tool, input) => {
-      const decision = permission(tool, input);
+      const decision = permission(tool, input, options.cwd);
       if (decision.behavior === 'deny') callbacks.onDeny(tool, input, decision.message);
       return Promise.resolve(decision);
     },
@@ -246,12 +246,12 @@ type Permission =
   | { behavior: 'deny'; message: string };
 
 /** Read, Glob and Grep never reach this; Bash does, and only reads get through. */
-function permission(tool: string, input: Record<string, unknown>): Permission {
+function permission(tool: string, input: Record<string, unknown>, cwd: string): Permission {
   if (tool !== 'Bash') {
     return { behavior: 'deny', message: `er reviews are read-only; ${tool} is not available.` };
   }
   const command = typeof input.command === 'string' ? input.command : '';
-  const decision = reviewBashCommand(command);
+  const decision = reviewBashCommand(command, cwd);
   return decision.allowed
     ? { behavior: 'allow', updatedInput: input }
     : { behavior: 'deny', message: decision.reason };

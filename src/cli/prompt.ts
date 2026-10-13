@@ -125,14 +125,16 @@ function workingDirectory({ target, dirty }: RunContext, run: RunFiles): string 
     target.kind === 'pr'
       ? `Your working directory is a temporary checkout of the pull request’s head commit (${target.headSha.slice(0, 7)}). Every file in it is as the pull request leaves it.`
       : target.kind === 'branch'
-        ? `Your working directory is the repository itself, at ${target.headLabel}. The diff file below is the source of truth for what changed.`
-        : 'Your working directory is the repository itself. Only the staged changes are under review, and the diff file below is the source of truth for them.';
+        ? `Your working directory is the repository itself (\`${display(target.repoRoot)}\`), at ${target.headLabel}. The diff file below is the source of truth for what changed.`
+        : `Your working directory is the repository itself (\`${display(target.repoRoot)}\`). Only the staged changes are under review, and the diff file below is the source of truth for them.`;
   const extra =
     dirty.length > 0
       ? `\n\nThese paths hold changes on disk that are not part of this review, so what you read there may differ from the reviewed version. Take no excerpt of unchanged code from them:\n${dirty.map((name) => `  ${name}`).join('\n')}`
       : '';
   return (
     `## Where You Are\n${where}${extra}\n\n` +
+    'The paths in the file list and the diff are relative to it, and the repository named above is ' +
+    'this checkout, not a directory to look for elsewhere on disk: do not search outside it.\n\n' +
     `Ignore the \`er-reviews/\` folder, except for this run’s own folder, \`${display(run.folder)}\`.`
   );
 }
