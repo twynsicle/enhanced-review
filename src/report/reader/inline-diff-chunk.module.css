@@ -128,18 +128,44 @@
 }
 
 /*
- * A skim region's lines, when the reader has asked for skim marks: washed
+ * A region's colour, for its bracket, its label's edge and its outline: a
+ * move's own, since moves are the commonest fact and read differently from new
+ * code, and a plain grey for the rest. Never the text's colour, so the label
+ * reads the same whatever its tone.
+ */
+.marks [data-tone] {
+  --mark-colour: var(--er-muted-foreground);
+}
+
+.marks [data-tone='move'] {
+  --mark-colour: var(--er-before);
+}
+
+/*
+ * A labelled region's lines, when the reader has asked for skim marks: washed
  * toward the editor's own background, text, band, rail and line number alike,
  * so nothing in them stays at full strength to catch the eye. How far is the
- * reader's skim fade (`stores/skim-fade.ts`). The label says why.
+ * reader's skim fade (`stores/skim-fade.ts`) — half of it for a move the
+ * review says to read, which keeps its shape in view but pulls less than new
+ * code. The label says why.
  */
 .wash {
+  --wash-share: 1;
   position: absolute;
   background: color-mix(
     in srgb,
-    var(--vscode-editor-background) calc(var(--review-skim-fade, 0.6) * 100%),
+    var(--wash-ground) calc(var(--review-skim-fade, 0.6) * var(--wash-share) * 100%),
     transparent
   );
+}
+
+.wash[data-fade='move'] {
+  --wash-share: 0.5;
+}
+
+/* Outlined while its label is pointed at, inside its own lines. */
+.wash[data-pointed] {
+  box-shadow: inset 0 0 0 1px var(--mark-colour);
 }
 
 /*
@@ -153,13 +179,33 @@
   z-index: 5;
 }
 
-/* The region: a rule down the right edge, the height of its lines. */
+/*
+ * The region: a bracket down the right edge, the height of its lines, capped
+ * top and bottom so where it ends is drawn rather than inferred.
+ */
 .mark {
   position: absolute;
   right: 2px;
-  width: 2px;
-  background: var(--er-border-strong);
-  border-radius: 1px;
+  width: 3px;
+  background: var(--mark-colour);
+}
+
+.mark::before,
+.mark::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  width: 8px;
+  height: 2px;
+  background: var(--mark-colour);
+}
+
+.mark::before {
+  top: 0;
+}
+
+.mark::after {
+  bottom: 0;
 }
 
 /*
@@ -169,13 +215,14 @@
 .markLabel {
   position: absolute;
   top: 0;
-  right: 6px;
+  right: 10px;
   display: flex;
   align-items: center;
   gap: 2px;
   max-width: 28rem;
   padding: 0 0 0 6px;
   border: 1px solid var(--er-border);
+  border-left: 3px solid var(--mark-colour);
   border-radius: 4px;
   background: var(--er-card);
   color: var(--er-muted-foreground);

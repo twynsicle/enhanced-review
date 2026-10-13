@@ -128,6 +128,11 @@ region is washed toward the editor's background, text, band, rail and line
 number alike — a full-strength band behind faded text still draws the eye.
 How hard is the reader's own slider (20–75%), since how faint is too faint
 depends on their screen and scheme; the cap keeps a skim line readable on
-demand. A fade is never left to explain itself: every faded region carries
-its reason as a label at the editor's right edge, and the label folds to a
-tab so the code under it can be read.
+demand. A move the review still says to read is washed by half as much: its
+shape stays in view, but it pulls less than code that is new. A fade is
+never left to explain itself: every faded region carries its reason as a
+label at the editor's right edge, the label folds to a tab so the code under
+it can be read, and a capped bracket down the edge draws where the region
+ends. Moves are drawn in `before` — bracket, label edge and header tag — and
+everything else in `muted-foreground`; the label's text keeps its one colour.
+A region is never tinted: its lines already carry the diff's green or red.

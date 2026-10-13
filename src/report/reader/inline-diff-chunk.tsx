@@ -6,7 +6,16 @@ import {
   IconChevronUp,
 } from '@tabler/icons-react';
 import type { editor, IDisposable } from 'monaco-editor';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import type { FilePair } from '@/review/bundle';
 import {
   buildInlineDiffSnippets,
@@ -197,14 +206,15 @@ interface Rect {
 }
 
 /**
- * Where a labelled region sits: its rule's run down the editor, and for a
- * skim region the rectangle over each pane's lines that fades them.
+ * Where a labelled region sits: its bracket's run down the editor, and the
+ * rectangle over each pane's lines that is washed and, while its label is
+ * pointed at, outlined.
  */
 interface MarkBox {
   mark: HunkMark;
   top: number;
   height: number;
-  washes: Rect[];
+  panes: Rect[];
 }
 
 /**
@@ -315,36 +325,21 @@ function markBoxes(
     }));
     const whole = extent(perSide.map(({ span }) => span));
     if (!whole) return [];
-    const washes = mark.skim
-      ? perSide.flatMap(({ sideEditor, span }) =>
-          span
-            ? [{ top: span[0], height: span[1] - span[0], ...paneOf(sideEditor, host, stacked) }]
-            : [],
-        )
-      : [];
-    return [{ mark, top: whole[0], height: whole[1] - whole[0], washes }];
+    const panes = perSide.flatMap(({ sideEditor, span }) =>
+      span
+        ? [{ top: span[0], height: span[1] - span[0], ...paneOf(sideEditor, host, stacked) }]
+        : [],
+    );
+    return [{ mark, top: whole[0], height: whole[1] - whole[0], panes }];
   });
 }
 
 function boxesKey(boxes: readonly MarkBox[]): string {
   return JSON.stringify(
-    boxes.map(({ mark, top, height, washes }) => [mark.key, top, height, washes]),
+    boxes.map(({ mark, top, height, panes }) => [mark.key, top, height, panes]),
   );
 }
 
-/**
- * Each labelled region as a rule down the editor's right edge with its label
- * at the top, and a skim region's lines washed toward the editor's background.
- * Right rather than left, where code is least likely to run, and over the
- * editor rather than in a view zone, which would push the lines apart. The
- * wash is drawn over the editor rather than as Monaco decorations because the
- * stacked view's removed lines are view zones no decoration reaches. Placed
- * from the editors' own line geometry, which the reader never scrolls
- * vertically, so a measure after each layout keeps it in place.
- *
- * A label folds to a tab, to read the code beneath it; the fold lasts as long
- * as the diff is on the page.
- */
 /**
  * Where each label's top sits. Two regions can start on one row — stacked, a
  * hunk's removed lines and the next hunk's first line share a zone — so a
@@ -366,8 +361,36 @@ function labelTops(sorted: readonly MarkBox[], editorHeight: number): number[] {
   return tops;
 }
 
-function MarkOverlay({ boxes, editorHeight }: { boxes: readonly MarkBox[]; editorHeight: number }) {
+/**
+ * Each labelled region as a bracket down the editor's right edge with its
+ * label at the top, and its lines washed toward the editor's background.
+ * Right rather than left, where code is least likely to run, and over the
+ * editor rather than in a view zone, which would push the lines apart. The
+ * wash is drawn over the editor rather than as Monaco decorations because the
+ * stacked view's removed lines are view zones no decoration reaches. Placed
+ * from the editors' own line geometry, which the reader never scrolls
+ * vertically, so a measure after each layout keeps it in place.
+ *
+ * The bracket's caps say where a region ends, which a wash alone does not when
+ * two regions meet. Pointing at a label outlines its lines as well. No tint:
+ * the lines already carry the diff's green or red, and a third colour over
+ * those is what the comment fade was made to avoid.
+ *
+ * A label folds to a tab, to read the code beneath it; the fold lasts as long
+ * as the diff is on the page.
+ */
+function MarkOverlay({
+  boxes,
+  editorHeight,
+  ground,
+}: {
+  boxes: readonly MarkBox[];
+  editorHeight: number;
+  /** The editor's own background, which the wash fades the lines toward. */
+  ground: string;
+}) {
   const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+  const [pointed, setPointed] = useState<string | null>(null);
   const toggle = (key: string) =>
     setFolded((previous) => {
       const next = new Set(previous);
@@ -378,25 +401,40 @@ function MarkOverlay({ boxes, editorHeight }: { boxes: readonly MarkBox[]; edito
   const tops = labelTops(sorted, editorHeight);
   const placed = sorted.map((box, i) => ({ ...box, labelOffset: tops[i]! - box.top }));
   return (
-    <div className={classes.marks}>
-      {placed.flatMap(({ mark, washes }) =>
-        washes.map((wash) => (
+    <div className={classes.marks} style={{ '--wash-ground': ground } as CSSProperties}>
+      {placed.flatMap(({ mark, panes }) =>
+        panes.map((pane) => (
           <div
-            key={`${mark.key}-${String(wash.left)}`}
+            key={`${mark.key}-${String(pane.left)}`}
             className={classes.wash}
-            style={{ top: wash.top, left: wash.left, width: wash.width, height: wash.height }}
+            data-fade={mark.fade}
+            data-tone={mark.tone}
+            data-pointed={pointed === mark.key || undefined}
+            style={{ top: pane.top, left: pane.left, width: pane.width, height: pane.height }}
           />
         )),
       )}
       {placed.map(({ mark, top, height, labelOffset }) => {
         const isFolded = folded.has(mark.key);
+        const point = () => setPointed(mark.key);
+        const unpoint = () => setPointed((current) => (current === mark.key ? null : current));
         return (
-          <div key={mark.key} className={classes.mark} style={{ top, height }}>
+          <div
+            key={mark.key}
+            className={classes.mark}
+            data-tone={mark.tone}
+            style={{ top, height }}
+          >
             <span
               className={classes.markLabel}
               data-folded={isFolded || undefined}
+              data-tone={mark.tone}
               style={{ top: labelOffset }}
               title={isFolded ? `${mark.label}. ${mark.detail}` : mark.detail}
+              onPointerEnter={point}
+              onPointerLeave={unpoint}
+              onFocus={point}
+              onBlur={unpoint}
             >
               {!isFolded && <span className={classes.markText}>{mark.label}</span>}
               <UnstyledButton
@@ -437,6 +475,7 @@ function SnippetEditor({
   const theme = useEditorTheme();
   const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
   const [boxes, setBoxes] = useState<MarkBox[]>([]);
+  const [ground, setGround] = useState('');
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const disposables = useRef<IDisposable[]>([]);
   const host = useRef<HTMLDivElement | null>(null);
@@ -480,6 +519,15 @@ function SnippetEditor({
       viewRef.current,
     );
     setBoxes((previous) => (boxesKey(previous) === boxesKey(next) ? previous : next));
+    if (next.length === 0) return;
+    // Monaco defines its colours on its own elements, and the overlay is
+    // their sibling, so the background the wash fades toward is read off the
+    // editor rather than inherited.
+    setGround(
+      getComputedStyle(diffEditor.getModifiedEditor().getContainerDomNode()).getPropertyValue(
+        '--vscode-editor-background',
+      ),
+    );
   }, []);
 
   const onMount = useCallback(
@@ -532,7 +580,7 @@ function SnippetEditor({
     measureMarks();
     const frame = requestAnimationFrame(measureMarks);
     return () => cancelAnimationFrame(frame);
-  }, [measureMarks, marks, view, wrap, expanded]);
+  }, [measureMarks, marks, view, wrap, expanded, theme]);
 
   // `view` belongs here because Monaco re-pins the original editor's
   // `wordWrapOverride2` on every pass through the stacked view.
@@ -665,7 +713,9 @@ function SnippetEditor({
           options={options}
         />
       </Suspense>
-      {boxes.length > 0 && <MarkOverlay boxes={boxes} editorHeight={editorHeight} />}
+      {boxes.length > 0 && (
+        <MarkOverlay boxes={boxes} editorHeight={editorHeight} ground={ground} />
+      )}
     </div>
   );
 }
@@ -901,7 +951,12 @@ export function InlineDiffChunk({
                   py={1}
                   title={tag.detail}
                   className={classes.fact}
-                  style={{ borderRadius: 4, border: `1px solid ${token('border')}` }}
+                  style={{
+                    borderRadius: 4,
+                    border: `1px solid ${token('border')}`,
+                    // A move's tag is edged in the colour its region is drawn in.
+                    borderLeft: `3px solid ${token(tag.tone === 'move' ? 'before' : 'border')}`,
+                  }}
                 >
                   {tag.label} · {tag.lines}
                 </Text>

@@ -23,6 +23,7 @@ describe('factTags', () => {
       {
         label: 'Moved unchanged from src/old.ts',
         detail: 'Every line was removed from src/old.ts as it is here',
+        tone: 'move',
         lines: 'L11-20',
       },
     ]);
@@ -32,6 +33,7 @@ describe('factTags', () => {
       {
         label: 'Moved to src/new.ts, with edits',
         detail: '85% of these lines match the lines added to src/new.ts',
+        tone: 'move',
         lines: 'L11-20',
       },
     ]);
@@ -60,7 +62,7 @@ describe('factTags', () => {
 });
 
 describe('hunkMarks', () => {
-  it('labels skim hunks and proven facts, and leaves a plain read hunk alone', () => {
+  it('labels skim hunks and proven facts, fades moves less, and leaves a plain read hunk alone', () => {
     const marks = hunkMarks([
       makeHunk(1),
       makeHunk(2, { tier: 'skim', skimReason: 'test fixtures' }),
@@ -68,11 +70,13 @@ describe('hunkMarks', () => {
       makeHunk(4, moved(100)),
       makeHunk(5, { tier: 'skim', ...moved(100), skimReason: 'helper renamed' }),
     ]);
-    expect(marks.map((mark) => [mark.label, mark.skim, mark.hunks.map((h) => h.id)])).toEqual([
-      ['Skim · test fixtures', true, ['H0002']],
-      ['Skim', true, ['H0003']],
-      ['Moved unchanged from src/old.ts', false, ['H0004']],
-      ['Skim · Moved unchanged from src/old.ts · helper renamed', true, ['H0005']],
+    expect(
+      marks.map((mark) => [mark.label, mark.fade, mark.tone, mark.hunks.map((h) => h.id)]),
+    ).toEqual([
+      ['Skim · test fixtures', 'skim', 'plain', ['H0002']],
+      ['Skim', 'skim', 'plain', ['H0003']],
+      ['Moved unchanged from src/old.ts', 'move', 'move', ['H0004']],
+      ['Skim · Moved unchanged from src/old.ts · helper renamed', 'skim', 'move', ['H0005']],
     ]);
   });
 

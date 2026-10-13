@@ -494,7 +494,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
           chunk('src/scheduler/fixtures/schedules.ts', 'typescript', [
             cite(H.schedules, 'skim', 'test fixtures'),
           ]),
-          chunk('src/scheduler/fixtures/fake-clock.ts', 'typescript', [cite(H.fakeClock, 'skim')]),
+          chunk('src/scheduler/fixtures/fake-clock.ts', 'typescript', [cite(H.fakeClock, 'read')]),
           chunk('test/helpers.ts', 'typescript', [
             cite(H.helpersMove, 'skim'),
             cite(H.helpersRewrap, 'skim'),

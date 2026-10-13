@@ -121,11 +121,13 @@ src/report/
                      any other unless er-skim-marks says `marked`: then each region hunk-marks.ts names is
                      measured from the editors' line geometry after each layout, stacked view zones included (a
                      zone under a hunk's last line is the next hunk's when that hunk starts there), and drawn
-                     over the editor as a rule down its right edge with a label at the top that folds to a tab,
-                     and for a skim region a wash of the editor's background over each pane's lines at
-                     `--review-skim-fade` — an overlay rather than decorations, since no decoration reaches the
-                     stacked view's removed lines, and one measurement for both, so a labelled skim region is
-                     always the one that fades; the file stays one editor the find widget reaches; each proven fact is
+                     over the editor as a capped bracket down its right edge in the region's tone, a label at
+                     the top that folds to a tab and, while pointed at, outlines the region's lines, and a wash
+                     over each pane's lines toward the editor's background (read off Monaco's own element,
+                     which is the only one that defines it) at `--review-skim-fade`, half of it for a read move
+                     — an overlay rather than decorations, since no decoration reaches the stacked view's
+                     removed lines, and one measurement for all of it, so a labelled region is always the one
+                     that fades; the file stays one editor the find widget reaches; each proven fact is
                      one tag in the card's header over every line it holds for, the similarity in its hover;
                      the full-file view keeps the chapter's hunks, so its marks stay;
                      the asides for this file above the diff — judgement calls first, then the chapter's
@@ -153,7 +155,9 @@ src/report/
                      fact with its hunks' touching ranges joined; hunkMarks, the regions a diff labels — every
                      skim hunk, as "Skim · <fact> · <the review's reason>", and every hunk with a fact whatever
                      its tier — neighbours saying the same joined into one; hunks sharing a label but not a
-                     hover, such as two edited moves at different strengths, give each its own line in it),
+                     hover, such as two edited moves at different strengths, give each its own line in it;
+                     each note carries a tone, `move` or `plain`, and each mark a fade, `skim` or, for a moved
+                     hunk the review says to read, `move`),
                      monaco-themes.ts (the dimmed twins of vs and vs-dark: inherit the base, and give `comment`
                      and the sub-scopes Monaco's tokenizers emit italic, underline and strikethrough together,
                      a style no base theme uses, so theme.css finds them by `.mtki.mtku.mtks`, drops the lines and
