@@ -234,6 +234,23 @@ export const NarrativeChapterSchema = z.object({
 });
 export type NarrativeChapter = z.infer<typeof NarrativeChapterSchema>;
 
+/**
+ * Which chapters to read with less than the whole review's time, as chapter
+ * ids in chapter order. `brief` is where the change's risk is, what someone
+ * with five minutes must read to judge it, and being in it is what makes a
+ * chapter core: there is no separate weight to disagree with it. `standard`
+ * is what approving the change needs, and always holds `brief`. Reading
+ * everything is the third plan, and needs no field.
+ *
+ * Minutes are not stored. The reader computes them from the chapters
+ * themselves, so a plan cannot claim a time its chapters do not add up to.
+ */
+export const ReadingPlanSchema = z.object({
+  brief: z.array(z.string()).nonempty(),
+  standard: z.array(z.string()).nonempty(),
+});
+export type ReadingPlan = z.infer<typeof ReadingPlanSchema>;
+
 export const NarrativeReviewSchema = z.object({
   prTitle: z.string(),
   overviewSummary: ProseSchema,
@@ -245,7 +262,10 @@ export const NarrativeReviewSchema = z.object({
    * chapter it explains.
    */
   overviewDiagram: DiagramSchema.optional(),
+  /** The order chapters are read in: a cause before its consequences. */
   chapters: z.array(NarrativeChapterSchema),
+  /** Absent when the model's plan could not be used; see `ReadingPlanSchema`. */
+  readingPlan: ReadingPlanSchema.optional(),
   /**
    * Review-wide rather than per chapter, and capped: see `JudgementCallSchema`.
    * Absent and empty mean the same thing — no decision here needed a human —

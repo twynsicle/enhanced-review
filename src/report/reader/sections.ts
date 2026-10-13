@@ -20,6 +20,8 @@ export interface ReaderSection {
   chapterNumber: number | null;
   /** Whether this section draws a diagram, so the sidebar can say so. */
   hasDiagram: boolean;
+  /** Whether the reading plan's brief holds this chapter, so the sidebar can mark it core. */
+  core: boolean;
 }
 
 export function readerSections(review: NarrativeReview): ReaderSection[] {
@@ -33,6 +35,7 @@ export function readerSections(review: NarrativeReview): ReaderSection[] {
       label: 'Risk',
       chapterNumber: null,
       hasDiagram: false,
+      core: false,
     });
   }
 
@@ -42,8 +45,10 @@ export function readerSections(review: NarrativeReview): ReaderSection[] {
     label: 'Summary',
     chapterNumber: null,
     hasDiagram: review.overviewDiagram !== undefined,
+    core: false,
   });
 
+  const brief = new Set(review.readingPlan?.brief);
   review.chapters.forEach((chapter, index) => {
     sections.push({
       id: chapter.id,
@@ -51,6 +56,7 @@ export function readerSections(review: NarrativeReview): ReaderSection[] {
       label: chapter.title,
       chapterNumber: index + 1,
       hasDiagram: chapter.diagram !== undefined,
+      core: brief.has(chapter.id),
     });
   });
 

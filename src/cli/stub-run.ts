@@ -30,7 +30,9 @@ const STUB_RESULT = JSON.stringify({
  * `raw.txt` in the shape the model answers in, one chapter per reviewed file
  * citing every one of its hunks, so parse and render run on a real change
  * for free. The prose says plainly that nothing read the code. Tiers come from
- * the proven facts alone, so the reader's folds can be seen without a model.
+ * the proven facts alone, so the reader's folds can be seen without a model,
+ * and the reading plan is the first chapter for the brief and every chapter for
+ * the standard read, so the plan's block can be too.
  */
 export async function writeStubRun(context: RunContext, run: RunFiles): Promise<number> {
   const review = stubReview(context);
@@ -89,6 +91,20 @@ export function stubReview({ meta, files, hunks }: RunContext) {
         ],
       };
     });
+  const reviewChapters =
+    chapters.length > 0
+      ? chapters
+      : [
+          {
+            id: 'nothing-reviewed',
+            title: 'Nothing to cite',
+            description: {
+              lede: 'Every changed file was left out of the review, so there are no hunks.',
+            },
+            insights: [],
+            diffChunks: [],
+          },
+        ];
   return {
     prTitle: meta.title,
     overviewSummary: {
@@ -97,19 +113,10 @@ export function stubReview({ meta, files, hunks }: RunContext) {
         'From `er review --stub`, so the report can be checked against a real change ' +
         'without running a model.',
     },
-    chapters:
-      chapters.length > 0
-        ? chapters
-        : [
-            {
-              id: 'nothing-reviewed',
-              title: 'Nothing to cite',
-              description: {
-                lede: 'Every changed file was left out of the review, so there are no hunks.',
-              },
-              insights: [],
-              diffChunks: [],
-            },
-          ],
+    chapters: reviewChapters,
+    readingPlan: {
+      brief: [reviewChapters[0]!.id],
+      standard: reviewChapters.map((chapter) => chapter.id),
+    },
   };
 }

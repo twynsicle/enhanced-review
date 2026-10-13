@@ -3,8 +3,26 @@ import { fatalFindings } from '../findings.ts';
 import { buildDiffHunkIndex, groundingFor } from './diff-hunk-catalog.ts';
 import { escapeStrayQuotes, parseNarrativeReview, type ParseResult } from './parse-narrative.ts';
 
-function wrap(payload: unknown): string {
-  return `Sure, here you go:\n<narrative_review>${JSON.stringify(payload)}</narrative_review>\nDone.`;
+type Payload = Record<string, unknown>;
+
+/**
+ * The payload as a model following the prompt sends it, with a reading plan
+ * of its first chapter for the brief and every chapter for the standard read,
+ * so that a test about something else is not also a test of a missing plan.
+ * A payload that names `readingPlan`, even as undefined, keeps its own.
+ */
+function withPlan(payload: Payload): Payload {
+  const chapters: unknown[] = Array.isArray(payload['chapters']) ? payload['chapters'] : [];
+  if ('readingPlan' in payload || chapters.length === 0) return payload;
+  const ids = chapters.map((chapter, index) => {
+    const id = (chapter as Payload | null)?.['id'];
+    return typeof id === 'string' && id.length > 0 ? id : `chapter-${String(index + 1)}`;
+  });
+  return { ...payload, readingPlan: { brief: ids.slice(0, 1), standard: ids } };
+}
+
+function wrap(payload: Payload): string {
+  return `Sure, here you go:\n<narrative_review>${JSON.stringify(withPlan(payload))}</narrative_review>\nDone.`;
 }
 
 /** What a failed parse reports: its first fatal finding. Null when it parses. */
@@ -371,7 +389,7 @@ const chapter = (description: unknown) => ({
 });
 
 describe('prose passages', () => {
-  const parse = (payload: unknown) =>
+  const parse = (payload: Payload) =>
     parseNarrativeReview(wrap(payload), groundingFor(buildDiffHunkIndex(DIFF).hunks));
 
   it('keeps a lede and a body apart', () => {
@@ -1254,5 +1272,94 @@ describe('a cited hunk’s tier', () => {
     expect(result.ok && result.data.chapters[0]?.diffChunks[0]?.hunks[0]?.whitespaceOnly).toBe(
       true,
     );
+  });
+});
+
+describe('a reading plan', () => {
+  const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
+  const chapters = [
+    { id: 'types', title: 'Types', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+    { id: 'core', title: 'Core', insights: [], diffChunks: [cite('src/a.ts', ['H0002'])] },
+    { id: 'wiring', title: 'Wiring', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+  ];
+  const parse = (readingPlan: unknown, withChapters: unknown[] = chapters) =>
+    parseNarrativeReview(
+      wrap({ prTitle: 't', overviewSummary: { lede: 's' }, chapters: withChapters, readingPlan }),
+      grounding,
+    );
+
+  it('keeps the chapters each list names, in chapter order, with nothing to report', () => {
+    const result = parse({ brief: ['core'], standard: ['wiring', 'core', 'types'] });
+    expect(result.ok && result.data.readingPlan).toEqual({
+      brief: ['core'],
+      standard: ['types', 'core', 'wiring'],
+    });
+    expect(result.findings).toEqual([]);
+  });
+
+  it('drops ids that name no chapter, and repeats, in one note', () => {
+    const result = parse({ brief: ['core', 'nope', 'core'], standard: ['types', 'core', 7] });
+    expect(result.ok && result.data.readingPlan).toEqual({
+      brief: ['core'],
+      standard: ['types', 'core'],
+    });
+    expect(codes(result)).toEqual(['reading-plan-id-dropped']);
+    expect(result.findings[0]?.message).toBe(
+      'The reading plan named "nope", "7", which no chapter is called, and "core" more than once in one list; those entries were dropped.',
+    );
+  });
+
+  it('names an unknown id once, however many lists it turns up in', () => {
+    const result = parse({ brief: ['nope', 'core'], standard: ['nope', 'core'] });
+    expect(codes(result)).toEqual(['reading-plan-id-dropped']);
+    expect(result.findings[0]?.message).toBe(
+      'The reading plan named "nope", which no chapter is called; those entries were dropped.',
+    );
+  });
+
+  it('widens the standard read to hold the brief, in chapter order, in one note', () => {
+    const result = parse({ brief: ['wiring', 'core'], standard: ['types'] });
+    expect(result.ok && result.data.readingPlan).toEqual({
+      brief: ['core', 'wiring'],
+      standard: ['types', 'core', 'wiring'],
+    });
+    expect(codes(result)).toEqual(['reading-plan-widened']);
+    expect(result.findings[0]?.message).toContain('left out "core", "wiring" from its brief');
+  });
+
+  it('makes a standard read that never came the brief alone', () => {
+    const result = parse({ brief: ['core'] });
+    expect(result.ok && result.data.readingPlan).toEqual({ brief: ['core'], standard: ['core'] });
+    expect(codes(result)).toEqual(['reading-plan-widened']);
+  });
+
+  it('ships the review without a plan that is missing, not an object, or briefs nothing real', () => {
+    for (const plan of [
+      undefined,
+      null,
+      'core',
+      ['core'],
+      { standard: ['core'] },
+      { brief: ['nope'], standard: ['core'] },
+    ]) {
+      const result = parse(plan);
+      expect(result.ok).toBe(true);
+      expect(result.ok && result.data.readingPlan).toBeUndefined();
+      expect(result.findings.filter((f) => f.code === 'reading-plan-dropped')).toEqual([
+        expect.objectContaining({ severity: 'warning' }),
+      ]);
+    }
+  });
+
+  it('reads a plan sent as a list as no object at all, rather than as an empty brief', () => {
+    const result = parse(['core']);
+    expect(result.ok && result.data.readingPlan).toBeUndefined();
+    expect(result.findings.map((f) => f.message)).toEqual([
+      'The reading plan was not an object, so the review has none.',
+    ]);
+  });
+
+  it('asks for nothing from a review with no chapters to plan', () => {
+    expect(parse(undefined, []).findings).toEqual([]);
   });
 });

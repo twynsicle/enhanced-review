@@ -35,6 +35,7 @@ function review(chunks: { filename: string; hunkIds: string[] }[]): string {
         })),
       },
     ],
+    readingPlan: { brief: ['c'], standard: ['c'] },
   })}</narrative_review>`;
 }
 
@@ -110,6 +111,7 @@ describe('validateReview', () => {
       prTitle: 't',
       overviewSummary: { lede: 's' },
       chapters: [{ id: 'c', title: 'C', insights: [], diffChunks: [] }],
+      readingPlan: { brief: ['c'], standard: ['c'] },
     })}</narrative_review>`;
     expect(validateReview(text, groundingFor([])).findings).toEqual([]);
     expect(validateReview(text).findings).toEqual([]);

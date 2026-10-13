@@ -62,6 +62,10 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
       "diagram": "optional object — see Diagrams below. At most one per chapter"
     }
   ],
+  "readingPlan": {
+    "brief": ["string — the id of a chapter someone with five minutes must read to judge this change. One to three of them. See Reading plan below"],
+    "standard": ["string — the id of a chapter a reviewer approving this change should read. Every brief chapter is one"]
+  },
   "judgementCalls": [
     {
       "title": "string — 4-10 word phrase naming the decision, not the question",
@@ -76,6 +80,7 @@ Guidelines:
 - Produce 2–12 chapters depending on PR complexity. For small PRs (1–2 files, under 20 lines changed), 2–3 chapters is appropriate.
 - Group related changes together logically (e.g. "API types", "database migration", "UI components").
 - Each chapter should tell a coherent story about one aspect of the change.
+- Order the chapters so the reader never meets a consequence before its cause. A new type, helper or schema comes before the code that uses it; the core behaviour change comes before the wiring that connects it; the shared wiring-and-docs chapter comes last. The order of "chapters" is the order they are read in.
 - Chapter titles must be short labels that work in a sidebar, e.g., "Auth Gate", "Runner Cleanup", "Reader Layout". Do not write long takeaway sentences as titles.
 - Each chapter description should be readable by a product-minded reviewer: the lede says what was done, the body covers why it was likely done and the tradeoffs or alternatives the author likely considered. Keep it specific but not overly technical.
 - Describe the PR's final diff, not how it got there. Never narrate the PR's own review or iteration history ("per review feedback", "used to do X, now does Y", "originally implemented as...") — the reviewer sees only the current diff, so a summary framed around an intermediate state compares against something they never saw. Describe what the code does now and why, not the path taken between commits.
@@ -117,6 +122,15 @@ Every hunk a chapter cites carries a tier, so the reader knows where to look har
 - Tier each hunk on its own lines, not by its file or chapter. A test file can hold a setup hunk to skim and an assertion to read; a part of a split hunk is tiered like any other hunk.
 - Some hunks in Changed Hunks carry hints the tool proved from the patch: "[whitespace only]", or "[moved from <path>, N%]" and "[moved to <path>, N%]" when most of a hunk's lines were lifted from, or to, another hunk that holds little else. A hint informs the tier and never decides it: a function moved unchanged is mechanical, but if the move changes what can reach it, or what it can reach, the hunk is read.
 - Neither extreme helps the reader: a review that tiers everything "read" has told them nothing, and one that folds the change's own logic has hidden it.
+
+Reading plan:
+
+Not every reader has time for every chapter, and "readingPlan" tells them which to read when they have less. The reader works out how long each plan takes from the chapters themselves, so do not estimate a time.
+
+- "brief": the one to three chapters someone with five minutes must read to judge the change — where its risk is. The behaviour that could break, the decision a reviewer has to agree with. Never the wiring-and-docs chapter. Being in the brief is how a chapter is marked as core.
+- "standard": the chapters a reviewer approving the change should read. It holds every brief chapter, and leaves out what can be judged from its title and lede alone: wiring, docs, mechanical edits.
+- Reading every chapter is the third plan, and needs no field.
+- Use each chapter's "id" exactly as you wrote it. A plan whose brief names no chapter of this review is dropped.
 
 Writing the prose:
 

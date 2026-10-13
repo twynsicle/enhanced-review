@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { NarrativeReview } from '@/review/narrative';
+import type { CitedHunk, NarrativeChapter, NarrativeReview } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
 import { REAL_ARCHITECTURE } from '@/report/test/diagram-fixtures';
-import { fireEvent, render, screen } from '@/report/test/render';
+import { fireEvent, render, screen, within } from '@/report/test/render';
 import type { AnchoredJudgementCall } from './judgement-calls';
 import { SummaryCard } from './summary-card';
 
@@ -28,7 +28,13 @@ function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
 }
 
 function renderCard(overrides: Partial<NarrativeReview> = {}, meta: Partial<ReviewMeta> = {}) {
-  return render(<SummaryCard review={review(overrides)} meta={{ ...baseMeta, ...meta }} />);
+  return render(
+    <SummaryCard
+      review={review(overrides)}
+      meta={{ ...baseMeta, ...meta }}
+      onSelectChapter={() => {}}
+    />,
+  );
 }
 
 describe('<SummaryCard />', () => {
@@ -145,5 +151,83 @@ describe('<SummaryCard /> and the judgement calls', () => {
   it('draws nothing at all for a review that asked nothing', () => {
     renderCard();
     expect(screen.queryByText('Judgement calls')).toBeNull();
+  });
+});
+
+const planHunk = (lines: number, tier: CitedHunk['tier']): CitedHunk => ({
+  id: `H${String(lines)}`,
+  fileOrder: 0,
+  original: { startLine: 1, lineCount: 0 },
+  modified: { startLine: 1, lineCount: lines },
+  tier,
+  ...(tier === 'mechanical' ? { reason: 'imports for the new helper' } : {}),
+});
+
+const planChapter = (id: string, title: string, cited: CitedHunk): NarrativeChapter => ({
+  id,
+  title,
+  insights: [],
+  diffChunks: [{ filename: `src/${id}.ts`, language: 'typescript', hunks: [cited] }],
+});
+
+/** The plan row a name heads. */
+const rowOf = (name: string) => screen.getByText(name).closest('li') as HTMLElement;
+
+describe('<SummaryCard /> and the reading plan', () => {
+  // 30 lines read is 150s, 3 min; 20 skimmed is 30s, 1 min; one folded row is
+  // 1 min at the floor; the overview's seven words are a minute of their own.
+  const chapters = [
+    planChapter('core', 'The due check', planHunk(30, 'read')),
+    planChapter('support', 'Fixtures', planHunk(20, 'skim')),
+    planChapter('wiring', 'Wiring', planHunk(4, 'mechanical')),
+  ];
+
+  function renderPlan(
+    readingPlan: NarrativeReview['readingPlan'],
+    onSelectChapter: (chapterId: string) => void = () => {},
+  ) {
+    return render(
+      <SummaryCard
+        review={review({ chapters, ...(readingPlan ? { readingPlan } : {}) })}
+        meta={baseMeta}
+        onSelectChapter={onSelectChapter}
+      />,
+    );
+  }
+
+  it('gives each plan its time, the overview included in every one', () => {
+    renderPlan({ brief: ['core'], standard: ['core', 'support'] });
+    expect(screen.getByText('Reading plan')).toBeDefined();
+    expect(within(rowOf('Brief')).getByText('~4 min')).toBeDefined();
+    expect(within(rowOf('Standard')).getByText('~5 min')).toBeDefined();
+    expect(within(rowOf('Full')).getByText('~6 min')).toBeDefined();
+  });
+
+  it('lists under each longer plan only the chapters it adds', () => {
+    renderPlan({ brief: ['core'], standard: ['core', 'support'] });
+    const names = (row: string) =>
+      within(rowOf(row))
+        .queryAllByRole('button')
+        .map((button) => button.textContent);
+    expect(names('Brief')).toEqual(['The due check']);
+    expect(names('Standard')).toEqual(['Fixtures']);
+    expect(names('Full')).toEqual(['Wiring']);
+  });
+
+  it('says so when a plan adds nothing to the one before', () => {
+    renderPlan({ brief: ['core'], standard: ['core', 'support', 'wiring'] });
+    expect(within(rowOf('Full')).getByText('The standard read, and nothing more.')).toBeDefined();
+  });
+
+  it('sends the reader to the chapter a link names', () => {
+    const selected: string[] = [];
+    renderPlan({ brief: ['core'], standard: ['core', 'support'] }, (id) => selected.push(id));
+    fireEvent.click(screen.getByRole('button', { name: 'Fixtures' }));
+    expect(selected).toEqual(['support']);
+  });
+
+  it('draws nothing for a review that carries no plan', () => {
+    renderPlan(undefined);
+    expect(screen.queryByText('Reading plan')).toBeNull();
   });
 });

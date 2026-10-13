@@ -137,6 +137,15 @@ describe('the sample report bundle', () => {
     expect(cited.some((hunk) => hunk.movedTo)).toBe(true);
   });
 
+  it('plans a brief that the standard read adds to and the full read adds to again', () => {
+    const plan = SAMPLE_BUNDLE.review.readingPlan;
+    const ids = SAMPLE_BUNDLE.review.chapters.map((chapter) => chapter.id);
+    expect(plan?.standard.every((id) => ids.includes(id))).toBe(true);
+    expect(plan?.brief.every((id) => plan.standard.includes(id))).toBe(true);
+    expect(plan && plan.brief.length < plan.standard.length).toBe(true);
+    expect(plan && plan.standard.length < ids.length).toBe(true);
+  });
+
   it('covers every file-side state the reader draws', () => {
     const kinds = Object.values(SAMPLE_BUNDLE.files).flatMap((f) => [f.base.kind, f.head.kind]);
     expect(new Set(kinds)).toEqual(new Set(['content', 'absent', 'too-large']));

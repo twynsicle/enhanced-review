@@ -16,7 +16,9 @@ import type {
  * chapters cite hunks at all three attention tiers, so the reader folds a
  * mechanical group and can fold the skim ones, and its hunks carry both proven
  * facts: a test clock moved out of a shared helpers file, and the helper left
- * behind rewrapped by the formatter. Its paths
+ * behind rewrapped by the formatter. Its reading plan puts a chapter in each
+ * row: the queue is the brief, the cadence table joins it for the standard
+ * read, and the clean-up is left to the full one. Its paths
  * put a directory between files of its parent (the scheduler's `fixtures`
  * sorts between `cadence.ts` and `index.ts`), the tree view's hardest case to read:
  * a file below the nested directory could belong to either level.
@@ -560,6 +562,10 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         ],
       },
     ],
+    readingPlan: {
+      brief: ['pausing'],
+      standard: ['cadence-table', 'pausing'],
+    },
     judgementCalls: [
       {
         title: 'Hourly cadence offered to every repo',

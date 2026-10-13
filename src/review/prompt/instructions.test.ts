@@ -20,6 +20,22 @@ describe('the review instructions', () => {
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('never decides it');
   });
 
+  it('order the chapters cause first, since the order of the list is the reading order', () => {
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain(
+      'the reader never meets a consequence before its cause',
+    );
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('the shared wiring-and-docs chapter comes last');
+  });
+
+  it('ask for a reading plan of chapter ids, a brief within a standard, and no minutes', () => {
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"readingPlan": {');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"brief": ["string — the id of a chapter');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"standard": ["string — the id of a chapter');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('Reading plan:');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('It holds every brief chapter');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('do not estimate a time');
+  });
+
   it('state the diagram contract with the real limits, not a template hole', () => {
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('"overviewDiagram"');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('architecture | state | beforeAfter | sequence');

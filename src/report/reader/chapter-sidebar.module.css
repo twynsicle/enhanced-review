@@ -356,3 +356,26 @@
 .item[data-active] .diagramMark {
   color: var(--er-before);
 }
+
+/*
+ * The core mark: a chapter the reading plan's brief holds. `muted-foreground`
+ * rather than `subtle`, because unlike the diagram mark it tells the reader
+ * something they act on; it shares the row's trailing edge with that mark, so
+ * when both are present only the first takes the free space.
+ */
+.coreMark {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1;
+  color: var(--er-muted-foreground);
+}
+
+.coreMark + .diagramMark {
+  margin-left: 0;
+}
+
+.item[data-active] .coreMark {
+  color: var(--er-before);
+}

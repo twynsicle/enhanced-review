@@ -30,14 +30,23 @@ const sections: ReaderSection[] = [
     label: 'Summary',
     chapterNumber: null,
     hasDiagram: false,
+    core: false,
   },
-  { id: 'ch1', kind: 'chapter', label: 'Shape of the change', chapterNumber: 1, hasDiagram: false },
+  {
+    id: 'ch1',
+    kind: 'chapter',
+    label: 'Shape of the change',
+    chapterNumber: 1,
+    hasDiagram: false,
+    core: false,
+  },
   {
     id: 'ch2',
     kind: 'chapter',
     label: 'Risks and follow-ups',
     chapterNumber: 2,
     hasDiagram: false,
+    core: false,
   },
 ];
 
@@ -50,7 +59,14 @@ const riskAssessment: ReviewRiskAssessment = {
 
 /** The same list with a risk section, as `readerSections` builds it. */
 const withRisk: ReaderSection[] = [
-  { id: RISK_SECTION_ID, kind: 'risk', label: 'Risk', chapterNumber: null, hasDiagram: false },
+  {
+    id: RISK_SECTION_ID,
+    kind: 'risk',
+    label: 'Risk',
+    chapterNumber: null,
+    hasDiagram: false,
+    core: false,
+  },
   ...sections,
 ];
 
@@ -190,6 +206,26 @@ describe('<ChapterSidebar />', () => {
     const marks = screen.getAllByLabelText('has a diagram');
     expect(marks).toHaveLength(1);
     expect(marks[0]?.closest('button')?.textContent).toContain('Risks and follow-ups');
+  });
+
+  it('marks the brief’s chapters as core, in words a screen reader hears', () => {
+    render(
+      <ChapterSidebar
+        sections={sections.map((section) =>
+          section.id === 'ch1' ? { ...section, core: true } : section,
+        )}
+        chapters={chapters}
+        activeId={SUMMARY_SECTION_ID}
+        reviewTitle="t"
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Shape of the change core chapter/ })).toBeDefined();
+    expect(screen.getByRole('button', { name: /Risks and follow-ups/ }).textContent).not.toContain(
+      'core chapter',
+    );
+    expect(screen.getAllByTitle('Core chapter: in the brief reading plan')).toHaveLength(1);
   });
 
   it('falls back to the files chapters selected hunks from', () => {

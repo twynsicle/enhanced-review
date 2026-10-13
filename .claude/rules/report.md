@@ -34,9 +34,11 @@ src/report/
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
                      belongs to the file; each change is a history entry),
                      sections.ts (readerSections: the one ordered list of sections — risk when there is an
-                     assessment, the summary, then the chapters — that the sidebar renders and the keyboard walks),
+                     assessment, the summary, then the chapters — that the sidebar renders and the keyboard walks;
+                     a chapter in the reading plan's brief is `core`),
                      chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, a row carrying
-                     a diagram is marked, a skipped file is dimmed, a file the chapters left out carries ○ (none of
+                     a diagram is marked, a core chapter carries a quiet ★ in muted-foreground with "core chapter"
+                     as hidden text, a skipped file is dimmed, a file the chapters left out carries ○ (none of
                      its hunks cited) or ◐ (some) beside its stats with the reason in its title and hidden text,
                      and the file whose diff the reader has scrolled to carries a rail (use-reading-file.ts) that is
                      a quieter, separate mark from the wash on a file the file view shows;
@@ -47,11 +49,21 @@ src/report/
                      file-tree.ts (pure: ReviewFile[] → the directory tree, single-child chains collapsed into one
                      row), chapter-card (groupInsightsByFile splits the chapter's insights: an anchored one goes
                      down to its diff card, the rest stay in the Insights section above them; the chapter's
-                     judgement calls arrive keyed by file and go down the same way), judgement-calls.ts (pure:
+                     judgement calls arrive keyed by file and go down the same way; the header's meta line ends
+                     in the chapter's estimate, "~3 min"),
+                     reading-time.ts (pure, and the only place a reading speed is stated: prose at 200 words a
+                     minute — a chapter's lede, body and insight texts, the overview's lede and body — a `read`
+                     hunk at 12 lines a minute, `skim` at 40, each folded row of adjacent `mechanical` hunks five
+                     seconds however many it holds (grouped by groupSelectedHunks, as the diff card draws them),
+                     a diagram 30 seconds; a hunk's lines are the longer of its two spans; a chapter rounds up to whole
+                     minutes, at least one; readingPlanRows: Brief, Standard and Full, each the overview plus
+                     its chapters' own rounded estimates, so a plan adds up to what the headers show, listing
+                     only the chapters it adds to the plan before it), judgement-calls.ts (pure:
                      anchorJudgementCalls pairs each question with the first chapter citing its file, so the
                      summary's index and the chapter that draws it cannot disagree), summary-card (title/meta,
-                     overview diagram, overview, the judgement-call index — titles linking to the chapter that
-                     draws each — and the author's description collapsed last), risk-card, risk-score,
+                     overview, the reading plan — Brief, Standard and Full, each with its estimate and the
+                     chapters it adds as links — then the overview diagram, the judgement-call index — titles
+                     linking to the chapter that draws each — and the author's description collapsed last), risk-card, risk-score,
                      file-view (one diff over every hunk the chapters cited, merged by coverage.ts's citedChunk,
                      then its uncited hunks under their own label, or why it has none; it never folds — a reader
                      who opens a file asked for all of it), skipped-file.ts (the copy

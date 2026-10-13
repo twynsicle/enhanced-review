@@ -30,6 +30,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {
   'judgement-call-dropped': 'warning',
   'hunk-tier-missing': 'warning',
   'hunk-reason-missing': 'warning',
+  'reading-plan-dropped': 'warning',
   'commands-refused': 'warning',
   'passed-after-retry': 'warning',
   'chapter-id-synthesised': 'note',
@@ -47,6 +48,8 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {
   'risk-part-dropped': 'note',
   'hunk-reason-dropped': 'note',
   'hunk-tier-raised': 'note',
+  'reading-plan-id-dropped': 'note',
+  'reading-plan-widened': 'note',
 };
 
 describe('the finding table', () => {

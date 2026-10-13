@@ -82,7 +82,8 @@ const MODEL_REVIEW = `<narrative_review>
       "insights": [{ "type": "context", "title": "From the test model", "text": "Not a real run." }],
       "diffChunks": [{ "filename": "src/app.ts", "language": "typescript", "hunks": [{ "id": "H0001", "tier": "read" }] }]
     }
-  ]
+  ],
+  "readingPlan": { "brief": ["app"], "standard": ["app"] }
 }
 </narrative_review>`;
 

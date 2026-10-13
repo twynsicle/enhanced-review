@@ -7,6 +7,7 @@ import { InlineDiffChunk } from '@/report/reader/inline-diff-chunk';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
 import { InsightCallout } from '@/report/reader/insight-callout';
 import { ProsePassage } from '@/report/reader/prose-passage';
+import { chapterMinutes, formatMinutes } from '@/report/reader/reading-time';
 import { sectionCardId, sectionHeadingId } from '@/report/reader/sections';
 import { DISPLAY_SIZE, token } from '@/report/theme/tokens';
 
@@ -137,7 +138,8 @@ export function ChapterCard({
           {chapter.title}
         </Title>
         <Text fz="sm" c="dimmed">
-          {plural(fileCount, 'file')} touched · {plural(insightCount, 'insight')}
+          {plural(fileCount, 'file')} touched · {plural(insightCount, 'insight')} ·{' '}
+          {formatMinutes(chapterMinutes(chapter))}
         </Text>
       </Stack>
 

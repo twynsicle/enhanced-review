@@ -61,6 +61,14 @@ describe('readerSections', () => {
     );
     expect(sections.map((section) => section.hasDiagram)).toEqual([true, true, false]);
   });
+
+  it('marks the chapters the reading plan’s brief holds as core, and nothing else', () => {
+    const planned = sectionsOf(
+      review({ readingPlan: { brief: ['ch2'], standard: ['ch1', 'ch2'] } }),
+    );
+    expect(planned.map((section) => section.core)).toEqual([false, false, true]);
+    expect(sectionsOf(review()).some((section) => section.core)).toBe(false);
+  });
 });
 
 describe('findSection', () => {

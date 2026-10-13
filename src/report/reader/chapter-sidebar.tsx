@@ -130,7 +130,7 @@ function SidebarItem({
   active: boolean;
   onSelect: (id: string) => void;
 }) {
-  const { hasDiagram } = section;
+  const { hasDiagram, core } = section;
   return (
     <li>
       <UnstyledButton
@@ -141,6 +141,18 @@ function SidebarItem({
       >
         <span className={classes.index}>{sectionIndexLabel(section)}</span>
         <span className={classes.label}>{section.label}</span>
+        {/*
+         * The brief's chapters, marked where the reader already scans, so the
+         * five-minute read can be followed from the list as well as from the
+         * summary. Quiet on purpose: every chapter is still worth reading, and
+         * a loud mark would say the others are not.
+         */}
+        {core && (
+          <span className={classes.coreMark} title="Core chapter: in the brief reading plan">
+            <span aria-hidden>★</span>
+            <VisuallyHidden>core chapter</VisuallyHidden>
+          </span>
+        )}
         {/*
          * Which sections carry a picture, marked on the list the reader
          * already scans. A separate "Diagrams" block was the alternative, but

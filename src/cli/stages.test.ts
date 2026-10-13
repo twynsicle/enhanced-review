@@ -99,6 +99,8 @@ describe('stub run → parse', () => {
       { title: 'a.ts', cited: ['H0001', 'H0002'] },
       { title: 'b.ts', cited: ['H0003'] },
     ]);
+    // No model chose a brief, so the first chapter stands in for it.
+    expect(review.readingPlan).toEqual({ brief: ['file-1'], standard: ['file-1', 'file-2'] });
     // The files come from context, each carrying its share of the catalog.
     expect(review.files).toEqual(withFileHunks(context().files, context().hunks));
     expect(review.files?.map((file) => file.hunks?.map((h) => h.id))).toEqual([

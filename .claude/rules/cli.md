@@ -91,8 +91,9 @@ src/cli/
                    (one turn however many tools it asked for at once), plus a line per chapter title picked out
                    of the answer as it streams, and a heartbeat line while a turn is quiet
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks, tiered by fact alone —
-                   whitespace-only or moved is `mechanical` with the fact as its reason, the rest `read` — so
-                   the reader's folds can be seen without a model. It also
+                   whitespace-only or moved is `mechanical` with the fact as its reason, the rest `read` — and
+                   a reading plan of the first chapter for the brief and every chapter for the standard read,
+                   so the reader's folds and its plan can be seen without a model. It also
                    overwrites events.jsonl with one clean result event, so the parse stage reads how this run
                    ended and never an earlier run's log
   parse.ts         raw.txt → validateReview (the same verdict the Stop hook uses) → review.json + findings.json,

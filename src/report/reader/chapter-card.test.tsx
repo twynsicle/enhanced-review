@@ -108,6 +108,11 @@ describe('<ChapterCard /> with a mix of insights', () => {
     ).toBeTruthy();
   });
 
+  it('gives its reading time on the header’s meta line, after the counts', () => {
+    renderCard();
+    expect(screen.getByText('2 files touched · 2 insights · ~1 min')).toBeDefined();
+  });
+
   it('draws the description as a lede over a Markdown body', () => {
     const { container } = renderCard();
     expect(screen.getByText('Late cancellations stop counting against a tech.')).toBeDefined();

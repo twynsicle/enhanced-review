@@ -72,6 +72,12 @@ const SEVERITY_BY_CODE = {
    * that cannot say what it hides is not one a reader can trust. One per review.
    */
   'hunk-reason-missing': 'warning',
+  /**
+   * The reading plan was missing, or named no chapter that exists for its
+   * brief, and the review ships without one. Every chapter is still there; a
+   * reader short of time has lost only the advice on which to read.
+   */
+  'reading-plan-dropped': 'warning',
   /** The sandbox refused commands the reviewer asked to run. */
   'commands-refused': 'warning',
   /** The first answer was disqualifying and a retry produced this one. */
@@ -114,6 +120,14 @@ const SEVERITY_BY_CODE = {
    * no reading, and the question is the better evidence. One per review.
    */
   'hunk-tier-raised': 'note',
+  /** Ids in the reading plan that named no chapter, or a chapter twice, and went. */
+  'reading-plan-id-dropped': 'note',
+  /**
+   * Brief chapters the standard plan left out, added to it: the longer plan
+   * that skips what the shorter one calls essential is a contradiction, and
+   * the brief is the better evidence of what matters.
+   */
+  'reading-plan-widened': 'note',
 } as const satisfies Record<string, FindingSeverity>;
 
 export type FindingCode = keyof typeof SEVERITY_BY_CODE;

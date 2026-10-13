@@ -28,6 +28,11 @@ src/review/
                      what the CLI proved, carried on every ResolvedDiffHunk); DiffChunk.hunks is CitedHunk[], a
                      resolved hunk plus its HunkTier (read | skim | mechanical, the model's call on how hard to
                      look) and a reason on mechanical only, since a fold must say what it hides;
+                     the order of `chapters` is the reading order, a cause before its consequences, with no
+                     field for it; ReadingPlan / readingPlan? — `brief` (the one to three chapters where the
+                     risk is, and the only mark of a core chapter) within `standard` (what approving needs),
+                     chapter ids in chapter order; full is every chapter and has no field, and no minutes are
+                     stored, since the reader computes them;
                      SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's synthesised sections
   findings.ts        Finding: code, severity, message and where it happened, plus the ONE map from code to
                      severity — fatal disqualifies the answer, warning ships and is shown, note is only recorded;
@@ -111,7 +116,12 @@ src/review/
                      `hunk-tier-raised` note, since a question must not sit on lines folded away; a chapter's diffChunks are merged to one per filename (a hunk in both through
                      mergeCitations), since the reader keys a file's insights and its count on the name; and an insight's
                      `filename` survives only when the chapter's own diffChunks cite it — anchored elsewhere it
-                     would be drawn nowhere, so the anchor goes and the insight stays),
+                     would be drawn nowhere, so the anchor goes and the insight stays; the reading plan keeps
+                     each list's real chapter ids once each, in chapter order, dropping the rest in one
+                     `reading-plan-id-dropped` note, widens `standard` to hold `brief` (a
+                     `reading-plan-widened` note), and is dropped — a `reading-plan-dropped` warning, the review
+                     shipping without one — when it is missing, not an object, or has no brief left; a review
+                     with no chapters has nothing to plan and is not warned),
                      parse-diagram (same leniency for diagrams, and the same record of it: drops the invalid part,
                      validates each diagram on its own
                      so a bad picture cannot fail the review; a node's filename checked against the reviewed file

@@ -2,7 +2,8 @@
 
 AI code review: a chaptered narrative with an overview, a risk assessment,
 insights, diagrams of what changed, inline diffs you can open beside the prose,
-and — where the code cannot settle it — a question or two put back to you.
+a reading plan for when you have five minutes rather than fifty, and — where
+the code cannot settle it — a question or two put back to you.
 It runs as `er`, one command inside the repository you want reviewed. The
 hosted web app was removed; it is kept at the git tag `hosted-app-final`.
 
@@ -199,7 +200,8 @@ er review --stub
 
 A mechanical review with one chapter per file — no model, no cost, and the
 right way to iterate on the reader. A hunk `er` can prove is whitespace-only
-or moved from elsewhere is marked mechanical, so the reader's folds show too.
+or moved from elsewhere is marked mechanical, so the reader's folds show too,
+and the first chapter stands in as the reading plan's brief.
 
 ```bash
 er review --from parse

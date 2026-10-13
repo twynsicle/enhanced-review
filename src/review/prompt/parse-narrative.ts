@@ -28,7 +28,9 @@ import { sanitizeDiagram } from './parse-diagram.ts';
  * assessment, and hunk ids are resolved against what the prompt showed
  * (unknown or wrong-file ids are dropped). A cited hunk with no usable tier is
  * read as `read`, and a `mechanical` one with no reason as `skim`: both lean
- * toward more of the reader's attention, never less. Diagrams go through `parse-diagram.ts`,
+ * toward more of the reader's attention, never less. A reading plan keeps only
+ * real chapters, its standard read widened to hold its brief, and is dropped
+ * when no brief chapter is left. Diagrams go through `parse-diagram.ts`,
  * which validates each one on its own so a malformed picture cannot take the
  * review down with it. The result is validated against
  * `NarrativeReviewSchema`, so whatever lands in `review.json` parses back
@@ -567,6 +569,83 @@ function raiseJudgedHunks(
   return result;
 }
 
+/** Ids, quoted and listed once each, for a finding's sentence. */
+function listed(ids: Iterable<string>): string {
+  return [...new Set(ids)].map((id) => `"${id}"`).join(', ');
+}
+
+/**
+ * The model's reading plan, held to the chapters that survived parsing.
+ *
+ * Each list keeps the ids of real chapters, once each, in chapter order: the
+ * order of the chapters is the order they are read in, so the order a list
+ * arrived in carries nothing a reader could use. `standard` is widened to
+ * hold all of `brief`, since a longer read that skips what the shorter one
+ * calls essential cannot be what the model meant.
+ *
+ * A plan with no brief left is dropped rather than guessed at. Picking the
+ * core chapters is the judgement the plan exists for, and a guess would look
+ * exactly like one. A review with no chapters has nothing to plan, so silence
+ * there loses nothing.
+ */
+function sanitizeReadingPlan(
+  raw: unknown,
+  chapters: readonly SanitizedChapter[],
+  log: FindingLog,
+): { brief: string[]; standard: string[] } | undefined {
+  if (chapters.length === 0) return undefined;
+  const drop = (message: string): undefined => {
+    log.add('reading-plan-dropped', message);
+    return undefined;
+  };
+  if (!arrived(raw)) return drop('The answer gave no reading plan, so the review has none.');
+  if (!isRecord(raw) || Array.isArray(raw)) {
+    return drop('The reading plan was not an object, so the review has none.');
+  }
+
+  const position = new Map(chapters.map((chapter, index) => [chapter.id, index]));
+  const inChapterOrder = (ids: Iterable<string>): string[] =>
+    [...ids].toSorted((a, b) => position.get(a)! - position.get(b)!);
+  const unknown: string[] = [];
+  const repeated: string[] = [];
+  const chaptersIn = (list: unknown): string[] => {
+    const items: unknown[] = Array.isArray(list) ? list : [];
+    const kept = new Set<string>();
+    for (const item of items) {
+      const id = typeof item === 'string' ? item : String(JSON.stringify(item));
+      if (!position.has(id)) unknown.push(id);
+      else if (kept.has(id)) repeated.push(id);
+      else kept.add(id);
+    }
+    return inChapterOrder(kept);
+  };
+  const brief = chaptersIn(raw['brief']);
+  const asked = chaptersIn(raw['standard']);
+
+  if (unknown.length > 0 || repeated.length > 0) {
+    const parts = [
+      ...(unknown.length > 0 ? [`${listed(unknown)}, which no chapter is called`] : []),
+      ...(repeated.length > 0 ? [`${listed(repeated)} more than once in one list`] : []),
+    ];
+    log.add(
+      'reading-plan-id-dropped',
+      `The reading plan named ${parts.join(', and ')}; those entries were dropped.`,
+    );
+  }
+  if (brief.length === 0) {
+    return drop('The reading plan’s brief named no chapter of this review, so it was dropped.');
+  }
+
+  const missing = brief.filter((id) => !asked.includes(id));
+  if (missing.length > 0) {
+    log.add(
+      'reading-plan-widened',
+      `The reading plan’s standard read left out ${listed(missing)} from its brief, so ${missing.length > 1 ? 'they were' : 'it was'} added to it.`,
+    );
+  }
+  return { brief, standard: inChapterOrder(new Set([...brief, ...asked])) };
+}
+
 /**
  * One chunk per file in a chapter. The reader keys a file's insights and its
  * file count on the filename, so a chapter the model split across two chunks
@@ -900,12 +979,14 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     log,
   );
   const judgementCalls = sanitizeJudgementCalls(parsed['judgementCalls'], chapters, grounding, log);
+  const readingPlan = sanitizeReadingPlan(parsed['readingPlan'], chapters, log);
   const candidate = {
     prTitle: parsed['prTitle'],
     overviewSummary,
     ...(riskAssessment ? { riskAssessment } : {}),
     ...(overviewDiagram ? { overviewDiagram } : {}),
     chapters: raiseJudgedHunks(judgementCalls, chapters, log),
+    ...(readingPlan ? { readingPlan } : {}),
     ...(judgementCalls.length > 0 ? { judgementCalls } : {}),
   };
 
