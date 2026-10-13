@@ -122,7 +122,7 @@ describe('stub run → parse', () => {
     await expect(readReview(run)).resolves.toEqual(review);
   });
 
-  it('tiers by proven fact: a whitespace-only or wholly moved hunk is skim, the rest is read', async () => {
+  it('skims a whitespace-only hunk and reads the rest, a move unchanged included', async () => {
     const tiered = context({
       hunks: [
         hunk('H0001', 'src/a.ts', 1),
@@ -142,7 +142,7 @@ describe('stub run → parse', () => {
     ).toEqual([
       ['H0001', 'read'],
       ['H0002', 'skim'],
-      ['H0003', 'skim'],
+      ['H0003', 'read'],
       ['H0004', 'read'],
     ]);
   });

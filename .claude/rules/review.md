@@ -26,8 +26,8 @@ src/review/
                      ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
                      reviewable and not only what was cited; HunkFacts (whitespaceOnly?, movedFrom?/movedTo? —
                      what the CLI proved, carried on every ResolvedDiffHunk); ResolvedDiffHunk.changedLines, the
-                     lines it adds and removes without git's context, what the reader times; provenSkim, the facts that make a
-                     hunk skim whatever the model said (whitespace only, or moved at 100%); DiffChunk.hunks is
+                     lines it adds and removes without git's context, what the reader times; a whitespace-only hunk is skim whatever the
+                     model said, a move only a hint; DiffChunk.hunks is
                      CitedHunk[], a resolved hunk plus its HunkTier (read | skim, the model's call on how hard to
                      look; nothing folds, the reader fades skim lines in place);
                      the order of `chapters` is the reading order, a cause before its consequences, with no
@@ -92,10 +92,10 @@ src/review/
                      one that only removes, when the significant lines they share, as a multiset, are at least 80%
                      of each side and include three distinct distinctive ones (8+ characters with a word that is
                      not a keyword or markup filler), similarity the smaller share and 100 only for a block
-                     moved unchanged (in order, each line whole; where indentation is syntax, shifted only
-                     as a whole), best overlap winning and the
+                     moved unchanged (in order, each line whole but for a margin the block shifted by as a
+                     whole, in the same whitespace character), best overlap winning and the
                      removing hunk naming its best destination; any file, never a hunk that edits in place; facts
-                     are hints for the tier and tags in the reader, and settle it only through provenSkim; each
+                     are hints for the tier and tags in the reader, and whitespace only settles it; each
                      errs toward proving nothing, since a fact can fade a hunk the model called read),
                      split-hunks (splitPatch: one file's patch with each hunk over the target rewritten as parts,
                      each a real hunk with a synthesised `@@ … @@ (part k of n)` header, so nothing downstream
@@ -139,7 +139,8 @@ src/review/
                      applied here rather than by the schema, which could only refuse the whole review;
                      sanitizeProse takes a `{ lede, body? }` object or a bare string, which is promoted to the
                      lede, as is a body that arrived without one; a diffChunk's `hunks` entry may arrive as a bare
-                     id string; a hunk provenSkim holds for is skim whatever tier came with it, and otherwise a
+                     id string; a whitespace-only hunk is skim whatever tier came with it (a `read` there is one
+                     `hunk-tier-lowered` note naming the hunks), and otherwise a
                      missing or unknown tier is read as `read` — leniency toward the model, recorded once per
                      review as a `hunk-tier-missing` warning naming the hunks, never a reason to fail;
                      every hunk a judgement call cites is raised to `read` on its owner's card, in one

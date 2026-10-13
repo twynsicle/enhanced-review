@@ -124,6 +124,11 @@ const SEVERITY_BY_CODE = {
    * no reading, and the question is the better evidence. One per review.
    */
   'hunk-tier-raised': 'note',
+  /**
+   * Hunks the model tiered `read` that the CLI proved change only whitespace,
+   * skimmed: there is nothing in them to read. One per review.
+   */
+  'hunk-tier-lowered': 'note',
   /** Ids in the reading plan that named no chapter, or a chapter twice, and went. */
   'reading-plan-id-dropped': 'note',
   /**

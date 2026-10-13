@@ -107,9 +107,9 @@ export type HunkMove = z.infer<typeof HunkMoveSchema>;
 /**
  * What the CLI can prove about a hunk from the patch alone
  * (`prompt/hunk-facts.ts`). The model is shown them as hints and the reader
- * draws them as tags. A hunk that is whitespace only, or moved unchanged, is
- * skim whatever the model says (`provenSkim`): there is nothing new in it to
- * read.
+ * draws them as tags. A whitespace-only hunk is skim whatever the model says:
+ * there is nothing new in it to read. A move, even of unchanged lines, stays a
+ * hint, since putting code somewhere else can change what runs it and when.
  */
 export const HunkFactsSchema = z.object({
   whitespaceOnly: z.literal(true).optional(),
@@ -131,15 +131,6 @@ export const ResolvedDiffHunkSchema = HunkFactsSchema.extend({
   changedLines: z.number().int().min(0),
 });
 export type ResolvedDiffHunk = z.infer<typeof ResolvedDiffHunkSchema>;
-
-/** The proven facts that make a hunk skim, whatever tier the model gave it. */
-export function provenSkim(facts: HunkFacts): boolean {
-  return (
-    facts.whitespaceOnly === true ||
-    facts.movedFrom?.similarity === 100 ||
-    facts.movedTo?.similarity === 100
-  );
-}
 
 /**
  * How hard a reviewer must look at a hunk: `read` is what judging the change

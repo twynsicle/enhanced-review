@@ -70,8 +70,10 @@ export function stubReview({ meta, files, hunks }: RunContext) {
           {
             filename: file.filename,
             language: detectLanguage(file.filename),
-            // The parser makes a proven whitespace-only or moved hunk skim.
-            hunks: fileHunks.map((hunk) => ({ id: hunk.id, tier: 'read' })),
+            hunks: fileHunks.map((hunk) => ({
+              id: hunk.id,
+              tier: hunk.whitespaceOnly ? 'skim' : 'read',
+            })),
           },
         ],
       };

@@ -14,7 +14,6 @@ import {
   MAX_EXCERPT_LINES,
   MAX_JUDGEMENT_CALLS,
   NarrativeReviewSchema,
-  provenSkim,
   ReviewRiskFactorImpactSchema,
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
@@ -167,6 +166,8 @@ function sanitizeRiskAssessment(raw: unknown, log: FindingLog): ReviewRiskAssess
 interface TierRepairs {
   /** No tier, or one that is not read or skim: read as `read`. */
   tierMissing: Set<string>;
+  /** Tiered `read` but proven whitespace only: skimmed. */
+  tierLowered: Set<string>;
 }
 
 /**
@@ -179,10 +180,13 @@ function readCitation(raw: unknown): { id: unknown; tier: unknown } {
   return { id: raw, tier: undefined };
 }
 
-/** A proven fact settles the tier before the model's answer is consulted, so a missing tier there is no loss. */
+/** A whitespace-only hunk is skim whatever the model says, so a missing tier there is no loss. */
 function citedHunk(hunk: DiffHunk, rawTier: unknown, repairs: TierRepairs): CitedHunk {
-  if (provenSkim(hunk)) return { ...toResolvedHunk(hunk), tier: 'skim' };
   const parsed = HunkTierSchema.safeParse(rawTier);
+  if (hunk.whitespaceOnly) {
+    if (parsed.success && parsed.data === 'read') repairs.tierLowered.add(hunk.id);
+    return { ...toResolvedHunk(hunk), tier: 'skim' };
+  }
   if (!parsed.success) repairs.tierMissing.add(hunk.id);
   return { ...toResolvedHunk(hunk), tier: parsed.success ? parsed.data : 'read' };
 }
@@ -238,14 +242,22 @@ function resolveHunks(
   return [...deduped.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
 }
 
-/** The one finding the whole answer's missing tiers earn. */
-function reportTierRepairs({ tierMissing }: TierRepairs, log: FindingLog): void {
-  if (tierMissing.size === 0) return;
-  log.add(
-    'hunk-tier-missing',
-    `${plural(tierMissing.size, 'cited hunk')} came with no tier of read or skim, so ${tierMissing.size > 1 ? 'they are' : 'it is'} marked to be read.`,
-    { hunkIds: [...tierMissing] },
-  );
+/** The one finding each kind of tier repair earns across the whole answer. */
+function reportTierRepairs({ tierMissing, tierLowered }: TierRepairs, log: FindingLog): void {
+  if (tierMissing.size > 0) {
+    log.add(
+      'hunk-tier-missing',
+      `${plural(tierMissing.size, 'cited hunk')} came with no tier of read or skim, so ${tierMissing.size > 1 ? 'they are' : 'it is'} marked to be read.`,
+      { hunkIds: [...tierMissing] },
+    );
+  }
+  if (tierLowered.size > 0) {
+    log.add(
+      'hunk-tier-lowered',
+      `${plural(tierLowered.size, 'cited hunk')} tiered to be read ${tierLowered.size > 1 ? 'change' : 'changes'} only whitespace, so ${tierLowered.size > 1 ? 'they are' : 'it is'} marked to be skimmed.`,
+      { hunkIds: [...tierLowered] },
+    );
+  }
 }
 
 /**
@@ -1068,7 +1080,7 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     return fail(log);
   }
 
-  const repairs: TierRepairs = { tierMissing: new Set() };
+  const repairs: TierRepairs = { tierMissing: new Set(), tierLowered: new Set() };
   const excerptDrops: ExcerptDrop[] = [];
   const ids = chapterIds(parsed['chapters'], log);
   const chapters = parsed['chapters'].map((chapter, index) =>

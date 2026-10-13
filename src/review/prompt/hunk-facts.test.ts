@@ -358,6 +358,35 @@ describe('provenFacts: moved', () => {
     );
   });
 
+  it('keeps the whitespace past the margin: a makefile’s tab, a Markdown line’s break', () => {
+    const recipe = ['\tgo vet ./...', '\tgo test ./internal/...', '\tstaticcheck ./cmd/...'];
+    const notes = [
+      'Deploys run nightly  ',
+      'from the release branch only,  ',
+      'never from a feature branch.',
+    ];
+    const similarity = (filename: string, removed: string[], added: string[]) =>
+      provenFacts([body(filename, removed, []), body(filename, [], added)])
+        .values()
+        .next().value?.movedFrom?.similarity;
+
+    expect(similarity('Makefile', recipe, recipe)).toBe(100);
+    expect(
+      similarity(
+        'Makefile',
+        recipe,
+        recipe.map((line) => line.replace('\t', '    ')),
+      ),
+    ).toBe(99);
+    expect(
+      similarity(
+        'docs/ops.md',
+        notes,
+        notes.map((line) => line.trimEnd()),
+      ),
+    ).toBe(99);
+  });
+
   it('lets a Python block shift as a whole when moved, but not one line against the rest', () => {
     const block = [
       'def settle(account, ledger):',

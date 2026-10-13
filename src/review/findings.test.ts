@@ -49,6 +49,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {
   'hunk-id-dropped': 'note',
   'risk-part-dropped': 'note',
   'hunk-tier-raised': 'note',
+  'hunk-tier-lowered': 'note',
   'reading-plan-id-dropped': 'note',
   'reading-plan-widened': 'note',
 };

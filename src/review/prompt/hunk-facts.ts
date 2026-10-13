@@ -8,13 +8,13 @@ import type { HunkFacts } from '../narrative.ts';
  * a line comment), or that its lines were lifted
  * from (or to) another hunk. Both are cheap to check and easy to get wrong by
  * eye, which is why the CLI states them rather than leaving the model to
- * notice. Whether a block moved with changes still matters where it landed is
- * the model's call, not this module's.
+ * notice — and why a move stays a fact: whether a block still matters where it
+ * landed, even unchanged, is the model's call, not this module's. Moving
+ * validation after the charge it guarded changes no line.
  *
- * A whitespace-only hunk, or one moved at 100%, is skim whatever the model
- * says (`provenSkim`), so each fact errs toward proving nothing: a hunk left
- * unproven is the model's to tier, while a behaviour change proven to be
- * whitespace is faded as though it were nothing.
+ * A whitespace-only hunk is skim whatever the model says, so each fact errs
+ * toward proving nothing: a hunk left unproven is the model's to tier, while a
+ * behaviour change proven to be whitespace is faded as though it were nothing.
  *
  * A move is found per hunk rather than per file, so it sees a block that git
  * pairs with nothing: a function body lifted into a differently named
@@ -84,6 +84,7 @@ const FILLER_WORDS = new Set([
 ]);
 const WHITESPACE_RE = /\s+/g;
 const WHITESPACE_CHAR_RE = /\s/;
+const CARRIAGE_RETURN_RE = /\r$/;
 const LEADING_WHITESPACE_RE = /^\s*/;
 const QUOTES = new Set(["'", '"', '`']);
 const BACKSLASH = '\\';
@@ -367,7 +368,7 @@ function findMoves(hunks: readonly HunkBody[]): Move[] {
       }
     }
 
-    let best: Move | null = null;
+    let best: { from: number; common: number; share: number } | null = null;
     for (const [source, { shared, distinctive }] of common) {
       if (distinctive < MOVE_MIN_DISTINCTIVE) continue;
       const share = Math.min(shared / addedTotal, shared / sides[source]!.removedTotal);
@@ -375,32 +376,49 @@ function findMoves(hunks: readonly HunkBody[]): Move[] {
       if (best && (shared < best.common || (shared === best.common && source > best.from))) {
         continue;
       }
-      const similarity = movedUnchanged(hunks[source]!, hunks[index]!)
-        ? 100
-        : Math.min(99, Math.round(100 * share));
-      best = { from: source, to: index, similarity, common: shared };
+      best = { from: source, common: shared, share };
     }
-    if (best) moves.push(best);
+    if (!best) return;
+    const similarity = movedUnchanged(hunks[best.from]!, hunks[index]!)
+      ? 100
+      : Math.min(99, Math.round(100 * best.share));
+    moves.push({ from: best.from, to: index, similarity, common: best.common });
   });
   return moves;
 }
 
 /**
- * The added lines are the removed ones, in order and each whole, blank lines
- * aside and each line's margin trimmed. Where indentation is syntax the block
- * may shift as a whole, but no line may shift against the others.
+ * The added lines are the removed ones, in order and each whole, but for a
+ * margin the block shifted by as a whole, in the same whitespace character,
+ * and blank lines at either end. Whitespace past that margin is kept, a
+ * Markdown line's trailing break or a makefile's tab among them; a multi-line
+ * string shifted with its block still reads as unchanged, since this module
+ * does not lex, which is one reason a move only informs the tier.
  */
 function movedUnchanged(from: HunkBody, to: HunkBody): boolean {
-  const keepIndent = indentationMatters(from.filename) || indentationMatters(to.filename);
-  const shape = (lines: readonly string[]) => {
-    const kept = lines.filter((line) => line.trim().length > 0);
-    const indents = kept.map((line) => LEADING_WHITESPACE_RE.exec(line)![0]);
-    const margin = Math.min(...indents.map((indent) => indent.length));
-    return kept.map((line, index) =>
-      keepIndent ? `${indents[index]!.slice(margin)}${line.trim()}` : line.trim(),
-    );
-  };
-  const before = shape(from.removed);
-  const after = shape(to.added);
-  return before.length === after.length && before.every((line, index) => line === after[index]);
+  const before = withoutMargin(from.removed);
+  const after = withoutMargin(to.added);
+  if (!before || !after || before.lines.length !== after.lines.length) return false;
+  if (before.margin && after.margin && before.margin[0] !== after.margin[0]) return false;
+  return before.lines.every((line, index) => line === after.lines[index]);
+}
+
+/**
+ * A side's lines less a carriage return, its outer blank lines and the margin
+ * they all share; null for a side with nothing on it, or a margin that mixes
+ * tabs and spaces, which a shift could not be read off.
+ */
+function withoutMargin(raw: readonly string[]): { margin: string; lines: string[] } | null {
+  const lines = raw.map((line) => line.replace(CARRIAGE_RETURN_RE, ''));
+  const first = lines.findIndex((line) => line.trim().length > 0);
+  if (first === -1) return null;
+  const last = lines.findLastIndex((line) => line.trim().length > 0);
+  const block = lines.slice(first, last + 1).map((line) => (line.trim().length > 0 ? line : ''));
+  let margin = LEADING_WHITESPACE_RE.exec(block[0]!)![0];
+  for (const line of block) {
+    if (line === '') continue;
+    while (!line.startsWith(margin)) margin = margin.slice(0, -1);
+  }
+  if (new Set(margin).size > 1) return null;
+  return { margin, lines: block.map((line) => line.slice(margin.length)) };
 }

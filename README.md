@@ -216,8 +216,8 @@ er review --stub
 
 A mechanical review with one chapter per file — no model, no cost, and the
 right way to iterate on the reader. Every hunk is read, except one `er` can
-prove is whitespace-only or moved unchanged, which is skim — as it is in any
-review — so the reader's faded lines show too, and the first chapter stands in
+prove is whitespace-only, which is skim — as it is in any review — so the
+reader's faded lines show too, and the first chapter stands in
 as the reading plan's brief.
 
 ```bash

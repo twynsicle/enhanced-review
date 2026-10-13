@@ -74,7 +74,7 @@ src/cli/
   prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
                    commits, where the agent is, Files Changed, Not Reviewed, the hunk table (each hunk's proven
                    facts after it as hints: `[whitespace only]`, `[moved from <path>, N%]`; the parser settles
-                   the tier of a whitespace-only or 100% moved hunk itself), and where the diff
+                   the tier of a whitespace-only hunk itself), and where the diff
                    file is, with its length, then the overview style's section (none for narrative, and never
                    in system.md, which stays the same on every run so it is read from cache), then the
                    engineer's own instructions when given; the dirty paths
@@ -112,8 +112,8 @@ src/cli/
                    refusing one missing or half-written); a review with no excerpts reads no git; paths are
                    looked up in Maps, never as a plain object's keys, since a root file may be `constructor`
                    or `__proto__`
-  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks as `read` (the parser
-                   makes a proven whitespace-only or wholly moved one skim, as it does for any answer) and
+  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing its hunks as `read`, a proven
+                   whitespace-only one as `skim` (as the parser would make it in any answer), and
                    a reading plan of the first chapter for the brief and every chapter for the standard read,
                    so the reader's faded lines and its plan can be seen without a model, and no excerpts, since
                    choosing what unchanged code matters is a judgement and a stub has none. It also

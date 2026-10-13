@@ -1275,7 +1275,7 @@ describe('a cited hunk’s tier', () => {
     expect(codes(result)).toEqual(['chunks-merged', 'chunks-merged']);
   });
 
-  it('carries the catalog’s proven facts onto the hunk, and skims a whitespace-only or wholly moved one', () => {
+  it('carries the catalog’s proven facts onto the hunk, and skims a whitespace-only one whatever its tier', () => {
     const facts = groundingFor(
       buildDiffHunkIndex(DIFF).hunks.map((hunk) => {
         if (hunk.id === 'H0001') {
@@ -1298,25 +1298,38 @@ describe('a cited hunk’s tier', () => {
             title: 'C',
             insights: [],
             diffChunks: [
-              { filename: 'src/a.ts', language: 'typescript', hunks: ['H0001', 'H0002'] },
-              cite('src/b.ts', ['H0003']),
+              {
+                filename: 'src/a.ts',
+                language: 'typescript',
+                hunks: [{ id: 'H0001', tier: 'read' }, 'H0002'],
+              },
+              {
+                filename: 'src/b.ts',
+                language: 'typescript',
+                hunks: [{ id: 'H0003', tier: 'read' }],
+              },
             ],
           },
         ],
       }),
       facts,
     );
+    // A move unchanged keeps the model's tier.
     expect(tiers(result)).toEqual([
-      ['H0001', 'skim'],
+      ['H0001', 'read'],
       ['H0002', 'read'],
       ['H0003', 'skim'],
     ]);
+    expect(result.ok && result.data.chapters[0]?.diffChunks[0]?.hunks[0]?.movedFrom).toEqual({
+      filename: 'src/c.ts',
+      similarity: 100,
+    });
     expect(result.ok && result.data.chapters[0]?.diffChunks[1]?.hunks[0]?.whitespaceOnly).toBe(
       true,
     );
-    // Only H0002 was the model's to tier, and it gave none.
     expect(result.findings.map((f) => [f.code, f.hunkIds])).toEqual([
       ['hunk-tier-missing', ['H0002']],
+      ['hunk-tier-lowered', ['H0003']],
     ]);
   });
 });
