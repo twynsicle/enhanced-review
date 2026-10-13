@@ -192,9 +192,18 @@ function blocksOf(body: readonly BodyLine[], range: Range, floor: number, target
 /**
  * Adjacent blocks joined while they fit the target, so many small
  * declarations become a few parts rather than one each; a block that alone
- * exceeds it is left alone. A part with no changed line joins the part before
- * it, or the one after when it is first.
+ * exceeds it is left alone. A part that changes nothing but blank lines joins
+ * the part before it, or the one after when it is first: on its own it is a
+ * hunk with nothing in it to read, which still has to be cited and tiered.
  */
+function changesText(body: readonly BodyLine[], range: Range): boolean {
+  for (let i = range.start; i < range.end; i += 1) {
+    const line = body[i]!;
+    if ((line.kind === '+' || line.kind === '-') && line.content.trim() !== '') return true;
+  }
+  return false;
+}
+
 function pack(body: readonly BodyLine[], blocks: readonly Range[], target: number): Range[] {
   const packed: Range[] = [];
   for (const block of blocks) {
@@ -205,7 +214,7 @@ function pack(body: readonly BodyLine[], blocks: readonly Range[], target: numbe
   const parts: Range[] = [];
   for (const part of packed) {
     const last = parts.at(-1);
-    if (last && (changedIn(body, part) === 0 || changedIn(body, last) === 0)) last.end = part.end;
+    if (last && (!changesText(body, part) || !changesText(body, last))) last.end = part.end;
     else parts.push(part);
   }
   return parts;

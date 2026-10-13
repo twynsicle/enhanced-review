@@ -166,6 +166,26 @@ describe('splitPatch', () => {
     }
   });
 
+  it('never leaves a part that only adds a blank line', () => {
+    // A hunk inside a file: a test ends in context, one blank line is added,
+    // then a long new block follows. The blank would be a part of its own.
+    const added = fn('next', 12)
+      .slice(0, -1)
+      .map((l) => `+${l}`);
+    const body = ['   });', ' });', '+', ...added];
+    const patch = [
+      'diff --git a/x.ts b/x.ts',
+      '--- a/x.ts',
+      '+++ b/x.ts',
+      `@@ -10,2 +10,${String(body.length - 1)} @@`,
+      ...body,
+      '',
+    ].join('\n');
+    for (const hunk of hunksOf(splitPatch(patch, 10))) {
+      expect(hunk.modified.lineCount - hunk.original.lineCount).toBeGreaterThan(1);
+    }
+  });
+
   it('keeps git’s no-newline marker with the line it is about', () => {
     const source = [...fn('a', 20), ...fn('b', 20).slice(0, -1)];
     const patch = newFile(source).replace(/\n$/, '\n\\ No newline at end of file\n');
