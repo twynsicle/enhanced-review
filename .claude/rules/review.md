@@ -67,7 +67,8 @@ src/review/
                      the reader never guesses it from a ref's name), and the base and head commits the reader keys
                      a reader's progress on
   bundle.ts          ReviewBundle: a review + meta + both sides of each file, for rendering offline — each
-                     reviewed file, and each file an excerpt shows with the same text on both sides; the
+                     reviewed file, and each file an excerpt shows as its head side alone, blank outside the
+                     excerpted lines; the
                      changed files are review.files, never the keys of `files`; schemaVersion, no back-compat;
                      parseBundle, filePair
   bundle-html.ts     the bundle as the text of the report's er-bundle element: injectBundle escapes every <,

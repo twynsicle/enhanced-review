@@ -130,9 +130,12 @@ src/cli/
                    run-stopped-early is about turns nobody can put back by editing it. readFindings reads that
                    file back for the render stage, and refuses one that is missing, half-written or fatal
   render.ts        the bundle into the report shell → review.html, each excerpted file added to its `files`
-                   from excerpts.json with both sides the same and never to the review's file list; an excerpt
-                   whose file excerpts.json lacks, or that is a changed file, fails the stage, since the two
-                   files came from different parses; reportShell rebuilds build/report when stale
+                   and never to the review's file list, as its head side alone (base absent) cut from the full
+                   text excerpts.json holds: the lines some excerpt shows, every other line up to the last of
+                   them blank, so the excerpts keep their numbers and a megabyte file costs a few lines; an
+                   excerpt whose file excerpts.json lacks, that is a changed file, or whose span runs past that
+                   text fails the stage, since the two files came from different parses; reportShell rebuilds
+                   build/report when stale
   shell-stamp.ts   hash of the report's sources; the report build writes it, render compares it
   worktree.ts      a PR's run happens in a detached worktree of its head in the temp dir (er-pr<n>-<pid>-<stamp>),
                    added without hooks or LFS downloads, removed after the run or on interrupt; the sweep removes

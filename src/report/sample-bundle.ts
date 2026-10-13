@@ -20,7 +20,7 @@ import type {
  * row: the queue is the brief, the cadence table joins it for the standard
  * read, and the clean-up is left to the full one. The cadence table shows one
  * excerpt of unchanged code, the runner's daily cap, whose file the bundle
- * carries with both sides the same and the review does not list. Its paths
+ * carries as its head side alone and the review does not list. Its paths
  * put a directory between files of its parent (the scheduler's `fixtures`
  * sorts between `cadence.ts` and `index.ts`), the tree view's hardest case to read:
  * a file below the nested directory could belong to either level.
@@ -650,7 +650,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
       head: { kind: 'too-large' },
     },
     [SAMPLE_EXCERPT_FILE]: {
-      base: { kind: 'content', content: BUDGET },
+      base: { kind: 'absent' },
       head: { kind: 'content', content: BUDGET },
     },
   },

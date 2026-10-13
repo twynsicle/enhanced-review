@@ -3,7 +3,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { BUNDLE_SCHEMA_VERSION, ReviewBundleSchema, type EmbeddedFile } from '../review/bundle.ts';
 import { injectBundle } from '../review/bundle-html.ts';
-import type { NarrativeReview } from '../review/narrative.ts';
+import type { ContextExcerpt, NarrativeReview } from '../review/narrative.ts';
 import type { RunContext } from './context.ts';
 import { readExcerpts, type ExcerptContents } from './excerpts.ts';
 import { runNpmScript, TOOL_ROOT } from './platform.ts';
@@ -14,9 +14,9 @@ import { SHELL_STAMP_FILE, shellSourceStamp } from './shell-stamp.ts';
 /**
  * The render stage: the review, its header and both sides of every reviewed
  * file, packed into the report shell as one `review.html`. Each file an
- * excerpt shows rides along with the same text on both sides, read back from
- * `excerpts.json`; it is in the bundle's `files` only, never the review's, so
- * nothing that counts changed files can count it.
+ * excerpt shows rides along as its excerpted lines at the head commit, cut
+ * from the text `excerpts.json` holds; it is in the bundle's `files` only,
+ * never the review's, so nothing that counts changed files can count it.
  */
 export interface RenderDeps {
   /** The built report shell, placeholder and all. */
@@ -50,8 +50,13 @@ export async function renderRun(
 }
 
 /**
- * The excerpted files as the bundle carries them. A path the review's excerpts
- * name and the parse stage did not read, or one that is also a changed file,
+ * The excerpted files as the bundle carries them: the head side alone, holding
+ * only the lines some excerpt shows, every other line up to the last of them
+ * blank so each excerpt keeps the file's own numbers. A file may be a
+ * megabyte for a sixty-line excerpt, and the report is meant to be emailable.
+ *
+ * A path the review's excerpts name and the parse stage did not read, one
+ * that is also a changed file, or a span past the end of the text it read,
  * means `review.json` and `excerpts.json` came from different parses, and the
  * report would show text that is not the head commit's.
  */
@@ -60,22 +65,43 @@ function excerptFiles(
   context: RunContext,
   contents: ExcerptContents,
 ): Record<string, EmbeddedFile> {
-  const files: Record<string, EmbeddedFile> = {};
+  const spans = new Map<string, ContextExcerpt[]>();
   for (const chapter of review.chapters) {
-    for (const { filename } of chapter.contextExcerpts ?? []) {
-      const content = contents[filename];
-      if (content === undefined || filename in context.contents) {
+    for (const excerpt of chapter.contextExcerpts ?? []) {
+      const content = contents[excerpt.filename];
+      if (
+        content === undefined ||
+        excerpt.filename in context.contents ||
+        excerpt.endLine > lineCount(content)
+      ) {
         throw new Error(
-          `the review's excerpt of ${filename} does not match the parse that wrote it; run from parse`,
+          `the review's excerpt of ${excerpt.filename} does not match the parse that wrote it; run from parse`,
         );
       }
-      files[filename] = {
-        base: { kind: 'content', content },
-        head: { kind: 'content', content },
-      };
+      spans.set(excerpt.filename, [...(spans.get(excerpt.filename) ?? []), excerpt]);
     }
   }
+  const files: Record<string, EmbeddedFile> = {};
+  for (const [filename, excerpts] of spans) {
+    const last = Math.max(...excerpts.map((excerpt) => excerpt.endLine));
+    const shown = contents[filename]!.split('\n')
+      .slice(0, last)
+      .map((line, at) =>
+        excerpts.some((excerpt) => at + 1 >= excerpt.startLine && at + 1 <= excerpt.endLine)
+          ? line
+          : '',
+      );
+    files[filename] = {
+      base: { kind: 'absent' },
+      head: { kind: 'content', content: shown.join('\n') },
+    };
+  }
   return files;
+}
+
+function lineCount(text: string): number {
+  if (text === '') return 0;
+  return (text.endsWith('\n') ? text.slice(0, -1) : text).split('\n').length;
 }
 
 /**

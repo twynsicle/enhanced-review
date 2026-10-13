@@ -313,6 +313,11 @@ describe('render', () => {
   it.each([
     ['an excerpt excerpts.json does not have', 'src/runner.ts', {}],
     ['an excerpt of a changed file', 'src/a.ts', { 'src/a.ts': 'a' }],
+    [
+      'an excerpt past the end of the text excerpts.json holds',
+      'src/runner.ts',
+      { 'src/runner.ts': '' },
+    ],
   ])(
     'refuses %s, since review.json and excerpts.json came from different parses',
     async (_, filename, excerpts) => {
@@ -339,6 +344,38 @@ describe('render', () => {
       expect(existsSync(run.html)).toBe(false);
     },
   );
+
+  it('embeds an excerpted file as its head side alone, blank but for the lines excerpts show', async () => {
+    await writeStubRun(context(), run);
+    const { review } = await parseRun(context(), run, noGit);
+    const lines = Array.from({ length: 10 }, (_, at) => `line ${String(at + 1)}`);
+    writeFileSync(run.excerpts, JSON.stringify({ 'src/runner.ts': `${lines.join('\n')}\n` }));
+    const excerpt = (startLine: number, endLine: number) => ({
+      filename: 'src/runner.ts',
+      startLine,
+      endLine,
+      reason: 'Reads it.',
+    });
+    const [first, second] = review.chapters;
+    const excerpted = {
+      ...review,
+      chapters: [
+        { ...first!, contextExcerpts: [excerpt(2, 3)] },
+        { ...second!, contextExcerpts: [excerpt(6, 6)] },
+      ],
+    };
+
+    await renderRun(context(), excerpted, run, { reportShell: async () => shellHtml });
+
+    const html = readFileSync(run.html, 'utf8');
+    const text = html.slice(html.indexOf('application/json">') + 18, html.lastIndexOf('</script>'));
+    const embedded = readEmbeddedBundle(text);
+    if (!embedded.ok) throw new Error(`no bundle: ${embedded.reason}`);
+    expect(embedded.bundle.files['src/runner.ts']).toEqual({
+      base: { kind: 'absent' },
+      head: { kind: 'content', content: ['', 'line 2', 'line 3', '', '', 'line 6'].join('\n') },
+    });
+  });
 });
 
 /** What a shell build leaves in a tool clone: the page and its stamp. */

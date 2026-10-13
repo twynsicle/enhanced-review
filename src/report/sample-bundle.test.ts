@@ -93,14 +93,14 @@ describe('the sample report bundle', () => {
     expect(anchored.toSorted()).toEqual(Object.keys(HUNK_ANCHORS).toSorted());
   });
 
-  it('shows one excerpt of unchanged code, embedded the same on both sides and listed nowhere as changed', () => {
+  it('shows one excerpt of unchanged code, embedded as its head side alone and listed nowhere as changed', () => {
     const excerpts = SAMPLE_BUNDLE.review.chapters.flatMap(
       (chapter) => chapter.contextExcerpts ?? [],
     );
     expect(excerpts.map((excerpt) => excerpt.filename)).toEqual([SAMPLE_EXCERPT_FILE]);
     const [excerpt] = excerpts;
     const { base, head } = filePair(SAMPLE_BUNDLE, SAMPLE_EXCERPT_FILE);
-    expect(base).toEqual(head);
+    expect(base).toEqual({ kind: 'absent' });
     expect(head.kind === 'content' && head.content.split('\n')[excerpt!.startLine - 1]).toBe(
       '/** Reviews one repo may run in a day before the runner backs off. */',
     );

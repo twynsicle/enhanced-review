@@ -340,8 +340,9 @@ describe('er review', () => {
       if (!result.ok) throw new Error(`no bundle in the report: ${result.reason}`);
       return result.bundle;
     };
-    const fixture = { kind: 'content', content: '# fixture\n' };
-    expect(embedded().files['README.md']).toEqual({ base: fixture, head: fixture });
+    // The head side alone, up to the excerpt's last line.
+    const excerpted = { base: { kind: 'absent' }, head: { kind: 'content', content: '# fixture' } };
+    expect(embedded().files['README.md']).toEqual(excerpted);
     expect(embedded().review.chapters[0]?.contextExcerpts).toEqual([
       {
         filename: 'README.md',
@@ -357,7 +358,7 @@ describe('er review', () => {
     repo.write('README.md', '# renamed\n');
     repo.commit('rename the fixture');
     await expect(review(options({ from: 'render', open: false }), deps)).resolves.toBe(WARNED);
-    expect(embedded().files['README.md']).toEqual({ base: fixture, head: fixture });
+    expect(embedded().files['README.md']).toEqual(excerpted);
   });
 
   it('refuses to resume a target that has never run', async () => {

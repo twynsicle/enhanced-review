@@ -122,9 +122,9 @@ function ExcerptEditor({
 /**
  * Unchanged code the chapter's change reaches without editing it, in the
  * same card as a diff: its path and span, the one sentence saying why it is
- * here, then the lines themselves. The file rides in the bundle with both
- * sides the same, so it is read through `useFilePair` like any changed file
- * while never being listed as one.
+ * here, then the lines themselves. The file rides in the bundle as its head
+ * side alone, blank outside the excerpted lines, so it is read through
+ * `useFilePair` like any changed file while never being listed as one.
  */
 export function ContextExcerptCard({
   excerpt,
