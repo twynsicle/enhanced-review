@@ -105,7 +105,9 @@ src/review/
                      empty line in it a blank context line (git's diff.suppressBlankEmpty), and a body that
                      does not match them throws; cut where a paragraph opens at the shallowest indentation in
                      range, a block still over the target cut again one level in, never inside a run of changed
-                     lines that both removes and adds, then packed greedily up to the target; splitPart reads a
+                     lines that both removes and adds, then packed greedily up to the target, a part of three or
+                     fewer non-blank changed lines (a function's `return` and closing bracket, typically) joined
+                     to its neighbour past the target, since alone it is tiered by its bracket; splitPart reads a
                      header's part number back),
                      instructions.ts (NARRATIVE_SYSTEM_PROMPT, the review instructions and output schema, and
                      LOCAL_WORKING_TREE, the closing paragraph saying where the agent is standing),
@@ -145,7 +147,9 @@ src/review/
                      `hunk-tier-lowered` note naming the hunks), and otherwise a
                      missing or unknown tier is read as `read` — leniency toward the model, recorded once per
                      review as a `hunk-tier-missing` warning naming the hunks, never a reason to fail; a
-                     skimReason is kept trimmed on a skim hunk and dropped on a read one or when blank;
+                     skimReason is kept trimmed on a skim hunk and dropped on a read one, when blank, or past
+                     MAX_SKIM_REASON characters, the last in one `skim-reason-dropped` note, since it is drawn
+                     as a label over the code;
                      every hunk a judgement call cites is raised to `read` on its owner's card, in one
                      `hunk-tier-raised` note, since a question must not sit on lines faded as skim; a chapter's diffChunks are merged to one per filename (a hunk in both through
                      mergeCitations), since the reader keys a file's insights and its count on the name; and an insight's

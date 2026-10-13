@@ -1190,6 +1190,25 @@ describe('a cited hunk’s tier', () => {
     ]);
   });
 
+  it('drops a skim reason too long to be a label, keeping the hunk skim, in one note', () => {
+    const result = parse({
+      filename: 'src/a.ts',
+      language: 'typescript',
+      hunks: [
+        {
+          id: 'H0001',
+          tier: 'skim',
+          skimReason: 'these lines only set up the shared fixtures the cases below use',
+        },
+      ],
+    });
+    const hunk = result.ok ? result.data.chapters[0]!.diffChunks[0]!.hunks[0] : null;
+    expect([hunk?.tier, hunk?.skimReason]).toEqual(['skim', undefined]);
+    expect(result.findings.map((f) => [f.code, f.hunkIds])).toEqual([
+      ['skim-reason-dropped', ['H0001']],
+    ]);
+  });
+
   it('reads a bare id, a missing tier and an unknown one as read, in one warning', () => {
     const result = parse(
       {

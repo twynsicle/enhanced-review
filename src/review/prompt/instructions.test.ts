@@ -10,14 +10,18 @@ describe('the review instructions', () => {
     expect(NARRATIVE_SYSTEM_PROMPT).not.toContain('working tree');
   });
 
-  it('define both attention tiers, a test’s cases as read, and what the hints are for', () => {
+  it('define both attention tiers, a test’s cases and types as read, and what the hints are for', () => {
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('"tier": "read | skim —');
     for (const tier of ['read', 'skim']) {
       expect(NARRATIVE_SYSTEM_PROMPT).toContain(`- "${tier}":`);
     }
     expect(NARRATIVE_SYSTEM_PROMPT).not.toContain('mechanical"');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('When unsure, choose "read"');
-    expect(NARRATIVE_SYSTEM_PROMPT).toContain('the setup is skimmed and the cases are read');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('A test case is read whole');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('no hunk is skim for its brackets');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain(
+      'type declarations, interfaces, schemas and signatures',
+    );
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('[whitespace only]');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('is shown as skim whatever tier you give it');
   });

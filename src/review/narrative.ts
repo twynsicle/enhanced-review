@@ -141,12 +141,18 @@ export const HunkTierSchema = z.enum(['read', 'skim']);
 export type HunkTier = z.infer<typeof HunkTierSchema>;
 
 /**
+ * The longest skim reason kept. It is drawn as a label over the code, so it
+ * has to stay a label rather than become a sentence covering the lines.
+ */
+export const MAX_SKIM_REASON = 40;
+
+/**
  * A hunk as a chapter cites it. `skimReason` is the model's few words on why a
  * skim hunk may be passed over, drawn beside its lines; never on a read hunk.
  */
 export const CitedHunkSchema = ResolvedDiffHunkSchema.extend({
   tier: HunkTierSchema,
-  skimReason: z.string().min(1).optional(),
+  skimReason: z.string().min(1).max(MAX_SKIM_REASON).optional(),
 });
 export type CitedHunk = z.infer<typeof CitedHunkSchema>;
 

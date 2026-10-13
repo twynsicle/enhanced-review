@@ -129,6 +129,12 @@ const SEVERITY_BY_CODE = {
    * skimmed: there is nothing in them to read. One per review.
    */
   'hunk-tier-lowered': 'note',
+  /**
+   * Skim reasons longer than a label, dropped: the hunk stays skim and is
+   * labelled "Skim" alone rather than with a sentence over its code. One per
+   * review.
+   */
+  'skim-reason-dropped': 'note',
   /** Ids in the reading plan that named no chapter, or a chapter twice, and went. */
   'reading-plan-id-dropped': 'note',
   /**

@@ -1,5 +1,5 @@
 import { DIAGRAM_LIMITS } from '../diagram.ts';
-import { MAX_CONTEXT_EXCERPTS, MAX_EXCERPT_LINES } from '../narrative.ts';
+import { MAX_CONTEXT_EXCERPTS, MAX_EXCERPT_LINES, MAX_SKIM_REASON } from '../narrative.ts';
 
 /**
  * What the model is asked to do: the review instructions and output schema,
@@ -55,7 +55,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
             {
               "id": "string — a hunk ID from the Changed Hunks list (example: H0007)",
               "tier": "read | skim — how hard the reviewer must look at this hunk. See Attention tiers below",
-              "skimReason": "string — a skim hunk only: 2-5 words on why it can be skimmed, e.g. 'import wiring' or 'test fixtures'. Omit it on a read hunk"
+              "skimReason": "string — a skim hunk only: 2-5 words, at most ${String(MAX_SKIM_REASON)} characters, on why it can be skimmed, e.g. 'import wiring' or 'shared test fixtures'. Omit it on a read hunk"
             }
           ]
         }
@@ -116,11 +116,12 @@ Attention tiers:
 
 Every hunk a chapter cites carries a tier, so the reader knows where to look hard and what they may pass over. The reader shows every line of every hunk; a skim hunk is drawn faded among the read ones, so a tier never hides anything, it says how much of the reader's attention each hunk deserves.
 
-- "read": what a reviewer must understand to judge the change — new behaviour, logic, edge cases, error handling, anything risky, and the cases a test exercises: each test's name, its inputs and its assertions are a statement of what the change is meant to do. When unsure, choose "read".
-- "skim": needed to follow the story but low-risk — plain wiring, imports, a rename's call sites, boilerplate, generated output, docs, and a test's scaffolding: setup, fixtures, mocks and helpers, unless the scaffolding is itself what the change is about.
-- Tier each hunk on its own lines, not by its file or chapter. A test file holds both: the setup is skimmed and the cases are read; a part of a split hunk is tiered like any other hunk.
+- "read": what a reviewer must understand to judge the change — new behaviour, logic, edge cases, error handling, anything risky; type declarations, interfaces, schemas and signatures, which are quick to read and set the shape of the design; and the cases a test exercises: each test's name, its inputs and its assertions are a statement of what the change is meant to do. When unsure, choose "read".
+- "skim": needed to follow the story but low-risk — plain wiring, imports, a rename's call sites, boilerplate, generated output, docs, and scaffolding a file's tests share: setup and teardown hooks, fixtures and factories defined once, mocks and helpers, unless the scaffolding is itself what the change is about.
+- Tier each hunk on its own lines, not by its file or chapter, and by the most important line in it, never the least: a hunk that returns, branches or assigns is not skim because it also closes a block, and no hunk is skim for its brackets or blank lines. A part of a split hunk is tiered like any other hunk.
+- A test case is read whole: the body of an it/test block, each row of a table of cases, and the data a case builds for itself, even where it looks like setup. Only scaffolding kept apart from the cases and shared by them may be skimmed. A hunk holding any part of a case is read.
 - Some hunks in Changed Hunks carry hints the tool proved from the patch: "[whitespace only]", or "[moved from <path>, N%]" and "[moved to <path>, N%]" when most of a hunk's lines were lifted from, or to, another hunk that holds little else. A whitespace-only hunk is shown as skim whatever tier you give it. A move hint informs the tier and never decides it, even at 100%, which means the lines moved unchanged: a block moved unchanged is usually skim, but a move that changes what can reach the code, what it can reach, or the order it runs in is read.
-- Give every skim hunk a "skimReason", shown beside its faded lines so the reader knows why they may pass over them without opening the hunk: a few lowercase words naming what the lines are ("call sites of the rename", "test fixtures", "re-exported types"), not a sentence and not the word "skim". A hunk the tool proved whitespace only or moved is labelled from that proof, so its reason may add what the proof does not say, such as "moved helper, renamed".
+- Give every skim hunk a "skimReason", shown beside its faded lines so the reader knows why they may pass over them without opening the hunk: a few lowercase words naming what the lines are ("call sites of the rename", "shared test fixtures", "barrel re-exports"), not a sentence and not the word "skim", at most ${String(MAX_SKIM_REASON)} characters; a longer one is dropped. A hunk the tool proved whitespace only or moved is labelled from that proof, so its reason may add what the proof does not say, such as "moved helper, renamed".
 - Neither extreme helps the reader: a review that tiers everything "read" has told them nothing, and one that skims the change's own logic, or its tests' cases, has hidden it.
 
 Reading plan:

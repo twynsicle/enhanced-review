@@ -215,21 +215,31 @@ function blocksOf(body: readonly BodyLine[], range: Range, floor: number, target
   );
 }
 
-/** Whether `range` adds or removes a line that is not blank. */
-function changesText(body: readonly BodyLine[], range: Range): boolean {
+/** How many lines `range` adds or removes that are not blank. */
+function textChanged(body: readonly BodyLine[], range: Range): number {
+  let count = 0;
   for (let i = range.start; i < range.end; i += 1) {
     const line = body[i]!;
-    if ((line.kind === '+' || line.kind === '-') && line.content.trim() !== '') return true;
+    if ((line.kind === '+' || line.kind === '-') && line.content.trim() !== '') count += 1;
   }
-  return false;
+  return count;
 }
+
+/**
+ * A part changing at most this many lines that are not blank is too slight to
+ * stand alone. The typical one is the last paragraph of a function cut at its
+ * paragraphs: a `return` and the closing bracket, which on its own reads as
+ * nothing but the bracket and gets tiered as if that were all it held.
+ */
+const SLIGHT_PART_LINES = 3;
 
 /**
  * Adjacent blocks joined while they fit the target, so many small
  * declarations become a few parts rather than one each; a block that alone
- * exceeds it is left alone. A part that changes nothing but blank lines joins
- * the part before it, or the one after when it is first: on its own it is a
- * hunk with nothing in it to read, which still has to be cited and tiered.
+ * exceeds it is left alone. A slight part joins the part before it, or the
+ * one after when it is first, past the target if need be: on its own it is a
+ * hunk with next to nothing in it to read, which still has to be cited and
+ * tiered, and is tiered by the little it holds.
  */
 function pack(body: readonly BodyLine[], blocks: readonly Range[], target: number): Range[] {
   const packed: Range[] = [];
@@ -241,7 +251,8 @@ function pack(body: readonly BodyLine[], blocks: readonly Range[], target: numbe
   const parts: Range[] = [];
   for (const part of packed) {
     const last = parts.at(-1);
-    if (last && (!changesText(body, part) || !changesText(body, last))) last.end = part.end;
+    const slight = (range: Range) => textChanged(body, range) <= SLIGHT_PART_LINES;
+    if (last && (slight(part) || slight(last))) last.end = part.end;
     else parts.push(part);
   }
   return parts;

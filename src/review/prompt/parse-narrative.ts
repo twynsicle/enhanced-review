@@ -13,6 +13,7 @@ import {
   MAX_CONTEXT_EXCERPTS,
   MAX_EXCERPT_LINES,
   MAX_JUDGEMENT_CALLS,
+  MAX_SKIM_REASON,
   NarrativeReviewSchema,
   ReviewRiskFactorImpactSchema,
   RISK_SECTION_ID,
@@ -169,6 +170,8 @@ interface TierRepairs {
   tierMissing: Set<string>;
   /** Tiered `read` but proven whitespace only: skimmed. */
   tierLowered: Set<string>;
+  /** A skim reason too long to be a label: dropped. */
+  reasonDropped: Set<string>;
 }
 
 /**
@@ -183,8 +186,8 @@ function readCitation(raw: unknown): { id: unknown; tier: unknown; skimReason: u
 
 /**
  * A whitespace-only hunk is skim whatever the model says, so a missing tier
- * there is no loss. A reason that is not a string, or is blank, is no reason:
- * the reader then labels the lines "Skim" alone.
+ * there is no loss. A reason that is not a string, is blank, or is too long
+ * to be a label is no reason: the reader then labels the lines "Skim" alone.
  */
 function citedHunk(
   hunk: DiffHunk,
@@ -193,11 +196,14 @@ function citedHunk(
 ): CitedHunk {
   const parsed = HunkTierSchema.safeParse(rawTier);
   const reason = typeof rawReason === 'string' ? rawReason.trim() : '';
-  const skim = (): CitedHunk => ({
-    ...toResolvedHunk(hunk),
-    tier: 'skim',
-    ...(reason ? { skimReason: reason } : {}),
-  });
+  const skim = (): CitedHunk => {
+    if (reason.length > MAX_SKIM_REASON) repairs.reasonDropped.add(hunk.id);
+    return {
+      ...toResolvedHunk(hunk),
+      tier: 'skim',
+      ...(reason && reason.length <= MAX_SKIM_REASON ? { skimReason: reason } : {}),
+    };
+  };
   if (hunk.whitespaceOnly) {
     if (parsed.success && parsed.data === 'read') repairs.tierLowered.add(hunk.id);
     return skim();
@@ -261,7 +267,10 @@ function resolveHunks(
 }
 
 /** The one finding each kind of tier repair earns across the whole answer. */
-function reportTierRepairs({ tierMissing, tierLowered }: TierRepairs, log: FindingLog): void {
+function reportTierRepairs(
+  { tierMissing, tierLowered, reasonDropped }: TierRepairs,
+  log: FindingLog,
+): void {
   if (tierMissing.size > 0) {
     log.add(
       'hunk-tier-missing',
@@ -274,6 +283,13 @@ function reportTierRepairs({ tierMissing, tierLowered }: TierRepairs, log: Findi
       'hunk-tier-lowered',
       `${plural(tierLowered.size, 'cited hunk')} tiered to be read ${tierLowered.size > 1 ? 'change' : 'changes'} only whitespace, so ${tierLowered.size > 1 ? 'they are' : 'it is'} marked to be skimmed.`,
       { hunkIds: [...tierLowered] },
+    );
+  }
+  if (reasonDropped.size > 0) {
+    log.add(
+      'skim-reason-dropped',
+      `${plural(reasonDropped.size, 'skim reason')} ran past ${String(MAX_SKIM_REASON)} characters, so ${reasonDropped.size > 1 ? 'those hunks are' : 'that hunk is'} labelled "Skim" alone.`,
+      { hunkIds: [...reasonDropped] },
     );
   }
 }
@@ -1098,7 +1114,11 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     return fail(log);
   }
 
-  const repairs: TierRepairs = { tierMissing: new Set(), tierLowered: new Set() };
+  const repairs: TierRepairs = {
+    tierMissing: new Set(),
+    tierLowered: new Set(),
+    reasonDropped: new Set(),
+  };
   const excerptDrops: ExcerptDrop[] = [];
   const ids = chapterIds(parsed['chapters'], log);
   const chapters = parsed['chapters'].map((chapter, index) =>

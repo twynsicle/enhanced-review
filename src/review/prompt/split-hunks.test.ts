@@ -28,6 +28,11 @@ function fn(name: string, bodyLines: number, indent = ''): string[] {
   ];
 }
 
+/** Eight lines of a function's body, numbered from `from`. */
+function steps(from: number): string[] {
+  return Array.from({ length: 8 }, (_, i) => `  const v${String(from + i)} = step();`);
+}
+
 function hunksOf(patch: string) {
   return buildDiffHunkIndex(patch).hunks;
 }
@@ -184,6 +189,15 @@ describe('splitPatch', () => {
     for (const hunk of hunksOf(splitPatch(patch, 10))) {
       expect(hunk.modified.lineCount - hunk.original.lineCount).toBeGreaterThan(1);
     }
+  });
+
+  it('never leaves a function’s return and closing bracket as a part of their own', () => {
+    const source = ['function f() {', ...steps(0), '', ...steps(8), '', '  return v15;', '}'];
+    const parts = hunksOf(splitPatch(newFile(source), 10));
+
+    expect(parts.length).toBeGreaterThan(1);
+    expect(parts.at(-1)!.modified.lineCount).toBeGreaterThan(3);
+    expect(parts.reduce((sum, h) => sum + h.modified.lineCount, 0)).toBe(source.length);
   });
 
   it('reads a hunk by its header’s counts, so an empty line in it is a blank context line', () => {
