@@ -11,9 +11,10 @@ import type { HunkFacts } from '../narrative.ts';
  * notice — and why they stay facts: whether a moved block still matters where
  * it landed is the model's call, not this module's.
  *
- * A fact folds a hunk in the stub and hints the model toward folding it, so
- * each one errs toward proving nothing: a hunk left unproven is read, while a
- * behaviour change proven to be whitespace is hidden.
+ * A whitespace-only or wholly moved hunk is skim whatever the model says
+ * (`provenSkim`), so each fact errs toward proving nothing: a hunk left
+ * unproven is the model's to tier, while a behaviour change proven to be
+ * whitespace is faded as though it were nothing.
  *
  * A move is found per hunk rather than per file, so it sees a block that git
  * pairs with nothing: a function body lifted into a differently named

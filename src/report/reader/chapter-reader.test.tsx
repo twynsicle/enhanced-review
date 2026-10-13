@@ -8,7 +8,7 @@ import {
 import type { ReviewMeta } from '@/review/review-meta';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
 import { SIDEBAR_WIDTH_KEY, useSidebarWidth } from '@/report/stores/sidebar-width';
-import { act, fireEvent, render, screen, userEvent, within } from '@/report/test/render';
+import { act, fireEvent, render, screen, userEvent } from '@/report/test/render';
 import { SIDEBAR_WIDTHS } from '@/report/theme/tokens';
 import { ChapterReader, KEYBOARD_RESIZE_STEP } from './chapter-reader';
 
@@ -126,9 +126,7 @@ async function show(chapterId: string): Promise<void> {
   });
 }
 
-const folded = () => screen.getByRole('group', { name: 'Mechanical lines' });
-
-/** Each chapter shows the same file in the same place: a read hunk, then a folded one. */
+/** Each chapter shows the same file in the same place: a read hunk, then a skim one. */
 function chapter(id: string, title: string): NarrativeChapter {
   return {
     id,
@@ -151,8 +149,7 @@ function chapter(id: string, title: string): NarrativeChapter {
             fileOrder: 2,
             original: { startLine: 21, lineCount: 10 },
             modified: { startLine: 21, lineCount: 10 },
-            tier: 'mechanical',
-            reason: 'imports',
+            tier: 'skim',
           },
         ],
       },
@@ -181,16 +178,6 @@ describe('a chapter change', () => {
         <ChapterReader review={twoChapters} meta={meta} initialActiveId="ch1" />
       </EmbeddedFileSource>,
     );
-  });
-
-  it('folds again what the reader opened in the chapter before', async () => {
-    await userEvent.click(within(folded()).getByRole('button', { name: 'Show' }));
-    expect(within(folded()).getByRole('button', { name: 'Hide' })).toBeDefined();
-
-    await show('ch2');
-
-    expect(screen.getByRole('heading', { name: 'Second look' })).toBeDefined();
-    expect(within(folded()).getByRole('button', { name: 'Show' })).toBeDefined();
   });
 
   it('shows the next chapter’s changes, not the full file the last one was showing', async () => {

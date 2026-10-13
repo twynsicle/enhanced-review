@@ -142,14 +142,12 @@ describe('the sample report bundle', () => {
     ).toEqual(['file', 'directory', 'file', 'file']);
   });
 
-  it('cites hunks at every tier and carries both proven facts, so the reader folds and badges', () => {
-    const cited = SAMPLE_BUNDLE.review.chapters.flatMap((chapter) =>
-      chapter.diffChunks.flatMap((chunk) => chunk.hunks),
-    );
-    expect(new Set(cited.map((hunk) => hunk.tier))).toEqual(
-      new Set(['read', 'skim', 'mechanical']),
-    );
-    expect(cited.filter((hunk) => hunk.tier === 'mechanical' && !hunk.reason)).toEqual([]);
+  it('cites both tiers in one diff and carries both proven facts, so the reader fades and tags', () => {
+    const diffChunks = SAMPLE_BUNDLE.review.chapters.flatMap((chapter) => chapter.diffChunks);
+    const cited = diffChunks.flatMap((chunk) => chunk.hunks);
+    expect(
+      diffChunks.some((chunk) => new Set(chunk.hunks.map((hunk) => hunk.tier)).size === 2),
+    ).toBe(true);
     expect(cited.some((hunk) => hunk.whitespaceOnly)).toBe(true);
     expect(cited.some((hunk) => hunk.movedFrom)).toBe(true);
     expect(cited.some((hunk) => hunk.movedTo)).toBe(true);

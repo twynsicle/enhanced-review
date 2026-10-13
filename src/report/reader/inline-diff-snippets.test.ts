@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildInlineDiffSnippets,
   formatSelectedHunkLabel,
-  groupLineCount,
   groupSelectedHunks,
+  skimRanges,
 } from './inline-diff-snippets';
 import type { CitedHunk } from '@/review/narrative';
 
@@ -49,69 +49,94 @@ describe('groupSelectedHunks', () => {
     expect(groupSelectedHunks([])).toEqual([]);
   });
 
-  it('starts a new group where the tier changes, since a group is what folds', () => {
+  it('keeps one group across a change of tier, since skim is faded in place', () => {
     const groups = groupSelectedHunks([
       makeHunk({ id: 'H0001', fileOrder: 1, tier: 'read' }),
-      makeHunk({ id: 'H0002', fileOrder: 2, tier: 'mechanical', reason: 'imports' }),
-      makeHunk({ id: 'H0003', fileOrder: 3, tier: 'mechanical', reason: 'imports' }),
-      makeHunk({ id: 'H0004', fileOrder: 4, tier: 'skim' }),
+      makeHunk({ id: 'H0002', fileOrder: 2, tier: 'skim' }),
+      makeHunk({ id: 'H0003', fileOrder: 3, tier: 'read' }),
     ]);
     expect(groups.map((group) => group.map((hunk) => hunk.id))).toEqual([
-      ['H0001'],
-      ['H0002', 'H0003'],
-      ['H0004'],
+      ['H0001', 'H0002', 'H0003'],
     ]);
   });
 });
 
-describe('groupLineCount', () => {
-  it('counts the longer side of each hunk', () => {
-    expect(
-      groupLineCount([
+describe('skimRanges', () => {
+  it('gives each side the lines of its skim hunks, in the snippet’s numbering', () => {
+    const snippet = buildInlineDiffSnippets({
+      hunks: [
         makeHunk({
-          original: { startLine: 1, lineCount: 3 },
-          modified: { startLine: 1, lineCount: 5 },
+          id: 'H0001',
+          fileOrder: 1,
+          original: { startLine: 10, lineCount: 3 },
+          modified: { startLine: 10, lineCount: 4 },
         }),
         makeHunk({
-          original: { startLine: 9, lineCount: 4 },
-          modified: { startLine: 11, lineCount: 0 },
+          id: 'H0002',
+          fileOrder: 2,
+          original: { startLine: 13, lineCount: 2 },
+          modified: { startLine: 14, lineCount: 3 },
+          tier: 'skim',
         }),
-      ]),
-    ).toBe(9);
+        makeHunk({
+          id: 'H0003',
+          fileOrder: 3,
+          original: { startLine: 14, lineCount: 0 },
+          modified: { startLine: 17, lineCount: 2 },
+          tier: 'skim',
+        }),
+      ],
+      original: makeLines('o', 30),
+      modified: makeLines('m', 30),
+      contextLines: 5,
+    })[0]!;
+
+    expect(snippet.originalStartLine).toBe(5);
+    expect(snippet.modifiedStartLine).toBe(5);
+    expect(skimRanges(snippet)).toEqual({
+      original: [[9, 10]],
+      modified: [
+        [10, 12],
+        [13, 14],
+      ],
+    });
+  });
+
+  it('fades nothing in a snippet that is all read', () => {
+    const [snippet] = buildInlineDiffSnippets({
+      hunks: [makeHunk({})],
+      original: 'a',
+      modified: 'b',
+    });
+    expect(skimRanges(snippet!)).toEqual({ original: [], modified: [] });
   });
 });
 
 describe('buildInlineDiffSnippets', () => {
-  it('gives each tier its own snippet, carrying the tier and its hunks, without sharing lines', () => {
+  it('draws flush hunks of both tiers as one snippet carrying both', () => {
     const read = makeHunk({
       id: 'H0001',
       fileOrder: 1,
       original: { startLine: 0, lineCount: 0 },
       modified: { startLine: 1, lineCount: 10 },
     });
-    const mechanical = makeHunk({
+    const skim = makeHunk({
       id: 'H0002',
       fileOrder: 2,
       original: { startLine: 0, lineCount: 0 },
       modified: { startLine: 11, lineCount: 10 },
-      tier: 'mechanical',
-      reason: 'boilerplate',
+      tier: 'skim',
     });
     const snippets = buildInlineDiffSnippets({
-      hunks: [read, mechanical],
+      hunks: [read, skim],
       original: '',
       modified: makeLines('m', 20),
       contextLines: 5,
     });
 
-    expect(snippets.map((snippet) => [snippet.key, snippet.tier])).toEqual([
-      ['group-1-1', 'read'],
-      ['group-2-2', 'mechanical'],
-    ]);
-    expect(snippets[1]?.hunks).toEqual([mechanical]);
-    // Flush against each other, so neither draws the other's lines as context.
-    expect(snippets[0]?.modified.split('\n')).toEqual(takeLines('m', 1, 10));
-    expect(snippets[1]?.modified.split('\n')).toEqual(takeLines('m', 11, 20));
+    expect(snippets.map((snippet) => snippet.key)).toEqual(['group-1-2']);
+    expect(snippets[0]?.hunks).toEqual([read, skim]);
+    expect(snippets[0]?.modified.split('\n')).toEqual(takeLines('m', 1, 20));
   });
 
   it('builds one snippet for consecutive hunks and expands with context', () => {

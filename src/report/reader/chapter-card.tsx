@@ -15,7 +15,6 @@ import { InsightCallout } from '@/report/reader/insight-callout';
 import { ProsePassage } from '@/report/reader/prose-passage';
 import { chapterMinutes, formatMinutes } from '@/report/reader/reading-time';
 import { sectionCardId, sectionHeadingId } from '@/report/reader/sections';
-import { useFoldSkim } from '@/report/stores/fold-skim';
 import { DISPLAY_SIZE, token } from '@/report/theme/tokens';
 
 const ORDINALS = [
@@ -130,7 +129,6 @@ export function ChapterCard({
 }) {
   const fileCount = chapter.diffChunks.length;
   const insightCount = chapter.insights.length;
-  const skim = useFoldSkim((s) => s.skim);
   const excerpts = chapter.contextExcerpts ?? [];
   const { anchored, unanchored } = groupInsightsByFile(chapter.insights);
   const reviewFiles = useReviewFiles();
@@ -159,7 +157,7 @@ export function ChapterCard({
         </Title>
         <Text fz="sm" c="dimmed">
           {plural(fileCount, 'file')} touched · {plural(insightCount, 'insight')} ·{' '}
-          {formatMinutes(chapterMinutes(chapter, skim))}
+          {formatMinutes(chapterMinutes(chapter))}
         </Text>
       </Stack>
 

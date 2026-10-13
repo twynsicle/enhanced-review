@@ -62,16 +62,11 @@ const SEVERITY_BY_CODE = {
   'judgement-call-dropped': 'warning',
   /**
    * Cited hunks that came without a tier the reader knows, and were read as
-   * `read`. Repaired to the most attentive tier, so nothing is folded on the
+   * `read`. Repaired to the more attentive tier, so nothing is faded on the
    * model's silence, but the reader's sense of where to look hard is the
    * model's to give and this review has less of it. One per review.
    */
   'hunk-tier-missing': 'warning',
-  /**
-   * Hunks tiered `mechanical` with no reason, shown as `skim` instead: a fold
-   * that cannot say what it hides is not one a reader can trust. One per review.
-   */
-  'hunk-reason-missing': 'warning',
   /**
    * The reading plan was missing, or named no chapter that exists for its
    * brief, and the review ships without one. Every chapter is still there; a
@@ -123,11 +118,6 @@ const SEVERITY_BY_CODE = {
   'hunk-id-dropped': 'note',
   /** Part of the risk assessment went: a factor, an impact, a summary. */
   'risk-part-dropped': 'note',
-  /**
-   * Hunks given a reason on a tier that does not fold, the reason dropped since
-   * nothing would draw it. One per review.
-   */
-  'hunk-reason-dropped': 'note',
   /**
    * Hunks a judgement call asks about, raised to `read` on the card that draws
    * the call. The model contradicted itself, asking about lines it said needed

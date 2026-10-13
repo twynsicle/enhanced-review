@@ -40,6 +40,9 @@ vi.mock('@monaco-editor/react', async () => {
     updateOptions: (options: Options) => Object.assign(widget.sides[which], options),
     getContentHeight: () => 120,
     onDidContentSizeChange: () => disposable,
+    // No model is handed over, so there are no skim lines to fade.
+    getModel: () => null,
+    createDecorationsCollection: () => ({ clear: () => {} }),
   });
   const original = side('original');
   const modified = side('modified');

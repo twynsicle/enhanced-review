@@ -108,3 +108,12 @@
 .editor :global(.gutter-delete) {
   box-shadow: inset -2px 0 0 var(--er-del);
 }
+
+/*
+ * A skim hunk's lines, handed to Monaco as decoration classes on the text and
+ * the line number. Faded rather than folded, so the file stays one editor the
+ * reader can search; far enough to tell apart, near enough to read on demand.
+ */
+.skim {
+  opacity: 0.55;
+}

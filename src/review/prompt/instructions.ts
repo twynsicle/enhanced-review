@@ -54,8 +54,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
           "hunks": [
             {
               "id": "string — a hunk ID from the Changed Hunks list (example: H0007)",
-              "tier": "read | skim | mechanical — how hard the reviewer must look at this hunk. See Attention tiers below",
-              "reason": "string — required when tier is mechanical, and only then. At most 12 words naming what kind of change it is, e.g. 'the same rename at 14 call sites'"
+              "tier": "read | skim — how hard the reviewer must look at this hunk. See Attention tiers below"
             }
           ]
         }
@@ -114,16 +113,13 @@ Guidelines:
 
 Attention tiers:
 
-Every hunk a chapter cites carries a tier, so the reader knows where to look hard and what they may pass over. The reader folds a mechanical hunk behind its reason, one click from the code, so a tier never hides anything; it says how much of the reader's attention each hunk deserves.
+Every hunk a chapter cites carries a tier, so the reader knows where to look hard and what they may pass over. The reader shows every line of every hunk; a skim hunk is drawn faded among the read ones, so a tier never hides anything, it says how much of the reader's attention each hunk deserves.
 
-- "read": what a reviewer must understand to judge the change — new behaviour, logic, edge cases, error handling, anything risky. When unsure, choose "read".
-- "skim": needed to follow the story but low-risk — plain wiring, test setup, docs that matter.
-- "mechanical": judged from its reason alone — a rename's call sites, imports, formatting, code moved unchanged, boilerplate, generated output.
-
-- A mechanical hunk's "reason" is what the reader sees instead of the code, so it must say what kind of change it is: "the same rename at 14 call sites", "imports for the new helper", "moved unchanged from src/a.ts". "Mechanical change" or "minor" tells them nothing. A mechanical hunk without a reason is shown as skim.
-- Tier each hunk on its own lines, not by its file or chapter. A test file can hold a setup hunk to skim and an assertion to read; a part of a split hunk is tiered like any other hunk.
-- Some hunks in Changed Hunks carry hints the tool proved from the patch: "[whitespace only]", or "[moved from <path>, N%]" and "[moved to <path>, N%]" when most of a hunk's lines were lifted from, or to, another hunk that holds little else. A hint informs the tier and never decides it: a function moved unchanged is mechanical, but if the move changes what can reach it, or what it can reach, the hunk is read.
-- Neither extreme helps the reader: a review that tiers everything "read" has told them nothing, and one that folds the change's own logic has hidden it.
+- "read": what a reviewer must understand to judge the change — new behaviour, logic, edge cases, error handling, anything risky, and the cases a test exercises: each test's name, its inputs and its assertions are a statement of what the change is meant to do. When unsure, choose "read".
+- "skim": needed to follow the story but low-risk — plain wiring, imports, a rename's call sites, boilerplate, generated output, docs, and a test's scaffolding: setup, fixtures, mocks and helpers, unless the scaffolding is itself what the change is about.
+- Tier each hunk on its own lines, not by its file or chapter. A test file holds both: the setup is skimmed and the cases are read; a part of a split hunk is tiered like any other hunk.
+- Some hunks in Changed Hunks carry hints the tool proved from the patch: "[whitespace only]", or "[moved from <path>, N%]" and "[moved to <path>, N%]" when most of a hunk's lines were lifted from, or to, another hunk that holds little else. A whitespace-only hunk, or one moved at 100%, is shown as skim whatever tier you give it. Below 100% the hint informs the tier and never decides it: a move that changes what can reach the code, or what it can reach, is read.
+- Neither extreme helps the reader: a review that tiers everything "read" has told them nothing, and one that skims the change's own logic, or its tests' cases, has hidden it.
 
 Reading plan:
 

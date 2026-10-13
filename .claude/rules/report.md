@@ -30,12 +30,12 @@ src/report/
   chrome/            brand-mark (+ brand-mark.svg, imported so the build inlines it), caption (the one uppercase
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
                      topbar (TopbarFrame, Brand), display-menu (every display preference in one labelled
-                     dropdown: diffs, long lines, skim, comments, layout, theme)
+                     dropdown: diffs, long lines, comments, layout, theme)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
                      belongs to the file; each change is a history entry; the review's read chapters from the
                      progress store, handed to the sidebar and the footer alike; the chapter card keyed by its
-                     chapter, so a fold or full-file view opened in one never carries into the next),
+                     chapter, so a full-file view opened in one never carries into the next),
                      sections.ts (readerSections: the one ordered list of sections — risk when there is an
                      assessment, the summary, then the chapters — that the sidebar renders, the keyboard walks
                      and the footer's Next follows; a chapter in the reading plan's brief is `core`;
@@ -87,13 +87,10 @@ src/report/
                      the bundle lacks is a line of text, never an empty editor),
                      reading-time.ts (pure, and the only place a reading speed is stated: prose at 200 words a
                      minute — a chapter's lede, body and insight texts, the overview's lede and body — a `read`
-                     hunk at 12 lines a minute, `skim` at 40, each folded row of adjacent `mechanical` hunks five
-                     seconds however many it holds (grouped by groupSelectedHunks, as the diff card draws them),
-                     and a run of `skim` hunks the same when er-fold-skim folds them — the preference handed in
-                     by chapter-card and summary-card, so this stays pure and the estimate is of what is drawn;
+                     hunk at 12 lines a minute, `skim` at 40;
                      a diagram 30 seconds, an excerpt's lines at the skim speed and its reason as prose; a
-                     hunk's lines are hunkLineCount's (inline-diff-snippets.ts), the longer of its two spans,
-                     which the fold row's line count sums too; a chapter rounds up to whole
+                     hunk's lines are hunkLineCount's (inline-diff-snippets.ts), the longer of its two spans;
+                     a chapter rounds up to whole
                      minutes, at least one; readingPlanRows: Brief, Standard and Full, each the overview plus
                      its chapters' own rounded estimates, so a plan adds up to what the headers show, listing
                      only the chapters it adds to the plan before it), judgement-calls.ts (pure:
@@ -103,8 +100,7 @@ src/report/
                      chapters it adds as links — then the overview diagram, the judgement-call index — titles
                      linking to the chapter that draws each — and the author's description collapsed last), risk-card, risk-score,
                      file-view (one diff over every hunk the chapters cited, merged by coverage.ts's citedChunk,
-                     then its uncited hunks under their own label, or why it has none; it never folds — a reader
-                     who opens a file asked for all of it), skipped-file.ts (the copy
+                     then its uncited hunks under their own label, or why it has none), skipped-file.ts (the copy
                      for ReviewFile.skipped reasons), insight-callout (InsightCallout and JudgementCallout over one
                      marginalia treatment), article.module.css (the reading measure + the diff bleed lane),
                      prose-passage (a Prose: the lede one step up the scale, the body as Markdown beneath),
@@ -114,12 +110,14 @@ src/report/
                      has a pair and no record, which is what keeps it out of every changed-file list), file-origin.ts (the "Renamed from … · N% similar"
                      wording the file view, the diff card header and the sidebar row share),
                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group
-                     (inline-diff-snippets.ts: a group is consecutive hunks of one tier, and its context stops at
-                     the unchanged lines between it and the file's neighbouring hunks, so the flush parts of a
-                     split hunk never draw each other's lines); a group not plainly `read`, or carrying a fact,
-                     gets a row above it — its tier as a Caption, a mechanical group's reasons, its line count,
-                     fact badges; a `mechanical` group is folded to that row, and a `skim` one when er-fold-skim
-                     says so, with Show/Hide opening it in place, unless `fold` is off (the file view),
+                     (inline-diff-snippets.ts: a group is consecutive hunks whatever their tiers, and its context
+                     stops at the unchanged lines between it and the file's neighbouring hunks, so the flush parts
+                     of a split hunk never draw each other's lines); nothing folds: a skim hunk's lines, from
+                     skimRanges, are faded in place on each side by Monaco decorations (text and line number at
+                     the .skim opacity, a hover saying why), so a file stays one editor the find widget reaches —
+                     except a skim hunk's removed lines in the stacked view, which are view zones the original
+                     editor's decorations cannot reach; each proven fact is a tag in the card's header with the
+                     lines it holds for; the full-file view keeps the chapter's hunks, so its skim lines stay faded;
                      the asides for this file above the diff — judgement calls first, then the chapter's
                      insights that named it — and a lazy Monaco DiffEditor, its theme from useEditorTheme;
                      the wrap preference goes to the live widget as diffWordWrap, never through its
@@ -156,10 +154,9 @@ src/report/
                      Monaco spells diffWordWrap), file-list-view.ts (`er-file-list`, flat ⇄ tree), sidebar-width.ts
                      (`er-sidebar`, the navigation column in pixels, clamped to SIDEBAR_WIDTHS rather than matched;
                      followSidebarWidth paints `--review-sidebar-width` on `<html>` — a drag writes the variable
-                     directly and commits to the store once on release), fold-skim.ts (`er-fold-skim`, shown ⇄
-                     folded: whether skim hunks fold like mechanical ones), dim-comments.ts (`er-dim-comments`,
+                     directly and commits to the store once on release), dim-comments.ts (`er-dim-comments`,
                      normal ⇄ dimmed: comments in the code viewers at full strength or in `subtle`, every line
-                     kept in place), all seven on raw-preference.ts (one word
+                     kept in place), all six on raw-preference.ts (one word
                      or one number, not JSON). progress.ts (`er-progress`) is the one record rather than a
                      preference, so it is JSON and not on raw-preference: `{ [repo|baseSha|headSha]: { read:
                      chapterId[], at } }`, the 50 most recently touched reviews kept; written over what storage

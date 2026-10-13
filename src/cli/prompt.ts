@@ -202,9 +202,9 @@ function formatHunkCatalog(hunks: readonly DiffHunk[]): string {
 }
 
 /**
- * What the CLI proved about a hunk, as hints for the tier. Hints and not
- * verdicts: a function moved unchanged is mechanical where it landed, unless
- * the move is the point of the change.
+ * What the CLI proved about a hunk, as hints for the tier. The parser settles
+ * the tier of a whitespace-only or wholly moved hunk itself (`provenSkim`);
+ * a partial move is the model's to judge.
  */
 function formatHints(hunk: DiffHunk): string {
   const hints = [

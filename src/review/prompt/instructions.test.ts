@@ -10,15 +10,16 @@ describe('the review instructions', () => {
     expect(NARRATIVE_SYSTEM_PROMPT).not.toContain('working tree');
   });
 
-  it('define every attention tier, a mechanical hunk’s reason, and what the hints are for', () => {
-    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"tier": "read | skim | mechanical');
-    for (const tier of ['read', 'skim', 'mechanical']) {
+  it('define both attention tiers, a test’s cases as read, and what the hints are for', () => {
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"tier": "read | skim —');
+    for (const tier of ['read', 'skim']) {
       expect(NARRATIVE_SYSTEM_PROMPT).toContain(`- "${tier}":`);
     }
+    expect(NARRATIVE_SYSTEM_PROMPT).not.toContain('mechanical"');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('When unsure, choose "read"');
-    expect(NARRATIVE_SYSTEM_PROMPT).toContain('required when tier is mechanical');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('the setup is skimmed and the cases are read');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('[whitespace only]');
-    expect(NARRATIVE_SYSTEM_PROMPT).toContain('never decides it');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('is shown as skim whatever tier you give it');
   });
 
   it('order the chapters cause first, since the order of the list is the reading order', () => {

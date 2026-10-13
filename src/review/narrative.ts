@@ -107,8 +107,9 @@ export type HunkMove = z.infer<typeof HunkMoveSchema>;
 /**
  * What the CLI can prove about a hunk from the patch alone
  * (`prompt/hunk-facts.ts`). The model is shown them as hints and the reader
- * draws them as badges; neither ever decides a tier, because a fact says what
- * the lines are and not whether they matter.
+ * draws them as tags. A hunk that is whitespace only, or moved unchanged, is
+ * skim whatever the model says (`provenSkim`): there is nothing new in it to
+ * read.
  */
 export const HunkFactsSchema = z.object({
   whitespaceOnly: z.literal(true).optional(),
@@ -125,22 +126,26 @@ export const ResolvedDiffHunkSchema = HunkFactsSchema.extend({
 });
 export type ResolvedDiffHunk = z.infer<typeof ResolvedDiffHunkSchema>;
 
-/**
- * How hard the model says a reviewer must look at a hunk, most attentive
- * first: `read` is what judging the change rests on, `skim` is needed to
- * follow the story, and `mechanical` can be judged from its reason alone.
- */
-export const HunkTierSchema = z.enum(['read', 'skim', 'mechanical']);
-export type HunkTier = z.infer<typeof HunkTierSchema>;
+/** The proven facts that make a hunk skim, whatever tier the model gave it. */
+export function provenSkim(facts: HunkFacts): boolean {
+  return (
+    facts.whitespaceOnly === true ||
+    facts.movedFrom?.similarity === 100 ||
+    facts.movedTo?.similarity === 100
+  );
+}
 
 /**
- * A hunk as a chapter cites it. `reason` says what kind of change a
- * `mechanical` hunk is, and is present on that tier only: a fold that does not
- * say what it hides asks the reader to trust it blind.
+ * How hard a reviewer must look at a hunk: `read` is what judging the change
+ * rests on, `skim` is needed to follow the story. Nothing is folded away for
+ * either; the reader draws skim lines faded, in place among the read ones.
  */
+export const HunkTierSchema = z.enum(['read', 'skim']);
+export type HunkTier = z.infer<typeof HunkTierSchema>;
+
+/** A hunk as a chapter cites it. */
 export const CitedHunkSchema = ResolvedDiffHunkSchema.extend({
   tier: HunkTierSchema,
-  reason: z.string().optional(),
 });
 export type CitedHunk = z.infer<typeof CitedHunkSchema>;
 

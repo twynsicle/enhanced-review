@@ -215,9 +215,10 @@ er review --stub
 ```
 
 A mechanical review with one chapter per file — no model, no cost, and the
-right way to iterate on the reader. A hunk `er` can prove is whitespace-only
-or moved from elsewhere is marked mechanical, so the reader's folds show too,
-and the first chapter stands in as the reading plan's brief.
+right way to iterate on the reader. Every hunk is read, except one `er` can
+prove is whitespace-only or moved unchanged, which is skim — as it is in any
+review — so the reader's faded lines show too, and the first chapter stands in
+as the reading plan's brief.
 
 ```bash
 er review --from parse

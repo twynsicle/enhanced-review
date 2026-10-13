@@ -2,7 +2,6 @@ import { detectLanguage } from './language-map.ts';
 import type {
   CitedHunk,
   DiffChunk,
-  HunkTier,
   NarrativeChapter,
   NarrativeReview,
   ResolvedDiffHunk,
@@ -64,20 +63,12 @@ export function withFileHunks(
   );
 }
 
-const ATTENTION: Record<HunkTier, number> = { read: 0, skim: 1, mechanical: 2 };
-
 /**
- * One hunk cited twice, as one citation: the more attentive tier wins, since
- * a hunk one chapter says must be read is not made skimmable by another
- * calling it routine. A reason belongs to a mechanical result only, which
- * both citations were; the first one's reason stands.
+ * One hunk cited twice, as one citation: `read` wins, since a hunk one chapter
+ * says must be read is not made skimmable by another calling it routine.
  */
 export function mergeCitations(first: CitedHunk, second: CitedHunk): CitedHunk {
-  const tier = ATTENTION[second.tier] < ATTENTION[first.tier] ? second.tier : first.tier;
-  const { reason, ...rest } = { ...first, tier };
-  if (tier !== 'mechanical') return rest;
-  const kept = reason ?? second.reason;
-  return kept === undefined ? rest : { ...rest, reason: kept };
+  return second.tier === 'read' ? { ...first, tier: 'read' } : first;
 }
 
 /** Every hunk id some chapter's diffChunks cite. */

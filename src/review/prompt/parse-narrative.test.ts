@@ -1119,11 +1119,11 @@ describe('the repairs a reader never sees', () => {
   });
 });
 
-/** Each cited hunk of the first chapter as [id, tier, reason]. */
+/** Each cited hunk of the first chapter as [id, tier]. */
 const tiers = (result: ParseResult) =>
   result.ok
     ? result.data.chapters[0]!.diffChunks.flatMap((chunk) =>
-        chunk.hunks.map((hunk) => [hunk.id, hunk.tier, hunk.reason]),
+        chunk.hunks.map((hunk) => [hunk.id, hunk.tier]),
       )
     : null;
 
@@ -1138,22 +1138,22 @@ describe('a cited hunk’s tier', () => {
       }),
       grounding,
     );
-  it('keeps each tier as sent, and a mechanical hunk’s reason with it', () => {
+  it('keeps each tier as sent', () => {
     const result = parse(
       {
         filename: 'src/a.ts',
         language: 'typescript',
         hunks: [
-          { id: 'H0001', tier: 'mechanical', reason: '  imports for the new helper ' },
+          { id: 'H0001', tier: 'skim' },
           { id: 'H0002', tier: 'skim' },
         ],
       },
       { filename: 'src/b.ts', language: 'typescript', hunks: [{ id: 'H0003', tier: 'read' }] },
     );
     expect(tiers(result)).toEqual([
-      ['H0001', 'mechanical', 'imports for the new helper'],
-      ['H0002', 'skim', undefined],
-      ['H0003', 'read', undefined],
+      ['H0001', 'skim'],
+      ['H0002', 'skim'],
+      ['H0003', 'read'],
     ]);
     expect(result.findings).toEqual([]);
   });
@@ -1163,14 +1163,14 @@ describe('a cited hunk’s tier', () => {
       {
         filename: 'src/a.ts',
         language: 'typescript',
-        hunks: ['H0001', { id: 'H0002', tier: 'glance' }],
+        hunks: ['H0001', { id: 'H0002', tier: 'mechanical' }],
       },
       { filename: 'src/b.ts', language: 'typescript', hunks: [{ id: 'H0003' }] },
     );
     expect(tiers(result)).toEqual([
-      ['H0001', 'read', undefined],
-      ['H0002', 'read', undefined],
-      ['H0003', 'read', undefined],
+      ['H0001', 'read'],
+      ['H0002', 'read'],
+      ['H0003', 'read'],
     ]);
     expect(result.findings).toEqual([
       expect.objectContaining({
@@ -1180,51 +1180,6 @@ describe('a cited hunk’s tier', () => {
       }),
     ]);
     expect(result.findings[0]?.message).toMatch(/^3 cited hunks /);
-  });
-
-  it('shows a mechanical hunk with no reason as skim, in one warning of its own', () => {
-    const result = parse(
-      {
-        filename: 'src/a.ts',
-        language: 'typescript',
-        hunks: [
-          { id: 'H0001', tier: 'mechanical' },
-          { id: 'H0002', tier: 'mechanical', reason: '   ' },
-        ],
-      },
-      { filename: 'src/b.ts', language: 'typescript', hunks: ['H0003'] },
-    );
-    expect(tiers(result)).toEqual([
-      ['H0001', 'skim', undefined],
-      ['H0002', 'skim', undefined],
-      ['H0003', 'read', undefined],
-    ]);
-    expect(result.findings.map((f) => [f.code, f.hunkIds])).toEqual([
-      ['hunk-tier-missing', ['H0003']],
-      ['hunk-reason-missing', ['H0001', 'H0002']],
-    ]);
-  });
-
-  it('drops a reason given on a tier that is not folded, in one note', () => {
-    const result = parse({
-      filename: 'src/a.ts',
-      language: 'typescript',
-      hunks: [
-        { id: 'H0001', tier: 'read', reason: 'the heart of it' },
-        { id: 'H0002', tier: 'skim', reason: 'a rename' },
-      ],
-    });
-    expect(tiers(result)).toEqual([
-      ['H0001', 'read', undefined],
-      ['H0002', 'skim', undefined],
-    ]);
-    expect(result.findings).toEqual([
-      expect.objectContaining({
-        code: 'hunk-reason-dropped',
-        severity: 'note',
-        hunkIds: ['H0001', 'H0002'],
-      }),
-    ]);
   });
 
   it('raises a hunk a judgement call asks about to read on the card that asks it, in one note', () => {
@@ -1242,7 +1197,7 @@ describe('a cited hunk’s tier', () => {
                 filename: 'src/a.ts',
                 language: 'typescript',
                 hunks: [
-                  { id: 'H0001', tier: 'mechanical', reason: 'imports' },
+                  { id: 'H0001', tier: 'skim' },
                   { id: 'H0002', tier: 'skim' },
                 ],
               },
@@ -1257,7 +1212,7 @@ describe('a cited hunk’s tier', () => {
               {
                 filename: 'src/a.ts',
                 language: 'typescript',
-                hunks: [{ id: 'H0001', tier: 'mechanical', reason: 'imports' }],
+                hunks: [{ id: 'H0001', tier: 'skim' }],
               },
             ],
           },
@@ -1275,14 +1230,13 @@ describe('a cited hunk’s tier', () => {
       grounding,
     );
     expect(tiers(result)).toEqual([
-      ['H0001', 'read', undefined],
-      ['H0002', 'read', undefined],
-      ['H0003', 'read', undefined],
+      ['H0001', 'read'],
+      ['H0002', 'read'],
+      ['H0003', 'read'],
     ]);
     // Only the card that draws the question is raised.
     expect(result.ok && result.data.chapters[1]?.diffChunks[0]?.hunks[0]).toMatchObject({
-      tier: 'mechanical',
-      reason: 'imports',
+      tier: 'skim',
     });
     expect(result.findings).toEqual([
       expect.objectContaining({
@@ -1299,9 +1253,9 @@ describe('a cited hunk’s tier', () => {
         filename: 'src/a.ts',
         language: 'typescript',
         hunks: [
-          { id: 'H0001', tier: 'mechanical', reason: 'imports' },
           { id: 'H0001', tier: 'skim' },
-          { id: 'H0002', tier: 'mechanical', reason: 'boilerplate' },
+          { id: 'H0001', tier: 'skim' },
+          { id: 'H0002', tier: 'skim' },
         ],
       },
       {
@@ -1311,31 +1265,55 @@ describe('a cited hunk’s tier', () => {
       },
     );
     expect(tiers(result)).toEqual([
-      ['H0001', 'skim', undefined],
-      ['H0002', 'read', undefined],
+      ['H0001', 'skim'],
+      ['H0002', 'read'],
     ]);
     expect(codes(result)).toEqual(['chunks-merged', 'chunks-merged']);
   });
 
-  it('carries the catalog’s proven facts onto the hunk it resolves', () => {
+  it('carries the catalog’s proven facts onto the hunk, and skims a whitespace-only or wholly moved one', () => {
     const facts = groundingFor(
-      buildDiffHunkIndex(DIFF).hunks.map((hunk) =>
-        hunk.id === 'H0003' ? { ...hunk, whitespaceOnly: true as const } : hunk,
-      ),
+      buildDiffHunkIndex(DIFF).hunks.map((hunk) => {
+        if (hunk.id === 'H0001') {
+          return { ...hunk, movedFrom: { filename: 'src/c.ts', similarity: 100 } };
+        }
+        if (hunk.id === 'H0002') {
+          return { ...hunk, movedFrom: { filename: 'src/c.ts', similarity: 90 } };
+        }
+        if (hunk.id === 'H0003') return { ...hunk, whitespaceOnly: true as const };
+        return hunk;
+      }),
     );
     const result = parseNarrativeReview(
       wrap({
         prTitle: 't',
         overviewSummary: { lede: 's' },
         chapters: [
-          { id: 'c', title: 'C', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+          {
+            id: 'c',
+            title: 'C',
+            insights: [],
+            diffChunks: [
+              { filename: 'src/a.ts', language: 'typescript', hunks: ['H0001', 'H0002'] },
+              cite('src/b.ts', ['H0003']),
+            ],
+          },
         ],
       }),
       facts,
     );
-    expect(result.ok && result.data.chapters[0]?.diffChunks[0]?.hunks[0]?.whitespaceOnly).toBe(
+    expect(tiers(result)).toEqual([
+      ['H0001', 'skim'],
+      ['H0002', 'read'],
+      ['H0003', 'skim'],
+    ]);
+    expect(result.ok && result.data.chapters[0]?.diffChunks[1]?.hunks[0]?.whitespaceOnly).toBe(
       true,
     );
+    // Only H0002 was the model's to tier, and it gave none.
+    expect(result.findings.map((f) => [f.code, f.hunkIds])).toEqual([
+      ['hunk-tier-missing', ['H0002']],
+    ]);
   });
 });
 

@@ -14,13 +14,13 @@ import {
   MAX_EXCERPT_LINES,
   MAX_JUDGEMENT_CALLS,
   NarrativeReviewSchema,
+  provenSkim,
   ReviewRiskFactorImpactSchema,
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
   type CitedHunk,
   type ContextExcerpt,
   type DiffChunk,
-  type HunkTier,
   type Insight,
   type JudgementCall,
   type NarrativeReview,
@@ -39,8 +39,8 @@ import { sanitizeDiagram } from './parse-diagram.ts';
  * types fall back to `context`, an out-of-range risk score drops the whole
  * assessment, and hunk ids are resolved against what the prompt showed
  * (unknown or wrong-file ids are dropped). A cited hunk with no usable tier is
- * read as `read`, and a `mechanical` one with no reason as `skim`: both lean
- * toward more of the reader's attention, never less. A reading plan keeps only
+ * read as `read`, leaning toward more of the reader's attention, never less;
+ * one proven whitespace-only or moved unchanged is `skim` whatever it says. A reading plan keeps only
  * real chapters, its standard read widened to hold its brief, and is dropped
  * when no brief chapter is left. An excerpt of unchanged code that breaks a
  * rule is dropped, never trimmed to fit. Diagrams go through `parse-diagram.ts`,
@@ -165,12 +165,8 @@ function sanitizeRiskAssessment(raw: unknown, log: FindingLog): ReviewRiskAssess
  * review with a count rather than once per hunk.
  */
 interface TierRepairs {
-  /** No tier, or one that is not read, skim or mechanical: read as `read`. */
+  /** No tier, or one that is not read or skim: read as `read`. */
   tierMissing: Set<string>;
-  /** `mechanical` with no reason: read as `skim`. */
-  reasonMissing: Set<string>;
-  /** A reason on a tier that does not fold, which nothing would draw. */
-  reasonDropped: Set<string>;
 }
 
 /**
@@ -178,27 +174,17 @@ interface TierRepairs {
  * shape the model falls back to when it forgets the object, which is leniency
  * toward the model's answer and not toward any stored shape.
  */
-function readCitation(raw: unknown): { id: unknown; tier: unknown; reason: unknown } {
-  if (isRecord(raw)) return { id: raw['id'], tier: raw['tier'], reason: raw['reason'] };
-  return { id: raw, tier: undefined, reason: undefined };
+function readCitation(raw: unknown): { id: unknown; tier: unknown } {
+  if (isRecord(raw)) return { id: raw['id'], tier: raw['tier'] };
+  return { id: raw, tier: undefined };
 }
 
-function citedHunk(
-  hunk: DiffHunk,
-  rawTier: unknown,
-  rawReason: unknown,
-  repairs: TierRepairs,
-): CitedHunk {
+/** A proven fact settles the tier before the model's answer is consulted, so a missing tier there is no loss. */
+function citedHunk(hunk: DiffHunk, rawTier: unknown, repairs: TierRepairs): CitedHunk {
+  if (provenSkim(hunk)) return { ...toResolvedHunk(hunk), tier: 'skim' };
   const parsed = HunkTierSchema.safeParse(rawTier);
-  let tier: HunkTier = parsed.success ? parsed.data : 'read';
   if (!parsed.success) repairs.tierMissing.add(hunk.id);
-  const reason = typeof rawReason === 'string' ? rawReason.trim() : '';
-  if (tier === 'mechanical' && reason.length === 0) {
-    tier = 'skim';
-    repairs.reasonMissing.add(hunk.id);
-  }
-  if (tier !== 'mechanical' && reason.length > 0) repairs.reasonDropped.add(hunk.id);
-  return { ...toResolvedHunk(hunk), tier, ...(tier === 'mechanical' ? { reason } : {}) };
+  return { ...toResolvedHunk(hunk), tier: parsed.success ? parsed.data : 'read' };
 }
 
 function resolveHunks(
@@ -227,7 +213,7 @@ function resolveHunks(
   const deduped = new Map<string, CitedHunk>();
   let repeated = 0;
   for (const raw of rawHunks) {
-    const { id, tier, reason } = readCitation(raw);
+    const { id, tier } = readCitation(raw);
     const hunk = typeof id === 'string' ? grounding.shown.byId[id] : undefined;
     if (!hunk || hunk.filename !== filename) {
       log.add(
@@ -237,7 +223,7 @@ function resolveHunks(
       );
       continue;
     }
-    const cited = citedHunk(hunk, tier, reason, repairs);
+    const cited = citedHunk(hunk, tier, repairs);
     const earlier = deduped.get(hunk.id);
     if (earlier) repeated += 1;
     deduped.set(hunk.id, earlier ? mergeCitations(earlier, cited) : cited);
@@ -252,30 +238,14 @@ function resolveHunks(
   return [...deduped.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
 }
 
-/** The one finding per kind of tier repair the whole answer needed. */
-function reportTierRepairs(repairs: TierRepairs, log: FindingLog): void {
-  const { tierMissing, reasonMissing, reasonDropped } = repairs;
-  if (tierMissing.size > 0) {
-    log.add(
-      'hunk-tier-missing',
-      `${plural(tierMissing.size, 'cited hunk')} came with no tier of read, skim or mechanical, so ${tierMissing.size > 1 ? 'they are' : 'it is'} marked to be read.`,
-      { hunkIds: [...tierMissing] },
-    );
-  }
-  if (reasonMissing.size > 0) {
-    log.add(
-      'hunk-reason-missing',
-      `${plural(reasonMissing.size, 'cited hunk')} marked mechanical gave no reason, so ${reasonMissing.size > 1 ? 'they are' : 'it is'} marked skim rather than folded behind nothing.`,
-      { hunkIds: [...reasonMissing] },
-    );
-  }
-  if (reasonDropped.size > 0) {
-    log.add(
-      'hunk-reason-dropped',
-      `${plural(reasonDropped.size, 'cited hunk')} gave a reason on a tier that is not folded, where nothing would show it, so the reason was dropped.`,
-      { hunkIds: [...reasonDropped] },
-    );
-  }
+/** The one finding the whole answer's missing tiers earn. */
+function reportTierRepairs({ tierMissing }: TierRepairs, log: FindingLog): void {
+  if (tierMissing.size === 0) return;
+  log.add(
+    'hunk-tier-missing',
+    `${plural(tierMissing.size, 'cited hunk')} came with no tier of read or skim, so ${tierMissing.size > 1 ? 'they are' : 'it is'} marked to be read.`,
+    { hunkIds: [...tierMissing] },
+  );
 }
 
 /**
@@ -534,7 +504,7 @@ function sanitizeJudgementCalls(
 
 /**
  * The chapters with every hunk a judgement call asks about raised to `read` on
- * the card that draws the call. A question sitting on a folded hunk would be
+ * the card that draws the call. A question sitting on a skim hunk would be
  * asked about lines the reader was told to pass over, so the question wins
  * over the tier; one note per review records how often it had to.
  */
@@ -564,8 +534,7 @@ function raiseJudgedHunks(
       const hunks = chunk.hunks.map((hunk): CitedHunk => {
         if (!ids.has(hunk.id) || hunk.tier === 'read') return hunk;
         raised.push(hunk.id);
-        const { reason: _reason, ...rest } = hunk;
-        return { ...rest, tier: 'read' };
+        return { ...hunk, tier: 'read' };
       });
       return { ...chunk, hunks };
     });
@@ -575,7 +544,7 @@ function raiseJudgedHunks(
   if (raised.length > 0) {
     log.add(
       'hunk-tier-raised',
-      `${plural(raised.length, 'cited hunk')} a judgement call asks about ${raised.length > 1 ? 'were' : 'was'} tiered to be skimmed or folded, so ${raised.length > 1 ? 'they are' : 'it is'} marked to be read.`,
+      `${plural(raised.length, 'cited hunk')} a judgement call asks about ${raised.length > 1 ? 'were' : 'was'} tiered to be skimmed, so ${raised.length > 1 ? 'they are' : 'it is'} marked to be read.`,
       { hunkIds: raised },
     );
   }
@@ -1099,11 +1068,7 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     return fail(log);
   }
 
-  const repairs: TierRepairs = {
-    tierMissing: new Set(),
-    reasonMissing: new Set(),
-    reasonDropped: new Set(),
-  };
+  const repairs: TierRepairs = { tierMissing: new Set() };
   const excerptDrops: ExcerptDrop[] = [];
   const ids = chapterIds(parsed['chapters'], log);
   const chapters = parsed['chapters'].map((chapter, index) =>

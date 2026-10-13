@@ -2,8 +2,6 @@ import { ActionIcon, Menu, Text, useMantineColorScheme } from '@mantine/core';
 import {
   IconBlur,
   IconBlurOff,
-  IconFold,
-  IconFoldDown,
   IconLayoutColumns,
   IconLayoutRows,
   IconMoon,
@@ -18,7 +16,6 @@ import type { ReactNode } from 'react';
 import { selectSpaceLimited, useDiffView, useReaderColumn } from '@/report/stores/diff-view';
 import { useDiffWrap } from '@/report/stores/diff-wrap';
 import { useDimComments } from '@/report/stores/dim-comments';
-import { useFoldSkim } from '@/report/stores/fold-skim';
 import { useLayoutWidth } from '@/report/stores/layout-width';
 
 const ICON = 16;
@@ -83,8 +80,6 @@ export function DisplayMenu() {
   const toggleView = useDiffView((s) => s.toggle);
   const wrap = useDiffWrap((s) => s.wrap);
   const toggleWrap = useDiffWrap((s) => s.toggle);
-  const skim = useFoldSkim((s) => s.skim);
-  const toggleSkim = useFoldSkim((s) => s.toggle);
   const comments = useDimComments((s) => s.comments);
   const toggleComments = useDimComments((s) => s.toggle);
   const width = useLayoutWidth((s) => s.width);
@@ -123,12 +118,6 @@ export function DisplayMenu() {
           name="Long lines"
           value={wrap === 'on' ? 'Wrapped' : 'Not wrapped'}
           onClick={toggleWrap}
-        />
-        <SettingItem
-          icon={skim === 'folded' ? <IconFold size={ICON} /> : <IconFoldDown size={ICON} />}
-          name="Skim"
-          value={skim === 'folded' ? 'Folded' : 'Shown'}
-          onClick={toggleSkim}
         />
         <SettingItem
           icon={comments === 'dimmed' ? <IconBlur size={ICON} /> : <IconBlurOff size={ICON} />}

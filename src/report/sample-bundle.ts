@@ -13,9 +13,9 @@ import type {
  * diagram, a risk assessment, a chapter diagram, Monaco diffs for a modified,
  * an added and a removed file, a file too large to embed, a line far too long
  * for its column, and a chunk whose file the bundle does not carry. Its
- * chapters cite hunks at all three attention tiers, so the reader folds a
- * mechanical group and can fold the skim ones, and its hunks carry both proven
- * facts: a test clock moved out of a shared helpers file, and the helper left
+ * chapters cite hunks at both attention tiers, a read and a skim hunk side by
+ * side in one diff, so the reader fades the skim lines among the read ones,
+ * and its hunks carry both proven facts: a test clock moved out of a shared helpers file, and the helper left
  * behind rewrapped by the formatter. Its reading plan puts a chapter in each
  * row: the queue is the brief, the cadence table joins it for the standard
  * read, and the clean-up is left to the full one. The cadence table shows one
@@ -241,12 +241,7 @@ const H = {
   helpersRewrap: hunk('H0014', 1, [14, 2], [1, 4], { whitespaceOnly: true }),
 };
 
-/** A hunk as a chapter cites it; `reason` goes with `mechanical`, as the parser holds it to. */
-const cite = (resolved: ResolvedDiffHunk, tier: HunkTier, reason?: string): CitedHunk => ({
-  ...resolved,
-  tier,
-  ...(reason !== undefined ? { reason } : {}),
-});
+const cite = (resolved: ResolvedDiffHunk, tier: HunkTier): CitedHunk => ({ ...resolved, tier });
 
 const chunk = (filename: string, language: string, hunks: CitedHunk[]): DiffChunk => ({
   filename,
@@ -451,7 +446,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         diffChunks: [
           chunk('src/scheduler/cadence.ts', 'typescript', [
             cite(H.intervals, 'read'),
-            cite(H.lookup, 'read'),
+            cite(H.lookup, 'skim'),
           ]),
         ],
         contextExcerpts: [
@@ -491,12 +486,10 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
           ]),
           chunk('src/scheduler/queue.ts', 'typescript', [cite(H.queue, 'read')]),
           chunk('src/scheduler/fixtures/schedules.ts', 'typescript', [cite(H.schedules, 'skim')]),
-          chunk('src/scheduler/fixtures/fake-clock.ts', 'typescript', [
-            cite(H.fakeClock, 'mechanical', 'the test clock, moved unchanged from test/helpers.ts'),
-          ]),
+          chunk('src/scheduler/fixtures/fake-clock.ts', 'typescript', [cite(H.fakeClock, 'skim')]),
           chunk('test/helpers.ts', 'typescript', [
-            cite(H.helpersMove, 'mechanical', 'fakeClock moved out to the scheduler fixtures'),
-            cite(H.helpersRewrap, 'mechanical', 'repoKey rewrapped by the formatter'),
+            cite(H.helpersMove, 'skim'),
+            cite(H.helpersRewrap, 'skim'),
           ]),
         ],
         diagram: {
@@ -590,9 +583,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         ],
         diffChunks: [
           chunk('src/legacy/cron.ts', 'typescript', [cite(H.cron, 'read')]),
-          chunk('src/generated/schedule.schema.json', 'json', [
-            cite(H.schema, 'mechanical', 'regenerated from the Schedule type'),
-          ]),
+          chunk('src/generated/schedule.schema.json', 'json', [cite(H.schema, 'skim')]),
           chunk('docs/scheduling.md', 'markdown', [cite(H.docs, 'skim')]),
         ],
       },

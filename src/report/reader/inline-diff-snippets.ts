@@ -1,4 +1,4 @@
-import type { CitedHunk, DiffLineSpan, HunkTier, ResolvedDiffHunk } from '@/review/narrative';
+import type { CitedHunk, DiffLineSpan, ResolvedDiffHunk } from '@/review/narrative';
 
 /**
  * Pure logic for slicing a base/head file pair down to the lines around each
@@ -11,9 +11,7 @@ export interface InlineDiffSnippet {
   modified: string;
   originalStartLine: number;
   modifiedStartLine: number;
-  /** The one tier every hunk in the snippet shares. */
-  tier: HunkTier;
-  /** The cited hunks the snippet draws; none for a whole file. */
+  /** The cited hunks the snippet draws, whatever their tiers. */
   hunks: readonly CitedHunk[];
 }
 
@@ -98,8 +96,8 @@ function linesBetween(earlier: DiffLineSpan, later: DiffLineSpan): number {
 /**
  * How much context a group may take before and after it without reaching
  * another hunk. `neighbours` holds the cited hunks as well as the file's, so
- * two flush groups of different tiers stop short of each other even where the
- * file carries no catalog.
+ * a group stops short of a cited neighbour even where the file carries no
+ * catalog.
  */
 function contextFor(
   group: readonly ResolvedDiffHunk[],
@@ -119,8 +117,10 @@ function contextFor(
 }
 
 /**
- * Consecutive hunks (by `fileOrder`) of one tier form one group; a gap or a
- * change of tier starts a new one, since a group is what the reader folds.
+ * Consecutive hunks (by `fileOrder`) form one group, and a hunk this chapter
+ * does not cite between two it does starts a new one. Tier never splits a
+ * group: skim lines are faded inside the one editor, so a file reads as one
+ * piece and the editor's find reaches all of it.
  */
 export function groupSelectedHunks(hunks: readonly CitedHunk[]): CitedHunk[][] {
   const sorted = hunks.toSorted((a, b) => a.fileOrder - b.fileOrder);
@@ -129,12 +129,7 @@ export function groupSelectedHunks(hunks: readonly CitedHunk[]): CitedHunk[][] {
   for (const hunk of sorted) {
     const current = groups.at(-1);
     const previous = current?.at(-1);
-    if (
-      current &&
-      previous &&
-      hunk.fileOrder === previous.fileOrder + 1 &&
-      hunk.tier === previous.tier
-    ) {
+    if (current && previous && hunk.fileOrder === previous.fileOrder + 1) {
       current.push(hunk);
     } else {
       groups.push([hunk]);
@@ -209,7 +204,6 @@ export function buildInlineDiffSnippets({
       modified: modifiedSnippet,
       originalStartLine: originalBounds?.startLine ?? 1,
       modifiedStartLine: modifiedBounds?.startLine ?? 1,
-      tier: firstHunk.tier,
       hunks: group,
     });
   }
@@ -219,17 +213,30 @@ export function buildInlineDiffSnippets({
 
 /**
  * A hunk's lines: the longer of its two spans, git's own context lines inside
- * the hunk included. What the eye covers on the busier side, and the one
- * measure the fold row's count and the reading-time estimate share.
+ * the hunk included. What the eye covers on the busier side.
  */
 export function hunkLineCount(hunk: ResolvedDiffHunk): number {
   return Math.max(hunk.original.lineCount, hunk.modified.lineCount);
 }
 
-/**
- * A group's hunks' lines, summed. Not the snippet's own context around the
- * group, which opening a fold shows too but which nobody reads as the change.
- */
-export function groupLineCount(hunks: readonly ResolvedDiffHunk[]): number {
-  return hunks.reduce((sum, hunk) => sum + hunkLineCount(hunk), 0);
+/** Inclusive line ranges, 1-based in the snippet's own numbering. */
+export type LineRange = readonly [start: number, end: number];
+
+/** A span renumbered from the snippet's first line; a side with no lines has nothing to fade. */
+function rangeOnSide(span: DiffLineSpan, startLine: number): LineRange[] {
+  return span.lineCount > 0
+    ? [[span.startLine - startLine + 1, span.startLine - startLine + span.lineCount]]
+    : [];
+}
+
+/** The lines of a snippet's skim hunks on each side, in the snippet's own numbering, for the editor to fade. */
+export function skimRanges(snippet: InlineDiffSnippet): {
+  original: LineRange[];
+  modified: LineRange[];
+} {
+  const skim = snippet.hunks.filter((hunk) => hunk.tier === 'skim');
+  return {
+    original: skim.flatMap((hunk) => rangeOnSide(hunk.original, snippet.originalStartLine)),
+    modified: skim.flatMap((hunk) => rangeOnSide(hunk.modified, snippet.modifiedStartLine)),
+  };
 }

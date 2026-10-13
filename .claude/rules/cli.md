@@ -73,7 +73,8 @@ src/cli/
                    `diffLines` so the prompt can ask the agent to Read it in one call; pr.md
   prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
                    commits, where the agent is, Files Changed, Not Reviewed, the hunk table (each hunk's proven
-                   facts after it as hints: `[whitespace only]`, `[moved from <path>, N%]`), and where the diff
+                   facts after it as hints: `[whitespace only]`, `[moved from <path>, N%]`; the parser settles
+                   the tier of a whitespace-only or 100% moved hunk itself), and where the diff
                    file is, with its length, then the overview style's section (none for narrative, and never
                    in system.md, which stays the same on every run so it is read from cache), then the
                    engineer's own instructions when given; the dirty paths
@@ -111,10 +112,10 @@ src/cli/
                    refusing one missing or half-written); a review with no excerpts reads no git; paths are
                    looked up in Maps, never as a plain object's keys, since a root file may be `constructor`
                    or `__proto__`
-  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks, tiered by fact alone —
-                   whitespace-only or moved is `mechanical` with the fact as its reason, the rest `read` — and
+  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing all its hunks as `read` (the parser
+                   makes a proven whitespace-only or wholly moved one skim, as it does for any answer) and
                    a reading plan of the first chapter for the brief and every chapter for the standard read,
-                   so the reader's folds and its plan can be seen without a model, and no excerpts, since
+                   so the reader's faded lines and its plan can be seen without a model, and no excerpts, since
                    choosing what unchanged code matters is a judgement and a stub has none. It also
                    overwrites events.jsonl with one clean result event, so the parse stage reads how this run
                    ended and never an earlier run's log

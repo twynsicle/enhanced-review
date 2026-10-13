@@ -3,9 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUNDLE_SCHEMA_VERSION, type EmbeddedSide, type ReviewBundle } from '@/review/bundle';
 import type { CitedHunk, DiffChunk, Insight } from '@/review/narrative';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
-import { act, render, screen, userEvent, within } from '@/report/test/render';
+import { render, screen, userEvent, within } from '@/report/test/render';
 import { useDimComments } from '@/report/stores/dim-comments';
-import { useFoldSkim } from '@/report/stores/fold-skim';
 import { DisplayMenu } from '@/report/chrome/display-menu';
 import { TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import { DIMMED_THEME } from './monaco-themes';
@@ -157,7 +156,7 @@ describe('<InlineDiffChunk /> with anchored insights', () => {
 
 describe('<InlineDiffChunk /> by attention tier', () => {
   const lines = Array.from({ length: 40 }, (_, i) => `line ${String(i + 1)}`).join('\n');
-  const tiered = (hunks: Partial<CitedHunk>[], fold?: boolean): ReturnType<typeof render> => {
+  const tiered = (hunks: Partial<CitedHunk>[]): ReturnType<typeof render> => {
     const cited: DiffChunk = {
       ...chunk,
       hunks: hunks.map((hunk, i) => ({
@@ -190,83 +189,32 @@ describe('<InlineDiffChunk /> by attention tier', () => {
     };
     return render(
       <EmbeddedFileSource bundle={bundle}>
-        <InlineDiffChunk chunk={cited} {...(fold === undefined ? {} : { fold })} />
+        <InlineDiffChunk chunk={cited} />
       </EmbeddedFileSource>,
     );
   };
 
-  beforeEach(() => useFoldSkim.setState({ skim: 'shown' }));
-
-  it('draws consecutive hunks of one tier as one group, and a change of tier as another', async () => {
-    tiered([{}, {}, { tier: 'skim' }]);
-    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(2);
-    expect(screen.getByRole('group', { name: 'Read lines' })).toBeDefined();
-    expect(screen.getByRole('group', { name: 'Skim lines' })).toBeDefined();
-  });
-
-  it('folds a mechanical group to one row saying what it is, and opens it in place', async () => {
-    tiered([
-      {},
-      { tier: 'mechanical', reason: 'imports for the new helper' },
-      { tier: 'mechanical', reason: 'the same rename at 14 call sites' },
-    ]);
+  it('draws consecutive hunks of both tiers as one editor, with nothing folded', async () => {
+    tiered([{}, { tier: 'skim' }, {}]);
     expect(await screen.findAllByTestId('diff-editor')).toHaveLength(1);
-
-    const group = screen.getByRole('group', { name: 'Mechanical lines' });
-    expect(within(group).getByText('Mechanical')).toBeDefined();
-    expect(
-      within(group).getByText('imports for the new helper · the same rename at 14 call sites'),
-    ).toBeDefined();
-    expect(within(group).getByText('20 lines')).toBeDefined();
-    const show = within(group).getByRole('button', { name: 'Show' });
-    expect(show.getAttribute('aria-expanded')).toBe('false');
-
-    await userEvent.click(show);
-    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(2);
-    expect(within(group).getByRole('button', { name: 'Hide' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
   });
 
-  it('folds skim only when the reader has asked for it', async () => {
-    tiered([{}, { tier: 'skim' }]);
-    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(2);
-    const group = screen.getByRole('group', { name: 'Skim lines' });
-    expect(within(group).queryByRole('button')).toBeNull();
-
-    act(() => useFoldSkim.setState({ skim: 'folded' }));
-    expect(screen.getAllByTestId('diff-editor')).toHaveLength(1);
-    expect(within(group).getByRole('button', { name: 'Show' })).toBeDefined();
-  });
-
-  it('badges the facts on the group’s row, even on a group that is read', async () => {
+  it('tags each proven fact in the header, with the lines it holds for', async () => {
     tiered([
       { movedFrom: { filename: 'src/old.ts', similarity: 92 } },
-      { tier: 'mechanical', reason: 'reformatted', whitespaceOnly: true },
+      { tier: 'skim', whitespaceOnly: true },
     ]);
     await screen.findAllByTestId('diff-editor');
-    const read = screen.getByRole('group', { name: 'Read lines' });
-    expect(within(read).getByText('Moved from src/old.ts · 92%')).toBeDefined();
-    expect(within(read).queryByText('Read')).toBeNull();
-    const mechanical = screen.getByRole('group', { name: 'Mechanical lines' });
-    expect(within(mechanical).getByText('Whitespace only')).toBeDefined();
+    const header = screen.getByText('main.ts').closest('div')!;
+    expect(within(header).getByText('Moved from src/old.ts · 92% · L1-10')).toBeDefined();
+    expect(within(header).getByText('Whitespace only · L11-20')).toBeDefined();
   });
 
-  it('is folded from the display menu, which names how skim is set', async () => {
+  it('offers no skim setting in the display menu, since nothing folds', async () => {
     render(<DisplayMenu />);
     await userEvent.click(screen.getByRole('button', { name: 'Display settings' }));
-    const row = await screen.findByRole('menuitem', { name: /^Skim:/ });
-    expect(row).toHaveAccessibleName('Skim: Shown');
-
-    await userEvent.click(row);
-    expect(useFoldSkim.getState().skim).toBe('folded');
-    expect(row).toHaveAccessibleName('Skim: Folded');
-  });
-
-  it('never folds where it is told not to, the file view', async () => {
-    useFoldSkim.setState({ skim: 'folded' });
-    tiered([{ tier: 'skim' }, { tier: 'mechanical', reason: 'boilerplate' }], false);
-    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(2);
-    expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
-    // The row still says what the chapters made of the lines.
-    expect(screen.getByText('boilerplate')).toBeDefined();
+    await screen.findByRole('menuitem', { name: /^Comments:/ });
+    expect(screen.queryByRole('menuitem', { name: /^Skim:/ })).toBeNull();
   });
 });

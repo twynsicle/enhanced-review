@@ -1,16 +1,16 @@
 import { Box, Group, Skeleton, Text, UnstyledButton } from '@mantine/core';
-import type { editor, IDisposable } from 'monaco-editor';
+import type { editor, IDisposable, IRange } from 'monaco-editor';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FilePair } from '@/review/bundle';
 import {
   buildInlineDiffSnippets,
-  groupLineCount,
+  formatSelectedHunkLabel,
+  skimRanges,
   type InlineDiffSnippet,
+  type LineRange,
 } from '@/report/reader/inline-diff-snippets';
 import { detectLanguage } from '@/review/language-map';
-import type { CitedHunk, DiffChunk, HunkTier, Insight, JudgementCall } from '@/review/narrative';
-import { plural } from '@/review/plural';
-import { Caption } from '@/report/chrome/caption';
+import type { CitedHunk, DiffChunk, Insight, JudgementCall } from '@/review/narrative';
 import { originVerb } from '@/report/reader/file-origin';
 import { useFilePair, useReviewFile } from '@/report/reader/file-source';
 import { InsightCallout, JudgementCallout } from '@/report/reader/insight-callout';
@@ -32,7 +32,6 @@ import {
   type DiffView,
 } from '@/report/stores/diff-view';
 import { useDiffWrap, type DiffWrap } from '@/report/stores/diff-wrap';
-import { useFoldSkim } from '@/report/stores/fold-skim';
 import { token, TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
 
@@ -78,15 +77,15 @@ function resolveFileState({ base, head }: FilePair, filename: string): FileState
   };
 }
 
-function fullFile(key: string, data: FileData): InlineDiffSnippet {
+/** The whole pair, still carrying the chapter's hunks so its skim lines stay faded. */
+function fullFile(key: string, data: FileData, hunks: readonly CitedHunk[]): InlineDiffSnippet {
   return {
     key,
     original: data.original,
     modified: data.modified,
     originalStartLine: 1,
     modifiedStartLine: 1,
-    tier: 'read',
-    hunks: [],
+    hunks,
   };
 }
 
@@ -177,6 +176,61 @@ function applyWordWrap(diffEditor: editor.IStandaloneDiffEditor, wrap: DiffWrap)
   diffEditor.layout();
 }
 
+const SKIM_HOVER = 'Skim: low-risk lines the review says to skim rather than read closely.';
+
+/** Whole lines, to the end of the last one, so the fade covers every character. */
+function skimDecorations(
+  model: editor.ITextModel | null,
+  ranges: readonly LineRange[],
+): editor.IModelDeltaDecoration[] {
+  if (!model) return [];
+  const last = model.getLineCount();
+  return ranges.flatMap(([start, end]) => {
+    if (start > last) return [];
+    const range: IRange = {
+      startLineNumber: start,
+      startColumn: 1,
+      endLineNumber: Math.min(end, last),
+      endColumn: model.getLineMaxColumn(Math.min(end, last)),
+    };
+    return [
+      {
+        range,
+        options: {
+          isWholeLine: true,
+          inlineClassName: classes.skim,
+          lineNumberClassName: classes.skim,
+          hoverMessage: { value: SKIM_HOVER },
+        },
+      },
+    ];
+  });
+}
+
+/**
+ * Fades each side's skim lines. Decorations rather than a separate editor per
+ * tier, so a file stays one piece.
+ *
+ * The stacked view draws deleted lines as view zones inside the modified
+ * editor, which the original editor's decorations do not reach, so there a
+ * skim hunk's removed lines keep full strength. They carry the removed band,
+ * and fading them would need Monaco's private zone DOM.
+ */
+function applySkimFade(
+  diffEditor: editor.IStandaloneDiffEditor,
+  snippet: InlineDiffSnippet,
+  collections: { current: editor.IEditorDecorationsCollection[] },
+): void {
+  for (const collection of collections.current) collection.clear();
+  const ranges = skimRanges(snippet);
+  const original = diffEditor.getOriginalEditor();
+  const modified = diffEditor.getModifiedEditor();
+  collections.current = [
+    original.createDecorationsCollection(skimDecorations(original.getModel(), ranges.original)),
+    modified.createDecorationsCollection(skimDecorations(modified.getModel(), ranges.modified)),
+  ];
+}
+
 function SnippetEditor({
   chunkFilename,
   language,
@@ -196,6 +250,7 @@ function SnippetEditor({
   const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const disposables = useRef<IDisposable[]>([]);
+  const skimFade = useRef<editor.IEditorDecorationsCollection[]>([]);
   /*
    * `measure` below is frozen at mount but has to know the current view, and
    * it has to know it early: the editor library applies the new options from
@@ -244,6 +299,7 @@ function SnippetEditor({
       ];
       applyWordWrap(diffEditor, wrapRef.current);
       applySnippetLayout(diffEditor, snippet, expanded);
+      applySkimFade(diffEditor, snippet, skimFade);
       measure();
     },
     // The mount-time snippet/expanded are right for the first paint; later
@@ -258,6 +314,10 @@ function SnippetEditor({
     if (editorRef.current) applySnippetLayout(editorRef.current, snippet, expanded);
   }, [snippet, expanded, view]);
 
+  useEffect(() => {
+    if (editorRef.current) applySkimFade(editorRef.current, snippet, skimFade);
+  }, [snippet]);
+
   // `view` belongs here because Monaco re-pins the original editor's
   // `wordWrapOverride2` on every pass through the stacked view.
   useEffect(() => {
@@ -270,6 +330,8 @@ function SnippetEditor({
     () => () => {
       for (const disposable of disposables.current) disposable.dispose();
       disposables.current = [];
+      for (const collection of skimFade.current) collection.clear();
+      skimFade.current = [];
       /*
        * Tear down in the order Monaco requires: detach the models from the
        * widget, then dispose them. @monaco-editor/react 4.7 does it the other
@@ -436,99 +498,22 @@ function AnchoredAsides({
   );
 }
 
-const TIER_LABEL: Record<HunkTier, string> = {
-  read: 'Read',
-  skim: 'Skim',
-  mechanical: 'Mechanical',
-};
-
-/** What the CLI proved about a group's hunks, each fact worded once. */
-function factBadges(hunks: readonly CitedHunk[]): string[] {
-  const badges = new Set<string>();
-  for (const hunk of hunks) {
-    if (hunk.whitespaceOnly) badges.add('Whitespace only');
-    if (hunk.movedFrom) {
-      badges.add(`Moved from ${hunk.movedFrom.filename} · ${String(hunk.movedFrom.similarity)}%`);
-    }
-    if (hunk.movedTo) {
-      badges.add(`Moved to ${hunk.movedTo.filename} · ${String(hunk.movedTo.similarity)}%`);
-    }
-  }
-  return [...badges];
-}
-
-/**
- * The line above a group that is not plainly to be read, or that carries a
- * proven fact: its tier, the reasons a mechanical group gives, its facts, and
- * the control that opens or closes a fold. A folded group is this line alone, so it carries everything a reader
- * needs to decide whether to open it — what kind of change it is and how much
- * of it there is.
- */
-function GroupRow({
-  snippet,
-  badges,
-  foldable,
-  open,
-  onToggle,
-}: {
-  snippet: InlineDiffSnippet;
-  badges: readonly string[];
-  foldable: boolean;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  const reasons = [...new Set(snippet.hunks.flatMap((hunk) => (hunk.reason ? [hunk.reason] : [])))];
-  return (
-    <Group
-      gap={8}
-      px={12}
-      py={6}
-      fz="sm"
-      style={{
-        rowGap: 4,
-        ...(open ? { borderBottom: `1px solid ${token('border')}` } : {}),
-      }}
-    >
-      {snippet.tier !== 'read' && <Caption>{TIER_LABEL[snippet.tier]}</Caption>}
-      {reasons.length > 0 && (
-        <Text component="span" fz="sm">
-          {reasons.join(' · ')}
-        </Text>
-      )}
-      {foldable && (
-        <Text component="span" fz="xs" c="dimmed">
-          {plural(groupLineCount(snippet.hunks), 'line')}
-        </Text>
-      )}
-      {badges.map((badge) => (
-        <Text
-          key={badge}
-          component="span"
-          fz="xs"
-          c="dimmed"
-          px={6}
-          py={1}
-          style={{ borderRadius: 4, border: `1px solid ${token('border')}` }}
-        >
-          {badge}
-        </Text>
-      ))}
-      {foldable && (
-        <UnstyledButton
-          ml="auto"
-          px={8}
-          py={2}
-          fz="sm"
-          c="dimmed"
-          style={{ borderRadius: 4 }}
-          aria-expanded={open}
-          onClick={onToggle}
-        >
-          {open ? 'Hide' : 'Show'}
-        </UnstyledButton>
-      )}
-    </Group>
-  );
+/** What the CLI proved about each of the card's hunks, with the lines it holds for. */
+function factTags(hunks: readonly CitedHunk[]): string[] {
+  return hunks
+    .toSorted((a, b) => a.fileOrder - b.fileOrder)
+    .flatMap((hunk) => {
+      const lines = formatSelectedHunkLabel([hunk]);
+      const facts: string[] = [];
+      if (hunk.whitespaceOnly) facts.push('Whitespace only');
+      if (hunk.movedFrom) {
+        facts.push(`Moved from ${hunk.movedFrom.filename} · ${String(hunk.movedFrom.similarity)}%`);
+      }
+      if (hunk.movedTo) {
+        facts.push(`Moved to ${hunk.movedTo.filename} · ${String(hunk.movedTo.similarity)}%`);
+      }
+      return facts.map((fact) => `${fact} · ${lines}`);
+    });
 }
 
 /**
@@ -608,11 +593,9 @@ export function CodeCardHeader({ filename, children }: { filename: string; child
  * each hunk group (`buildInlineDiffSnippets`) and shown in one Monaco
  * `DiffEditor` per group; "Show full file" swaps in the whole pair.
  *
- * A group is consecutive hunks of one tier. A `mechanical` group is folded to
- * its row, and so is a `skim` one when the reader has asked for that; Show
- * opens it in place. `fold` is off where the reader came for the whole file
- * rather than a chapter's argument about it — the file view — and there every
- * group is open, its row still saying what the chapters made of it.
+ * A group is consecutive hunks whatever their tiers; a skim hunk's lines are
+ * faded in place, never folded, so every line a chapter cites is on the page.
+ * What the CLI proved about a hunk is tagged in the header, with its lines.
  *
  * `insights` are the chapter's insights that named this file, and
  * `judgementCalls` the review's questions this chapter draws for it. The other
@@ -624,12 +607,10 @@ export function InlineDiffChunk({
   chunk,
   insights = [],
   judgementCalls = [],
-  fold = true,
 }: {
   chunk: DiffChunk;
   insights?: readonly Insight[];
   judgementCalls?: readonly JudgementCall[];
-  fold?: boolean;
 }) {
   const pair = useFilePair(chunk.filename);
   const file = useReviewFile(chunk.filename);
@@ -639,21 +620,11 @@ export function InlineDiffChunk({
   // Too narrow for two panes is not a preference the column can honour.
   const view: DiffView = spaceLimited ? 'unified' : stored;
   const [expanded, setExpanded] = useState(false);
-  const foldSkim = useFoldSkim((s) => s.skim) === 'folded';
-  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
-  const toggleOpened = useCallback((key: string) => {
-    setOpened((previous) => {
-      const next = new Set(previous);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }, []);
   const state = useMemo(() => resolveFileState(pair, chunk.filename), [pair, chunk.filename]);
 
   const snippets = useMemo<InlineDiffSnippet[]>(() => {
     if (state.kind !== 'ok') return [];
-    if (expanded) return [fullFile('full-file', state.data)];
+    if (expanded) return [fullFile('full-file', state.data, chunk.hunks)];
     const collapsed = buildInlineDiffSnippets({
       hunks: chunk.hunks,
       original: state.data.original,
@@ -663,10 +634,13 @@ export function InlineDiffChunk({
       contextLines: CONTEXT_LINES,
       fileHunks: file?.hunks,
     });
-    return collapsed.length > 0 ? collapsed : [fullFile('fallback-full-file', state.data)];
+    return collapsed.length > 0
+      ? collapsed
+      : [fullFile('fallback-full-file', state.data, chunk.hunks)];
   }, [state, expanded, chunk.hunks, file?.hunks]);
 
   const language = state.kind === 'ok' ? state.data.language : chunk.language;
+  const tags = useMemo(() => factTags(chunk.hunks), [chunk.hunks]);
 
   return (
     <CodeCard label={`Diff for ${chunk.filename}`} diffFile={chunk.filename}>
@@ -689,6 +663,19 @@ export function InlineDiffChunk({
         >
           {language}
         </Text>
+        {tags.map((tag) => (
+          <Text
+            key={tag}
+            component="span"
+            fz="xs"
+            c="dimmed"
+            px={6}
+            py={1}
+            style={{ borderRadius: 4, border: `1px solid ${token('border')}` }}
+          >
+            {tag}
+          </Text>
+        ))}
         {state.kind === 'ok' && (
           <UnstyledButton
             ml="auto"
@@ -714,41 +701,21 @@ export function InlineDiffChunk({
         </Text>
       )}
       {state.kind === 'ok' &&
-        snippets.map((snippet, index) => {
-          const foldable =
-            fold && (snippet.tier === 'mechanical' || (snippet.tier === 'skim' && foldSkim));
-          const open = !foldable || opened.has(snippet.key);
-          const badges = factBadges(snippet.hunks);
-          return (
-            <Box
-              key={snippet.key}
-              {...(snippet.hunks.length > 0
-                ? { role: 'group', 'aria-label': `${TIER_LABEL[snippet.tier]} lines` }
-                : {})}
-              style={index > 0 ? { borderTop: `1px solid ${token('border')}` } : undefined}
-            >
-              {(snippet.tier !== 'read' || badges.length > 0) && (
-                <GroupRow
-                  snippet={snippet}
-                  badges={badges}
-                  foldable={foldable}
-                  open={open}
-                  onToggle={() => toggleOpened(snippet.key)}
-                />
-              )}
-              {open && (
-                <SnippetEditor
-                  chunkFilename={chunk.filename}
-                  language={language}
-                  snippet={snippet}
-                  expanded={expanded}
-                  view={view}
-                  wrap={wrap}
-                />
-              )}
-            </Box>
-          );
-        })}
+        snippets.map((snippet, index) => (
+          <Box
+            key={snippet.key}
+            style={index > 0 ? { borderTop: `1px solid ${token('border')}` } : undefined}
+          >
+            <SnippetEditor
+              chunkFilename={chunk.filename}
+              language={language}
+              snippet={snippet}
+              expanded={expanded}
+              view={view}
+              wrap={wrap}
+            />
+          </Box>
+        ))}
     </CodeCard>
   );
 }

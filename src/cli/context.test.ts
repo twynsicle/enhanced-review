@@ -7,7 +7,6 @@ import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-rep
 import { gather, MAX_EMBED_BYTES, readContext } from './context.ts';
 import { Shell } from './git.ts';
 import { createRunFolder } from './run-folder.ts';
-import { stubReview } from './stub-run.ts';
 import { resolveTarget, type TargetRequest } from './targets.ts';
 
 // Real git, many spawns per test — see GIT_TEST_TIMEOUT.
@@ -309,7 +308,7 @@ describe('gather', () => {
     );
   });
 
-  it('proves a function moved between files under a new name, and a rewrap, and the stub folds them', async () => {
+  it('proves a function moved between files under a new name, and a rewrap', async () => {
     const body = [
       '  const cut = price * (percent / 100);',
       '  const rounded = Math.round(cut * 100) / 100;',
@@ -372,15 +371,6 @@ describe('gather', () => {
       'src/pad.ts': { whitespaceOnly: true },
       'src/pricing.ts': { movedFrom: { filename: 'src/billing.ts', similarity: 83 } },
     });
-
-    const citations = stubReview(context).chapters.flatMap((chapter) =>
-      chapter.diffChunks.flatMap((chunk) => chunk.hunks),
-    );
-    expect(citations.map((citation) => [citation.tier, citation.reason])).toEqual([
-      ['mechanical', 'moved to src/pricing.ts'],
-      ['mechanical', 'whitespace only'],
-      ['mechanical', 'moved from src/billing.ts'],
-    ]);
   });
 
   it('says what to do when a context is missing', async () => {

@@ -33,8 +33,8 @@ function resolved(id: string, fileOrder: number): ResolvedDiffHunk {
   return { id, fileOrder, original: span(fileOrder * 10, 1), modified: span(fileOrder * 10, 2) };
 }
 
-function cited(id: string, fileOrder: number, tier: HunkTier = 'read', reason?: string): CitedHunk {
-  return { ...resolved(id, fileOrder), tier, ...(reason !== undefined ? { reason } : {}) };
+function cited(id: string, fileOrder: number, tier: HunkTier = 'read'): CitedHunk {
+  return { ...resolved(id, fileOrder), tier };
 }
 
 const HUNKS: DiffHunk[] = [
@@ -229,9 +229,9 @@ describe('citedChunk', () => {
     expect(chunk?.hunks.map((hunk) => hunk.id)).toEqual(['H0001', 'H0002']);
   });
 
-  it('keeps the most attentive tier of a hunk two chapters cite', () => {
+  it('keeps the more attentive tier of a hunk two chapters cite', () => {
     const chunk = citedChunk('src/a.ts', [
-      chapter('ch1', [cited('H0001', 1, 'mechanical', 'imports only'), cited('H0002', 2, 'skim')]),
+      chapter('ch1', [cited('H0001', 1, 'skim'), cited('H0002', 2, 'skim')]),
       chapter('ch2', [cited('H0001', 1, 'skim'), cited('H0002', 2, 'read')]),
     ]);
     expect(chunk?.hunks).toEqual([cited('H0001', 1, 'skim'), cited('H0002', 2, 'read')]);
@@ -270,28 +270,13 @@ describe('citedChunk', () => {
 });
 
 describe('mergeCitations', () => {
-  it('takes read over skim over mechanical, whichever comes first', () => {
-    const tiers: HunkTier[] = ['read', 'skim', 'mechanical'];
+  it('takes read over skim, whichever comes first', () => {
+    const tiers: HunkTier[] = ['read', 'skim'];
     for (const [i, first] of tiers.entries()) {
       for (const [j, second] of tiers.entries()) {
-        const merged = mergeCitations(
-          cited('H0001', 1, first, first === 'mechanical' ? 'a' : undefined),
-          cited('H0001', 1, second, second === 'mechanical' ? 'b' : undefined),
-        );
+        const merged = mergeCitations(cited('H0001', 1, first), cited('H0001', 1, second));
         expect(merged.tier).toBe(tiers[Math.min(i, j)]);
       }
     }
-  });
-
-  it('keeps a reason only on a mechanical result, the first citation’s', () => {
-    expect(
-      mergeCitations(cited('H0001', 1, 'mechanical', 'a rename'), cited('H0001', 1, 'skim')),
-    ).toEqual(cited('H0001', 1, 'skim'));
-    expect(
-      mergeCitations(
-        cited('H0001', 1, 'mechanical', 'a rename'),
-        cited('H0001', 1, 'mechanical', 'imports'),
-      ),
-    ).toEqual(cited('H0001', 1, 'mechanical', 'a rename'));
   });
 });

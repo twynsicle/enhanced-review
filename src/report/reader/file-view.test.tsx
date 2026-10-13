@@ -225,7 +225,7 @@ describe('FileView with hunks the chapters left out', () => {
     expect(screen.queryByText('Not discussed in any chapter')).toBeNull();
   });
 
-  it('never folds a mechanical hunk, since the reader asked for the whole file', async () => {
+  it('draws a read and a skim hunk side by side in one diff', async () => {
     const cited: NarrativeChapter[] = [
       {
         id: 'ch1',
@@ -235,19 +235,14 @@ describe('FileView with hunks the chapters left out', () => {
           {
             filename: 'src/app.ts',
             language: 'typescript',
-            hunks: [
-              hunk('H0001', 1),
-              { ...hunk('H0002', 2), tier: 'mechanical', reason: 'the same rename' },
-            ],
+            hunks: [hunk('H0001', 1), { ...hunk('H0002', 2), tier: 'skim' }],
           },
         ],
       },
     ];
     renderWithSource(files, cited);
 
-    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(2);
-    expect(screen.getByText('the same rename')).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
+    expect(await screen.findAllByTestId('diff-editor')).toHaveLength(1);
   });
 
   it('shows a file no chapter cites as one diff, and says so in the header', () => {
