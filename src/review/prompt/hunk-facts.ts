@@ -88,8 +88,8 @@ const QUOTES = new Set(["'", '"', '`']);
 const BACKSLASH = '\\';
 const WORD_CHAR_RE = /[\p{L}\p{N}_$]/u;
 const CLOSING_BRACKETS = new Set([')', ']', '}']);
-/** Operators that, doubled, are another operator or a comment (`++`, `--`, `//`, `&&`, `>>`). */
-const FUSING_OPERATORS = new Set(['+', '-', '*', '/', '<', '>', '&', '|', '=']);
+/** What operators are spelled with: `<-`, `=>`, `!=`, `::`, `?.`, `..`, `/*` and the rest. */
+const OPERATOR_CHARS = new Set([...'+-*/%<>=!&|^~?:.@']);
 
 /** Languages the language map names whose indentation is syntax. */
 const INDENTED_LANGUAGES = new Set(['coffeescript', 'fsharp', 'markdown', 'pug', 'python', 'yaml']);
@@ -201,13 +201,15 @@ function indentationMatters(filename: string): boolean {
 /**
  * The text with each run of whitespace outside a string literal cut to what
  * can change how it parses. A run is dropped, except that it stays one space
- * between two characters that would fuse into another token (`not ready`,
- * `a + +b`), and one line break where a break can end a statement: the end of
- * a line holding a line comment, which would otherwise swallow the code after
- * it, and a break straight after a word (`return` then `value;`, under
- * JavaScript's semicolon insertion) unless a closing bracket follows. That
- * leaves a rewrap that breaks after a word mid-expression unproven, the safe
- * way round.
+ * between two characters that could fuse into another token (`not ready`,
+ * `a + +b`, `ch < -1`), and one line break where a break can end a statement:
+ * the end of a line holding a line comment, which would otherwise swallow the
+ * code after it, and a break straight after a word, a closing bracket or a
+ * closing quote (`return` then `value;` under JavaScript's semicolon
+ * insertion; `compute()` then `-1` in Go, Ruby, Kotlin or Swift) unless a
+ * closing bracket follows. That leaves a rewrap that breaks after one of
+ * those mid-expression unproven, a method chain broken after `)` among them,
+ * the safe way round.
  *
  * A quoted string ends with its line, since only a backtick string spans lines
  * in most languages, and an apostrophe in a comment should not turn the rest
@@ -221,7 +223,7 @@ function tokenText(text: string): string {
   let lineComment = false;
   let inRun = false;
   let breakAfterComment = false;
-  let breakAfterWord = false;
+  let breakAfterEnd = false;
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index]!;
     if (quote) {
@@ -241,19 +243,19 @@ function tokenText(text: string): string {
     if (WHITESPACE_CHAR_RE.test(char)) {
       if (char === '\n') {
         if (lineComment) breakAfterComment = true;
-        else if (WORD_CHAR_RE.test(out.at(-1) ?? '')) breakAfterWord = true;
+        else if (canEndStatement(out.at(-1) ?? '')) breakAfterEnd = true;
         lineComment = false;
       }
       inRun = true;
       continue;
     }
     if (inRun && out.length > 0) {
-      if (breakAfterComment || (breakAfterWord && !CLOSING_BRACKETS.has(char))) out += '\n';
+      if (breakAfterComment || (breakAfterEnd && !CLOSING_BRACKETS.has(char))) out += '\n';
       else if (fuses(out.at(-1)!, char)) out += ' ';
     }
     inRun = false;
     breakAfterComment = false;
-    breakAfterWord = false;
+    breakAfterEnd = false;
     if (QUOTES.has(char)) quote = char;
     else if (startsLineComment(text, index)) lineComment = true;
     out += char;
@@ -261,10 +263,18 @@ function tokenText(text: string): string {
   return out;
 }
 
+/**
+ * The last character outside a string before a line break. A quote there
+ * closed its string: an opening one would have left the scan inside it.
+ */
+function canEndStatement(last: string): boolean {
+  return WORD_CHAR_RE.test(last) || CLOSING_BRACKETS.has(last) || QUOTES.has(last);
+}
+
+/** Two words, or any two operator characters, since some language reads nearly every such pair as one. */
 function fuses(left: string, right: string): boolean {
   if (WORD_CHAR_RE.test(left) && WORD_CHAR_RE.test(right)) return true;
-  if (left === right && FUSING_OPERATORS.has(left)) return true;
-  return (left === '/' && right === '*') || (left === '*' && right === '/');
+  return OPERATOR_CHARS.has(left) && OPERATOR_CHARS.has(right);
 }
 
 /** `//`, `#` or `--`, read generously: a false comment only keeps a line break that did not matter. */

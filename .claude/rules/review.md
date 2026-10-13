@@ -81,9 +81,11 @@ src/review/
                      checked against, `changed` being every path the change touches, skipped files included; toResolvedHunk, a catalog hunk as a review stores it, facts kept),
                      hunk-facts (hunkLines reads each hunk's removed and added lines in catalog order;
                      provenFacts: whitespaceOnly when the two sides match with whitespace outside a string literal
-                     cut to what can change a parse — one space between two characters that would fuse (two
-                     words, `+ +`), one line break after a line comment or straight after a word unless a closing
-                     bracket follows (semicolon insertion), every other run gone — and where indentation is
+                     cut to what can change a parse — one space between two characters that could fuse (two
+                     words, or any two operator characters: `+ +`, `< -`, `= >`), one line break after a line
+                     comment, or straight after a word, a closing bracket or a closing quote unless a closing
+                     bracket follows (semicolon insertion, and Go, Ruby, Kotlin and Swift ending a statement at
+                     the line), every other run gone; a chain rewrapped after `)` goes unproven — and where indentation is
                      syntax (Python, YAML, Markdown, makefiles…) each line keeps its own indentation too; movedFrom/movedTo between a hunk that only adds and
                      one that only removes, when the significant lines they share, as a multiset, are at least 80%
                      of each side and include three distinct distinctive ones (8+ characters with a word that is

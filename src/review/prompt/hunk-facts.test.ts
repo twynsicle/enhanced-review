@@ -133,6 +133,28 @@ describe('provenFacts: whitespace only', () => {
     expect(facts.has(fused.id)).toBe(false);
   });
 
+  it('keeps a line break after a closing bracket or quote, where Go, Ruby, Kotlin and Swift end a statement', () => {
+    // Two statements, the second a bare -1, joined into a subtraction.
+    const afterBracket = body('a.rb', ['total = compute()', '-1'], ['total = compute() -1']);
+    const afterQuote = body('a.rb', ['name = "a"', '+ suffix'], ['name = "a" + suffix']);
+    const facts = provenFacts([afterBracket, afterQuote]);
+    expect(facts.has(afterBracket.id)).toBe(false);
+    expect(facts.has(afterQuote.id)).toBe(false);
+  });
+
+  it('keeps a space between operator characters that would read as one operator joined', () => {
+    const pairs = [
+      ['a.go', 'ok := ch < -1', 'ok := ch <-1'],
+      ['a.ts', 'f = x = > y;', 'f = x => y;'],
+      ['a.c', 'v = p - > next;', 'v = p -> next;'],
+      ['a.ts', 'ok = a ! = b;', 'ok = a != b;'],
+      ['a.rb', 'x = A : : B', 'x = A :: B'],
+    ];
+    const hunks = pairs.map(([file, before, after]) => body(file!, [before!], [after!]));
+    const facts = provenFacts(hunks);
+    for (const hunk of hunks) expect(facts.has(hunk.id)).toBe(false);
+  });
+
   it('still proves a comment reindented, or a break after a word that a closing bracket follows', () => {
     const comment = body(
       'src/cache.ts',
