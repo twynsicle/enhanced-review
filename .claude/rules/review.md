@@ -95,6 +95,10 @@ src/review/
                      header's part number back),
                      instructions.ts (NARRATIVE_SYSTEM_PROMPT, the review instructions and output schema, and
                      LOCAL_WORKING_TREE, the closing paragraph saying where the agent is standing),
+                     overview-styles (OVERVIEW_STYLES, the names --overview-style takes and er validates against,
+                     and OVERVIEW_STYLE_TEXT, each one's instruction for the overview's and the chapters' bodies —
+                     narrative, the default, has none; overviewStyleSection, the prompt.md section saying the
+                     body is restyled and nothing else is: the lede stays one sentence, the JSON is unchanged),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; every repair it makes
                      is recorded as a Finding, so leniency is not silence; it assumes no pairing of the
                      <narrative_review> tags — opening tags are tried last to first, and for each one every closing

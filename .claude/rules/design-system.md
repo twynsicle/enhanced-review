@@ -26,7 +26,7 @@ reader growing twelve font sizes and nine near-identical label styles:
 
 **One reading measure.** In the reader, every block — heading, card, prose,
 caption — sits in a single column capped at `--er-measure` (42rem) via
-`narrative/article.module.css`, so they share one right edge. Only a diff or a
+`src/report/reader/article.module.css`, so they share one right edge. Only a diff or a
 code block opts out, with `data-bleed`, and spans the rest of the column: those
 are the only things here that read better wide, and they are what the width
 toggle is for. Do not give a prose block its own `max-width` — that
@@ -67,7 +67,9 @@ code. There is no display serif.
 Colour is semantic tokens only (`token('muted-foreground')`, never a literal or
 a `color-mix` off `foreground`). Body text is `foreground`; anything secondary
 is `muted-foreground` — those two greys are the whole vocabulary. `subtle` is
-placeholder and decoration, never text. Text on a `-soft` fill takes the
+placeholder and decoration, never text — except for code comments when the
+reader has dimmed them from the display menu: a comment they asked to push
+back is decoration by their choice. Text on a `-soft` fill takes the
 matching `-ink` — enforced, not merely advised: the guardrail treats every
 `-soft` as a ground in its own right and scans components for a page-ground
 colour under an unconditional tint fill. The base accents are tuned against the
@@ -92,7 +94,7 @@ exempt (WCAG 1.4.3) and the guardrail does not look at them.
 ## The diff's colours
 
 Monaco paints its own diff bands, and it is told which colours to use by
-`narrative/inline-diff-chunk.module.css` setting its `--vscode-diffEditor-*`
+`src/report/reader/inline-diff-chunk.module.css` setting its `--vscode-diffEditor-*`
 variables to `add` and `del`. The theme service emits those onto a bare
 `.monaco-editor, .monaco-diff-editor`, so any two-class selector outranks it —
 which is why this is CSS rather than a registered `defineTheme`, and why it
@@ -107,3 +109,10 @@ two harder marks instead, both of them on the gutter: it is tinted well above
 the band, and carries a solid rail down its inner edge. Both belong there rather
 than on the line because the gutter never scrolls sideways, and a mark that
 leaves the viewport on a wide diff is no mark at all.
+
+Dimmed comments are the only registered themes, one dimmed pair, light and
+dark (`src/report/reader/monaco-themes.ts`): a comment's colour comes from the
+tokenizer's classes, which only a theme rule reaches. Each inherits `vs` or
+`vs-dark` and paints comments in that scheme's `subtle`, converted from the
+token by `src/report/theme/oklch.ts` rather than respelled, so changing
+`subtle` restyles them too.

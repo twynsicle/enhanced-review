@@ -30,7 +30,7 @@ src/report/
   chrome/            brand-mark (+ brand-mark.svg, imported so the build inlines it), caption (the one uppercase
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
                      topbar (TopbarFrame, Brand), display-menu (every display preference in one labelled
-                     dropdown: diffs, long lines, skim, layout, theme)
+                     dropdown: diffs, long lines, skim, comments, layout, theme)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
                      belongs to the file; each change is a history entry; the review's read chapters from the
@@ -99,8 +99,8 @@ src/report/
                      fact badges; a `mechanical` group is folded to that row, and a `skim` one when er-fold-skim
                      says so, with Show/Hide opening it in place, unless `fold` is off (the file view),
                      the asides for this file above the diff — judgement calls first, then the chapter's
-                     insights that named it — and a lazy Monaco DiffEditor, vs/vs-dark following
-                     the scheme; the wrap preference goes to the live widget as diffWordWrap, never through its
+                     insights that named it — and a lazy Monaco DiffEditor, its theme from useEditorTheme;
+                     the wrap preference goes to the live widget as diffWordWrap, never through its
                      construction options, so a flip reflows in place instead of remounting; CodeCard and
                      CodeCardHeader, the frame and sticky path header a diff card and an excerpt card share —
                      only a diff's carries data-diff-file),
@@ -108,8 +108,14 @@ src/report/
                      loader.config pins the CDN and loader.init is awaited, behind two lazies — DiffEditor and
                      CodeEditor, the plain editor an excerpt uses — so a CDN that cannot be reached resolves each
                      to a line of text in its card ("this diff" / "this excerpt can't be shown") instead of an
-                     empty body; the offset gutter helpers, the relayout once the reader's column settles, and
-                     the scroll kept on a click's focus, which both editors share),
+                     empty body; the dimmed themes defined on that load, before either editor mounts;
+                     useEditorTheme, the theme both are handed — vs/vs-dark by the scheme, or its dimmed twin
+                     when er-dim-comments says so — which the library applies to the live editor with
+                     setTheme, so a flip never remounts; the offset gutter helpers, the relayout once the
+                     reader's column settles, and the scroll kept on a click's focus, which both editors share),
+                     monaco-themes.ts (the dimmed twins of vs and vs-dark: inherit the base, and paint `comment`
+                     and the sub-scopes Monaco's tokenizers emit in the scheme's `subtle` token as hex, italic;
+                     defineEditorThemes, editorTheme),
                      monaco-cdn.ts (MONACO_VERSION / MONACO_VS_URL: which Monaco the CDN serves, held to the
                      declared monaco-editor — the types' version — by the monaco-version guardrail),
                      use-reading-file.ts (which file's diff card is pinned under the topbar, re-read on scroll and
@@ -129,7 +135,9 @@ src/report/
                      (`er-sidebar`, the navigation column in pixels, clamped to SIDEBAR_WIDTHS rather than matched;
                      followSidebarWidth paints `--review-sidebar-width` on `<html>` — a drag writes the variable
                      directly and commits to the store once on release), fold-skim.ts (`er-fold-skim`, shown ⇄
-                     folded: whether skim hunks fold like mechanical ones), all six on raw-preference.ts (one word
+                     folded: whether skim hunks fold like mechanical ones), dim-comments.ts (`er-dim-comments`,
+                     normal ⇄ dimmed: comments in the code viewers at full strength or in `subtle`, every line
+                     kept in place), all seven on raw-preference.ts (one word
                      or one number, not JSON). progress.ts (`er-progress`) is the one record rather than a
                      preference, so it is JSON and not on raw-preference: `{ [repo|baseSha|headSha]: { read:
                      chapterId[], at } }`, the 50 most recently touched reviews kept; written over what storage
@@ -141,7 +149,9 @@ src/report/
                      measurement is kept off the persisted store because persist writes its slice after every set
   theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours + FONT_SIZES/DISPLAY_SIZE/
                      CAPTION_TYPE, the type scale) → theme.ts (Mantine ramps, fontSizes, sans + mono),
-                     css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules)
+                     css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules),
+                     oklch.ts (oklch → linear sRGB → hex: what Monaco's theme rules need, and the arithmetic the
+                     palette guardrail checks contrast with)
   test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper, diagram-fixtures
 ```
 

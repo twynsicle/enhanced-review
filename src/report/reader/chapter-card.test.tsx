@@ -7,7 +7,7 @@ import { ChapterCard, groupInsightsByFile, orderChunksTestsLast } from './chapte
 
 vi.mock('@monaco-editor/react', () => ({
   DiffEditor: () => <div data-testid="diff-editor" />,
-  loader: { config: () => {}, init: () => Promise.resolve({}) },
+  loader: { config: () => {}, init: () => Promise.resolve({ editor: { defineTheme: () => {} } }) },
 }));
 
 function chunk(filename: string): DiffChunk {

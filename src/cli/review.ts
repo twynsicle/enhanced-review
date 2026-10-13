@@ -6,6 +6,7 @@ import { reviewCoverage } from '../review/coverage.ts';
 import { MAX_VALIDATION_RETRIES } from './validation-stop-hook.ts';
 import type { Finding } from '../review/findings.ts';
 import type { NarrativeReview } from '../review/narrative.ts';
+import { DEFAULT_OVERVIEW_STYLE, type OverviewStyle } from '../review/prompt/overview-styles.ts';
 import { splitPart } from '../review/prompt/split-hunks.ts';
 import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
 import { gather, readContext, type RunContext } from './context.ts';
@@ -80,6 +81,8 @@ export interface ReviewOptions {
   instructions: string | null;
   /** Split a hunk with more changed lines than this into parts; `0` keeps git's hunks. */
   splitLines: number;
+  /** How the overview's and the chapters' bodies are written, written into the prompt. */
+  overviewStyle: OverviewStyle;
 }
 
 export interface ReviewDeps {
@@ -109,11 +112,15 @@ export async function review(
 
   if (runs('prompt')) {
     const started = performance.now();
-    const prompt = await writePrompt(context, run, options.instructions);
+    const prompt = await writePrompt(context, run, options.instructions, options.overviewStyle);
     const yours = options.instructions === null ? '' : ' with yours';
+    const style =
+      options.overviewStyle === DEFAULT_OVERVIEW_STYLE
+        ? ''
+        : `; ${options.overviewStyle} overview style`;
     stage(
       'prompt',
-      `~${tokens(prompt)} tokens${yours}, plus the review instructions`,
+      `~${tokens(prompt)} tokens${yours}, plus the review instructions${style}`,
       performance.now() - started,
     );
   }

@@ -9,7 +9,7 @@ import { ChapterReader } from './chapter-reader';
 
 vi.mock('@monaco-editor/react', () => ({
   DiffEditor: () => <div data-testid="diff-editor" />,
-  loader: { config: () => {}, init: () => Promise.resolve({}) },
+  loader: { config: () => {}, init: () => Promise.resolve({ editor: { defineTheme: () => {} } }) },
 }));
 
 const meta: ReviewMeta = {

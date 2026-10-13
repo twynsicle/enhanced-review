@@ -1,18 +1,21 @@
+import type { DiffEditorProps } from '@monaco-editor/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUNDLE_SCHEMA_VERSION, type EmbeddedSide, type ReviewBundle } from '@/review/bundle';
 import type { CitedHunk, DiffChunk, Insight } from '@/review/narrative';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
 import { act, render, screen, userEvent, within } from '@/report/test/render';
+import { useDimComments } from '@/report/stores/dim-comments';
 import { useFoldSkim } from '@/report/stores/fold-skim';
 import { DisplayMenu } from '@/report/chrome/display-menu';
 import { TOPBAR_HEIGHT } from '@/report/theme/tokens';
+import { DIMMED_THEME } from './monaco-themes';
 import { InlineDiffChunk } from './inline-diff-chunk';
 
 vi.mock('@monaco-editor/react', () => ({
-  DiffEditor: () => <div data-testid="diff-editor" />,
+  DiffEditor: ({ theme }: DiffEditorProps) => <div data-testid="diff-editor" data-theme={theme} />,
   // The component pins the CDN and waits for the editor through this before
   // it mounts anything.
-  loader: { config: () => {}, init: () => Promise.resolve({}) },
+  loader: { config: () => {}, init: () => Promise.resolve({ editor: { defineTheme: () => {} } }) },
 }));
 
 const chunk: DiffChunk = {
@@ -91,6 +94,27 @@ describe('<InlineDiffChunk />', () => {
   it('reads a file the bundle does not carry as missing', () => {
     renderChunk({});
     expect(screen.getByText(/isn't available at either commit/i)).toBeDefined();
+  });
+});
+
+describe('<InlineDiffChunk /> with comments dimmed', () => {
+  beforeEach(() => useDimComments.setState({ comments: 'normal' }));
+
+  it('is dimmed from the display menu, restyling the editor in place', async () => {
+    renderPair(content('a\n'), content('// b\n'));
+    render(<DisplayMenu />);
+    const editor = await screen.findByTestId('diff-editor');
+    expect(editor).toHaveAttribute('data-theme', 'vs-dark');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Display settings' }));
+    const row = await screen.findByRole('menuitem', { name: /^Comments:/ });
+    expect(row).toHaveAccessibleName('Comments: Normal');
+    await userEvent.click(row);
+
+    expect(useDimComments.getState().comments).toBe('dimmed');
+    expect(row).toHaveAccessibleName('Comments: Dimmed');
+    expect(screen.getByTestId('diff-editor')).toBe(editor);
+    expect(editor).toHaveAttribute('data-theme', DIMMED_THEME.dark);
   });
 });
 

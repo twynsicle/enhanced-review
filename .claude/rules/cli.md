@@ -14,13 +14,17 @@ comes only through `host-env.ts`.
 
 ```
 src/cli/
-  er.ts            the bin (`npm link` puts it on PATH): parseArgs → review; usage errors reprint the usage;
-                   --instructions or --instructions-file becomes ReviewOptions.instructions, refused with a
-                   --from past prompt, which writes no new prompt; --split-hunks <lines> becomes
-                   ReviewOptions.splitLines, refused with any --from, since hunks are numbered at gather;
+  er.ts            the bin (`npm link` puts it on PATH): parseCommand → review; usage errors reprint the usage;
                    the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
+  command-line.ts  USAGE, UsageError and parseCommand, every flag checked before anything runs (no side
+                   effects but reading an --instructions-file, so the tests drive it directly):
+                   --instructions or --instructions-file becomes ReviewOptions.instructions and
+                   --overview-style <name> ReviewOptions.overviewStyle (one of OVERVIEW_STYLES), each refused
+                   with a --from past prompt, which writes no new prompt; --split-hunks <lines> becomes
+                   ReviewOptions.splitLines, refused with any --from, since hunks are numbered at gather
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
-                   --keep-worktree, --model, --max-turns, --timeout, --allow-large, --instructions; past 300 reviewed files a model run is
+                   --keep-worktree, --model, --max-turns, --timeout, --allow-large, --instructions, --overview-style
+                   (named on the prompt stage line unless it is narrative); past 300 reviewed files a model run is
                    refused (a fresh one inside gather, before any blob is read; a resumed one before the run),
                    past 50 it warns, and --stub is held to neither; prints each warning finding after the parse
                    line and returns WARNED (2) when there was one — --from render reads them back with
@@ -69,7 +73,9 @@ src/cli/
   prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
                    commits, where the agent is, Files Changed, Not Reviewed, the hunk table (each hunk's proven
                    facts after it as hints: `[whitespace only]`, `[moved from <path>, N%]`), and where the diff
-                   file is, with its length, then the engineer's own instructions when given; the dirty paths
+                   file is, with its length, then the overview style's section (none for narrative, and never
+                   in system.md, which stays the same on every run so it is read from cache), then the
+                   engineer's own instructions when given; the dirty paths
                    under Where You Are, with a line asking for no excerpt from them
   claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl
                    (tool uses, refusals, blocked stops, and a result event carrying turns, cost and the token

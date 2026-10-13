@@ -23,7 +23,7 @@ vi.mock('@monaco-editor/react', () => ({
   },
   // The component pins the CDN and waits for the editor through this before
   // it mounts anything.
-  loader: { config: () => {}, init: () => Promise.resolve({}) },
+  loader: { config: () => {}, init: () => Promise.resolve({ editor: { defineTheme: () => {} } }) },
 }));
 
 const chunk: DiffChunk = {

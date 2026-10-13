@@ -1,4 +1,4 @@
-import { Box, Skeleton, Text, useComputedColorScheme } from '@mantine/core';
+import { Box, Skeleton, Text } from '@mantine/core';
 import type { editor, IDisposable } from 'monaco-editor';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ContextExcerpt } from '@/review/narrative';
@@ -10,6 +10,7 @@ import {
   lineNumberWidth,
   makeOffsetLineNumbers,
   MIN_EDITOR_HEIGHT,
+  useEditorTheme,
   useLayoutOnColumnSettle,
   useScrollKeptOnFocus,
 } from '@/report/reader/monaco-editors';
@@ -43,7 +44,7 @@ function ExcerptEditor({
   startLine: number;
   language: string;
 }) {
-  const scheme = useComputedColorScheme('dark');
+  const theme = useEditorTheme();
   const wrap = useDiffWrap((s) => s.wrap);
   const [height, setHeight] = useState(MIN_EDITOR_HEIGHT);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -108,7 +109,7 @@ function ExcerptEditor({
           value={text}
           language={language}
           path={`file:///__excerpt__/${encodeURIComponent(modelKey)}/${encodedPath}`}
-          theme={scheme === 'dark' ? 'vs-dark' : 'vs'}
+          theme={theme}
           onMount={onMount}
           loading={fallback}
           options={options}

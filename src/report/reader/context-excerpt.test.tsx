@@ -4,15 +4,17 @@ import { reviewCoverage } from '@/review/coverage';
 import type { ContextExcerpt, NarrativeChapter } from '@/review/narrative';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
 import { SAMPLE_BUNDLE, SAMPLE_EXCERPT_FILE } from '@/report/sample-bundle';
-import { render, screen, within } from '@/report/test/render';
+import { useDimComments } from '@/report/stores/dim-comments';
+import { act, render, screen, within } from '@/report/test/render';
 import { ChapterCard } from './chapter-card';
 import { ChapterReader } from './chapter-reader';
 import { ContextExcerptCard, lineRange } from './context-excerpt';
+import { DIMMED_THEME } from './monaco-themes';
 
 /** What the excerpt's editor was handed, laid out where a test can read it. */
 vi.mock('@monaco-editor/react', () => ({
   DiffEditor: () => <div data-testid="diff-editor" />,
-  Editor: ({ value, path, options }: EditorProps) => {
+  Editor: ({ value, path, options, theme }: EditorProps) => {
     const numbers = options?.lineNumbers;
     return (
       <div
@@ -21,12 +23,13 @@ vi.mock('@monaco-editor/react', () => ({
         data-read-only={String(options?.readOnly)}
         data-first-line={typeof numbers === 'function' ? numbers(1) : String(numbers)}
         data-gutter={String(options?.lineNumbersMinChars)}
+        data-theme={theme}
       >
         {value}
       </div>
     );
   },
-  loader: { config: () => {}, init: () => Promise.resolve({}) },
+  loader: { config: () => {}, init: () => Promise.resolve({ editor: { defineTheme: () => {} } }) },
 }));
 
 afterEach(() => {
@@ -71,6 +74,18 @@ describe('an excerpt of unchanged code', () => {
     expect(editor.getAttribute('data-path')).toBe(
       'file:///__excerpt__/cadence-table-0/src/runner/budget.ts',
     );
+  });
+
+  it('dims its comments with the diffs’, in the editor it already has', async () => {
+    useDimComments.setState({ comments: 'normal' });
+    renderExcerpt();
+    const editor = await screen.findByTestId('code-editor');
+    expect(editor).toHaveAttribute('data-theme', 'vs-dark');
+
+    act(() => useDimComments.setState({ comments: 'dimmed' }));
+    expect(screen.getByTestId('code-editor')).toBe(editor);
+    expect(editor).toHaveAttribute('data-theme', DIMMED_THEME.dark);
+    act(() => useDimComments.setState({ comments: 'normal' }));
   });
 
   it('spells a one-line span as one line', () => {

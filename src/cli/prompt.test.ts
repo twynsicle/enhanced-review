@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_WORKING_TREE, NARRATIVE_SYSTEM_PROMPT } from '../review/prompt/instructions.ts';
+import { OVERVIEW_STYLE_TEXT, OVERVIEW_STYLES } from '../review/prompt/overview-styles.ts';
 import type { RunContext } from './context.ts';
 import { buildPrompt, writePrompt } from './prompt.ts';
 import { runFiles, type RunFiles } from './run-folder.ts';
@@ -75,7 +76,7 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
 
 describe('the local prompt', () => {
   it('delivers a PR with its header, files, hunks and where the diff file is', () => {
-    const prompt = buildPrompt(context(), run, null);
+    const prompt = buildPrompt(context(), run, null, 'narrative');
 
     expect(prompt).toMatch(/^# Pull Request #7: Add a login form\n/);
     expect(prompt).toContain('**Author**: octo');
@@ -114,6 +115,7 @@ describe('the local prompt', () => {
       }),
       run,
       null,
+      'narrative',
     );
     const line = (id: string) => prompt.split('\n').find((row) => row.startsWith(`  ${id}  `));
 
@@ -130,6 +132,7 @@ describe('the local prompt', () => {
       context({ meta: { ...context().meta, description: long } }),
       run,
       null,
+      'narrative',
     );
     expect(prompt).not.toContain(long);
     expect(prompt).toContain(`read it in \`${run.pr.replaceAll('\\', '/')}\``);
@@ -157,6 +160,7 @@ describe('the local prompt', () => {
       },
       run,
       null,
+      'narrative',
     );
 
     expect(prompt).toMatch(/^# Branch: feat\/login\n/);
@@ -172,7 +176,7 @@ describe('the local prompt', () => {
 
   it('ends with the reviewer’s instructions, framed as theirs rather than the author’s', () => {
     const instructions = ['Look hard at the session handling.', 'Skip the CSS.'].join('\n');
-    const prompt = buildPrompt(context(), run, instructions);
+    const prompt = buildPrompt(context(), run, instructions, 'narrative');
 
     const [before, section] = prompt.split('## Reviewer’s Instructions');
     expect(before).toMatch(/code around it\.\n\n$/);
@@ -183,11 +187,36 @@ describe('the local prompt', () => {
   });
 
   it('has no reviewer’s section without instructions', () => {
-    expect(buildPrompt(context(), run, null)).not.toContain('Reviewer’s Instructions');
+    expect(buildPrompt(context(), run, null, 'narrative')).not.toContain('Reviewer’s Instructions');
+  });
+
+  it('writes a chosen overview style as its own section, before the reviewer’s instructions', () => {
+    const prompt = buildPrompt(context(), run, 'Skip the CSS.', 'checklist');
+
+    const [before, after] = prompt.split('## Overview Style: checklist\n');
+    expect(before).toMatch(/code around it\.\n\n$/);
+    expect(after).toContain('This replaces what your system prompt says a body holds.');
+    expect(after).toContain(OVERVIEW_STYLE_TEXT.checklist);
+    expect(after!.indexOf(OVERVIEW_STYLE_TEXT.checklist!)).toBeLessThan(
+      after!.indexOf('## Reviewer’s Instructions'),
+    );
+  });
+
+  it('adds nothing for the narrative style, which is the system prompt’s own', () => {
+    const prompt = buildPrompt(context(), run, null, 'narrative');
+    expect(prompt).not.toContain('Overview Style');
+    expect(prompt).toMatch(/code around it\.\n$/);
+  });
+
+  it('leaves the shared system prompt the same whatever the style', async () => {
+    for (const style of OVERVIEW_STYLES) {
+      await writePrompt(context(), run, null, style);
+      expect(readFileSync(run.system, 'utf8')).toBe(NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
+    }
   });
 
   it('writes the shared instructions and the local paragraph beside the prompt', async () => {
-    const user = await writePrompt(context(), run, null);
+    const user = await writePrompt(context(), run, null, 'narrative');
     expect(readFileSync(run.system, 'utf8')).toBe(NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
     expect(readFileSync(run.prompt, 'utf8')).toBe(user);
   });

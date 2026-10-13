@@ -1,10 +1,12 @@
-import { Box, Text } from '@mantine/core';
+import { Box, Text, useComputedColorScheme } from '@mantine/core';
 import type * as MonacoReact from '@monaco-editor/react';
 import type { DiffEditorProps, EditorProps } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { lazy, useCallback, useEffect, useRef, type ComponentType, type RefObject } from 'react';
 import { MONACO_VS_URL } from '@/report/reader/monaco-cdn';
+import { defineEditorThemes, editorTheme } from '@/report/reader/monaco-themes';
 import { useReaderColumn } from '@/report/stores/diff-view';
+import { useDimComments } from '@/report/stores/dim-comments';
 
 /**
  * The code viewer: the one place the reader imports Monaco, and what its two
@@ -73,11 +75,13 @@ function loadMonaco(): Promise<typeof MonacoReact | null> {
   loading ??= (async () => {
     const mod = await import('@monaco-editor/react');
     mod.loader.config({ paths: { vs: MONACO_VS_URL } });
+    let monaco;
     try {
-      await mod.loader.init();
+      monaco = await mod.loader.init();
     } catch {
       return null;
     }
+    defineEditorThemes(monaco);
     return mod;
   })();
   return loading;
@@ -92,6 +96,17 @@ export const CodeEditor = lazy<ComponentType<EditorProps>>(async () => {
   const mod = await loadMonaco();
   return { default: mod ? mod.Editor : ExcerptUnavailable };
 });
+
+/**
+ * The theme both editors are handed. The library passes a changed `theme` to
+ * `setTheme` on the live editor, so a flip of the scheme or of the comments
+ * restyles in place rather than remounting.
+ */
+export function useEditorTheme(): string {
+  const scheme = useComputedColorScheme('dark');
+  const comments = useDimComments((s) => s.comments);
+  return editorTheme(scheme, comments);
+}
 
 /** An editor's height is its content's plus this, and never under the minimum. */
 export const MIN_EDITOR_HEIGHT = 60;

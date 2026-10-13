@@ -1,4 +1,4 @@
-import { Box, Group, Skeleton, Text, UnstyledButton, useComputedColorScheme } from '@mantine/core';
+import { Box, Group, Skeleton, Text, UnstyledButton } from '@mantine/core';
 import type { editor, IDisposable } from 'monaco-editor';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FilePair } from '@/review/bundle';
@@ -20,6 +20,7 @@ import {
   lineNumberWidth,
   makeOffsetLineNumbers,
   MIN_EDITOR_HEIGHT,
+  useEditorTheme,
   useLayoutOnColumnSettle,
   useScrollKeptOnFocus,
 } from '@/report/reader/monaco-editors';
@@ -191,7 +192,7 @@ function SnippetEditor({
   view: DiffView;
   wrap: DiffWrap;
 }) {
-  const scheme = useComputedColorScheme('dark');
+  const theme = useEditorTheme();
   const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const disposables = useRef<IDisposable[]>([]);
@@ -381,7 +382,7 @@ function SnippetEditor({
           modifiedModelPath={buildModelPath(chunkFilename, snippet.key, 'modified')}
           keepCurrentOriginalModel
           keepCurrentModifiedModel
-          theme={scheme === 'dark' ? 'vs-dark' : 'vs'}
+          theme={theme}
           onMount={onMount}
           loading={fallback}
           options={options}

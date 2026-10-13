@@ -67,6 +67,7 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   allowLarge: false,
   instructions: null,
   splitLines: 0,
+  overviewStyle: 'narrative',
   ...overrides,
 });
 
@@ -168,6 +169,22 @@ describe('er review', () => {
     expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
       'prompt',
       expect.stringMatching(/^~\d+ tokens with yours, plus the review instructions$/),
+      expect.any(Number),
+    );
+  });
+
+  it('writes a chosen overview style into the prompt, and says which', async () => {
+    await expect(review(options({ overviewStyle: 'five-whys' }), deps)).resolves.toBe(0);
+
+    const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
+    expect(readFileSync(path.join(run, 'prompt.md'), 'utf8')).toContain(
+      '## Overview Style: five-whys',
+    );
+    expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
+      'prompt',
+      expect.stringMatching(
+        /^~\d+ tokens, plus the review instructions; five-whys overview style$/,
+      ),
       expect.any(Number),
     );
   });
