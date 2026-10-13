@@ -170,7 +170,7 @@ describe('the local prompt', () => {
     expect(prompt).toContain(
       '(no description — the commit messages below are the best statement of intent)',
     );
-    expect(prompt).toContain('the repository itself, at feat/login');
+    expect(prompt).toContain('the repository itself (`C:/repos/widgets`), at feat/login');
     expect(prompt).toContain(
       'not part of this review, so what you read there may differ from the reviewed version. Take no excerpt of unchanged code from them:\n  src/login.ts\n  notes.txt',
     );
