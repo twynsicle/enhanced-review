@@ -318,7 +318,8 @@ describe('provenFacts: moved', () => {
       ],
       [],
     );
-    // `});` matches but is not significant, so these three lines are all there is.
+    // `});` matches but is not significant, so these three lines are all there
+    // is; the extra one still keeps the move short of unchanged.
     const adding = body(
       'src/b.ts',
       [],
@@ -333,8 +334,45 @@ describe('provenFacts: moved', () => {
     );
     expect(provenFacts([removing, adding]).get(adding.id)?.movedFrom).toEqual({
       filename: 'src/a.ts',
-      similarity: 100,
+      similarity: 99,
     });
+  });
+
+  it('gives 100% only to a block moved unchanged, since that is what fades it as skim', () => {
+    const swapped = [
+      APPLY_DISCOUNT[0]!,
+      APPLY_DISCOUNT[2]!,
+      APPLY_DISCOUNT[1]!,
+      ...APPLY_DISCOUNT.slice(3),
+    ];
+    const respaced = APPLY_DISCOUNT.map((line) => line.replace('price * (', 'price  * ('));
+    const similarity = (removed: string[], added: string[], filename = 'src/a.ts') =>
+      provenFacts([body(filename, removed, []), body(filename, [], added)])
+        .values()
+        .next().value?.movedFrom?.similarity;
+
+    expect(similarity(APPLY_DISCOUNT, swapped)).toBe(99);
+    expect(similarity(APPLY_DISCOUNT, respaced)).toBe(99);
+    expect(similarity(APPLY_DISCOUNT, ['', ...APPLY_DISCOUNT.map((line) => `    ${line}`)])).toBe(
+      100,
+    );
+  });
+
+  it('lets a Python block shift as a whole when moved, but not one line against the rest', () => {
+    const block = [
+      'def settle(account, ledger):',
+      '    if account.frozen:',
+      '        ledger.reject(account)',
+      '    ledger.post(account.balance)',
+    ];
+    const dedented = [...block.slice(0, 2), '    ledger.reject(account)', block[3]!];
+    const similarity = (added: string[]) =>
+      provenFacts([body('jobs/old.py', block, []), body('jobs/new.py', [], added)])
+        .values()
+        .next().value?.movedFrom?.similarity;
+
+    expect(similarity(block.map((line) => `    ${line}`))).toBe(100);
+    expect(similarity(dedented)).toBe(99);
   });
 
   it('counts lines as a multiset, so a repeated line is found only as often as it was removed', () => {

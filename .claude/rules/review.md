@@ -91,7 +91,9 @@ src/review/
                      syntax (Python, YAML, Markdown, makefiles…) each line keeps its own indentation too; movedFrom/movedTo between a hunk that only adds and
                      one that only removes, when the significant lines they share, as a multiset, are at least 80%
                      of each side and include three distinct distinctive ones (8+ characters with a word that is
-                     not a keyword or markup filler), similarity the smaller share, best overlap winning and the
+                     not a keyword or markup filler), similarity the smaller share and 100 only for a block
+                     moved unchanged (in order, each line whole; where indentation is syntax, shifted only
+                     as a whole), best overlap winning and the
                      removing hunk naming its best destination; any file, never a hunk that edits in place; facts
                      are hints for the tier and tags in the reader, and settle it only through provenSkim; each
                      errs toward proving nothing, since a fact can fade a hunk the model called read),

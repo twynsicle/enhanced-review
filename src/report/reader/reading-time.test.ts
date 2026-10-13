@@ -6,7 +6,6 @@ import {
   chapterSeconds,
   formatMinutes,
   hunkSeconds,
-  overviewMinutes,
   readingPlanRows,
   wholeMinutes,
 } from './reading-time';
@@ -110,11 +109,20 @@ describe('the reading plans', () => {
     return { prTitle: 't', overviewSummary: { lede: words(10) }, chapters, ...overrides };
   }
 
-  it('times the overview by its prose, and its diagram', () => {
+  it('opens every plan with the overview, timed by its prose and its diagram', () => {
+    const overviewOnly = (overrides: Partial<NarrativeReview>) =>
+      readingPlanRows(
+        review({
+          chapters: [chapter('empty', [])],
+          readingPlan: { brief: ['empty'], standard: ['empty'] },
+          ...overrides,
+        }),
+      )[0]!.minutes;
+    // 110 words is 33s; a diagram adds 30.
+    expect(overviewOnly({ overviewSummary: { lede: words(110) } })).toBe(1);
     expect(
-      overviewMinutes(review({ overviewSummary: { lede: words(150), body: words(60) } })),
+      overviewOnly({ overviewSummary: { lede: words(110) }, overviewDiagram: HAND_BEFORE_AFTER }),
     ).toBe(2);
-    expect(overviewMinutes(review({ overviewDiagram: HAND_BEFORE_AFTER }))).toBe(1);
   });
 
   it('rounds each plan once over the overview and its chapters, and lists what each adds', () => {

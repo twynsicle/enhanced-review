@@ -8,11 +8,11 @@ import type { HunkFacts } from '../narrative.ts';
  * a line comment), or that its lines were lifted
  * from (or to) another hunk. Both are cheap to check and easy to get wrong by
  * eye, which is why the CLI states them rather than leaving the model to
- * notice — and why they stay facts: whether a moved block still matters where
- * it landed is the model's call, not this module's.
+ * notice. Whether a block moved with changes still matters where it landed is
+ * the model's call, not this module's.
  *
- * A whitespace-only or wholly moved hunk is skim whatever the model says
- * (`provenSkim`), so each fact errs toward proving nothing: a hunk left
+ * A whitespace-only hunk, or one moved at 100%, is skim whatever the model
+ * says (`provenSkim`), so each fact errs toward proving nothing: a hunk left
  * unproven is the model's to tier, while a behaviour change proven to be
  * whitespace is faded as though it were nothing.
  *
@@ -324,7 +324,9 @@ interface Move {
  * For each adding hunk, the removing hunk it shares the most significant
  * lines with, when that clears every threshold; ties go to the earlier hunk.
  * The similarity is the smaller of the two shares, so both ends report one
- * number and neither overstates the match.
+ * number and neither overstates the match, and it is 100 only for a block
+ * moved unchanged (`movedUnchanged`): the shares ignore order and short lines,
+ * so they reach 100 for a block reordered or missing a `}` too.
  *
  * Only a one-sided hunk is either end of a move: a hunk that removes lines
  * and adds others edits in place, whatever its lines resemble elsewhere. That
@@ -373,9 +375,32 @@ function findMoves(hunks: readonly HunkBody[]): Move[] {
       if (best && (shared < best.common || (shared === best.common && source > best.from))) {
         continue;
       }
-      best = { from: source, to: index, similarity: Math.round(100 * share), common: shared };
+      const similarity = movedUnchanged(hunks[source]!, hunks[index]!)
+        ? 100
+        : Math.min(99, Math.round(100 * share));
+      best = { from: source, to: index, similarity, common: shared };
     }
     if (best) moves.push(best);
   });
   return moves;
+}
+
+/**
+ * The added lines are the removed ones, in order and each whole, blank lines
+ * aside and each line's margin trimmed. Where indentation is syntax the block
+ * may shift as a whole, but no line may shift against the others.
+ */
+function movedUnchanged(from: HunkBody, to: HunkBody): boolean {
+  const keepIndent = indentationMatters(from.filename) || indentationMatters(to.filename);
+  const shape = (lines: readonly string[]) => {
+    const kept = lines.filter((line) => line.trim().length > 0);
+    const indents = kept.map((line) => LEADING_WHITESPACE_RE.exec(line)![0]);
+    const margin = Math.min(...indents.map((indent) => indent.length));
+    return kept.map((line, index) =>
+      keepIndent ? `${indents[index]!.slice(margin)}${line.trim()}` : line.trim(),
+    );
+  };
+  const before = shape(from.removed);
+  const after = shape(to.added);
+  return before.length === after.length && before.every((line, index) => line === after[index]);
 }

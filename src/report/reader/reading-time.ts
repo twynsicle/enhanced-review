@@ -77,11 +77,6 @@ function overviewSeconds(review: NarrativeReview): number {
   return prose + (review.overviewDiagram ? DIAGRAM_SECONDS : 0);
 }
 
-/** The summary's overview, which every plan opens with. */
-export function overviewMinutes(review: NarrativeReview): number {
-  return wholeMinutes(overviewSeconds(review));
-}
-
 export function formatMinutes(minutes: number): string {
   return `~${String(minutes)} min`;
 }
