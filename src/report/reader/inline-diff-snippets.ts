@@ -218,12 +218,18 @@ export function buildInlineDiffSnippets({
 }
 
 /**
- * The lines a group's hunks span, the longer side of each: what a reader
- * opening a fold is about to be shown, context lines and all.
+ * A hunk's lines: the longer of its two spans, git's own context lines inside
+ * the hunk included. What the eye covers on the busier side, and the one
+ * measure the fold row's count and the reading-time estimate share.
+ */
+export function hunkLineCount(hunk: ResolvedDiffHunk): number {
+  return Math.max(hunk.original.lineCount, hunk.modified.lineCount);
+}
+
+/**
+ * A group's hunks' lines, summed. Not the snippet's own context around the
+ * group, which opening a fold shows too but which nobody reads as the change.
  */
 export function groupLineCount(hunks: readonly ResolvedDiffHunk[]): number {
-  return hunks.reduce(
-    (sum, hunk) => sum + Math.max(hunk.original.lineCount, hunk.modified.lineCount),
-    0,
-  );
+  return hunks.reduce((sum, hunk) => sum + hunkLineCount(hunk), 0);
 }

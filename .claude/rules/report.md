@@ -89,8 +89,11 @@ src/report/
                      minute — a chapter's lede, body and insight texts, the overview's lede and body — a `read`
                      hunk at 12 lines a minute, `skim` at 40, each folded row of adjacent `mechanical` hunks five
                      seconds however many it holds (grouped by groupSelectedHunks, as the diff card draws them),
+                     and a run of `skim` hunks the same when er-fold-skim folds them — the preference handed in
+                     by chapter-card and summary-card, so this stays pure and the estimate is of what is drawn;
                      a diagram 30 seconds, an excerpt's lines at the skim speed and its reason as prose; a
-                     hunk's lines are the longer of its two spans; a chapter rounds up to whole
+                     hunk's lines are hunkLineCount's (inline-diff-snippets.ts), the longer of its two spans,
+                     which the fold row's line count sums too; a chapter rounds up to whole
                      minutes, at least one; readingPlanRows: Brief, Standard and Full, each the overview plus
                      its chapters' own rounded estimates, so a plan adds up to what the headers show, listing
                      only the chapters it adds to the plan before it), judgement-calls.ts (pure:

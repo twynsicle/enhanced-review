@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { CitedHunk, NarrativeChapter, NarrativeReview } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
+import { useFoldSkim } from '@/report/stores/fold-skim';
 import { REAL_ARCHITECTURE } from '@/report/test/diagram-fixtures';
-import { fireEvent, render, screen, within } from '@/report/test/render';
+import { act, fireEvent, render, screen, within } from '@/report/test/render';
 import type { AnchoredJudgementCall } from './judgement-calls';
 import { SummaryCard } from './summary-card';
 
@@ -177,6 +178,8 @@ const planChapter = (id: string, title: string, cited: CitedHunk): NarrativeChap
 const rowOf = (name: string) => screen.getByText(name).closest('li') as HTMLElement;
 
 describe('<SummaryCard /> and the reading plan', () => {
+  beforeEach(() => useFoldSkim.setState({ skim: 'shown' }));
+
   // 30 lines read is 150s, 3 min; 20 skimmed is 30s, 1 min; one folded row is
   // 1 min at the floor; the overview's seven words are a minute of their own.
   const chapters = [
@@ -232,5 +235,25 @@ describe('<SummaryCard /> and the reading plan', () => {
   it('draws nothing for a review that carries no plan', () => {
     renderPlan(undefined);
     expect(screen.queryByText('Reading plan')).toBeNull();
+  });
+
+  it('times skim as the folded row the reader has asked for, and follows a change', () => {
+    useFoldSkim.setState({ skim: 'folded' });
+    render(
+      <SummaryCard
+        review={review({
+          chapters: [planChapter('support', 'Fixtures', planHunk(120, 'skim'))],
+          readingPlan: { brief: ['support'], standard: ['support'] },
+        })}
+        meta={baseMeta}
+        onSelectChapter={() => {}}
+      />,
+    );
+    // The overview's minute, and one folded row at the floor of a minute.
+    expect(within(rowOf('Full')).getByText('~2 min')).toBeDefined();
+
+    // Shown, 120 lines skimmed at 40 a minute.
+    act(() => useFoldSkim.setState({ skim: 'shown' }));
+    expect(within(rowOf('Full')).getByText('~4 min')).toBeDefined();
   });
 });

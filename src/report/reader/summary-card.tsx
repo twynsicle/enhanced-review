@@ -10,6 +10,7 @@ import { MarkdownText } from '@/report/reader/markdown-text';
 import { ProsePassage } from '@/report/reader/prose-passage';
 import { formatMinutes, readingPlanRows, type PlanRow } from '@/report/reader/reading-time';
 import { sectionCardId, sectionHeadingId } from '@/report/reader/sections';
+import { useFoldSkim } from '@/report/stores/fold-skim';
 import { token } from '@/report/theme/tokens';
 import { DISPLAY_SIZE } from '@/report/theme/tokens';
 
@@ -192,11 +193,12 @@ function ReadingPlanBlock({
   review: NarrativeReview;
   onSelectChapter: (chapterId: string) => void;
 }) {
+  const skim = useFoldSkim((s) => s.skim);
   return (
     <Stack component="section" gap={12}>
       <Caption component="h3">Reading plan</Caption>
       <Stack component="ol" gap={12} m={0} pl={0} style={{ listStyle: 'none' }}>
-        {readingPlanRows(review).map((row) => {
+        {readingPlanRows(review, skim).map((row) => {
           const lead = PLAN_LEAD[row.name];
           return (
             <Stack component="li" key={row.name} gap={2}>
