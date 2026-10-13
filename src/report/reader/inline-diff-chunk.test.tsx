@@ -3,9 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUNDLE_SCHEMA_VERSION, type EmbeddedSide, type ReviewBundle } from '@/review/bundle';
 import type { CitedHunk, DiffChunk, Insight } from '@/review/narrative';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
-import { render, screen, userEvent, within } from '@/report/test/render';
+import { act, render, screen, userEvent, within } from '@/report/test/render';
 import { useDimComments } from '@/report/stores/dim-comments';
 import { useFileHeaders } from '@/report/stores/file-headers';
+import { useCommentFade } from '@/report/stores/comment-fade';
 import { useSkimFade } from '@/report/stores/skim-fade';
 import { useSkimMarks } from '@/report/stores/skim-marks';
 import { DisplayMenu } from '@/report/chrome/display-menu';
@@ -248,5 +249,15 @@ describe('<InlineDiffChunk /> by attention tier', () => {
     const slider = await screen.findByRole('slider', { name: 'Skim fade' });
     expect(slider.getAttribute('aria-valuenow')).toBe(String(useSkimFade.getState().fade));
     useSkimMarks.setState({ marks: 'plain' });
+  });
+
+  it('offers a strength for dimmed comments only while they are dimmed', async () => {
+    useDimComments.setState({ comments: 'dimmed' });
+    render(<DisplayMenu />);
+    await userEvent.click(screen.getByRole('button', { name: 'Display settings' }));
+    const slider = await screen.findByRole('slider', { name: 'Comment fade' });
+    expect(slider.getAttribute('aria-valuenow')).toBe(String(useCommentFade.getState().fade));
+    act(() => useDimComments.setState({ comments: 'normal' }));
+    expect(screen.queryByRole('slider', { name: 'Comment fade' })).toBeNull();
   });
 });

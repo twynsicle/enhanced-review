@@ -129,10 +129,11 @@ body {
  * font styles at once (`reader/monaco-themes.ts`): the underline and the
  * strikethrough are only the mark, so they go, and the comment fades in its
  * own colour into whatever is behind it — the editor's background, or the
- * band of an added or removed line. Global because every code viewer on the
- * page takes the theme, and Monaco draws its classes inside its own DOM.
+ * band of an added or removed line, by the reader's comment fade
+ * (`stores/comment-fade.ts`). Global because every code viewer on the page
+ * takes the theme, and Monaco draws its classes inside its own DOM.
  */
 .monaco-editor .mtki.mtku.mtks {
   text-decoration: none;
-  opacity: 0.4;
+  opacity: calc(1 - var(--review-comment-fade, 0.6));
 }

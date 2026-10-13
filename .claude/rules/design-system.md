@@ -119,7 +119,9 @@ lines and fades by opacity. Faded rather than recoloured: one fixed grey
 reads against the editor's background and nowhere else, and on an added or
 removed line's band it is grey on green or red, harder to read than the
 comment it stands for. Faded, a comment keeps its own colour and falls back into
-whatever is behind it, as a skim line does.
+whatever is behind it, as a skim line does. How hard is the reader's slider
+(20–90%) — further than skim may go, since a comment's fade is the reader
+asking for it out of the way rather than the review deciding it.
 
 Skim marks fade the same way, and are off until the reader turns them on: a
 skim hunk's text is faded and its line and gutter washed toward the editor's

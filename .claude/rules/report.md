@@ -30,8 +30,8 @@ src/report/
   chrome/            brand-mark (+ brand-mark.svg, imported so the build inlines it), caption (the one uppercase
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
                      topbar (TopbarFrame, Brand), display-menu (every display preference in one labelled
-                     dropdown: diffs, long lines, comments, file headers, skim hunks — with a fade slider beneath
-                     while they are marked — layout, theme)
+                     dropdown: diffs, long lines, comments, file headers, skim hunks, layout, theme — comments
+                     and skim hunks each with a fade slider beneath while they are dimmed or marked)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
                      belongs to the file; each change is a history entry; the review's read chapters from the
@@ -155,7 +155,8 @@ src/report/
                      monaco-themes.ts (the dimmed twins of vs and vs-dark: inherit the base, and give `comment`
                      and the sub-scopes Monaco's tokenizers emit italic, underline and strikethrough together,
                      a style no base theme uses, so theme.css finds them by `.mtki.mtku.mtks`, drops the lines and
-                     fades them by opacity in their own colour into the band or background behind them;
+                     fades them by opacity, as hard as `--review-comment-fade` says, in their own colour into the
+                     band or background behind them;
                      defineEditorThemes, editorTheme),
                      monaco-cdn.ts (MONACO_VERSION / MONACO_VS_URL: which Monaco the CDN serves, held to the
                      declared monaco-editor — the types' version — by the monaco-version guardrail),
@@ -177,12 +178,14 @@ src/report/
                      followSidebarWidth paints `--review-sidebar-width` on `<html>` — a drag writes the variable
                      directly and commits to the store once on release), dim-comments.ts (`er-dim-comments`,
                      normal ⇄ dimmed: comments in the code viewers at full strength or faded, every line kept in
-                     place), skim-marks.ts (`er-skim-marks`, plain ⇄ marked, plain by default: skim hunks drawn
+                     place), comment-fade.ts (`er-comment-fade`, how hard dimmed comments fade, clamped to
+                     COMMENT_FADES; followCommentFade paints `--review-comment-fade`), skim-marks.ts (`er-skim-marks`, plain ⇄ marked, plain by default: skim hunks drawn
                      like any other, or faded and labelled), skim-fade.ts (`er-skim-fade`, how hard marked skim
-                     hunks fade, a percentage clamped to SKIM_FADES; followSkimFade paints `--review-skim-fade` on
-                     `<html>`, which the .skim and .skimWash classes read, so a change restyles every editor without
-                     re-rendering one), file-headers.ts (`er-file-headers`, full ⇄ one-line:
-                     a code card header's facts on rows of their own, or kept beside the path), all nine on
+                     hunks fade, clamped to SKIM_FADES; followSkimFade paints `--review-skim-fade`, which the .skim
+                     and .skimWash classes read) — both made by fade.ts's createFadePreference, a percentage
+                     painted on `<html>` as a fraction, so a change restyles every editor without re-rendering
+                     one, file-headers.ts (`er-file-headers`, full ⇄ one-line:
+                     a code card header's facts on rows of their own, or kept beside the path), all ten on
                      raw-preference.ts (one word
                      or one number, not JSON). progress.ts (`er-progress`) is the one record rather than a
                      preference, so it is JSON and not on raw-preference: `{ [repo|baseSha|headSha]: { read:

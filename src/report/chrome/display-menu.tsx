@@ -19,7 +19,9 @@ import {
 import type { ReactNode } from 'react';
 import { selectSpaceLimited, useDiffView, useReaderColumn } from '@/report/stores/diff-view';
 import { useDiffWrap } from '@/report/stores/diff-wrap';
+import { COMMENT_FADES, useCommentFade } from '@/report/stores/comment-fade';
 import { useDimComments } from '@/report/stores/dim-comments';
+import type { FadeRange } from '@/report/stores/fade';
 import { useFileHeaders } from '@/report/stores/file-headers';
 import { useLayoutWidth } from '@/report/stores/layout-width';
 import { SKIM_FADES, useSkimFade } from '@/report/stores/skim-fade';
@@ -81,6 +83,41 @@ function SettingItem({
   );
 }
 
+/**
+ * How hard a setting above it fades, beneath that setting. Shown only while
+ * the setting is on: a strength for a fade that is not drawn would be a
+ * control that visibly does nothing.
+ */
+function FadeSlider({
+  name,
+  range,
+  value,
+  onChange,
+}: {
+  name: string;
+  range: FadeRange;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <Box px="sm" pb="xs">
+      <Text fz="xs" c="dimmed" mb={4}>
+        {name} · {value}%
+      </Text>
+      <Slider
+        thumbLabel={name}
+        size="sm"
+        min={range.min}
+        max={range.max}
+        step={range.step}
+        value={value}
+        onChange={onChange}
+        label={null}
+      />
+    </Box>
+  );
+}
+
 /** Every display preference the report has, in one menu. */
 export function DisplayMenu() {
   const view = useDiffView((s) => s.view);
@@ -93,8 +130,10 @@ export function DisplayMenu() {
   const toggleHeaders = useFileHeaders((s) => s.toggle);
   const marks = useSkimMarks((s) => s.marks);
   const toggleMarks = useSkimMarks((s) => s.toggle);
-  const fade = useSkimFade((s) => s.fade);
-  const setFade = useSkimFade((s) => s.setFade);
+  const skimFade = useSkimFade((s) => s.fade);
+  const setSkimFade = useSkimFade((s) => s.setFade);
+  const commentFade = useCommentFade((s) => s.fade);
+  const setCommentFade = useCommentFade((s) => s.setFade);
   const width = useLayoutWidth((s) => s.width);
   const toggleWidth = useLayoutWidth((s) => s.toggle);
   const spaceLimited = useReaderColumn(selectSpaceLimited);
@@ -138,6 +177,14 @@ export function DisplayMenu() {
           value={comments === 'dimmed' ? 'Dimmed' : 'Normal'}
           onClick={toggleComments}
         />
+        {comments === 'dimmed' && (
+          <FadeSlider
+            name="Comment fade"
+            range={COMMENT_FADES}
+            value={commentFade}
+            onChange={setCommentFade}
+          />
+        )}
         <SettingItem
           icon={headers === 'one-line' ? <IconFold size={ICON} /> : <IconFoldDown size={ICON} />}
           name="File headers"
@@ -151,26 +198,8 @@ export function DisplayMenu() {
           hint="Marked fades the lines the review says to skim and labels why"
           onClick={toggleMarks}
         />
-        {/*
-         * Only while the marks are on: a strength for a fade that is not drawn
-         * would be a control that visibly does nothing.
-         */}
         {marks === 'marked' && (
-          <Box px="sm" pb="xs">
-            <Text fz="xs" c="dimmed" mb={4}>
-              Skim fade · {fade}%
-            </Text>
-            <Slider
-              thumbLabel="Skim fade"
-              size="sm"
-              min={SKIM_FADES.min}
-              max={SKIM_FADES.max}
-              step={SKIM_FADES.step}
-              value={fade}
-              onChange={setFade}
-              label={null}
-            />
-          </Box>
+          <FadeSlider name="Skim fade" range={SKIM_FADES} value={skimFade} onChange={setSkimFade} />
         )}
         <SettingItem
           icon={

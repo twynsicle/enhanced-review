@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { BUNDLE_ELEMENT_ID, readEmbeddedBundle } from '@/review/bundle-html';
 import { followLayoutWidth } from '@/report/stores/layout-width';
 import { followSidebarWidth } from '@/report/stores/sidebar-width';
+import { followCommentFade } from '@/report/stores/comment-fade';
 import { followSkimFade } from '@/report/stores/skim-fade';
 import { colorSchemeManager } from '@/report/theme/color-scheme';
 import { cssVariablesResolver } from '@/report/theme/css-variables';
@@ -16,6 +17,7 @@ import { ReportRoot } from './report-root';
 followLayoutWidth();
 followSidebarWidth();
 followSkimFade();
+followCommentFade();
 const result = readEmbeddedBundle(document.getElementById(BUNDLE_ELEMENT_ID)?.textContent);
 
 createRoot(document.getElementById('root') as HTMLElement).render(
