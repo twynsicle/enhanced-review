@@ -1,4 +1,4 @@
-import { Box, Group, Text } from '@mantine/core';
+import { Box, Group, Text, VisuallyHidden } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { BrandMark } from '@/report/chrome/brand-mark';
 import type { ChangeLabel } from '@/report/chrome/change-label';
@@ -67,10 +67,22 @@ export function Brand() {
 /**
  * Which change this report is about, on every section. It links to the
  * summary, which is `#/`: the reader's hash state with no section named.
+ *
+ * On the summary already the hash does not change, so the reader has nothing
+ * to react to and a click would leave the page where it is; the click scrolls
+ * to the top itself, which from any other section the reader does anyway.
  */
 export function TopbarChange({ tag, title }: ChangeLabel) {
   return (
-    <a href="#/" className={classes.change}>
+    <a
+      href="#/"
+      className={classes.change}
+      onClick={(event) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+          return;
+        window.scrollTo({ top: 0 });
+      }}
+    >
       {tag !== null && (
         <span className={classes.tag} data-kind={tag.kind} title={tag.text}>
           {tag.text}
@@ -79,6 +91,7 @@ export function TopbarChange({ tag, title }: ChangeLabel) {
       <span className={classes.title} title={title}>
         {title}
       </span>
+      <VisuallyHidden>, back to the summary</VisuallyHidden>
     </a>
   );
 }
