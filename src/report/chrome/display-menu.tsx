@@ -2,6 +2,8 @@ import { ActionIcon, Box, Menu, Slider, Text, useMantineColorScheme } from '@man
 import {
   IconBlur,
   IconBlurOff,
+  IconBug,
+  IconBugOff,
   IconFold,
   IconFoldDown,
   IconLayoutColumns,
@@ -23,6 +25,7 @@ import { COMMENT_FADES, previewCommentFade, useCommentFade } from '@/report/stor
 import { useDimComments } from '@/report/stores/dim-comments';
 import type { FadeRange } from '@/report/stores/fade';
 import { useFileHeaders } from '@/report/stores/file-headers';
+import { useHunkDebug } from '@/report/stores/hunk-debug';
 import { useLayoutWidth } from '@/report/stores/layout-width';
 import { previewSkimFade, SKIM_FADES, useSkimFade } from '@/report/stores/skim-fade';
 import { useSkimMarks } from '@/report/stores/skim-marks';
@@ -142,6 +145,8 @@ export function DisplayMenu() {
   const toggleHeaders = useFileHeaders((s) => s.toggle);
   const marks = useSkimMarks((s) => s.marks);
   const toggleMarks = useSkimMarks((s) => s.toggle);
+  const debug = useHunkDebug((s) => s.debug);
+  const toggleDebug = useHunkDebug((s) => s.toggle);
   const skimFade = useSkimFade((s) => s.fade);
   const setSkimFade = useSkimFade((s) => s.setFade);
   const commentFade = useCommentFade((s) => s.fade);
@@ -220,6 +225,13 @@ export function DisplayMenu() {
             onCommit={setSkimFade}
           />
         )}
+        <SettingItem
+          icon={debug === 'on' ? <IconBug size={ICON} /> : <IconBugOff size={ICON} />}
+          name="Hunk debug"
+          value={debug === 'on' ? 'On' : 'Off'}
+          hint="Labels every hunk with its id, tier and split part"
+          onClick={toggleDebug}
+        />
         <SettingItem
           icon={
             width === 'full' ? <IconViewportWide size={ICON} /> : <IconViewportNarrow size={ICON} />

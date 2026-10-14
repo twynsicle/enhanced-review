@@ -21,7 +21,7 @@ import {
   buildInlineDiffSnippets,
   type InlineDiffSnippet,
 } from '@/report/reader/inline-diff-snippets';
-import { factTags, hunkMarks, type HunkMark } from '@/report/reader/hunk-marks';
+import { debugMarks, factTags, hunkMarks, type HunkMark } from '@/report/reader/hunk-marks';
 import { detectLanguage } from '@/review/language-map';
 import type {
   CitedHunk,
@@ -52,6 +52,7 @@ import {
 } from '@/report/stores/diff-view';
 import { useDiffWrap, type DiffWrap } from '@/report/stores/diff-wrap';
 import { useFileHeaders } from '@/report/stores/file-headers';
+import { useHunkDebug, type HunkDebug } from '@/report/stores/hunk-debug';
 import { useSkimMarks, type SkimMarks } from '@/report/stores/skim-marks';
 import { token, TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
@@ -341,17 +342,21 @@ function boxesKey(boxes: readonly MarkBox[]): string {
 }
 
 /**
- * Where each label's top sits. Two regions can start on one row — stacked, a
+ * Where each label's top sits: on the line above its region, resting on the
+ * bracket's top cap. That line is most often the blank one a split is cut
+ * after, so the label covers nothing there, and the bracket already says
+ * which lines it is about. Two regions can start on one row — stacked, a
  * hunk's removed lines and the next hunk's first line share a zone — so a
- * label that would cover the one above it moves down below it, its rule left
- * where it is; and labels pushed past the editor's foot are lifted back up,
- * each above the one under it, since the editor clips what runs past it.
+ * label that would cover the one above it moves down below it, its bracket
+ * left where it is; and labels pushed past either edge are brought back
+ * inside, each clear of its neighbour, since the editor clips what runs past.
  */
 function labelTops(sorted: readonly MarkBox[], editorHeight: number): number[] {
   const tops: number[] = [];
   for (const box of sorted) {
     const under = tops.at(-1);
-    tops.push(under === undefined ? box.top : Math.max(box.top, under + LABEL_HEIGHT));
+    const above = Math.max(0, box.top - LABEL_BOX);
+    tops.push(under === undefined ? above : Math.max(above, under + LABEL_HEIGHT));
   }
   let limit = editorHeight - LABEL_HEIGHT;
   for (let i = tops.length - 1; i >= 0; i -= 1) {
@@ -436,7 +441,21 @@ function MarkOverlay({
               onFocus={point}
               onBlur={unpoint}
             >
-              {!isFolded && <span className={classes.markText}>{mark.label}</span>}
+              {!isFolded && (
+                <span className={classes.markText}>
+                  {mark.parts.map((part, i) =>
+                    part.path ? (
+                      <span key={i} className={classes.markPath}>
+                        <bdi>{part.text}</bdi>
+                      </span>
+                    ) : (
+                      <span key={i} className={classes.markWords}>
+                        {part.text}
+                      </span>
+                    ),
+                  )}
+                </span>
+              )}
               <UnstyledButton
                 className={classes.markFold}
                 aria-label={isFolded ? `Show label: ${mark.label}` : `Hide label: ${mark.label}`}
@@ -452,8 +471,11 @@ function MarkOverlay({
   );
 }
 
-/** A label's height and the gap under it: `.markLabel`'s line height and border, and 2px. */
-const LABEL_HEIGHT = 20;
+/** A label's own height: `.markLabel`'s line height and border. */
+const LABEL_BOX = 18;
+
+/** A label's height and the gap under it. */
+const LABEL_HEIGHT = LABEL_BOX + 2;
 
 function SnippetEditor({
   chunkFilename,
@@ -463,6 +485,7 @@ function SnippetEditor({
   view,
   wrap,
   skimMarks,
+  hunkDebug,
 }: {
   chunkFilename: string;
   language: string;
@@ -471,6 +494,7 @@ function SnippetEditor({
   view: DiffView;
   wrap: DiffWrap;
   skimMarks: SkimMarks;
+  hunkDebug: HunkDebug;
 }) {
   const theme = useEditorTheme();
   const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
@@ -479,10 +503,14 @@ function SnippetEditor({
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const disposables = useRef<IDisposable[]>([]);
   const host = useRef<HTMLDivElement | null>(null);
-  const marks = useMemo(
-    () => (skimMarks === 'marked' ? hunkMarks(snippet.hunks) : []),
-    [skimMarks, snippet.hunks],
-  );
+  const marks = useMemo(() => {
+    if (hunkDebug === 'off') return skimMarks === 'marked' ? hunkMarks(snippet.hunks) : [];
+    const debug = debugMarks(snippet.hunks);
+    // The debug labels the hunks; it fades them only as skim marks would.
+    return skimMarks === 'marked'
+      ? debug
+      : debug.map((mark) => ({ ...mark, fade: 'none' as const }));
+  }, [hunkDebug, skimMarks, snippet.hunks]);
   /*
    * `measure` below is frozen at mount but has to know the current view, and
    * it has to know it early: the editor library applies the new options from
@@ -899,6 +927,7 @@ export function InlineDiffChunk({
   const stored = useDiffView((s) => s.view);
   const wrap = useDiffWrap((s) => s.wrap);
   const skimMarks = useSkimMarks((s) => s.marks);
+  const hunkDebug = useHunkDebug((s) => s.debug);
   const spaceLimited = useReaderColumn(selectSpaceLimited);
   // Too narrow for two panes is not a preference the column can honour.
   const view: DiffView = spaceLimited ? 'unified' : stored;
@@ -1003,6 +1032,7 @@ export function InlineDiffChunk({
               view={view}
               wrap={wrap}
               skimMarks={skimMarks}
+              hunkDebug={hunkDebug}
             />
           </Box>
         ))}

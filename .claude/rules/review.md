@@ -25,7 +25,8 @@ src/review/
                      ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
                      ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
                      reviewable and not only what was cited; HunkFacts (whitespaceOnly?, movedFrom?/movedTo? —
-                     what the CLI proved, carried on every ResolvedDiffHunk); ResolvedDiffHunk.changedLines, the
+                     what the CLI proved, carried on every ResolvedDiffHunk); ResolvedDiffHunk.part? (which part
+                     of a split hunk it is, from its header, for the reader's hunk debug); .changedLines, the
                      lines it adds and removes without git's context, what the reader times; a whitespace-only hunk is skim whatever the
                      model said, a move only a hint; DiffChunk.hunks is
                      CitedHunk[], a resolved hunk plus its HunkTier (read | skim, the model's call on how hard to
@@ -82,7 +83,7 @@ src/review/
                      `src/cli/skip-reasons.ts` layers the repository's own marks between them),
                      diff-hunk-catalog (H0001… ids, each hunk's changedLines counted off its body;
                      PromptGrounding/groundingFor, what a model's answer is
-                     checked against, `changed` being every path the change touches, skipped files included; toResolvedHunk, a catalog hunk as a review stores it, facts kept),
+                     checked against, `changed` being every path the change touches, skipped files included; toResolvedHunk, a catalog hunk as a review stores it, facts and split part kept),
                      hunk-facts (hunkLines reads each hunk's removed and added lines in catalog order;
                      provenFacts: whitespaceOnly when the two sides match with whitespace outside a string literal
                      cut to what can change a parse — one space between two characters that could fuse (two

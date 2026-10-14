@@ -2,6 +2,17 @@ import type { CitedHunk, HunkMove } from '@/review/narrative';
 import { formatSelectedHunkLabel } from '@/report/reader/inline-diff-snippets';
 
 /**
+ * A run of a label's text. A path is kept apart from the words around it so a
+ * label too long for its room gives up the start of the path first: the file
+ * name at its end is what says where a move went, and the directories before
+ * it are what a long path shares with its neighbours.
+ */
+export interface LabelPart {
+  text: string;
+  path?: true;
+}
+
+/**
  * What a diff says about a hunk beyond its lines: the fact the CLI proved, and
  * why a skim hunk may be skimmed. Pure, so the wording is tested apart from
  * Monaco.
@@ -9,6 +20,8 @@ import { formatSelectedHunkLabel } from '@/report/reader/inline-diff-snippets';
 export interface HunkNote {
   /** A few words, short enough to sit over the right edge of the code. */
   label: string;
+  /** `label` in runs, its paths marked. */
+  parts: readonly LabelPart[];
   /** The whole of it, for a hover. */
   detail: string;
   /**
@@ -21,22 +34,32 @@ export interface HunkNote {
 
 export type HunkTone = 'move' | 'plain';
 
+/** Runs of label text joined with the label's separator, as one label. */
+function joinParts(groups: readonly (readonly LabelPart[])[]): Pick<HunkNote, 'label' | 'parts'> {
+  const parts = groups.flatMap((group, i) => (i === 0 ? group : [{ text: ' · ' }, ...group]));
+  return { label: parts.map((part) => part.text).join(''), parts };
+}
+
+const words = (text: string): LabelPart[] => [{ text }];
+
 /**
  * A move as a reader asks about it: where the lines went, and whether they
  * arrived as they left. The similarity stays in the hover, since a bare
  * percentage on the tag read as the share of the hunk that moved.
  */
 function moveNote(direction: 'from' | 'to', { filename, similarity }: HunkMove): HunkNote {
-  if (similarity === 100) {
-    return {
-      label: `Moved unchanged ${direction} ${filename}`,
-      detail: `Every line ${direction === 'from' ? 'was removed from' : 'reappears in'} ${filename} as it is here`,
-      tone: 'move',
-    };
-  }
+  const unchanged = similarity === 100;
   return {
-    label: `Moved ${direction} ${filename}, with edits`,
-    detail: `${String(similarity)}% of these lines match the lines ${direction === 'from' ? 'removed from' : 'added to'} ${filename}`,
+    ...joinParts([
+      [
+        { text: unchanged ? `Moved unchanged ${direction} ` : `Moved ${direction} ` },
+        { text: filename, path: true },
+        ...(unchanged ? [] : [{ text: ', with edits' }]),
+      ],
+    ]),
+    detail: unchanged
+      ? `Every line ${direction === 'from' ? 'was removed from' : 'reappears in'} ${filename} as it is here`
+      : `${String(similarity)}% of these lines match the lines ${direction === 'from' ? 'removed from' : 'added to'} ${filename}`,
     tone: 'move',
   };
 }
@@ -44,7 +67,7 @@ function moveNote(direction: 'from' | 'to', { filename, similarity }: HunkMove):
 export function provenNote(hunk: CitedHunk): HunkNote | null {
   if (hunk.whitespaceOnly) {
     return {
-      label: 'Whitespace only',
+      ...joinParts([words('Whitespace only')]),
       detail: 'Only whitespace changed, and none of it where it could change how the code parses',
       tone: 'plain',
     };
@@ -89,10 +112,9 @@ export function factTags(hunks: readonly CitedHunk[]): FactTag[] {
     if (held) held.push({ hunk, note });
     else byLabel.set(note.label, [{ hunk, note }]);
   }
-  return [...byLabel].map(([label, held]) => ({
-    label,
+  return [...byLabel.values()].map((held) => ({
+    ...held[0]!.note,
     detail: joinedDetail(held),
-    tone: held[0]!.note.tone,
     lines: formatSelectedHunkLabel(held.map(({ hunk }) => hunk)),
   }));
 }
@@ -104,10 +126,15 @@ export interface HunkMark extends HunkNote {
    * How far the region's lines fade: a skim hunk's by the reader's skim fade,
    * and a moved hunk the review still says to read by less of it — the reader
    * keeps the shape of what moved in view without it pulling as hard as code
-   * that is new.
+   * that is new. Only the hunk debug labels a region that does not fade.
    */
-  fade: 'skim' | 'move';
+  fade: 'skim' | 'move' | 'none';
   hunks: readonly CitedHunk[];
+}
+
+function fadeOf(hunk: CitedHunk): HunkMark['fade'] {
+  if (hunk.tier === 'skim') return 'skim';
+  return hunk.movedFrom || hunk.movedTo ? 'move' : 'none';
 }
 
 /**
@@ -133,11 +160,10 @@ export function hunkMarks(hunks: readonly CitedHunk[]): HunkMark[] {
     previous = hunk;
   }
   return runs.map((held) => ({
+    ...held[0]!.note,
     key: held[0]!.hunk.id,
-    label: held[0]!.note.label,
     detail: joinedDetail(held),
-    tone: held[0]!.note.tone,
-    fade: held[0]!.hunk.tier === 'skim' ? 'skim' : 'move',
+    fade: fadeOf(held[0]!.hunk),
     hunks: held.map(({ hunk }) => hunk),
   }));
 }
@@ -146,11 +172,49 @@ function markNote(hunk: CitedHunk): HunkNote | null {
   const proven = provenNote(hunk);
   if (hunk.tier === 'read') return proven;
   const reason = hunk.skimReason;
-  const label = ['Skim', proven?.label, reason].filter(Boolean).join(' · ');
   const detail = [proven?.detail, reason].filter(Boolean).join('. ');
   return {
-    label,
+    ...joinParts([
+      words('Skim'),
+      ...(proven ? [proven.parts] : []),
+      ...(reason ? [words(reason)] : []),
+    ]),
     detail: detail || 'The review says these lines can be skimmed',
     tone: proven?.tone ?? 'plain',
   };
+}
+
+/**
+ * Every hunk as its own region, labelled with what the reader is otherwise
+ * left to infer: its id, its tier, which part of a split hunk it is, and the
+ * facts and reason behind its tier. For telling a hunk tiered wrongly from one
+ * cut in the wrong place, so nothing is joined, a read hunk with nothing
+ * proven about it is labelled too, and every region's bracket shows where
+ * the splitter cut.
+ */
+export function debugMarks(hunks: readonly CitedHunk[]): HunkMark[] {
+  return hunks
+    .toSorted((a, b) => a.fileOrder - b.fileOrder)
+    .map((hunk) => {
+      const proven = provenNote(hunk);
+      const part = hunk.part ? ` · part ${String(hunk.part.part)}/${String(hunk.part.of)}` : '';
+      return {
+        ...joinParts([
+          words(`${hunk.id} · ${hunk.tier}${part}`),
+          ...(proven ? [proven.parts] : []),
+          ...(hunk.skimReason ? [words(hunk.skimReason)] : []),
+        ]),
+        detail: [
+          `${hunk.id}, ${String(hunk.changedLines)} changed lines`,
+          proven?.detail,
+          hunk.skimReason,
+        ]
+          .filter(Boolean)
+          .join('. '),
+        tone: proven?.tone ?? 'plain',
+        key: hunk.id,
+        fade: fadeOf(hunk),
+        hunks: [hunk],
+      };
+    });
 }

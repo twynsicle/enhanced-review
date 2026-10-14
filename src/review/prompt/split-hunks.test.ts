@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDiffHunkIndex } from './diff-hunk-catalog.ts';
+import { buildDiffHunkIndex, toResolvedHunk } from './diff-hunk-catalog.ts';
 import { splitPatch } from './split-hunks.ts';
 
 const PREAMBLE = [
@@ -198,6 +198,16 @@ describe('splitPatch', () => {
     expect(parts.length).toBeGreaterThan(1);
     expect(parts.at(-1)!.modified.lineCount).toBeGreaterThan(3);
     expect(parts.reduce((sum, h) => sum + h.modified.lineCount, 0)).toBe(source.length);
+  });
+
+  it('carries each part’s number onto the hunk a review stores, and none onto a whole one', () => {
+    const split = hunksOf(splitPatch(newFile([...fn('a', 15), ...fn('b', 15)]), 20));
+    expect(split.map((hunk) => toResolvedHunk(hunk).part)).toEqual([
+      { part: 1, of: 2 },
+      { part: 2, of: 2 },
+    ]);
+    const [whole] = hunksOf(newFile(fn('a', 5)));
+    expect(toResolvedHunk(whole!)).not.toHaveProperty('part');
   });
 
   it('reads a hunk by its header’s counts, so an empty line in it is a blank context line', () => {

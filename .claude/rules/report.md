@@ -30,7 +30,7 @@ src/report/
   chrome/            brand-mark (+ brand-mark.svg, imported so the build inlines it), caption (the one uppercase
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
                      topbar (TopbarFrame, Brand), display-menu (every display preference in one labelled
-                     dropdown: diffs, long lines, comments, file headers, skim hunks, layout, theme — comments
+                     dropdown: diffs, long lines, comments, file headers, skim hunks, hunk debug, layout, theme — comments
                      and skim hunks each with a fade slider beneath while they are dimmed or marked)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
@@ -118,11 +118,13 @@ src/report/
                      (inline-diff-snippets.ts: a group is consecutive hunks whatever their tiers, and its context
                      stops at the unchanged lines between it and the file's neighbouring hunks, so the flush parts
                      of a split hunk never draw each other's lines); nothing folds, and skim hunks are drawn like
-                     any other unless er-skim-marks says `marked`: then each region hunk-marks.ts names is
+                     any other unless er-skim-marks says `marked` (or er-hunk-debug says `on`, which labels every
+                     hunk on its own, faded only as skim marks would): then each region hunk-marks.ts names is
                      measured from the editors' line geometry after each layout, stacked view zones included (a
                      zone under a hunk's last line is the next hunk's when that hunk starts there), and drawn
-                     over the editor as a capped bracket down its right edge in the region's tone, a label at
-                     the top that folds to a tab and, while pointed at, outlines the region's lines, and a wash
+                     over the editor as a capped bracket down its right edge in the region's tone, a label on
+                     the line above it (most often the blank one a split is cut after) whose path gives way from
+                     its start, that folds to a tab and, while pointed at, outlines the region's lines, and a wash
                      over each pane's lines toward the editor's background (read off Monaco's own element,
                      which is the only one that defines it) at `--review-skim-fade`, half of it for a read move
                      — an overlay rather than decorations, since no decoration reaches the stacked view's
@@ -156,8 +158,9 @@ src/report/
                      skim hunk, as "Skim · <fact> · <the review's reason>", and every hunk with a fact whatever
                      its tier — neighbours saying the same joined into one; hunks sharing a label but not a
                      hover, such as two edited moves at different strengths, give each its own line in it;
-                     each note carries a tone, `move` or `plain`, and each mark a fade, `skim` or, for a moved
-                     hunk the review says to read, `move`),
+                     each note carries a tone, `move` or `plain`, its label in runs with the paths marked, and
+                     each mark a fade, `skim`, `move` for a moved hunk the review says to read, or `none`;
+                     debugMarks, every hunk as its own region labelled with its id, tier and split part),
                      monaco-themes.ts (the dimmed twins of vs and vs-dark: inherit the base, and give `comment`
                      and the sub-scopes Monaco's tokenizers emit italic, underline and strikethrough together,
                      a style no base theme uses, so theme.css finds them by `.mtki.mtku.mtks`, drops the lines and
@@ -191,7 +194,9 @@ src/report/
                      .wash class reads) — both made by fade.ts's createFadePreference, a percentage painted on
                      `<html>` as a fraction, so a change restyles every editor without re-rendering one, and a
                      preview that paints without storing, which the display menu's slider uses mid-drag, file-headers.ts (`er-file-headers`, full ⇄ one-line:
-                     a code card header's facts on rows of their own, or kept beside the path), all ten on
+                     a code card header's facts on rows of their own, or kept beside the path), hunk-debug.ts
+                     (`er-hunk-debug`, off ⇄ on: every hunk labelled with its id, tier and split part, for
+                     judging the tiers), all eleven on
                      raw-preference.ts (one word
                      or one number, not JSON). progress.ts (`er-progress`) is the one record rather than a
                      preference, so it is JSON and not on raw-preference: `{ [repo|baseSha|headSha]: { read:

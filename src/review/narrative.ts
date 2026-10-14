@@ -118,9 +118,20 @@ export const HunkFactsSchema = z.object({
 });
 export type HunkFacts = z.infer<typeof HunkFactsSchema>;
 
+/**
+ * Which part of a hunk the CLI split a long one into this is, for the
+ * reader's hunk debug: a hunk tiered wrongly and a hunk cut in the wrong place
+ * look alike until the cut is shown.
+ */
+export const HunkPartSchema = z.object({
+  part: z.number().int().min(1),
+  of: z.number().int().min(2),
+});
+
 export const ResolvedDiffHunkSchema = HunkFactsSchema.extend({
   id: z.string(),
   fileOrder: z.number().int(),
+  part: HunkPartSchema.optional(),
   original: DiffLineSpanSchema,
   modified: DiffLineSpanSchema,
   /**

@@ -1,4 +1,5 @@
 import type { DiffLineSpan, HunkFacts, ResolvedDiffHunk } from '../narrative.ts';
+import { splitPart } from './split-hunks.ts';
 
 /**
  * Numbers every hunk in a unified diff (`H0001`, `H0002`, …) so the prompt
@@ -17,11 +18,13 @@ export interface DiffHunk extends HunkFacts {
   changedLines: number;
 }
 
-/** A catalog hunk as a review stores it: no filename or header, its facts kept. */
+/** A catalog hunk as a review stores it: no filename or header, its facts and split part kept. */
 export function toResolvedHunk(hunk: DiffHunk): ResolvedDiffHunk {
+  const part = splitPart(hunk.header);
   return {
     id: hunk.id,
     fileOrder: hunk.fileOrder,
+    ...(part ? { part } : {}),
     original: { ...hunk.original },
     modified: { ...hunk.modified },
     changedLines: hunk.changedLines,
