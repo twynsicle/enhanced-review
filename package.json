@@ -2,6 +2,7 @@
   "name": "enhanced-review",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "bin": {
     "er": "src/cli/er.ts"
