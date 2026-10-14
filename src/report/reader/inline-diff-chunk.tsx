@@ -169,6 +169,8 @@ function applySnippetLayout(
   diffEditor.getModifiedEditor().updateOptions({
     lineNumbers: numbers('modified', snippet.modifiedStartLine),
     lineNumbersMinChars: lineNumberWidth(snippet.modifiedStartLine, snippet.modified),
+    // The cursor sits on a deleted file's one blank line, and would box it.
+    renderLineHighlight: emptySide === 'modified' ? 'none' : 'line',
   });
   diffEditor.layout();
 }
