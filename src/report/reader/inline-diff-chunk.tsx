@@ -1,27 +1,48 @@
-import { Box, Group, Skeleton, Text, UnstyledButton, useComputedColorScheme } from '@mantine/core';
-import type { DiffEditorProps } from '@monaco-editor/react';
+import { ActionIcon, Box, Skeleton, Text, UnstyledButton } from '@mantine/core';
+import {
+  IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
+  IconChevronUp,
+} from '@tabler/icons-react';
 import type { editor, IDisposable } from 'monaco-editor';
 import {
-  lazy,
   Suspense,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type ComponentType,
+  type CSSProperties,
+  type ReactNode,
 } from 'react';
 import type { FilePair } from '@/review/bundle';
 import {
   buildInlineDiffSnippets,
   type InlineDiffSnippet,
 } from '@/report/reader/inline-diff-snippets';
+import { debugMarks, factTags, hunkMarks, type HunkMark } from '@/report/reader/hunk-marks';
 import { detectLanguage } from '@/review/language-map';
-import type { DiffChunk, Insight, JudgementCall } from '@/review/narrative';
+import type {
+  CitedHunk,
+  DiffChunk,
+  DiffLineSpan,
+  Insight,
+  JudgementCall,
+} from '@/review/narrative';
 import { originVerb } from '@/report/reader/file-origin';
 import { useFilePair, useReviewFile } from '@/report/reader/file-source';
 import { InsightCallout, JudgementCallout } from '@/report/reader/insight-callout';
-import { MONACO_VS_URL } from '@/report/reader/monaco-cdn';
+import {
+  DiffEditor,
+  EDITOR_HEIGHT_PADDING,
+  lineNumberWidth,
+  makeOffsetLineNumbers,
+  MIN_EDITOR_HEIGHT,
+  useEditorTheme,
+  useLayoutOnColumnSettle,
+  useScrollKeptOnFocus,
+} from '@/report/reader/monaco-editors';
 import {
   selectSpaceLimited,
   SIDE_BY_SIDE_MIN_WIDTH,
@@ -30,82 +51,13 @@ import {
   type DiffView,
 } from '@/report/stores/diff-view';
 import { useDiffWrap, type DiffWrap } from '@/report/stores/diff-wrap';
+import { useFileHeaders } from '@/report/stores/file-headers';
+import { useHunkDebug, type HunkDebug } from '@/report/stores/hunk-debug';
+import { useSkimMarks, type SkimMarks } from '@/report/stores/skim-marks';
 import { token, TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import classes from './inline-diff-chunk.module.css';
 
-/**
- * Stands in for a diff whose editor never arrived. The reader is told what is
- * missing and what to try, because the alternative — and what this replaced —
- * is a card with a header and an empty body, which reads as a file with no
- * changes in it rather than as a failure.
- *
- * It names no library: "Monaco" is not a word the recipient of a review has
- * any reason to know. Reloading is named in prose rather than offered as a
- * button, matching the report's other failure surface; a control inside a
- * diff strip that silently reloads the whole page is a bigger action than it
- * would look.
- */
-function DiffUnavailable() {
-  return (
-    <Box px={12} py={10}>
-      <Text fz="sm" c="dimmed">
-        The code viewer didn&rsquo;t load, so this diff can&rsquo;t be shown. Reloading the page may
-        fix it.
-      </Text>
-    </Box>
-  );
-}
-
-/**
- * Monaco is loaded lazily, so the report paints before the editor arrives.
- *
- * Pointing the CDN at the declared version happens here, rather than as a
- * side effect of importing `monaco-cdn.ts`, so that the loader ships with the
- * editor instead of riding in the initial bundle — and so that the pin is a
- * call someone can see, not an import that looks unused. `lazy` runs its
- * factory once, so the configuration is in place before anything reads it.
- *
- * `init` is awaited here rather than left to the editor because this is the
- * only place its failure can be caught. The library calls it on mount, logs
- * whatever it rejects with and renders nothing further, so the failure
- * reaches no error boundary — a rejected promise is not a throw — and every
- * diff on the page was left an empty box with no explanation. Awaiting it
- * here makes "the editor is unavailable" a question of which component
- * `lazy` resolves to, which is answerable.
- *
- * One "Uncaught (in promise)" survives in the console and is not ours to
- * catch: `makeCancelable` in `@monaco-editor/loader` calls `.then(onFulfilled)`
- * with no rejection handler beside its `.catch`, so the promise that derives
- * from leaks once per `init`. What did go is the library's own
- * "Monaco initialization: error" — the editor is never mounted now, so it
- * never makes the call that would log it.
- */
-const DiffEditor = lazy<ComponentType<DiffEditorProps>>(async () => {
-  const mod = await import('@monaco-editor/react');
-  mod.loader.config({ paths: { vs: MONACO_VS_URL } });
-  try {
-    await mod.loader.init();
-  } catch {
-    return { default: DiffUnavailable };
-  }
-  return { default: mod.DiffEditor };
-});
-
 const CONTEXT_LINES = 5;
-const MIN_EDITOR_HEIGHT = 60;
-const EDITOR_HEIGHT_PADDING = 12;
-/**
- * How long the measured column has to hold still before the editors are laid
- * out against it. The width arrives about once an animation frame for as long
- * as the sidebar handle is dragged or the window edge held, and a relayout
- * reflows every line of every editor on the page — so this is the trailing edge
- * of a drag, not a frame of it. Long enough to coalesce a drag, short enough
- * that a reader who lets go does not watch the diff catch up.
- */
-const COLUMN_SETTLE_MS = 120;
-
-/** How long a pointerdown's scroll offset stays good for the focus it expects. */
-const PENDING_SCROLL_MS = 300;
 
 interface FileData {
   original: string;
@@ -147,13 +99,15 @@ function resolveFileState({ base, head }: FilePair, filename: string): FileState
   };
 }
 
-function fullFile(key: string, data: FileData): InlineDiffSnippet {
+/** The whole pair, still carrying the chapter's hunks so its skim lines stay faded. */
+function fullFile(key: string, data: FileData, hunks: readonly CitedHunk[]): InlineDiffSnippet {
   return {
     key,
     original: data.original,
     modified: data.modified,
     originalStartLine: 1,
     modifiedStartLine: 1,
+    hunks,
   };
 }
 
@@ -166,29 +120,6 @@ function splitFilename(path: string): { dirname: string; basename: string } {
   const slash = path.lastIndexOf('/');
   if (slash === -1) return { dirname: '', basename: path };
   return { dirname: path.slice(0, slash), basename: path.slice(slash + 1) };
-}
-
-function makeOffsetLineNumbers(offset: number): editor.LineNumbersType {
-  return (lineNumber: number): string => String(lineNumber + offset - 1);
-}
-
-/**
- * How wide to hold a side's line-number column, in characters.
- *
- * Monaco sizes that column from the model it was handed, but a collapsed
- * snippet's model starts again at 1 while the numbers drawn over it are the
- * file's own — so a twenty-line snippet lifted from line 176 is measured for
- * two digits and asked to paint three, and the number ends up flush against
- * the edge of the gutter with nothing either side of it. Measuring the largest
- * number actually rendered is what keeps the column honest.
- *
- * The extra character is the breathing room: Monaco right-aligns the digits in
- * whatever width it is given, so a column sized to exactly fit them leaves no
- * space on the left at all.
- */
-function lineNumberWidth(startLine: number, text: string): number {
-  const lastLine = startLine + text.split('\n').length - 1;
-  return Math.max(3, String(lastLine).length + 1);
 }
 
 function buildModelPath(filename: string, key: string, side: 'original' | 'modified'): string {
@@ -267,6 +198,285 @@ function applyWordWrap(diffEditor: editor.IStandaloneDiffEditor, wrap: DiffWrap)
   diffEditor.layout();
 }
 
+/** A rectangle over the editor, in pixels from its top left. */
+interface Rect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Where a labelled region sits: its bracket's run down the editor, and the
+ * rectangle over each pane's lines that is washed and, while its label is
+ * pointed at, outlined.
+ */
+interface MarkBox {
+  mark: HunkMark;
+  top: number;
+  height: number;
+  panes: Rect[];
+}
+
+/**
+ * One side of a hunk, as pixels in that side's editor. Stacked, the modified
+ * editor also holds the removed lines, as view zones: those just above the
+ * hunk's first line are its own, as are those just below its last unless the
+ * next hunk starts there, and a side with no lines at all is the zone after
+ * the line git names. Side by side, those zones are the other pane's filler,
+ * and the other side is measured instead.
+ */
+function spanBox(
+  sideEditor: editor.ICodeEditor,
+  span: DiffLineSpan,
+  snippetStart: number,
+  { stacked, ownsBelow }: { stacked: boolean; ownsBelow: boolean },
+): [top: number, bottom: number] | null {
+  const lineCount = sideEditor.getModel()?.getLineCount() ?? 0;
+  const first = span.startLine - snippetStart + 1;
+  if (span.lineCount <= 0) {
+    if (!stacked) return null;
+    const top = first >= 1 ? sideEditor.getBottomForLineNumber(Math.min(first, lineCount)) : 0;
+    const bottom =
+      first < lineCount ? sideEditor.getTopForLineNumber(first + 1) : sideEditor.getContentHeight();
+    return [top, bottom];
+  }
+  const last = Math.min(first + span.lineCount - 1, lineCount);
+  const top = sideEditor.getTopForLineNumber(first, stacked);
+  const bottom =
+    stacked && ownsBelow && last < lineCount
+      ? sideEditor.getTopForLineNumber(last + 1)
+      : sideEditor.getBottomForLineNumber(last);
+  return [top, bottom];
+}
+
+/**
+ * Whether the view zones under a hunk's last line are its own: not when the
+ * next hunk starts on the line after, or is a deletion sitting after that
+ * line, since the zones there hold the next hunk's removed lines.
+ */
+function ownsZoneBelow(hunk: CitedHunk, hunks: readonly CitedHunk[]): boolean {
+  const next = hunks.find((other) => other.fileOrder === hunk.fileOrder + 1);
+  if (!next) return true;
+  const last = hunk.modified.startLine + hunk.modified.lineCount - 1;
+  return next.modified.lineCount > 0
+    ? next.modified.startLine !== last + 1
+    : next.modified.startLine !== last;
+}
+
+/**
+ * A pane's left edge and width, in pixels from the editor's own left.
+ * Stacked, the one pane is the whole editor: the modified editor starts after
+ * a column of the original's line numbers, which belong to its removed lines.
+ */
+function paneOf(
+  sideEditor: editor.ICodeEditor,
+  host: HTMLElement,
+  stacked: boolean,
+): Pick<Rect, 'left' | 'width'> {
+  if (stacked) return { left: 0, width: host.clientWidth };
+  const pane = sideEditor.getContainerDomNode().getBoundingClientRect();
+  return { left: pane.left - host.getBoundingClientRect().left, width: pane.width };
+}
+
+/** The extent of several spans, or null when none of them drew anything. */
+function extent(spans: readonly ([number, number] | null)[]): [number, number] | null {
+  const drawn = spans.filter((span) => span !== null);
+  if (drawn.length === 0) return null;
+  const top = Math.min(...drawn.map(([start]) => start));
+  const bottom = Math.max(...drawn.map(([, end]) => end));
+  return bottom > top ? [top, bottom] : null;
+}
+
+/**
+ * Each mark measured from the editors' own line geometry. The rule and the
+ * wash come from the one measurement, so a region the reader is told is skim
+ * is always the region that fades.
+ */
+function markBoxes(
+  diffEditor: editor.IStandaloneDiffEditor,
+  host: HTMLElement,
+  snippet: InlineDiffSnippet,
+  marks: readonly HunkMark[],
+  view: DiffView,
+): MarkBox[] {
+  const stacked = view === 'unified';
+  const modified = {
+    sideEditor: diffEditor.getModifiedEditor(),
+    side: 'modified',
+    start: snippet.modifiedStartLine,
+  } as const;
+  const original = {
+    sideEditor: diffEditor.getOriginalEditor(),
+    side: 'original',
+    start: snippet.originalStartLine,
+  } as const;
+  const sides = stacked ? [modified] : [original, modified];
+  return marks.flatMap((mark) => {
+    const perSide = sides.map(({ sideEditor, side, start }) => ({
+      sideEditor,
+      span: extent(
+        mark.hunks.map((hunk) =>
+          spanBox(sideEditor, hunk[side], start, {
+            stacked,
+            ownsBelow: ownsZoneBelow(hunk, snippet.hunks),
+          }),
+        ),
+      ),
+    }));
+    const whole = extent(perSide.map(({ span }) => span));
+    if (!whole) return [];
+    const panes = perSide.flatMap(({ sideEditor, span }) =>
+      span
+        ? [{ top: span[0], height: span[1] - span[0], ...paneOf(sideEditor, host, stacked) }]
+        : [],
+    );
+    return [{ mark, top: whole[0], height: whole[1] - whole[0], panes }];
+  });
+}
+
+function boxesKey(boxes: readonly MarkBox[]): string {
+  return JSON.stringify(
+    boxes.map(({ mark, top, height, panes }) => [mark.key, top, height, panes]),
+  );
+}
+
+/**
+ * Where each label's top sits: on the line above its region, resting on the
+ * bracket's top cap. That line is most often the blank one a split is cut
+ * after, so the label covers nothing there, and the bracket already says
+ * which lines it is about. Two regions can start on one row — stacked, a
+ * hunk's removed lines and the next hunk's first line share a zone — so a
+ * label that would cover the one above it moves down below it, its bracket
+ * left where it is; and labels pushed past either edge are brought back
+ * inside, each clear of its neighbour, since the editor clips what runs past.
+ */
+function labelTops(sorted: readonly MarkBox[], editorHeight: number): number[] {
+  const tops: number[] = [];
+  for (const box of sorted) {
+    const under = tops.at(-1);
+    const above = Math.max(0, box.top - LABEL_BOX);
+    tops.push(under === undefined ? above : Math.max(above, under + LABEL_HEIGHT));
+  }
+  let limit = editorHeight - LABEL_HEIGHT;
+  for (let i = tops.length - 1; i >= 0; i -= 1) {
+    tops[i] = Math.max(0, Math.min(tops[i]!, limit));
+    limit = tops[i]! - LABEL_HEIGHT;
+  }
+  return tops;
+}
+
+/**
+ * Each labelled region as a bracket down the editor's right edge with its
+ * label at the top, and its lines washed toward the editor's background.
+ * Right rather than left, where code is least likely to run, and over the
+ * editor rather than in a view zone, which would push the lines apart. The
+ * wash is drawn over the editor rather than as Monaco decorations because the
+ * stacked view's removed lines are view zones no decoration reaches. Placed
+ * from the editors' own line geometry, which the reader never scrolls
+ * vertically, so a measure after each layout keeps it in place.
+ *
+ * The bracket's caps say where a region ends, which a wash alone does not when
+ * two regions meet. Pointing at a label outlines its lines as well. No tint:
+ * the lines already carry the diff's green or red, and a third colour over
+ * those is what the comment fade was made to avoid.
+ *
+ * A label folds to a tab, to read the code beneath it; the fold lasts as long
+ * as the diff is on the page.
+ */
+function MarkOverlay({
+  boxes,
+  editorHeight,
+  ground,
+}: {
+  boxes: readonly MarkBox[];
+  editorHeight: number;
+  /** The editor's own background, which the wash fades the lines toward. */
+  ground: string;
+}) {
+  const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+  const [pointed, setPointed] = useState<string | null>(null);
+  const toggle = (key: string) =>
+    setFolded((previous) => {
+      const next = new Set(previous);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  const sorted = boxes.toSorted((a, b) => a.top - b.top);
+  const tops = labelTops(sorted, editorHeight);
+  const placed = sorted.map((box, i) => ({ ...box, labelOffset: tops[i]! - box.top }));
+  return (
+    <div className={classes.marks} style={{ '--wash-ground': ground } as CSSProperties}>
+      {placed.flatMap(({ mark, panes }) =>
+        panes.map((pane) => (
+          <div
+            key={`${mark.key}-${String(pane.left)}`}
+            className={classes.wash}
+            data-fade={mark.fade}
+            data-tone={mark.tone}
+            data-pointed={pointed === mark.key || undefined}
+            style={{ top: pane.top, left: pane.left, width: pane.width, height: pane.height }}
+          />
+        )),
+      )}
+      {placed.map(({ mark, top, height, labelOffset }) => {
+        const isFolded = folded.has(mark.key);
+        const point = () => setPointed(mark.key);
+        const unpoint = () => setPointed((current) => (current === mark.key ? null : current));
+        return (
+          <div
+            key={mark.key}
+            className={classes.mark}
+            data-tone={mark.tone}
+            style={{ top, height }}
+          >
+            <span
+              className={classes.markLabel}
+              data-folded={isFolded || undefined}
+              data-tone={mark.tone}
+              style={{ top: labelOffset }}
+              title={isFolded ? `${mark.label}. ${mark.detail}` : mark.detail}
+              onPointerEnter={point}
+              onPointerLeave={unpoint}
+              onFocus={point}
+              onBlur={unpoint}
+            >
+              {!isFolded && (
+                <span className={classes.markText}>
+                  {mark.parts.map((part, i) =>
+                    part.path ? (
+                      <span key={i} className={classes.markPath}>
+                        <bdi>{part.text}</bdi>
+                      </span>
+                    ) : (
+                      <span key={i} className={classes.markWords}>
+                        {part.text}
+                      </span>
+                    ),
+                  )}
+                </span>
+              )}
+              <UnstyledButton
+                className={classes.markFold}
+                aria-label={isFolded ? `Show label: ${mark.label}` : `Hide label: ${mark.label}`}
+                onClick={() => toggle(mark.key)}
+              >
+                {isFolded ? <IconChevronLeft size={12} /> : <IconChevronRight size={12} />}
+              </UnstyledButton>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A label's own height: `.markLabel`'s line height and border. */
+const LABEL_BOX = 18;
+
+/** A label's height and the gap under it. */
+const LABEL_HEIGHT = LABEL_BOX + 2;
+
 function SnippetEditor({
   chunkFilename,
   language,
@@ -274,6 +484,8 @@ function SnippetEditor({
   expanded,
   view,
   wrap,
+  skimMarks,
+  hunkDebug,
 }: {
   chunkFilename: string;
   language: string;
@@ -281,11 +493,24 @@ function SnippetEditor({
   expanded: boolean;
   view: DiffView;
   wrap: DiffWrap;
+  skimMarks: SkimMarks;
+  hunkDebug: HunkDebug;
 }) {
-  const scheme = useComputedColorScheme('dark');
+  const theme = useEditorTheme();
   const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
+  const [boxes, setBoxes] = useState<MarkBox[]>([]);
+  const [ground, setGround] = useState('');
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const disposables = useRef<IDisposable[]>([]);
+  const host = useRef<HTMLDivElement | null>(null);
+  const marks = useMemo(() => {
+    if (hunkDebug === 'off') return skimMarks === 'marked' ? hunkMarks(snippet.hunks) : [];
+    const debug = debugMarks(snippet.hunks);
+    // The debug labels the hunks; it fades them only as skim marks would.
+    return skimMarks === 'marked'
+      ? debug
+      : debug.map((mark) => ({ ...mark, fade: 'none' as const }));
+  }, [hunkDebug, skimMarks, snippet.hunks]);
   /*
    * `measure` below is frozen at mount but has to know the current view, and
    * it has to know it early: the editor library applies the new options from
@@ -305,6 +530,33 @@ function SnippetEditor({
    */
   const wrapRef = useRef(wrap);
   wrapRef.current = wrap;
+  // Mirrored for the frozen `measure`, as `viewRef` is.
+  const snippetRef = useRef(snippet);
+  snippetRef.current = snippet;
+  const marksRef = useRef(marks);
+  marksRef.current = marks;
+
+  const measureMarks = useCallback(() => {
+    const diffEditor = editorRef.current;
+    if (!diffEditor || !host.current) return;
+    const next = markBoxes(
+      diffEditor,
+      host.current,
+      snippetRef.current,
+      marksRef.current,
+      viewRef.current,
+    );
+    setBoxes((previous) => (boxesKey(previous) === boxesKey(next) ? previous : next));
+    if (next.length === 0) return;
+    // Monaco defines its colours on its own elements, and the overlay is
+    // their sibling, so the background the wash fades toward is read off the
+    // editor rather than inherited.
+    setGround(
+      getComputedStyle(diffEditor.getModifiedEditor().getContainerDomNode()).getPropertyValue(
+        '--vscode-editor-background',
+      ),
+    );
+  }, []);
 
   const onMount = useCallback(
     (diffEditor: editor.IStandaloneDiffEditor) => {
@@ -326,11 +578,13 @@ function SnippetEditor({
           MIN_EDITOR_HEIGHT - EDITOR_HEIGHT_PADDING,
         );
         setEditorHeight(contentHeight + EDITOR_HEIGHT_PADDING);
+        measureMarks();
       };
       disposables.current = [
         original.onDidContentSizeChange(measure),
         modified.onDidContentSizeChange(measure),
         diffEditor.onDidUpdateDiff(measure),
+        modified.onDidLayoutChange(measureMarks),
       ];
       applyWordWrap(diffEditor, wrapRef.current);
       applySnippetLayout(diffEditor, snippet, expanded);
@@ -348,37 +602,21 @@ function SnippetEditor({
     if (editorRef.current) applySnippetLayout(editorRef.current, snippet, expanded);
   }, [snippet, expanded, view]);
 
+  // A flip of the view or the marks moves the lines after this render; the
+  // editors have laid out again by the next frame.
+  useEffect(() => {
+    measureMarks();
+    const frame = requestAnimationFrame(measureMarks);
+    return () => cancelAnimationFrame(frame);
+  }, [measureMarks, marks, view, wrap, expanded, theme]);
+
   // `view` belongs here because Monaco re-pins the original editor's
   // `wordWrapOverride2` on every pass through the stacked view.
   useEffect(() => {
     if (editorRef.current) applyWordWrap(editorRef.current, wrap);
   }, [wrap, view]);
 
-  /*
-   * The column the reader gives this diff is the one width `automaticLayout`
-   * cannot see — the blind spot `applySnippetLayout` describes — and nothing
-   * else here notices it: a window resize that does not cross
-   * `SIDE_BY_SIDE_MIN_WIDTH` changes no snippet, no flag and no preference.
-   * Unwrapped that only left a stale horizontal scrollbar; wrapped, the wrap
-   * column is stale too, so lines break at a width the pane no longer has and
-   * the overflow is clipped rather than scrollable.
-   *
-   * Subscribed to rather than read as state: the width arrives once a frame for
-   * as long as a drag lasts, and a hook would put every editor on the page
-   * through a render for each of them.
-   */
-  useEffect(() => {
-    let settled: number | undefined;
-    const unsubscribe = useReaderColumn.subscribe((state, previous) => {
-      if (state.columnWidth === previous.columnWidth || state.columnWidth === null) return;
-      window.clearTimeout(settled);
-      settled = window.setTimeout(() => editorRef.current?.layout(), COLUMN_SETTLE_MS);
-    });
-    return () => {
-      window.clearTimeout(settled);
-      unsubscribe();
-    };
-  }, []);
+  useLayoutOnColumnSettle(editorRef);
 
   useEffect(
     () => () => {
@@ -416,33 +654,7 @@ function SnippetEditor({
     center.querySelector<HTMLElement>('a[role="button"]')?.click();
   }, []);
 
-  /*
-   * Monaco's hidden input carries the caret wherever the mouse puts it, but it
-   * starts a click at wherever it was left, and the browser's own "scroll the
-   * newly-focused element into view" runs before it catches up — on a page
-   * this long, that yanks the whole window to the input's stale position.
-   * Capturing the scroll offset on the preceding pointerdown and putting it
-   * straight back once focus lands undoes that in the same task, before the
-   * browser paints, so the reader never sees the jump. Keyed off pointerdown
-   * rather than firing on every focus so a genuine keyboard Tab into the
-   * editor keeps the browser's own scroll-into-view.
-   *
-   * The offset expires because only the focus that follows its own pointerdown
-   * may spend it. A press that never lands focus — Monaco still loading behind
-   * the skeleton, or a drag released elsewhere — otherwise leaves the offset
-   * sitting there, and the next keyboard Tab into this editor scrolls the page
-   * back to wherever the reader clicked earlier: the very jump this prevents,
-   * on the path it means to leave alone.
-   */
-  const pendingScroll = useRef<{ x: number; y: number; at: number } | null>(null);
-  const onPointerDown = useCallback(() => {
-    pendingScroll.current = { x: window.scrollX, y: window.scrollY, at: performance.now() };
-  }, []);
-  const onFocus = useCallback(() => {
-    const pos = pendingScroll.current;
-    pendingScroll.current = null;
-    if (pos && performance.now() - pos.at < PENDING_SCROLL_MS) window.scrollTo(pos.x, pos.y);
-  }, []);
+  const keepScroll = useScrollKeptOnFocus();
 
   // Memoised so the library only re-applies options when `expanded` or the
   // view flips; a fresh object each render would reset the per-side line
@@ -505,11 +717,12 @@ function SnippetEditor({
   const fallback = <Skeleton height={MIN_EDITOR_HEIGHT} radius={0} />;
   return (
     <div
+      ref={host}
       className={classes.editor}
       style={{ height: editorHeight }}
       onClick={onClick}
-      onPointerDown={onPointerDown}
-      onFocus={onFocus}
+      onPointerDown={keepScroll.onPointerDown}
+      onFocus={keepScroll.onFocus}
     >
       <Suspense fallback={fallback}>
         <DiffEditor
@@ -522,12 +735,15 @@ function SnippetEditor({
           modifiedModelPath={buildModelPath(chunkFilename, snippet.key, 'modified')}
           keepCurrentOriginalModel
           keepCurrentModifiedModel
-          theme={scheme === 'dark' ? 'vs-dark' : 'vs'}
+          theme={theme}
           onMount={onMount}
           loading={fallback}
           options={options}
         />
       </Suspense>
+      {boxes.length > 0 && (
+        <MarkOverlay boxes={boxes} editorHeight={editorHeight} ground={ground} />
+      )}
     </div>
   );
 }
@@ -577,10 +793,119 @@ function AnchoredAsides({
 }
 
 /**
+ * The frame every code card in a chapter shares, a diff's or an excerpt's,
+ * so the two read as one kind of thing. Only a diff names its file in
+ * `data-diff-file`, which the sidebar reads to mark the changed file being
+ * read; an excerpt's file is not in that list.
+ */
+export function CodeCard({
+  label,
+  diffFile,
+  children,
+}: {
+  label: string;
+  diffFile?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Box
+      role="figure"
+      aria-label={label}
+      data-diff-file={diffFile}
+      style={{
+        /*
+         * `clip`, not `hidden`: both round the card's corners, but `hidden`
+         * makes this box a scroll container, and the header below sticks to
+         * the nearest one. Against a card that cannot scroll, its offset
+         * resolved to "56px down from the top of the card" and it sat over
+         * the first lines of the diff for good.
+         */
+        overflow: 'clip',
+        borderRadius: 8,
+        boxShadow: `0 0 0 1px ${token('border')}`,
+        background: token('card'),
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+/**
+ * A code card's path, stuck under the topbar, then the facts the card adds
+ * about its file, then its actions.
+ *
+ * The path keeps its file name whole and gives up the start of its directory
+ * first, behind an ellipsis, with the whole path in its hover: the leading
+ * directories are what a long path shares with its neighbours, and a path
+ * that wraps makes a header the code scrolls under twice as tall.
+ *
+ * `foldable` is for a header whose facts can outgrow one line. Its chevron
+ * flips the reader's file-headers preference, which every card follows: one
+ * line, the facts clipped where they meet the actions, or every fact on lines
+ * of its own below the path.
+ */
+export function CodeCardHeader({
+  filename,
+  facts,
+  actions,
+  foldable = false,
+}: {
+  filename: string;
+  facts?: ReactNode;
+  actions?: ReactNode;
+  foldable?: boolean;
+}) {
+  const { dirname, basename } = splitFilename(filename);
+  const headers = useFileHeaders((s) => s.headers);
+  const toggleHeaders = useFileHeaders((s) => s.toggle);
+  const oneLine = !foldable || headers === 'one-line';
+  return (
+    <div
+      className={classes.header}
+      data-one-line={oneLine || undefined}
+      style={{ position: 'sticky', top: TOPBAR_HEIGHT }}
+    >
+      <span className={classes.path} title={filename}>
+        {dirname.length > 0 && (
+          <span className={classes.dirname}>
+            <bdi>{dirname}/</bdi>
+          </span>
+        )}
+        <span className={classes.basename}>{basename}</span>
+      </span>
+      {facts && <span className={classes.facts}>{facts}</span>}
+      <span className={classes.actions}>
+        {actions}
+        {foldable && (
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="sm"
+            aria-pressed={oneLine}
+            aria-label="File headers on one line"
+            title={oneLine ? 'Show every fact in file headers' : 'Keep file headers to one line'}
+            onClick={toggleHeaders}
+          >
+            {oneLine ? <IconChevronDown size={14} /> : <IconChevronUp size={14} />}
+          </ActionIcon>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/**
  * One file's reviewer-selected hunks: both sides come from the bundle through
  * `useFilePair`, are sliced to the lines around
  * each hunk group (`buildInlineDiffSnippets`) and shown in one Monaco
  * `DiffEditor` per group; "Show full file" swaps in the whole pair.
+ *
+ * A group is consecutive hunks whatever their tiers. With skim marks on, a
+ * skim hunk's lines are faded in place, never folded, so every line a chapter
+ * cites is on the page, and it and every hunk with a proven fact are labelled
+ * at the editor's right edge. What the CLI proved is also tagged in the
+ * header, one tag per fact with all the lines it holds for.
  *
  * `insights` are the chapter's insights that named this file, and
  * `judgementCalls` the review's questions this chapter draws for it. The other
@@ -601,6 +926,8 @@ export function InlineDiffChunk({
   const file = useReviewFile(chunk.filename);
   const stored = useDiffView((s) => s.view);
   const wrap = useDiffWrap((s) => s.wrap);
+  const skimMarks = useSkimMarks((s) => s.marks);
+  const hunkDebug = useHunkDebug((s) => s.debug);
   const spaceLimited = useReaderColumn(selectSpaceLimited);
   // Too narrow for two panes is not a preference the column can honour.
   const view: DiffView = spaceLimited ? 'unified' : stored;
@@ -609,7 +936,7 @@ export function InlineDiffChunk({
 
   const snippets = useMemo<InlineDiffSnippet[]>(() => {
     if (state.kind !== 'ok') return [];
-    if (expanded) return [fullFile('full-file', state.data)];
+    if (expanded) return [fullFile('full-file', state.data, chunk.hunks)];
     const collapsed = buildInlineDiffSnippets({
       hunks: chunk.hunks,
       original: state.data.original,
@@ -617,94 +944,70 @@ export function InlineDiffChunk({
       originalLineCount: state.data.originalLineCount,
       modifiedLineCount: state.data.modifiedLineCount,
       contextLines: CONTEXT_LINES,
+      fileHunks: file?.hunks,
     });
-    return collapsed.length > 0 ? collapsed : [fullFile('fallback-full-file', state.data)];
-  }, [state, expanded, chunk.hunks]);
+    return collapsed.length > 0
+      ? collapsed
+      : [fullFile('fallback-full-file', state.data, chunk.hunks)];
+  }, [state, expanded, chunk.hunks, file?.hunks]);
 
   const language = state.kind === 'ok' ? state.data.language : chunk.language;
-  const { dirname, basename } = splitFilename(chunk.filename);
+  const tags = useMemo(() => factTags(chunk.hunks), [chunk.hunks]);
 
   return (
-    <Box
-      role="figure"
-      aria-label={`Diff for ${chunk.filename}`}
-      /* Read back by `use-reading-file.ts` to mark this file in the sidebar. */
-      data-diff-file={chunk.filename}
-      style={{
-        /*
-         * `clip`, not `hidden`: both round the card's corners, but `hidden`
-         * makes this box a scroll container, and the header below sticks to
-         * the nearest one. Against a card that cannot scroll, its offset
-         * resolved to "56px down from the top of the card" and it sat over
-         * the first lines of the diff for good.
-         */
-        overflow: 'clip',
-        borderRadius: 8,
-        boxShadow: `0 0 0 1px ${token('border')}`,
-        background: token('card'),
-      }}
-    >
-      <Group
-        gap={8}
-        px={12}
-        py={8}
-        fz="sm"
-        style={{
-          position: 'sticky',
-          top: TOPBAR_HEIGHT,
-          zIndex: 10,
-          borderBottom: `1px solid ${token('border')}`,
-          background: `color-mix(in oklab, ${token('muted')} 30%, ${token('card')})`,
-        }}
-      >
-        <Text
-          component="span"
-          ff="monospace"
-          fz="inherit"
-          miw={0}
-          style={{ wordBreak: 'break-all' }}
-        >
-          {dirname.length > 0 && (
-            <Text component="span" fz="xs" c="dimmed">
-              {dirname}/
-            </Text>
-          )}
-          <Text component="span" fz="sm" fw={600}>
-            {basename}
-          </Text>
-        </Text>
-        {file?.origin && (
-          <Text component="span" fz="xs" c="dimmed" miw={0} style={{ wordBreak: 'break-all' }}>
-            {originVerb(file).toLowerCase()}{' '}
-            <Text component="span" ff="monospace" fz="inherit">
-              {file.origin.filename}
-            </Text>
-          </Text>
-        )}
-        <Text
-          component="span"
-          fz="inherit"
-          px={6}
-          py={2}
-          c="dimmed"
-          style={{ borderRadius: 4, background: token('muted') }}
-        >
-          {language}
-        </Text>
-        {state.kind === 'ok' && (
-          <UnstyledButton
-            ml="auto"
-            px={8}
-            py={2}
-            fz="sm"
-            c="dimmed"
-            style={{ borderRadius: 4 }}
-            onClick={() => setExpanded((prev) => !prev)}
-          >
-            {expanded ? 'Show changes only' : 'Show full file'}
-          </UnstyledButton>
-        )}
-      </Group>
+    <CodeCard label={`Diff for ${chunk.filename}`} diffFile={chunk.filename}>
+      <CodeCardHeader
+        filename={chunk.filename}
+        foldable={file?.origin !== undefined || tags.length > 0}
+        facts={
+          (file?.origin || tags.length > 0) && (
+            <>
+              {file?.origin && (
+                <Text component="span" fz="xs" c="dimmed" className={classes.fact}>
+                  {originVerb(file).toLowerCase()}{' '}
+                  <Text component="span" ff="monospace" fz="inherit">
+                    {file.origin.filename}
+                  </Text>
+                </Text>
+              )}
+              {tags.map((tag) => (
+                <Text
+                  key={tag.label}
+                  component="span"
+                  fz="xs"
+                  c="dimmed"
+                  px={6}
+                  py={1}
+                  title={tag.detail}
+                  className={classes.fact}
+                  style={{
+                    borderRadius: 4,
+                    border: `1px solid ${token('border')}`,
+                    // A move's tag is edged in the colour its region is drawn in.
+                    borderLeft: `3px solid ${token(tag.tone === 'move' ? 'before' : 'border')}`,
+                  }}
+                >
+                  {tag.label} · {tag.lines}
+                </Text>
+              ))}
+            </>
+          )
+        }
+        actions={
+          state.kind === 'ok' && (
+            <UnstyledButton
+              px={8}
+              py={2}
+              fz="sm"
+              c="dimmed"
+              style={{ borderRadius: 4 }}
+              onClick={() => setExpanded((prev) => !prev)}
+            >
+              {expanded ? 'Show changes only' : 'Show full file'}
+            </UnstyledButton>
+          )
+        }
+      />
 
       {(insights.length > 0 || judgementCalls.length > 0) && (
         <AnchoredAsides insights={insights} judgementCalls={judgementCalls} />
@@ -716,17 +1019,23 @@ export function InlineDiffChunk({
         </Text>
       )}
       {state.kind === 'ok' &&
-        snippets.map((snippet) => (
-          <SnippetEditor
+        snippets.map((snippet, index) => (
+          <Box
             key={snippet.key}
-            chunkFilename={chunk.filename}
-            language={language}
-            snippet={snippet}
-            expanded={expanded}
-            view={view}
-            wrap={wrap}
-          />
+            style={index > 0 ? { borderTop: `1px solid ${token('border')}` } : undefined}
+          >
+            <SnippetEditor
+              chunkFilename={chunk.filename}
+              language={language}
+              snippet={snippet}
+              expanded={expanded}
+              view={view}
+              wrap={wrap}
+              skimMarks={skimMarks}
+              hunkDebug={hunkDebug}
+            />
+          </Box>
         ))}
-    </Box>
+    </CodeCard>
   );
 }

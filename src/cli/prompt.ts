@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { LOCAL_WORKING_TREE, NARRATIVE_SYSTEM_PROMPT } from '../review/prompt/instructions.ts';
 import type { DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
+import { type OverviewStyle, overviewStyleSection } from '../review/prompt/overview-styles.ts';
 import type { ReviewFile, ReviewFileSkipReason } from '../review/narrative.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
@@ -21,8 +22,9 @@ export async function writePrompt(
   context: RunContext,
   run: RunFiles,
   instructions: string | null,
+  style: OverviewStyle,
 ): Promise<string> {
-  const user = buildPrompt(context, run, instructions);
+  const user = buildPrompt(context, run, instructions, style);
   await writeFile(run.system, NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
   await writeFile(run.prompt, user);
   return user;
@@ -32,6 +34,7 @@ export function buildPrompt(
   context: RunContext,
   run: RunFiles,
   instructions: string | null,
+  style: OverviewStyle,
 ): string {
   const { target, meta, files, hunks, diffLines } = context;
   const reviewed = files.filter((file) => !file.skipped);
@@ -53,13 +56,14 @@ export function buildPrompt(
     workingDirectory(context, run),
     `## Files Changed (${String(reviewed.length)})\n${formatFileList(reviewed)}${renames(files)}`,
     formatSkippedSection(files),
-    `## Changed Hunks (Use These IDs in diffChunks.hunkIds)\n${formatHunkCatalog(hunks)}`,
+    `## Changed Hunks (Use These IDs in diffChunks.hunks)\n${formatHunkCatalog(hunks)}`,
     '## Diff\n' +
       `The full patch for this change is at \`${display(run.diff)}\`, ${String(diffLines)} lines. ` +
       `Pass Read a limit of at least ${String(diffLines)} so you get the whole file in one call ` +
       'instead of paging through it. Each hunk’s id is on a `# H0001` line directly above its `@@` ' +
       'header. Read that for the change itself, and the files in your working directory for the ' +
       'code around it.',
+    overviewStyleSection(style),
     reviewerInstructions(instructions),
   ];
   return `${sections.filter((section) => section !== null).join('\n\n')}\n`;
@@ -121,14 +125,16 @@ function workingDirectory({ target, dirty }: RunContext, run: RunFiles): string 
     target.kind === 'pr'
       ? `Your working directory is a temporary checkout of the pull request’s head commit (${target.headSha.slice(0, 7)}). Every file in it is as the pull request leaves it.`
       : target.kind === 'branch'
-        ? `Your working directory is the repository itself, at ${target.headLabel}. The diff file below is the source of truth for what changed.`
-        : 'Your working directory is the repository itself. Only the staged changes are under review, and the diff file below is the source of truth for them.';
+        ? `Your working directory is the repository itself (\`${display(target.repoRoot)}\`), at ${target.headLabel}. The diff file below is the source of truth for what changed.`
+        : `Your working directory is the repository itself (\`${display(target.repoRoot)}\`). Only the staged changes are under review, and the diff file below is the source of truth for them.`;
   const extra =
     dirty.length > 0
-      ? `\n\nThese paths hold changes on disk that are not part of this review, so what you read there may differ from the reviewed version:\n${dirty.map((name) => `  ${name}`).join('\n')}`
+      ? `\n\nThese paths hold changes on disk that are not part of this review, so what you read there may differ from the reviewed version. Take no excerpt of unchanged code from them:\n${dirty.map((name) => `  ${name}`).join('\n')}`
       : '';
   return (
     `## Where You Are\n${where}${extra}\n\n` +
+    'The paths in the file list and the diff are relative to it, and the repository named above is ' +
+    'this checkout, not a directory to look for elsewhere on disk: do not search outside it.\n\n' +
     `Ignore the \`er-reviews/\` folder, except for this run’s own folder, \`${display(run.folder)}\`.`
   );
 }
@@ -186,15 +192,34 @@ function formatFileList(files: readonly ReviewFile[]): string {
     .join('\n');
 }
 
-/** The Changed Hunks list the model cites ids from. */
+/** The Changed Hunks list the model cites ids from, each hunk's proven facts after it. */
 function formatHunkCatalog(hunks: readonly DiffHunk[]): string {
   if (hunks.length === 0) return '  (No patch hunks were detected in the provided diff.)';
   return hunks
     .map(
       (hunk) =>
-        `  ${hunk.id}  ${hunk.filename}  ${hunk.header}  original ${formatLineSpan(hunk.original.startLine, hunk.original.lineCount)}  modified ${formatLineSpan(hunk.modified.startLine, hunk.modified.lineCount)}`,
+        `  ${hunk.id}  ${hunk.filename}  ${hunk.header}  original ${formatLineSpan(hunk.original.startLine, hunk.original.lineCount)}  modified ${formatLineSpan(hunk.modified.startLine, hunk.modified.lineCount)}${formatHints(hunk)}`,
     )
     .join('\n');
+}
+
+/**
+ * What the CLI proved about a hunk, as hints for the tier. The parser settles
+ * the tier of a whitespace-only or imports-only hunk itself; a move is the
+ * model's to judge.
+ */
+function formatHints(hunk: DiffHunk): string {
+  const hints = [
+    hunk.whitespaceOnly ? '[whitespace only]' : null,
+    hunk.importsOnly ? '[imports only]' : null,
+    hunk.movedFrom
+      ? `[moved from ${hunk.movedFrom.filename}, ${String(hunk.movedFrom.similarity)}%]`
+      : null,
+    hunk.movedTo
+      ? `[moved to ${hunk.movedTo.filename}, ${String(hunk.movedTo.similarity)}%]`
+      : null,
+  ].filter((hint) => hint !== null);
+  return hints.length > 0 ? `  ${hints.join(' ')}` : '';
 }
 
 function formatLineSpan(startLine: number, lineCount: number): string {

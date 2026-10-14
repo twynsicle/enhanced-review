@@ -91,18 +91,95 @@ export const DiffLineSpanSchema = z.object({
 });
 export type DiffLineSpan = z.infer<typeof DiffLineSpanSchema>;
 
-export const ResolvedDiffHunkSchema = z.object({
+/**
+ * The other end of a hunk's move: the file whose hunk removed the lines this
+ * one added (`movedFrom`), or added the lines this one removed (`movedTo`).
+ * `similarity` is how much of the block survived the move: of the significant
+ * lines the two hunks share, the smaller of their percentage of the adding
+ * hunk's lines and of the removing hunk's, the same number at both ends.
+ */
+export const HunkMoveSchema = z.object({
+  filename: z.string(),
+  similarity: z.number().int().min(0).max(100),
+});
+export type HunkMove = z.infer<typeof HunkMoveSchema>;
+
+/**
+ * What the CLI can prove about a hunk from the patch and the files
+ * (`prompt/hunk-facts.ts`). The model is shown them as hints and the reader
+ * draws them as tags. A whitespace-only or imports-only hunk is skim whatever
+ * the model says (`provenSkim`): there is nothing in it to read closely, and
+ * the same call on every such hunk is worth more than the model's, which
+ * varies. A move, even of unchanged lines, stays a hint, since putting code
+ * somewhere else can change what runs it and when.
+ */
+export const HunkFactsSchema = z.object({
+  whitespaceOnly: z.literal(true).optional(),
+  /** Every changed line is part of an import or re-export, in a TypeScript or JavaScript file. */
+  importsOnly: z.literal(true).optional(),
+  movedFrom: HunkMoveSchema.optional(),
+  movedTo: HunkMoveSchema.optional(),
+});
+
+/** Whether a hunk's facts settle it as skim, whatever tier the model gave it. */
+export function provenSkim(facts: HunkFacts): boolean {
+  return facts.whitespaceOnly === true || facts.importsOnly === true;
+}
+export type HunkFacts = z.infer<typeof HunkFactsSchema>;
+
+/**
+ * Which part of a hunk the CLI split a long one into this is, for the
+ * reader's hunk debug: a hunk tiered wrongly and a hunk cut in the wrong place
+ * look alike until the cut is shown.
+ */
+export const HunkPartSchema = z.object({
+  part: z.number().int().min(1),
+  of: z.number().int().min(2),
+});
+
+export const ResolvedDiffHunkSchema = HunkFactsSchema.extend({
   id: z.string(),
   fileOrder: z.number().int(),
+  part: HunkPartSchema.optional(),
   original: DiffLineSpanSchema,
   modified: DiffLineSpanSchema,
+  /**
+   * The lines the hunk adds and removes, git's context lines left out: what a
+   * reader actually has to read, where the spans also count the unchanged
+   * lines around it.
+   */
+  changedLines: z.number().int().min(0),
 });
 export type ResolvedDiffHunk = z.infer<typeof ResolvedDiffHunkSchema>;
+
+/**
+ * How hard a reviewer must look at a hunk: `read` is what judging the change
+ * rests on, `skim` is needed to follow the story. Nothing is folded away for
+ * either; the reader draws skim lines faded, in place among the read ones.
+ */
+export const HunkTierSchema = z.enum(['read', 'skim']);
+export type HunkTier = z.infer<typeof HunkTierSchema>;
+
+/**
+ * The longest skim reason kept. It is drawn as a label over the code, so it
+ * has to stay a label rather than become a sentence covering the lines.
+ */
+export const MAX_SKIM_REASON = 40;
+
+/**
+ * A hunk as a chapter cites it. `skimReason` is the model's few words on why a
+ * skim hunk may be passed over, drawn beside its lines; never on a read hunk.
+ */
+export const CitedHunkSchema = ResolvedDiffHunkSchema.extend({
+  tier: HunkTierSchema,
+  skimReason: z.string().min(1).max(MAX_SKIM_REASON).optional(),
+});
+export type CitedHunk = z.infer<typeof CitedHunkSchema>;
 
 export const DiffChunkSchema = z.object({
   filename: z.string(),
   language: z.string(),
-  hunks: z.array(ResolvedDiffHunkSchema),
+  hunks: z.array(CitedHunkSchema),
 });
 export type DiffChunk = z.infer<typeof DiffChunkSchema>;
 
@@ -174,12 +251,37 @@ export const ReviewRiskAssessmentSchema = z.object({
 });
 export type ReviewRiskAssessment = z.infer<typeof ReviewRiskAssessmentSchema>;
 
+/** At most two excerpts a chapter, each at most sixty lines. */
+export const MAX_CONTEXT_EXCERPTS = 2;
+export const MAX_EXCERPT_LINES = 60;
+
+/**
+ * Unchanged code whose behaviour the chapter's change alters without editing
+ * it — a caller, a subclass, a contract — or a definition the changed code now
+ * leans on in a way the diff hides. Never a file the change touches: its lines
+ * are read at the head commit, and a changed file already has a diff to read.
+ *
+ * Lines are 1-based and inclusive, as an editor numbers them at the head
+ * commit. The parser holds the span to the cap; the parse stage holds it to
+ * the file, which only git can see.
+ */
+export const ContextExcerptSchema = z.object({
+  filename: z.string(),
+  startLine: z.number().int().min(1),
+  endLine: z.number().int().min(1),
+  /** One sentence: what this code has to do with the change. */
+  reason: z.string(),
+});
+export type ContextExcerpt = z.infer<typeof ContextExcerptSchema>;
+
 export const NarrativeChapterSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: ProseSchema.optional(),
   insights: z.array(InsightSchema),
   diffChunks: z.array(DiffChunkSchema),
+  /** Absent and empty mean the same: nothing outside the diff needed showing. */
+  contextExcerpts: z.array(ContextExcerptSchema).max(MAX_CONTEXT_EXCERPTS).optional(),
   /**
    * At most one diagram per chapter. One, not many: a chapter that earns three
    * pictures is a chapter that should have been split, and the reader is a
@@ -188,6 +290,23 @@ export const NarrativeChapterSchema = z.object({
   diagram: DiagramSchema.optional(),
 });
 export type NarrativeChapter = z.infer<typeof NarrativeChapterSchema>;
+
+/**
+ * Which chapters to read with less than the whole review's time, as chapter
+ * ids in chapter order. `brief` is where the change's risk is, what someone
+ * with five minutes must read to judge it, and being in it is what makes a
+ * chapter core: there is no separate weight to disagree with it. `standard`
+ * is what approving the change needs, and always holds `brief`. Reading
+ * everything is the third plan, and needs no field.
+ *
+ * Minutes are not stored. The reader computes them from the chapters
+ * themselves, so a plan cannot claim a time its chapters do not add up to.
+ */
+export const ReadingPlanSchema = z.object({
+  brief: z.array(z.string()).nonempty(),
+  standard: z.array(z.string()).nonempty(),
+});
+export type ReadingPlan = z.infer<typeof ReadingPlanSchema>;
 
 export const NarrativeReviewSchema = z.object({
   prTitle: z.string(),
@@ -200,7 +319,10 @@ export const NarrativeReviewSchema = z.object({
    * chapter it explains.
    */
   overviewDiagram: DiagramSchema.optional(),
+  /** The order chapters are read in: a cause before its consequences. */
   chapters: z.array(NarrativeChapterSchema),
+  /** Absent when the model's plan could not be used; see `ReadingPlanSchema`. */
+  readingPlan: ReadingPlanSchema.optional(),
   /**
    * Review-wide rather than per chapter, and capped: see `JudgementCallSchema`.
    * Absent and empty mean the same thing — no decision here needed a human —

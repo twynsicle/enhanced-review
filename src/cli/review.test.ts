@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { HookInput } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { BUNDLE_PLACEHOLDER } from '../review/bundle-html.ts';
+import { BUNDLE_PLACEHOLDER, readEmbeddedBundle } from '../review/bundle-html.ts';
 import { runGit } from './git-runner.ts';
 import { finding } from '../review/findings.ts';
 import { createTempRepo, GIT_TEST_TIMEOUT, type TempRepo } from '../test/git-repo.ts';
@@ -66,6 +66,8 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   keepWorktree: false,
   allowLarge: false,
   instructions: null,
+  splitLines: 0,
+  overviewStyle: 'narrative',
   ...overrides,
 });
 
@@ -79,21 +81,22 @@ const MODEL_REVIEW = `<narrative_review>
       "title": "App",
       "description": "src/app.ts changed.",
       "insights": [{ "type": "context", "title": "From the test model", "text": "Not a real run." }],
-      "diffChunks": [{ "filename": "src/app.ts", "language": "typescript", "hunkIds": ["H0001"] }]
+      "diffChunks": [{ "filename": "src/app.ts", "language": "typescript", "hunks": [{ "id": "H0001", "tier": "read" }] }]
     }
-  ]
+  ],
+  "readingPlan": { "brief": ["app"], "standard": ["app"] }
 }
 </narrative_review>`;
 
 /** MODEL_REVIEW, with its one diff chunk replaced by the ones given. */
 const citing = (...chunks: string[]) =>
   MODEL_REVIEW.replace(
-    '{ "filename": "src/app.ts", "language": "typescript", "hunkIds": ["H0001"] }',
+    '{ "filename": "src/app.ts", "language": "typescript", "hunks": [{ "id": "H0001", "tier": "read" }] }',
     chunks.join(', '),
   );
 
 const chunk = (filename: string, id: string) =>
-  `{ "filename": "${filename}", "language": "typescript", "hunkIds": ["${id}"] }`;
+  `{ "filename": "${filename}", "language": "typescript", "hunks": [{ "id": "${id}", "tier": "read" }] }`;
 
 const assistantText = (text: string) =>
   ({ type: 'assistant', message: { content: [{ type: 'text', text }] } }) as never;
@@ -166,6 +169,22 @@ describe('er review', () => {
     expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
       'prompt',
       expect.stringMatching(/^~\d+ tokens with yours, plus the review instructions$/),
+      expect.any(Number),
+    );
+  });
+
+  it('writes a chosen overview style into the prompt, and says which', async () => {
+    await expect(review(options({ overviewStyle: 'five-whys' }), deps)).resolves.toBe(0);
+
+    const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
+    expect(readFileSync(path.join(run, 'prompt.md'), 'utf8')).toContain(
+      '## Overview Style: five-whys',
+    );
+    expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
+      'prompt',
+      expect.stringMatching(
+        /^~\d+ tokens, plus the review instructions; five-whys overview style$/,
+      ),
       expect.any(Number),
     );
   });
@@ -286,6 +305,60 @@ describe('er review', () => {
     vi.mocked(terminal.warn).mockClear();
     await expect(review(options({ from: 'render', open: false }), deps)).resolves.toBe(WARNED);
     expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith('A diagram was dropped.');
+  });
+
+  it('shows unchanged code from the head commit, drops what is not there, and renders again without git', async () => {
+    const answer = MODEL_REVIEW.replace(
+      '"diffChunks": [',
+      '"contextExcerpts": [' +
+        '{ "filename": "README.md", "startLine": 1, "endLine": 1, "reason": "The heading the app is named after." },' +
+        '{ "filename": "docs/gone.md", "startLine": 1, "endLine": 2, "reason": "Not in the repository." }' +
+        '], "diffChunks": [',
+    );
+    const query: QueryFn = () =>
+      (async function* () {
+        yield assistantText(answer);
+        yield runResult();
+      })();
+
+    await expect(
+      review(options({ stub: false, open: false }), { ...deps, claude: { query } }),
+    ).resolves.toBe(WARNED);
+    expect(vi.mocked(terminal.warn)).toHaveBeenCalledWith(
+      '1 excerpt of unchanged code was dropped: docs/gone.md L1–2 in chapter app (not in the head commit).',
+    );
+
+    const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
+    expect(JSON.parse(readFileSync(path.join(run, 'excerpts.json'), 'utf8'))).toEqual({
+      'README.md': '# fixture\n',
+    });
+    const embedded = () => {
+      const html = readFileSync(path.join(run, 'review.html'), 'utf8');
+      const result = readEmbeddedBundle(
+        html.slice(html.indexOf('application/json">') + 18, html.lastIndexOf('</script>')),
+      );
+      if (!result.ok) throw new Error(`no bundle in the report: ${result.reason}`);
+      return result.bundle;
+    };
+    // The head side alone, up to the excerpt's last line.
+    const excerpted = { base: { kind: 'absent' }, head: { kind: 'content', content: '# fixture' } };
+    expect(embedded().files['README.md']).toEqual(excerpted);
+    expect(embedded().review.chapters[0]?.contextExcerpts).toEqual([
+      {
+        filename: 'README.md',
+        startLine: 1,
+        endLine: 1,
+        reason: 'The heading the app is named after.',
+      },
+    ]);
+    // The excerpted file is something to read, not something that changed.
+    expect(embedded().review.files?.map((file) => file.filename)).toEqual(['src/app.ts']);
+
+    // The render stage draws what the parse read, whatever git holds now.
+    repo.write('README.md', '# renamed\n');
+    repo.commit('rename the fixture');
+    await expect(review(options({ from: 'render', open: false }), deps)).resolves.toBe(WARNED);
+    expect(embedded().files['README.md']).toEqual(excerpted);
   });
 
   it('refuses to resume a target that has never run', async () => {

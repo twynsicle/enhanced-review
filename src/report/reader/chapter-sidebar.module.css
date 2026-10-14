@@ -340,19 +340,31 @@
 }
 
 /*
- * The diagram mark on a section row. It sits after the label rather than
- * before it so the numbers and titles keep their two clean left edges, and it
- * is `subtle` until the row is active: decoration, never text.
+ * The core, diagram and read marks on a section row: one outline icon size and
+ * one colour, since none outranks the others, set close together as one
+ * group. After the label rather than before it, so the numbers and titles
+ * keep their two clean left edges.
  */
-.diagramMark {
+.rowMarks {
+  display: inline-flex;
   flex-shrink: 0;
+  align-self: center;
+  gap: 3px;
   margin-left: auto;
-  padding-left: 6px;
-  font-size: var(--mantine-font-size-xs);
-  line-height: 1;
-  color: var(--er-subtle);
 }
 
-.item[data-active] .diagramMark {
+.rowMark {
+  display: inline-flex;
+  color: var(--er-muted-foreground);
+}
+
+.item[data-active] .rowMark {
   color: var(--er-before);
+}
+
+.readCount {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--er-muted-foreground);
 }

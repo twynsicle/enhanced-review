@@ -1,5 +1,5 @@
 import { Box, Collapse, Group, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
 import { Caption } from '@/report/chrome/caption';
@@ -8,19 +8,24 @@ import { DiagramFigure } from '@/report/diagram/diagram-figure';
 import type { AnchoredJudgementCall } from '@/report/reader/judgement-calls';
 import { MarkdownText } from '@/report/reader/markdown-text';
 import { ProsePassage } from '@/report/reader/prose-passage';
-import { sectionCardId, sectionHeadingId } from '@/report/reader/sections';
+import { formatMinutes, readingPlanRows, type PlanRow } from '@/report/reader/reading-time';
+import {
+  formatChapterNumber,
+  readerSections,
+  sectionCardId,
+  sectionHeadingId,
+} from '@/report/reader/sections';
 import { token } from '@/report/theme/tokens';
 import { DISPLAY_SIZE } from '@/report/theme/tokens';
 
 /**
- * The synthesised summary section: title line, the overview diagram, the
- * reviewer's overview and, when there is one, the author's own PR
- * description.
+ * The synthesised summary section: title line, the reviewer's overview, the
+ * reading plan, the overview diagram, the judgement-call index and, when there
+ * is one, the author's own PR description.
  *
- * The risk rating used to sit between the title and the overview, which made
- * this section three unrelated things in one scroll — a rating, a synthesis
- * and someone else's prose. Risk is its own section now, and what is left
- * here reads in one direction: what changed, shown, then said.
+ * The risk assessment is not drawn here but in a section of its own: beside
+ * the overview it would make this one three unrelated things in one scroll,
+ * a rating, a synthesis and someone else's prose.
  *
  * Where the review came from arrives as one `ReviewMeta`, which `er` builds
  * from git and `gh`. The card only decides what to show when a field is
@@ -32,6 +37,7 @@ export function SummaryCard({
   judgementCalls = [],
   onSelectFile,
   onSelectChapter,
+  footer,
 }: {
   review: NarrativeReview;
   meta: ReviewMeta;
@@ -39,8 +45,10 @@ export function SummaryCard({
   judgementCalls?: readonly AnchoredJudgementCall[];
   /** Threaded down so a grounded diagram node can open its file. */
   onSelectFile?: (filename: string) => void;
-  /** How a judgement call in the index reaches the chapter that draws it. */
-  onSelectChapter?: (chapterId: string) => void;
+  /** How the reading plan's links and the judgement-call index reach a chapter. */
+  onSelectChapter: (chapterId: string) => void;
+  /** Drawn after everything else: where the reader goes next. */
+  footer?: ReactNode;
 }) {
   const { baseRefName: baseRef, headRefName: headRef, authorLogin: author, prNumber } = meta;
   const title = review.prTitle || meta.title;
@@ -143,6 +151,13 @@ export function SummaryCard({
         <ProsePassage prose={review.overviewSummary} />
       </Stack>
 
+      {/*
+       * Straight after the overview and ahead of the diagram: the overview
+       * says what the change is, and the plan is the next decision a reader
+       * short of time has to make, before a picture they may not need.
+       */}
+      {review.readingPlan && <ReadingPlanBlock review={review} onSelectChapter={onSelectChapter} />}
+
       {review.overviewDiagram && (
         <DiagramFigure
           diagram={review.overviewDiagram}
@@ -150,12 +165,95 @@ export function SummaryCard({
         />
       )}
 
-      {judgementCalls.length > 0 && onSelectChapter && (
+      {judgementCalls.length > 0 && (
         <JudgementCallIndex anchored={judgementCalls} onSelectChapter={onSelectChapter} />
       )}
 
       {meta.description && <AuthorDescription body={meta.description} />}
+
+      {footer}
     </article>
+  );
+}
+
+/** What each row's chapters follow on from, and what it says when it adds none. */
+const PLAN_LEAD: Record<PlanRow['name'], { adding: string; nothing: string } | null> = {
+  Brief: null,
+  Standard: { adding: 'The brief, and', nothing: 'The brief, and nothing more.' },
+  Full: { adding: 'The standard read, and', nothing: 'The standard read, and nothing more.' },
+};
+
+/**
+ * Three ways through the review, shortest first, each with its time and its
+ * chapters as links. A longer plan lists only what it adds to the one before:
+ * the brief's chapters repeated in every row would leave three lists for the
+ * reader to compare by eye to find the difference, which is the one thing
+ * each row is there to say.
+ */
+function ReadingPlanBlock({
+  review,
+  onSelectChapter,
+}: {
+  review: NarrativeReview;
+  onSelectChapter: (chapterId: string) => void;
+}) {
+  // The sidebar's own numbers, so a plan's chapter can be found there by its
+  // number as well as by its title.
+  const numbers = new Map(
+    readerSections(review).flatMap((section) =>
+      section.chapterNumber === null ? [] : [[section.id, section.chapterNumber] as const],
+    ),
+  );
+  return (
+    <Stack component="section" gap={12}>
+      <Caption component="h3">Reading plan</Caption>
+      <Stack component="ol" gap={12} m={0} pl={0} style={{ listStyle: 'none' }}>
+        {readingPlanRows(review).map((row) => {
+          const lead = PLAN_LEAD[row.name];
+          return (
+            <Stack component="li" key={row.name} gap={2}>
+              <Group gap={8} align="baseline">
+                <Text component="span" fz="md" fw={600}>
+                  {row.name}
+                </Text>
+                <Text component="span" fz="sm" c="dimmed">
+                  {formatMinutes(row.minutes)}
+                </Text>
+              </Group>
+              {lead && row.adds.length === 0 ? (
+                <Text fz="sm" c="dimmed">
+                  {lead.nothing}
+                </Text>
+              ) : (
+                <Group gap={8} align="baseline" style={{ rowGap: 2 }}>
+                  {lead && (
+                    <Text component="span" fz="sm" c="dimmed">
+                      {lead.adding}
+                    </Text>
+                  )}
+                  {row.adds.map((chapter) => (
+                    <UnstyledButton
+                      key={chapter.id}
+                      fz="sm"
+                      ta="left"
+                      onClick={() => onSelectChapter(chapter.id)}
+                      style={{ textWrap: 'pretty' }}
+                    >
+                      <Text component="span" ff="monospace" fz="xs" c="dimmed">
+                        {formatChapterNumber(numbers.get(chapter.id) ?? 0)}
+                      </Text>{' '}
+                      <Text component="span" fz="inherit" td="underline">
+                        {chapter.title}
+                      </Text>
+                    </UnstyledButton>
+                  ))}
+                </Group>
+              )}
+            </Stack>
+          );
+        })}
+      </Stack>
+    </Stack>
   );
 }
 

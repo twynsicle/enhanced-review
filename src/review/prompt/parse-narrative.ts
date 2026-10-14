@@ -1,30 +1,51 @@
 import { plural } from '../plural.ts';
-import { judgementCallOwner } from '../coverage.ts';
-import { findingLog, type Finding, type FindingLog } from '../findings.ts';
+import { asRead, judgementCallOwner, mergeCitations } from '../coverage.ts';
 import {
+  excerptsDropped,
+  findingLog,
+  type ExcerptDrop,
+  type Finding,
+  type FindingLog,
+} from '../findings.ts';
+import {
+  HunkTierSchema,
   InsightTypeSchema,
+  MAX_CONTEXT_EXCERPTS,
+  MAX_EXCERPT_LINES,
   MAX_JUDGEMENT_CALLS,
+  MAX_SKIM_REASON,
   NarrativeReviewSchema,
+  provenSkim,
   ReviewRiskFactorImpactSchema,
+  RISK_SECTION_ID,
+  SUMMARY_SECTION_ID,
+  type CitedHunk,
+  type ContextExcerpt,
   type DiffChunk,
   type Insight,
   type JudgementCall,
   type NarrativeReview,
   type Prose,
-  type ResolvedDiffHunk,
   type ReviewRiskAssessment,
   type ReviewRiskFactorImpact,
   type ReviewRiskScore,
 } from '../narrative.ts';
-import type { DiffHunk, PromptGrounding } from './diff-hunk-catalog.ts';
+import { toResolvedHunk, type DiffHunk, type PromptGrounding } from './diff-hunk-catalog.ts';
 import { sanitizeDiagram } from './parse-diagram.ts';
 
 /**
  * Turns the model's `<narrative_review>` block into a `NarrativeReview`.
- * Lenient on purpose: missing ids/titles are synthesised, unknown insight
+ * Lenient on purpose: missing ids/titles are synthesised, a repeated id is
+ * replaced (the first chapter keeps it), unknown insight
  * types fall back to `context`, an out-of-range risk score drops the whole
  * assessment, and hunk ids are resolved against what the prompt showed
- * (unknown or wrong-file ids are dropped). Diagrams go through `parse-diagram.ts`,
+ * (unknown or wrong-file ids are dropped). A cited hunk with no usable tier is
+ * read as `read`, leaning toward more of the reader's attention, never less;
+ * one proven whitespace-only or imports-only is `skim` whatever it says. A skim reason is kept
+ * on a skim hunk only. A reading plan keeps only
+ * real chapters, its standard read widened to hold its brief, and is dropped
+ * when no brief chapter is left. An excerpt of unchanged code that breaks a
+ * rule is dropped, never trimmed to fit. Diagrams go through `parse-diagram.ts`,
  * which validates each one on its own so a malformed picture cannot take the
  * review down with it. The result is validated against
  * `NarrativeReviewSchema`, so whatever lands in `review.json` parses back
@@ -140,56 +161,138 @@ function sanitizeRiskAssessment(raw: unknown, log: FindingLog): ReviewRiskAssess
   return { score, summary, rationale, factors };
 }
 
+/**
+ * The hunks whose tier had to be repaired, across the whole answer. A model
+ * that forgets tiers forgets them everywhere, so these are reported once per
+ * review with a count rather than once per hunk.
+ */
+interface TierRepairs {
+  /** No tier, or one that is not read or skim: read as `read`. */
+  tierMissing: Set<string>;
+  /** Tiered `read` but proven whitespace only or imports only: skimmed. */
+  tierLowered: Set<string>;
+  /** A skim reason too long to be a label: dropped. */
+  reasonDropped: Set<string>;
+}
+
+/**
+ * One entry of a chunk's `hunks`. A bare string is an id with no tier: the
+ * shape the model falls back to when it forgets the object, which is leniency
+ * toward the model's answer and not toward any stored shape.
+ */
+function readCitation(raw: unknown): { id: unknown; tier: unknown; skimReason: unknown } {
+  if (isRecord(raw)) return { id: raw['id'], tier: raw['tier'], skimReason: raw['skimReason'] };
+  return { id: raw, tier: undefined, skimReason: undefined };
+}
+
+/**
+ * A whitespace-only or imports-only hunk is skim whatever the model says, so
+ * a missing tier there is no loss. A reason that is not a string, is blank, or is too long
+ * to be a label is no reason: the reader then labels the lines "Skim" alone.
+ */
+function citedHunk(
+  hunk: DiffHunk,
+  { tier: rawTier, skimReason: rawReason }: { tier: unknown; skimReason: unknown },
+  repairs: TierRepairs,
+): CitedHunk {
+  const parsed = HunkTierSchema.safeParse(rawTier);
+  const reason = typeof rawReason === 'string' ? rawReason.trim() : '';
+  const skim = (): CitedHunk => {
+    if (reason.length > MAX_SKIM_REASON) repairs.reasonDropped.add(hunk.id);
+    return {
+      ...toResolvedHunk(hunk),
+      tier: 'skim',
+      ...(reason && reason.length <= MAX_SKIM_REASON ? { skimReason: reason } : {}),
+    };
+  };
+  if (provenSkim(hunk)) {
+    if (parsed.success && parsed.data === 'read') repairs.tierLowered.add(hunk.id);
+    return skim();
+  }
+  if (!parsed.success) repairs.tierMissing.add(hunk.id);
+  return parsed.success && parsed.data === 'skim'
+    ? skim()
+    : { ...toResolvedHunk(hunk), tier: 'read' };
+}
+
 function resolveHunks(
   chunk: Rec,
   grounding: PromptGrounding | undefined,
   chapterId: string,
   log: FindingLog,
-): ResolvedDiffHunk[] {
+  repairs: TierRepairs,
+): CitedHunk[] {
   // Nothing to resolve against: no prompt showed this answer any hunks, so a
   // chunk citing none of them is not a chunk that lost anything.
   if (!grounding) return [];
   const filename = typeof chunk['filename'] === 'string' ? chunk['filename'] : '';
-  const rawIds: unknown[] = Array.isArray(chunk['hunkIds']) ? chunk['hunkIds'] : [];
-  if (rawIds.length === 0) {
+  const rawHunks: unknown[] = Array.isArray(chunk['hunks']) ? chunk['hunks'] : [];
+  if (rawHunks.length === 0) {
     // Recorded here rather than where the empty chunk is finally dropped:
     // this is the last place that knows which file's diff went with it.
     log.add(
       'chunk-dropped',
-      `Chapter ${chapterId} showed ${filename || 'a file it did not name'} with no hunk id to resolve, so that diff was dropped.`,
+      `Chapter ${chapterId} showed ${filename || 'a file it did not name'} with no hunk to resolve, so that diff was dropped.`,
       { chapterId, ...(filename ? { filename } : {}) },
     );
     return [];
   }
   const where = { chapterId, ...(filename ? { filename } : {}) };
-  const deduped = new Map<string, ResolvedDiffHunk>();
+  const deduped = new Map<string, CitedHunk>();
   let repeated = 0;
-  for (const hunkId of rawIds) {
-    const hunk = typeof hunkId === 'string' ? grounding.shown.byId[hunkId] : undefined;
+  for (const raw of rawHunks) {
+    const citation = readCitation(raw);
+    const id = citation.id;
+    const hunk = typeof id === 'string' ? grounding.shown.byId[id] : undefined;
     if (!hunk || hunk.filename !== filename) {
       log.add(
         'hunk-id-dropped',
-        `Chapter ${chapterId} cited ${typeof hunkId === 'string' ? hunkId : 'a hunk id that is not a string'} for ${filename || 'a chunk with no filename'}, which resolved against nothing.`,
+        `Chapter ${chapterId} cited ${typeof id === 'string' ? id : 'a hunk id that is not a string'} for ${filename || 'a chunk with no filename'}, which resolved against nothing.`,
         where,
       );
       continue;
     }
-    if (deduped.has(hunk.id)) repeated += 1;
-    deduped.set(hunk.id, {
-      id: hunk.id,
-      fileOrder: hunk.fileOrder,
-      original: { ...hunk.original },
-      modified: { ...hunk.modified },
-    });
+    const cited = citedHunk(hunk, citation, repairs);
+    const earlier = deduped.get(hunk.id);
+    if (earlier) repeated += 1;
+    deduped.set(hunk.id, earlier ? mergeCitations(earlier, cited) : cited);
   }
   if (repeated > 0) {
     log.add(
       'chunks-merged',
-      `Chapter ${chapterId} cited ${plural(repeated, 'hunk')} twice over in its ${filename} chunk; the repeats were dropped.`,
+      `Chapter ${chapterId} cited ${plural(repeated, 'hunk')} twice over in its ${filename} chunk; the repeats were merged.`,
       where,
     );
   }
   return [...deduped.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
+}
+
+/** The one finding each kind of tier repair earns across the whole answer. */
+function reportTierRepairs(
+  { tierMissing, tierLowered, reasonDropped }: TierRepairs,
+  log: FindingLog,
+): void {
+  if (tierMissing.size > 0) {
+    log.add(
+      'hunk-tier-missing',
+      `${plural(tierMissing.size, 'cited hunk')} came with no tier of read or skim, so ${tierMissing.size > 1 ? 'they are' : 'it is'} marked to be read.`,
+      { hunkIds: [...tierMissing] },
+    );
+  }
+  if (tierLowered.size > 0) {
+    log.add(
+      'hunk-tier-lowered',
+      `${plural(tierLowered.size, 'cited hunk')} tiered to be read ${tierLowered.size > 1 ? 'change' : 'changes'} only whitespace or imports, so ${tierLowered.size > 1 ? 'they are' : 'it is'} marked to be skimmed.`,
+      { hunkIds: [...tierLowered] },
+    );
+  }
+  if (reasonDropped.size > 0) {
+    log.add(
+      'skim-reason-dropped',
+      `${plural(reasonDropped.size, 'skim reason')} ran past ${String(MAX_SKIM_REASON)} characters, so ${reasonDropped.size > 1 ? 'those hunks are' : 'that hunk is'} labelled "Skim" alone.`,
+      { hunkIds: [...reasonDropped] },
+    );
+  }
 }
 
 /**
@@ -447,10 +550,214 @@ function sanitizeJudgementCalls(
 }
 
 /**
+ * The chapters with every hunk a judgement call asks about raised to `read` on
+ * the card that draws the call. A question sitting on a skim hunk would be
+ * asked about lines the reader was told to pass over, so the question wins
+ * over the tier; one note per review records how often it had to.
+ */
+function raiseJudgedHunks(
+  calls: readonly JudgementCall[],
+  chapters: readonly SanitizedChapter[],
+  log: FindingLog,
+): SanitizedChapter[] {
+  const judged = new Map<SanitizedChapter, Map<string, Set<string>>>();
+  for (const call of calls) {
+    const owner = judgementCallOwner(call, chapters);
+    if (!owner) continue;
+    const byFile = judged.get(owner) ?? new Map<string, Set<string>>();
+    const ids = byFile.get(call.filename) ?? new Set<string>();
+    for (const id of call.hunkIds) ids.add(id);
+    byFile.set(call.filename, ids);
+    judged.set(owner, byFile);
+  }
+
+  const raised: string[] = [];
+  const result = chapters.map((chapter) => {
+    const byFile = judged.get(chapter);
+    if (!byFile) return chapter;
+    const diffChunks = chapter.diffChunks.map((chunk) => {
+      const ids = byFile.get(chunk.filename);
+      if (!ids) return chunk;
+      const hunks = chunk.hunks.map((hunk): CitedHunk => {
+        if (!ids.has(hunk.id) || hunk.tier === 'read') return hunk;
+        raised.push(hunk.id);
+        return asRead(hunk);
+      });
+      return { ...chunk, hunks };
+    });
+    return { ...chapter, diffChunks };
+  });
+
+  if (raised.length > 0) {
+    log.add(
+      'hunk-tier-raised',
+      `${plural(raised.length, 'cited hunk')} a judgement call asks about ${raised.length > 1 ? 'were' : 'was'} tiered to be skimmed, so ${raised.length > 1 ? 'they are' : 'it is'} marked to be read.`,
+      { hunkIds: raised },
+    );
+  }
+  return result;
+}
+
+function isLineNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1;
+}
+
+/**
+ * A path as git names a file from the repository root. Anything else — an
+ * absolute path, a `..`, a Windows separator — is not a file this review can
+ * show, and handed to git as a pathspec it would fail the parse stage rather
+ * than the one excerpt.
+ */
+function isRepositoryPath(filename: string): boolean {
+  return (
+    !filename.includes(BACKSLASH) &&
+    !/^[A-Za-z]:/.test(filename) &&
+    filename.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
+  );
+}
+
+/** An excerpt as a finding names it: its path and span, as far as it gave them. */
+function describeExcerpt(raw: Rec): string {
+  const filename =
+    typeof raw['filename'] === 'string' && raw['filename'] !== '' ? raw['filename'] : 'an excerpt';
+  const start = raw['startLine'];
+  const end = raw['endLine'];
+  return typeof start === 'number' && typeof end === 'number'
+    ? `${filename} L${String(start)}–${String(end)}`
+    : filename;
+}
+
+/**
+ * The chapter's excerpts of unchanged code, held to what can be judged
+ * without git: a file, a forward span of at most MAX_EXCERPT_LINES, a reason,
+ * and never a path the change touches, since those lines have a diff of their
+ * own. The first MAX_CONTEXT_EXCERPTS that pass are kept. Whether the file and
+ * span exist at the head commit is the parse stage's to check.
+ */
+function sanitizeContextExcerpts(
+  raw: unknown,
+  chapterId: string,
+  grounding: PromptGrounding | undefined,
+  drops: ExcerptDrop[],
+): ContextExcerpt[] {
+  if (!arrived(raw)) return [];
+  if (!Array.isArray(raw)) {
+    drops.push({ chapterId, excerpt: 'its excerpts', why: 'not a list' });
+    return [];
+  }
+  const kept: ContextExcerpt[] = [];
+  for (const item of raw as unknown[]) {
+    const drop = (excerpt: string, why: string): void => {
+      drops.push({ chapterId, excerpt, why });
+    };
+    if (!isRecord(item) || Array.isArray(item)) {
+      drop('an excerpt', 'not an object');
+      continue;
+    }
+    const described = describeExcerpt(item);
+    const { filename, startLine, endLine } = item;
+    const reason = typeof item['reason'] === 'string' ? item['reason'].trim() : '';
+    if (typeof filename !== 'string' || filename === '') drop(described, 'it names no file');
+    else if (!isRepositoryPath(filename)) drop(described, 'not a path from the repository root');
+    else if (!isLineNumber(startLine) || !isLineNumber(endLine)) {
+      drop(described, 'its lines are not whole numbers from 1');
+    } else if (startLine > endLine) drop(described, 'its span runs backwards');
+    else if (endLine - startLine + 1 > MAX_EXCERPT_LINES) {
+      drop(
+        described,
+        `${String(endLine - startLine + 1)} lines, over the ${String(MAX_EXCERPT_LINES)}-line limit`,
+      );
+    } else if (reason === '') drop(described, 'it gives no reason');
+    else if (grounding?.changed.has(filename)) drop(described, 'a file this change touches');
+    else if (kept.length >= MAX_CONTEXT_EXCERPTS) {
+      drop(described, `past the ${String(MAX_CONTEXT_EXCERPTS)} a chapter may show`);
+    } else kept.push({ filename, startLine, endLine, reason });
+  }
+  return kept;
+}
+
+/** Ids, quoted and listed once each, for a finding's sentence. */
+function listed(ids: Iterable<string>): string {
+  return [...new Set(ids)].map((id) => `"${id}"`).join(', ');
+}
+
+/**
+ * The model's reading plan, held to the chapters that survived parsing.
+ *
+ * Each list keeps the ids of real chapters, once each, in chapter order: the
+ * order of the chapters is the order they are read in, so the order a list
+ * arrived in carries nothing a reader could use. `standard` is widened to
+ * hold all of `brief`, since a longer read that skips what the shorter one
+ * calls essential cannot be what the model meant.
+ *
+ * A plan with no brief left is dropped rather than guessed at. Picking the
+ * core chapters is the judgement the plan exists for, and a guess would look
+ * exactly like one. A review with no chapters has nothing to plan, so silence
+ * there loses nothing.
+ */
+function sanitizeReadingPlan(
+  raw: unknown,
+  chapters: readonly SanitizedChapter[],
+  log: FindingLog,
+): { brief: string[]; standard: string[] } | undefined {
+  if (chapters.length === 0) return undefined;
+  const drop = (message: string): undefined => {
+    log.add('reading-plan-dropped', message);
+    return undefined;
+  };
+  if (!arrived(raw)) return drop('The answer gave no reading plan, so the review has none.');
+  if (!isRecord(raw) || Array.isArray(raw)) {
+    return drop('The reading plan was not an object, so the review has none.');
+  }
+
+  const position = new Map(chapters.map((chapter, index) => [chapter.id, index]));
+  const inChapterOrder = (ids: Iterable<string>): string[] =>
+    [...ids].toSorted((a, b) => position.get(a)! - position.get(b)!);
+  const unknown: string[] = [];
+  const repeated: string[] = [];
+  const chaptersIn = (list: unknown): string[] => {
+    const items: unknown[] = Array.isArray(list) ? list : [];
+    const kept = new Set<string>();
+    for (const item of items) {
+      const id = typeof item === 'string' ? item : String(JSON.stringify(item));
+      if (!position.has(id)) unknown.push(id);
+      else if (kept.has(id)) repeated.push(id);
+      else kept.add(id);
+    }
+    return inChapterOrder(kept);
+  };
+  const brief = chaptersIn(raw['brief']);
+  const asked = chaptersIn(raw['standard']);
+
+  if (unknown.length > 0 || repeated.length > 0) {
+    const parts = [
+      ...(unknown.length > 0 ? [`${listed(unknown)}, which no chapter is called`] : []),
+      ...(repeated.length > 0 ? [`${listed(repeated)} more than once in one list`] : []),
+    ];
+    log.add(
+      'reading-plan-id-dropped',
+      `The reading plan named ${parts.join(', and ')}; those entries were dropped.`,
+    );
+  }
+  if (brief.length === 0) {
+    return drop('The reading plan’s brief named no chapter of this review, so it was dropped.');
+  }
+
+  const missing = brief.filter((id) => !asked.includes(id));
+  if (missing.length > 0) {
+    log.add(
+      'reading-plan-widened',
+      `The reading plan’s standard read left out ${listed(missing)} from its brief, so ${missing.length > 1 ? 'they were' : 'it was'} added to it.`,
+    );
+  }
+  return { brief, standard: inChapterOrder(new Set([...brief, ...asked])) };
+}
+
+/**
  * One chunk per file in a chapter. The reader keys a file's insights and its
  * file count on the filename, so a chapter the model split across two chunks
  * for one file drew every insight anchored there twice and counted the file
- * twice over.
+ * twice over. A hunk both chunks cite keeps its more attentive tier.
  */
 function mergeChunksByFile(chunks: DiffChunk[], chapterId: string, log: FindingLog): DiffChunk[] {
   const merged = new Map<string, DiffChunk>();
@@ -466,7 +773,10 @@ function mergeChunksByFile(chunks: DiffChunk[], chapterId: string, log: FindingL
       { chapterId, filename: chunk.filename },
     );
     const hunks = new Map(existing.hunks.map((hunk) => [hunk.id, hunk]));
-    for (const hunk of chunk.hunks) hunks.set(hunk.id, hunk);
+    for (const hunk of chunk.hunks) {
+      const earlier = hunks.get(hunk.id);
+      hunks.set(hunk.id, earlier ? mergeCitations(earlier, hunk) : hunk);
+    }
     existing.hunks = [...hunks.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
   }
   return [...merged.values()];
@@ -474,22 +784,64 @@ function mergeChunksByFile(chunks: DiffChunk[], chapterId: string, log: FindingL
 
 type SanitizedChapter = Rec & { id: string; title: string; diffChunks: DiffChunk[] };
 
+/** `chapter-<n>`, or the first `chapter-<n>-<k>` free when a model id already took it. */
+function freshChapterId(n: string, taken: ReadonlySet<string>): string {
+  let id = `chapter-${n}`;
+  for (let k = 2; taken.has(id); k += 1) id = `chapter-${n}-${String(k)}`;
+  return id;
+}
+
+/**
+ * Each chapter's id, unique, since the reading plan, the sidebar, reading
+ * progress and the footer's Next all key on it and a repeat would make two
+ * chapters one. Every id the model gave is reserved before any is made up,
+ * so a synthesised `chapter-<n>` never takes one a later chapter named; only
+ * a real repeat, of an earlier chapter's id or a reader section's, is
+ * replaced, the first holder keeping it.
+ */
+function chapterIds(raw: readonly unknown[], log: FindingLog): string[] {
+  const given = raw.map((chapter) =>
+    isRecord(chapter) && typeof chapter['id'] === 'string' && chapter['id'].length > 0
+      ? chapter['id']
+      : null,
+  );
+  const taken = new Set([SUMMARY_SECTION_ID, RISK_SECTION_ID]);
+  const kept = given.map((id) => {
+    if (id === null || taken.has(id)) return null;
+    taken.add(id);
+    return id;
+  });
+  return kept.map((id, index) => {
+    if (id !== null) return id;
+    const n = String(index + 1);
+    const fresh = freshChapterId(n, taken);
+    taken.add(fresh);
+    const repeated = given[index] ?? null;
+    if (repeated === null) {
+      log.add('chapter-id-synthesised', `Chapter ${n} arrived with no id and was given ${fresh}.`, {
+        chapterId: fresh,
+      });
+    } else {
+      log.add(
+        'chapter-id-duplicate',
+        `Chapter ${n}'s id ${repeated} was already taken, so it was given ${fresh}; the reading plan's ${repeated} means the first.`,
+        { chapterId: fresh },
+      );
+    }
+    return fresh;
+  });
+}
+
 function sanitizeChapter(
   raw: Rec,
   index: number,
+  id: string,
   grounding: PromptGrounding | undefined,
   log: FindingLog,
+  repairs: TierRepairs,
+  excerptDrops: ExcerptDrop[],
 ): SanitizedChapter {
   const n = String(index + 1);
-  let id: string;
-  if (typeof raw['id'] === 'string' && raw['id'].length > 0) {
-    id = raw['id'];
-  } else {
-    id = `chapter-${n}`;
-    log.add('chapter-id-synthesised', `Chapter ${n} arrived with no id and was given ${id}.`, {
-      chapterId: id,
-    });
-  }
   let title: string;
   if (typeof raw['title'] === 'string' && raw['title'].length > 0) {
     title = raw['title'];
@@ -517,7 +869,7 @@ function sanitizeChapter(
           {
             filename: chunk['filename'],
             language: typeof chunk['language'] === 'string' ? chunk['language'] : 'plaintext',
-            hunks: resolveHunks(chunk, grounding, id, log),
+            hunks: resolveHunks(chunk, grounding, id, log, repairs),
           },
         ];
       })
@@ -529,6 +881,12 @@ function sanitizeChapter(
   );
 
   const diagram = sanitizeDiagram(raw['diagram'], `${id}-diagram`, grounding, log);
+  const contextExcerpts = sanitizeContextExcerpts(
+    raw['contextExcerpts'],
+    id,
+    grounding,
+    excerptDrops,
+  );
 
   return {
     id,
@@ -541,6 +899,7 @@ function sanitizeChapter(
       log,
     ),
     diffChunks,
+    ...(contextExcerpts.length > 0 ? { contextExcerpts } : {}),
     ...(diagram ? { diagram } : {}),
   };
 }
@@ -756,9 +1115,29 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     return fail(log);
   }
 
+  const repairs: TierRepairs = {
+    tierMissing: new Set(),
+    tierLowered: new Set(),
+    reasonDropped: new Set(),
+  };
+  const excerptDrops: ExcerptDrop[] = [];
+  const ids = chapterIds(parsed['chapters'], log);
   const chapters = parsed['chapters'].map((chapter, index) =>
-    sanitizeChapter(isRecord(chapter) ? chapter : {}, index, grounding, log),
+    sanitizeChapter(
+      isRecord(chapter) ? chapter : {},
+      index,
+      ids[index]!,
+      grounding,
+      log,
+      repairs,
+      excerptDrops,
+    ),
   );
+  reportTierRepairs(repairs, log);
+  if (excerptDrops.length > 0) {
+    const dropped = excerptsDropped(excerptDrops);
+    log.add(dropped.code, dropped.message);
+  }
   if (reportEmptyChapters(chapters, grounding, log)) return fail(log);
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment'], log);
@@ -769,12 +1148,14 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     log,
   );
   const judgementCalls = sanitizeJudgementCalls(parsed['judgementCalls'], chapters, grounding, log);
+  const readingPlan = sanitizeReadingPlan(parsed['readingPlan'], chapters, log);
   const candidate = {
     prTitle: parsed['prTitle'],
     overviewSummary,
     ...(riskAssessment ? { riskAssessment } : {}),
     ...(overviewDiagram ? { overviewDiagram } : {}),
-    chapters,
+    chapters: raiseJudgedHunks(judgementCalls, chapters, log),
+    ...(readingPlan ? { readingPlan } : {}),
     ...(judgementCalls.length > 0 ? { judgementCalls } : {}),
   };
 

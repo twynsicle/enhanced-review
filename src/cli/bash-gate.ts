@@ -81,7 +81,16 @@ const REFUSAL =
   'line is one of those; redirection, substitution, variables, backslashes and globs are not ' +
   'available, so write paths with forward slashes and quote search patterns in single quotes.';
 
-export function reviewBashCommand(command: string): BashDecision {
+export function reviewBashCommand(command: string, cwd: string): BashDecision {
+  const decision = review(command);
+  if (decision.allowed) return decision;
+  return {
+    allowed: false,
+    reason: `${decision.reason} Commands already run in the repository, ${cwd.replaceAll('\\', '/')}; use paths relative to it, without \`cd\`, \`-C\` or \`find\`.`,
+  };
+}
+
+function review(command: string): BashDecision {
   const trimmed = command.trim();
   if (trimmed === '') return deny('an empty command');
 

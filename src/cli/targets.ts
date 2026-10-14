@@ -15,7 +15,8 @@ import type { Shell } from './git.ts';
  * - **staged** — the index, written as a dangling commit on top of HEAD.
  *
  * The meta is the reader's header; its `stats` are left for gather, which is
- * where the file list is known.
+ * where the file list is known, and its commits for gather to copy off the
+ * target, so the two cannot disagree.
  */
 export const TargetSchema = z.object({
   kind: z.enum(['pr', 'branch', 'staged']),
@@ -36,9 +37,11 @@ export type TargetRequest =
   | { kind: 'branch'; base: string | null }
   | { kind: 'staged' };
 
+export type TargetMeta = Omit<ReviewMeta, 'kind' | 'baseSha' | 'headSha'>;
+
 export interface ResolvedTarget {
   target: Target;
-  meta: ReviewMeta;
+  meta: TargetMeta;
 }
 
 export interface ResolveOptions {
@@ -59,13 +62,21 @@ const PullViewSchema = z.object({
 });
 type PullView = z.infer<typeof PullViewSchema>;
 
-/** Identity for the staged commit, so it works where `user.name` is unset. */
-const STAGED_COMMIT_ENV = {
-  GIT_AUTHOR_NAME: 'er',
-  GIT_AUTHOR_EMAIL: 'er@localhost',
-  GIT_COMMITTER_NAME: 'er',
-  GIT_COMMITTER_EMAIL: 'er@localhost',
-};
+/**
+ * Identity for the staged commit, so it works where `user.name` is unset, and
+ * its dates pinned to the parent's, so the same index on the same HEAD is the
+ * same commit: the reader keys a reader's progress on it.
+ */
+function stagedCommitEnv(parentDate: string): Record<string, string> {
+  return {
+    GIT_AUTHOR_NAME: 'er',
+    GIT_AUTHOR_EMAIL: 'er@localhost',
+    GIT_AUTHOR_DATE: parentDate,
+    GIT_COMMITTER_NAME: 'er',
+    GIT_COMMITTER_EMAIL: 'er@localhost',
+    GIT_COMMITTER_DATE: parentDate,
+  };
+}
 
 export async function resolveTarget(
   request: TargetRequest,
@@ -209,10 +220,16 @@ async function resolveStaged(shell: Shell, repo: string): Promise<ResolvedTarget
   const tree = (await shell.git(['write-tree'])).trim();
   const baseTree = (await shell.git(['rev-parse', 'HEAD^{tree}'])).trim();
   if (tree === baseTree) throw new Error('nothing staged');
+  // The engineer's gitconfig applies: log.showSignature prints a signed HEAD's
+  // check into the date, and a git that signs commit-tree under commit.gpgSign
+  // (older ones did) would sign with its own time, a new commit every run.
+  const parentDate = (
+    await shell.git(['log', '-1', '--no-show-signature', '--format=%cd', '--date=raw', baseSha])
+  ).trim();
   const headSha = (
     await shell.git(
-      ['commit-tree', tree, '-p', baseSha, '-m', 'er: staged changes'],
-      STAGED_COMMIT_ENV,
+      ['commit-tree', '--no-gpg-sign', tree, '-p', baseSha, '-m', 'er: staged changes'],
+      stagedCommitEnv(parentDate),
     )
   ).trim();
   const on = (await currentBranch(shell)) ?? baseSha.slice(0, 7);
@@ -239,7 +256,7 @@ async function resolveStaged(shell: Shell, repo: string): Promise<ResolvedTarget
   };
 }
 
-function pullMeta(repo: string, pull: PullView, base: string | null): ReviewMeta {
+function pullMeta(repo: string, pull: PullView, base: string | null): TargetMeta {
   return {
     repo,
     title: pull.title,

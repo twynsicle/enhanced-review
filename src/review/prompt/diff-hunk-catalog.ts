@@ -1,11 +1,12 @@
-import type { DiffLineSpan } from '../narrative.ts';
+import type { DiffLineSpan, HunkFacts, ResolvedDiffHunk } from '../narrative.ts';
+import { splitPart } from './split-hunks.ts';
 
 /**
  * Numbers every hunk in a unified diff (`H0001`, `H0002`, …) so the prompt
  * can list them and the model can reference them by id instead of quoting
  * code. `parseNarrativeReview` resolves the ids back to line spans.
  */
-export interface DiffHunk {
+export interface DiffHunk extends HunkFacts {
   id: string;
   filename: string;
   header: string;
@@ -13,6 +14,25 @@ export interface DiffHunk {
   fileOrder: number;
   original: DiffLineSpan;
   modified: DiffLineSpan;
+  /** Added and removed lines in the hunk's body. */
+  changedLines: number;
+}
+
+/** A catalog hunk as a review stores it: no filename or header, its facts and split part kept. */
+export function toResolvedHunk(hunk: DiffHunk): ResolvedDiffHunk {
+  const part = splitPart(hunk.header);
+  return {
+    id: hunk.id,
+    fileOrder: hunk.fileOrder,
+    ...(part ? { part } : {}),
+    original: { ...hunk.original },
+    modified: { ...hunk.modified },
+    changedLines: hunk.changedLines,
+    ...(hunk.whitespaceOnly ? { whitespaceOnly: true as const } : {}),
+    ...(hunk.importsOnly ? { importsOnly: true as const } : {}),
+    ...(hunk.movedFrom ? { movedFrom: { ...hunk.movedFrom } } : {}),
+    ...(hunk.movedTo ? { movedTo: { ...hunk.movedTo } } : {}),
+  };
 }
 
 export interface DiffHunkIndex {
@@ -32,22 +52,30 @@ export interface PromptGrounding {
   shown: DiffHunkIndex;
   /** The paths the review covers. */
   filenames: ReadonlySet<string>;
+  /**
+   * Every path the change touches, skipped files included: what an excerpt of
+   * unchanged code may never name.
+   */
+  changed: ReadonlySet<string>;
 }
 
 /**
  * Grounding over the hunks a prompt showed. `filenames` defaults to the files
  * those hunks belong to, which is the whole change wherever nothing was
- * trimmed away.
+ * trimmed away, and `changed` to `filenames`.
  */
 export function groundingFor(
   shown: readonly DiffHunk[],
   filenames?: Iterable<string>,
+  changed?: Iterable<string>,
 ): PromptGrounding {
   const byId: Partial<Record<string, DiffHunk>> = {};
   for (const hunk of shown) byId[hunk.id] = hunk;
+  const covered = new Set(filenames ?? shown.map((hunk) => hunk.filename));
   return {
     shown: { hunks: [...shown], byId },
-    filenames: new Set(filenames ?? shown.map((hunk) => hunk.filename)),
+    filenames: covered,
+    changed: changed ? new Set(changed) : covered,
   };
 }
 
@@ -79,16 +107,22 @@ export function buildDiffHunkIndex(diff: string): DiffHunkIndex {
   const byId: Partial<Record<string, DiffHunk>> = {};
   const fileHunkOrder = new Map<string, number>();
   let currentFilename: string | null = null;
+  let current: DiffHunk | null = null;
   let counter = 0;
 
   for (const line of diff.split('\n')) {
     const fileMatch = DIFF_FILE_HEADER_RE.exec(line);
     if (fileMatch) {
       currentFilename = fileMatch[2] ?? null;
+      // The next file's `---` and `+++` lines come before its first hunk.
+      current = null;
       continue;
     }
     const hunkMatch = HUNK_HEADER_RE.exec(line);
-    if (!hunkMatch || currentFilename === null) continue;
+    if (!hunkMatch || currentFilename === null) {
+      if (current && (line.startsWith('+') || line.startsWith('-'))) current.changedLines += 1;
+      continue;
+    }
 
     counter += 1;
     const fileOrder = (fileHunkOrder.get(currentFilename) ?? 0) + 1;
@@ -100,9 +134,11 @@ export function buildDiffHunkIndex(diff: string): DiffHunkIndex {
       fileOrder,
       original: toLineSpan(hunkMatch[1] ?? '1', hunkMatch[2]),
       modified: toLineSpan(hunkMatch[3] ?? '1', hunkMatch[4]),
+      changedLines: 0,
     };
     hunks.push(hunk);
     byId[hunk.id] = hunk;
+    current = hunk;
   }
 
   return { hunks, byId };

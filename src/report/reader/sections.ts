@@ -20,6 +20,8 @@ export interface ReaderSection {
   chapterNumber: number | null;
   /** Whether this section draws a diagram, so the sidebar can say so. */
   hasDiagram: boolean;
+  /** Whether the reading plan's brief holds this chapter, so the sidebar can mark it core. */
+  core: boolean;
 }
 
 export function readerSections(review: NarrativeReview): ReaderSection[] {
@@ -33,6 +35,7 @@ export function readerSections(review: NarrativeReview): ReaderSection[] {
       label: 'Risk',
       chapterNumber: null,
       hasDiagram: false,
+      core: false,
     });
   }
 
@@ -42,8 +45,10 @@ export function readerSections(review: NarrativeReview): ReaderSection[] {
     label: 'Summary',
     chapterNumber: null,
     hasDiagram: review.overviewDiagram !== undefined,
+    core: false,
   });
 
+  const brief = new Set(review.readingPlan?.brief);
   review.chapters.forEach((chapter, index) => {
     sections.push({
       id: chapter.id,
@@ -51,6 +56,7 @@ export function readerSections(review: NarrativeReview): ReaderSection[] {
       label: chapter.title,
       chapterNumber: index + 1,
       hasDiagram: chapter.diagram !== undefined,
+      core: brief.has(chapter.id),
     });
   });
 
@@ -68,8 +74,18 @@ export const sectionHeadingId = (id: string) => `chapter-heading-${id}`;
 
 /** The sidebar's index glyph: a chapter's number, `00` for a synthesised section. */
 export function sectionIndexLabel(section: ReaderSection): string {
-  if (section.chapterNumber === null) return '00';
-  return section.chapterNumber.toString().padStart(2, '0');
+  return formatChapterNumber(section.chapterNumber ?? 0);
+}
+
+/** A chapter's number as the sidebar shows it, two digits. */
+export function formatChapterNumber(chapterNumber: number): string {
+  return chapterNumber.toString().padStart(2, '0');
+}
+
+/** "2 of 5 chapters read", or "All 5 chapters read" once nothing is left. */
+export function readCountLabel(read: number, total: number): string {
+  if (total > 0 && read === total) return `All ${String(total)} chapters read`;
+  return `${String(read)} of ${String(total)} chapters read`;
 }
 
 /** The section a `?ch=` value names, or null when it names nothing here. */

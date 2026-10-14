@@ -60,6 +60,33 @@ const SEVERITY_BY_CODE = {
    * all, so an anchor that resolved against nothing costs the whole question.
    */
   'judgement-call-dropped': 'warning',
+  /**
+   * Cited hunks that came without a tier the reader knows, and were read as
+   * `read`. Repaired to the more attentive tier, so nothing is faded on the
+   * model's silence, but the reader's sense of where to look hard is the
+   * model's to give and this review has less of it. One per review.
+   */
+  'hunk-tier-missing': 'warning',
+  /**
+   * The reading plan was missing, or named no chapter that exists for its
+   * brief, and the review ships without one. Every chapter is still there; a
+   * reader short of time has lost only the advice on which to read.
+   */
+  'reading-plan-dropped': 'warning',
+  /**
+   * A chapter's id repeated an earlier chapter's, or a reader section's, and
+   * the chapter was given a fresh one. Every chapter is still drawn, but
+   * anything in the answer naming that id — the reading plan above all —
+   * now means the first holder, so a chapter can lose its place in the plan.
+   */
+  'chapter-id-duplicate': 'warning',
+  /**
+   * Excerpts of unchanged code that could not be shown: past the cap, too
+   * long, a file the change touches, or a file or span the head commit does
+   * not have. The chapters and their diffs are whole; the reader has lost a
+   * pointer to code outside them. One per check, naming each excerpt and why.
+   */
+  'excerpt-dropped': 'warning',
   /** The sandbox refused commands the reviewer asked to run. */
   'commands-refused': 'warning',
   /** The first answer was disqualifying and a retry produced this one. */
@@ -91,6 +118,31 @@ const SEVERITY_BY_CODE = {
   'hunk-id-dropped': 'note',
   /** Part of the risk assessment went: a factor, an impact, a summary. */
   'risk-part-dropped': 'note',
+  /**
+   * Hunks a judgement call asks about, raised to `read` on the card that draws
+   * the call. The model contradicted itself, asking about lines it said needed
+   * no reading, and the question is the better evidence. One per review.
+   */
+  'hunk-tier-raised': 'note',
+  /**
+   * Hunks the model tiered `read` that the CLI proved change only whitespace or imports,
+   * skimmed: there is nothing in them to read. One per review.
+   */
+  'hunk-tier-lowered': 'note',
+  /**
+   * Skim reasons longer than a label, dropped: the hunk stays skim and is
+   * labelled "Skim" alone rather than with a sentence over its code. One per
+   * review.
+   */
+  'skim-reason-dropped': 'note',
+  /** Ids in the reading plan that named no chapter, or a chapter twice, and went. */
+  'reading-plan-id-dropped': 'note',
+  /**
+   * Brief chapters the standard plan left out, added to it: the longer plan
+   * that skips what the shorter one calls essential is a contradiction, and
+   * the brief is the better evidence of what matters.
+   */
+  'reading-plan-widened': 'note',
 } as const satisfies Record<string, FindingSeverity>;
 
 export type FindingCode = keyof typeof SEVERITY_BY_CODE;
@@ -163,6 +215,28 @@ export function runStoppedEarly(ended: string): Finding {
   return finding(
     'run-stopped-early',
     `The run did not finish cleanly (${ended}), so the reviewer stopped short of the change. Raise --max-turns or --timeout and run again from the run stage.`,
+  );
+}
+
+/** One excerpt that will not be shown, and why, for `excerptsDropped`. */
+export interface ExcerptDrop {
+  chapterId: string;
+  /** The excerpt as the model gave it: a path and span, or what was wrong with it. */
+  excerpt: string;
+  why: string;
+}
+
+/**
+ * Every excerpt one check dropped, in one finding. The parser and the parse
+ * stage each check what only they can see, so a review can carry one of each.
+ */
+export function excerptsDropped(drops: readonly ExcerptDrop[]): Finding {
+  const listed = drops
+    .map((drop) => `${drop.excerpt} in chapter ${drop.chapterId} (${drop.why})`)
+    .join('; ');
+  return finding(
+    'excerpt-dropped',
+    `${plural(drops.length, 'excerpt')} of unchanged code ${drops.length > 1 ? 'were' : 'was'} dropped: ${listed}.`,
   );
 }
 

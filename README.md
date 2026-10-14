@@ -2,7 +2,9 @@
 
 AI code review: a chaptered narrative with an overview, a risk assessment,
 insights, diagrams of what changed, inline diffs you can open beside the prose,
-and — where the code cannot settle it — a question or two put back to you.
+the unchanged code a change reaches without editing it, a reading plan for
+when you have five minutes rather than fifty, and — where the code cannot
+settle it — a question or two put back to you.
 It runs as `er`, one command inside the repository you want reviewed. The
 hosted web app was removed; it is kept at the git tag `hosted-app-final`.
 
@@ -135,6 +137,8 @@ What you have staged, against `HEAD` — a review before the commit.
 | `--timeout <minutes>`        | every review | give up on the model run after `<minutes>` (default: `15`)                                     |
 | `--instructions <text>`      | every review | add your own guidance to the prompt — what to focus on, what to explain — see below            |
 | `--instructions-file <path>` | every review | the same, read from a file, for anything long or multi-line                                    |
+| `--overview-style <name>`    | every review | how the overview and each chapter are written beneath their one-line lede — see below          |
+| `--split-hunks <lines>`      | every review | split a hunk of more changed lines than this into parts of about this size — see below         |
 | `--stub`                     | every review | write a mechanical review instead of running a model — see below                               |
 | `--from <stage>`             | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below      |
 | `--no-open`                  | every review | write the report without opening it                                                            |
@@ -160,10 +164,32 @@ file and pass `--instructions-file`, which reads UTF-8 or the UTF-16 Windows
 PowerShell writes. The text is part of the prompt, so it is paid for on every
 turn; the prompt stage line counts it in.
 
-The instructions are written into `prompt.md`, so `--from run` reuses them;
-they cannot be given with `--from run`, `parse` or `render`, which write no
-new prompt. `--from prompt` writes the prompt again from that command's flags,
-so repeat the instructions there to keep them.
+`--split-hunks` sets how finely a long hunk is cut. Git makes a hunk out of
+nearby changes, so a new file is one hunk however many things it does, and a
+chapter that wants one function of it has to show all of it. `er` cuts any hunk
+of more than 10 changed lines (the default) into parts of about that size,
+between declarations, and the model can then tell each part in the chapter it
+belongs to. `0` keeps git's hunks. It cannot be given with `--from`, which
+reuses the hunks the last run numbered.
+
+`--overview-style` chooses how the overview and each chapter are written
+beneath their one-line lede, which never changes:
+
+| Style          | The text beneath the lede                                             |
+| -------------- | --------------------------------------------------------------------- |
+| `narrative`    | the default: why it changed, and the tradeoffs, in prose              |
+| `checklist`    | a short list of yes-or-no questions a reviewer should check           |
+| `before-after` | **Before:** / **After:** pairs, one per behaviour that changed        |
+| `five-whys`    | a chain of why-questions down to the reason, rarely all five          |
+| `plain`        | two or three plain sentences for someone who has never seen this code |
+| `tldr`         | nothing: the lede alone carries the change or its one risk            |
+
+The prompt stage line names the style when it is not `narrative`.
+
+The instructions and the style are written into `prompt.md`, so `--from run`
+reuses them; they cannot be given with `--from run`, `parse` or `render`,
+which write no new prompt. `--from prompt` writes the prompt again from that
+command's flags, so repeat them there to keep them.
 
 ### What it costs, and how long
 
@@ -189,7 +215,10 @@ er review --stub
 ```
 
 A mechanical review with one chapter per file — no model, no cost, and the
-right way to iterate on the reader.
+right way to iterate on the reader. Every hunk is read, except one `er` can
+prove is whitespace-only, which is skim — as it is in any review — so the
+reader's faded lines show too, and the first chapter stands in
+as the reading plan's brief.
 
 ```bash
 er review --from parse
@@ -209,9 +238,14 @@ it is written unless you pass `--no-open`. Beside it sit the stage files:
 `context.json` (what changed), `prompt.md` and `system.md` (what was asked),
 `raw.txt` (what the model said), `events.jsonl` (what it did, what it cost,
 any command the read-only gate refused and any answer it was asked to write
-again), `review.json` (the parsed review) and `findings.json` (what validating
-it turned up). A run folder is a complete record; delete the tree whenever you
+again), `review.json` (the parsed review), `findings.json` (what validating
+it turned up) and `excerpts.json` (the unchanged files the review shows
+excerpts of, as the reviewed commit has them). A run folder is a complete record; delete the tree whenever you
 like.
+
+The report remembers which chapters you marked read in the browser's own
+storage, keyed by the repository and the two commits reviewed, so rendering
+the same range again keeps your place. Nothing about it leaves the browser.
 
 `er review` exits 0 for a clean review, 2 for one that was written but carries
 warnings — each of them printed as it finishes — and 1 when there is no review

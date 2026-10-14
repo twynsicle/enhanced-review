@@ -1,4 +1,5 @@
 import { DIAGRAM_LIMITS } from '../diagram.ts';
+import { MAX_CONTEXT_EXCERPTS, MAX_EXCERPT_LINES, MAX_SKIM_REASON } from '../narrative.ts';
 
 /**
  * What the model is asked to do: the review instructions and output schema,
@@ -50,12 +51,23 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
         {
           "filename": "string — path of the file (must match a path from the Files Changed list)",
           "language": "string — programming language",
-          "hunkIds": ["string — one or more hunk IDs from the Changed Hunks list (example: H0007)"]
+          "hunks": [
+            {
+              "id": "string — a hunk ID from the Changed Hunks list (example: H0007)",
+              "tier": "read | skim — how hard the reviewer must look at this hunk. See Attention tiers below",
+              "skimReason": "string — a skim hunk only: 2-5 words, at most ${String(MAX_SKIM_REASON)} characters, on why it can be skimmed, e.g. 'import wiring' or 'shared test fixtures'. Omit it on a read hunk"
+            }
+          ]
         }
       ],
+      "contextExcerpts": "optional list — see Affected unchanged code below. At most ${String(MAX_CONTEXT_EXCERPTS)} per chapter",
       "diagram": "optional object — see Diagrams below. At most one per chapter"
     }
   ],
+  "readingPlan": {
+    "brief": ["string — the id of a chapter someone with five minutes must read to judge this change. One to three of them. See Reading plan below"],
+    "standard": ["string — the id of a chapter a reviewer approving this change should read. Every brief chapter is one"]
+  },
   "judgementCalls": [
     {
       "title": "string — 4-10 word phrase naming the decision, not the question",
@@ -70,6 +82,7 @@ Guidelines:
 - Produce 2–12 chapters depending on PR complexity. For small PRs (1–2 files, under 20 lines changed), 2–3 chapters is appropriate.
 - Group related changes together logically (e.g. "API types", "database migration", "UI components").
 - Each chapter should tell a coherent story about one aspect of the change.
+- Order the chapters so the reader never meets a consequence before its cause. A new type, helper or schema comes before the code that uses it; the core behaviour change comes before the wiring that connects it; the shared wiring-and-docs chapter comes last. The order of "chapters" is the order they are read in.
 - Chapter titles must be short labels that work in a sidebar, e.g., "Auth Gate", "Runner Cleanup", "Reader Layout". Do not write long takeaway sentences as titles.
 - Each chapter description should be readable by a product-minded reviewer: the lede says what was done, the body covers why it was likely done and the tradeoffs or alternatives the author likely considered. Keep it specific but not overly technical.
 - Describe the PR's final diff, not how it got there. Never narrate the PR's own review or iteration history ("per review feedback", "used to do X, now does Y", "originally implemented as...") — the reviewer sees only the current diff, so a summary framed around an intermediate state compares against something they never saw. Describe what the code does now and why, not the path taken between commits.
@@ -86,6 +99,7 @@ Guidelines:
 - Every chapter must have at least one diffChunk citing at least one real hunk ID. A chapter with no diffChunks is prose the reviewer cannot check against any code and will not be shown. If a chapter you planned would end up with none, fold its insights into a chapter that does cite code instead of emitting it on its own.
 - Every hunk in "Changed Hunks" must be cited by some chapter's diffChunks. A hunk that appears in no chapter is a change the reviewer never sees. Before you answer, go down the list and place any hunk you have not cited in the chapter whose story it belongs to.
 - Prefer citing each hunk in only one chapter — the same lines shown twice split the reviewer's attention across chapters instead of once, in depth. The one exception is a new or changed function: also cite the hunk(s) that call it in the same chapter, even when that call site's hunk already belongs to another chapter's story, so the reviewer sees the definition and its use together instead of having to hold one in mind while reading the other.
+- A hunk whose header ends in "(part k of n)" is one part of a longer git hunk, split between declarations so that a long new file or a long rewrite can be told as more than one story. Each part is a hunk in its own right. Cite a long new file's parts in the chapters whose stories they belong to, rather than putting the whole file in one chapter or showing it in several.
 - Tests belong in the chapter that covers the code they test, not in a chapter of their own.
 - Wiring, docs, configuration and other small mechanical edits that belong to no story share one closing chapter (for example "Wiring and docs"), so that they are neither dropped nor given a chapter each.
 - Always include riskAssessment. Choose the score as a reviewer-effort signal, not as a judgment of author skill.
@@ -97,6 +111,43 @@ Guidelines:
 - Adjust the baseline score for modifiers: add weight for large diffs, many changed files, subtle algorithms, concurrency, migrations, distributed systems, ambiguous requirements, weak rollout/rollback story, or sparse tests around risky paths.
 - Lower the score only when the evidence is strong: focused change size, excellent relevant tests, feature flags, backward-compatible migration strategy, clear rollback, or mostly mechanical changes.
 - In riskAssessment.factors include 3-6 concrete factors. Cover size/complexity and test coverage when the diff gives evidence either way. Say when evidence is absent rather than inventing test coverage.
+
+Attention tiers:
+
+Every hunk a chapter cites carries a tier, so the reader knows where to look hard and what they may pass over. The reader shows every line of every hunk; a skim hunk is drawn faded among the read ones, so a tier never hides anything, it says how much of the reader's attention each hunk deserves.
+
+- "read": what a reviewer must understand to judge the change — new behaviour, logic, edge cases, error handling, anything risky; type declarations, interfaces, schemas and signatures, which are quick to read and set the shape of the design; and the cases a test exercises: each test's name, its inputs and its assertions are a statement of what the change is meant to do. When unsure, choose "read".
+- "skim": needed to follow the story but low-risk — plain wiring, imports, a rename's call sites, boilerplate, generated output, docs, and scaffolding a file's tests share: setup and teardown hooks, fixtures and factories defined once, mocks and helpers, unless the scaffolding is itself what the change is about.
+- Tier each hunk on its own lines, not by its file or chapter, and by the most important line in it, never the least: a hunk that returns, branches or assigns is not skim because it also closes a block, and no hunk is skim for its brackets or blank lines. A part of a split hunk is tiered like any other hunk.
+- A test case is read whole: the body of an it/test block, each row of a table of cases, and the data a case builds for itself, even where it looks like setup. Only scaffolding kept apart from the cases and shared by them may be skimmed. A hunk holding any part of a case is read.
+- Some hunks in Changed Hunks carry hints the tool proved from the patch: "[whitespace only]", "[imports only]" when every line it changes is part of an import or re-export, or "[moved from <path>, N%]" and "[moved to <path>, N%]" when most of a hunk's lines were lifted from, or to, another hunk that holds little else. A whitespace-only or imports-only hunk is shown as skim whatever tier you give it. A move hint informs the tier and never decides it, even at 100%, which means the lines moved unchanged: a block moved unchanged is usually skim, but a move that changes what can reach the code, what it can reach, or the order it runs in is read.
+- Give every skim hunk a "skimReason", shown beside its faded lines so the reader knows why they may pass over them without opening the hunk: a few lowercase words naming what the lines are ("call sites of the rename", "shared test fixtures", "barrel re-exports"), not a sentence and not the word "skim", at most ${String(MAX_SKIM_REASON)} characters; a longer one is dropped. A hunk the tool proved whitespace only, imports only or moved is labelled from that proof, so its reason may add what the proof does not say, such as "moved helper, renamed".
+- Neither extreme helps the reader: a review that tiers everything "read" has told them nothing, and one that skims the change's own logic, or its tests' cases, has hidden it.
+
+Reading plan:
+
+Not every reader has time for every chapter, and "readingPlan" tells them which to read when they have less. The reader works out how long each plan takes from the chapters themselves, so do not estimate a time.
+
+- "brief": the one to three chapters someone with five minutes must read to judge the change — where its risk is. The behaviour that could break, the decision a reviewer has to agree with. Never the wiring-and-docs chapter. Being in the brief is how a chapter is marked as core.
+- "standard": the chapters a reviewer approving the change should read. It holds every brief chapter, and leaves out what can be judged from its title and lede alone: wiring, docs, mechanical edits.
+- Reading every chapter is the third plan, and needs no field.
+- Use each chapter's "id" exactly as you wrote it. A plan whose brief names no chapter of this review is dropped.
+
+Affected unchanged code:
+
+A chapter may show up to ${String(MAX_CONTEXT_EXCERPTS)} excerpts of code the change does not touch, in "contextExcerpts", and most chapters need none. The reader sees each one after the chapter's diffs, with its reason above it. Each excerpt is:
+
+{
+  "filename": "string — a file this change does not touch, as a path from the repository root",
+  "startLine": "number — the first line to show, numbered as Read numbers the file",
+  "endLine": "number — the last line to show, at most ${String(MAX_EXCERPT_LINES)} lines after startLine counting both",
+  "reason": "string — one sentence: what this unchanged code has to do with the change"
+}
+
+- Show one only where this change alters what unchanged code does without editing it: a caller whose input now differs, a subclass of a changed base, a config or contract the new code must still honour. Or the definition a changed call now leans on, when what it does is not visible in the diff.
+- Never a file listed in Files Changed or Not Reviewed: those lines changed in this review, and an excerpt shows unchanged code. An excerpt of one is dropped.
+- Only lines you have read in this session. Number them as Read numbers them, and keep the span to the lines that make the point: at most ${String(MAX_EXCERPT_LINES)}, and usually ten or twenty. An excerpt whose file or lines are not there is dropped.
+- The "reason" is one sentence saying what this code has to do with the change, e.g. "Still passes the old cadence string, which the new table no longer accepts". Not what the code is.
 
 Writing the prose:
 

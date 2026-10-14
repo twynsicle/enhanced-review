@@ -14,7 +14,10 @@ const bundle: ReviewBundle = {
   generatedAt: '2026-09-11T00:00:00.000Z',
   meta: {
     repo: 'acme/widgets',
+    kind: 'branch',
     title: 'Escaping',
+    baseSha: 'a'.repeat(40),
+    headSha: 'b'.repeat(40),
     prNumber: null,
     baseRefName: null,
     headRefName: null,

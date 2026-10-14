@@ -1,14 +1,28 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/review/narrative';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/review/bundle';
+import {
+  SUMMARY_SECTION_ID,
+  type NarrativeChapter,
+  type NarrativeReview,
+} from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
+import { EmbeddedFileSource } from '@/report/reader/file-source';
 import { SIDEBAR_WIDTH_KEY, useSidebarWidth } from '@/report/stores/sidebar-width';
-import { fireEvent, render, screen } from '@/report/test/render';
+import { act, fireEvent, render, screen, userEvent } from '@/report/test/render';
 import { SIDEBAR_WIDTHS } from '@/report/theme/tokens';
 import { ChapterReader, KEYBOARD_RESIZE_STEP } from './chapter-reader';
 
+vi.mock('@monaco-editor/react', () => ({
+  DiffEditor: () => <div data-testid="diff-editor" />,
+  loader: { config: () => {}, init: () => Promise.resolve({ editor: { defineTheme: () => {} } }) },
+}));
+
 const meta: ReviewMeta = {
   repo: 'acme/widgets',
+  kind: 'pr',
   title: 'Add scheduled reviews',
+  baseSha: 'a'.repeat(40),
+  headSha: 'b'.repeat(40),
   prNumber: 7,
   baseRefName: null,
   headRefName: null,
@@ -102,5 +116,79 @@ describe('the sidebar resize handle', () => {
     // Still on the summary. The chapter's title appears in the sidebar either
     // way, so this asks for the heading, which only the open section renders.
     expect(screen.queryByRole('heading', { name: 'The scheduler' })).toBeNull();
+  });
+});
+
+async function show(chapterId: string): Promise<void> {
+  await act(async () => {
+    window.location.hash = `#/?ch=${chapterId}`;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
+}
+
+/** Each chapter shows the same file in the same place: a read hunk, then a skim one. */
+function chapter(id: string, title: string): NarrativeChapter {
+  return {
+    id,
+    title,
+    insights: [],
+    diffChunks: [
+      {
+        filename: 'src/a.ts',
+        language: 'typescript',
+        hunks: [
+          {
+            id: `${id}-1`,
+            fileOrder: 1,
+            original: { startLine: 1, lineCount: 10 },
+            modified: { startLine: 1, lineCount: 10 },
+            changedLines: 10,
+            tier: 'read',
+          },
+          {
+            id: `${id}-2`,
+            fileOrder: 2,
+            original: { startLine: 21, lineCount: 10 },
+            modified: { startLine: 21, lineCount: 10 },
+            changedLines: 10,
+            tier: 'skim',
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe('a chapter change', () => {
+  const lines = Array.from({ length: 40 }, (_, i) => `line ${String(i + 1)}`).join('\n');
+  const twoChapters: NarrativeReview = {
+    ...review,
+    chapters: [chapter('ch1', 'First look'), chapter('ch2', 'Second look')],
+  };
+  const side = { kind: 'content', content: lines } as const;
+  const bundle: ReviewBundle = {
+    schemaVersion: BUNDLE_SCHEMA_VERSION,
+    generatedAt: '2026-09-11T10:00:00.000Z',
+    meta,
+    review: twoChapters,
+    files: { 'src/a.ts': { base: side, head: side } },
+  };
+  beforeEach(() => {
+    window.location.hash = '#/?ch=ch1';
+    render(
+      <EmbeddedFileSource bundle={bundle}>
+        <ChapterReader review={twoChapters} meta={meta} initialActiveId="ch1" />
+      </EmbeddedFileSource>,
+    );
+  });
+
+  it('shows the next chapter’s changes, not the full file the last one was showing', async () => {
+    await userEvent.click(screen.getByRole('button', { name: 'Show full file' }));
+    expect(screen.getByRole('button', { name: 'Show changes only' })).toBeDefined();
+
+    await show('ch2');
+
+    expect(screen.getByRole('heading', { name: 'Second look' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Show full file' })).toBeDefined();
   });
 });

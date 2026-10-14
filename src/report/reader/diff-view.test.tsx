@@ -23,7 +23,7 @@ vi.mock('@monaco-editor/react', () => ({
   },
   // The component pins the CDN and waits for the editor through this before
   // it mounts anything.
-  loader: { config: () => {}, init: () => Promise.resolve({}) },
+  loader: { config: () => {}, init: () => Promise.resolve({ editor: { defineTheme: () => {} } }) },
 }));
 
 const chunk: DiffChunk = {
@@ -35,6 +35,8 @@ const chunk: DiffChunk = {
       fileOrder: 1,
       original: { startLine: 1, lineCount: 1 },
       modified: { startLine: 1, lineCount: 2 },
+      changedLines: 2,
+      tier: 'read',
     },
   ],
 };
@@ -44,7 +46,10 @@ const bundle: ReviewBundle = {
   generatedAt: '2026-09-11T10:00:00.000Z',
   meta: {
     repo: 'a/r',
+    kind: 'branch',
     title: 't',
+    baseSha: 'a'.repeat(40),
+    headSha: 'b'.repeat(40),
     prNumber: null,
     baseRefName: null,
     headRefName: null,

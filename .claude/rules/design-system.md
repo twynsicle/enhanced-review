@@ -26,10 +26,12 @@ reader growing twelve font sizes and nine near-identical label styles:
 
 **One reading measure.** In the reader, every block — heading, card, prose,
 caption — sits in a single column capped at `--er-measure` (42rem) via
-`narrative/article.module.css`, so they share one right edge. Only a diff or a
+`src/report/reader/article.module.css`, so they share one right edge. Only a diff or a
 code block opts out, with `data-bleed`, and spans the rest of the column: those
 are the only things here that read better wide, and they are what the width
-toggle is for. Do not give a prose block its own `max-width` — that
+toggle is for. The section footer bleeds too, though it is not wide content:
+it closes everything above it, diffs included, and its Next button belongs at
+the column's bottom right rather than mid-page under them. Do not give a prose block its own `max-width` — that
 is what had text wrapping near the middle of a much wider card, lined up with
 nothing.
 
@@ -55,7 +57,8 @@ in. `chapter-reader.tsx` measures that column once and `selectSpaceLimited`
 derives it, so the icon, the disabled state and the editors' `renderSideBySide`
 all come off one number and cannot disagree. The measurement lives in its own
 un-persisted store beside the preference — it arrives once per frame while the
-sidebar is dragged, and only a preference belongs in storage. Widening the shell
+sidebar is dragged, and storage is for a preference or a record such as reading
+progress, never a per-frame measurement. Widening the shell
 is still not the same as widening the text: prose keeps its own measure in `ch`.
 `PageShell` pads the bottom more than the top (`SHELL_PB`): a page that ends
 flush with its last element reads as cut off.
@@ -91,7 +94,7 @@ exempt (WCAG 1.4.3) and the guardrail does not look at them.
 ## The diff's colours
 
 Monaco paints its own diff bands, and it is told which colours to use by
-`narrative/inline-diff-chunk.module.css` setting its `--vscode-diffEditor-*`
+`src/report/reader/inline-diff-chunk.module.css` setting its `--vscode-diffEditor-*`
 variables to `add` and `del`. The theme service emits those onto a bare
 `.monaco-editor, .monaco-diff-editor`, so any two-class selector outranks it —
 which is why this is CSS rather than a registered `defineTheme`, and why it
@@ -106,3 +109,30 @@ two harder marks instead, both of them on the gutter: it is tinted well above
 the band, and carries a solid rail down its inner edge. Both belong there rather
 than on the line because the gutter never scrolls sideways, and a mark that
 leaves the viewport on a wide diff is no mark at all.
+
+Dimmed comments are the only registered themes, one dimmed pair, light and
+dark (`src/report/reader/monaco-themes.ts`): a comment is known only by the
+tokenizer's classes, which only a theme rule reaches. Each inherits `vs` or
+`vs-dark` and gives comments a font style no base theme uses — italic,
+underline and strikethrough at once — which `theme.css` finds, strips of its
+lines and fades by opacity. Faded rather than recoloured: one fixed grey
+reads against the editor's background and nowhere else, and on an added or
+removed line's band it is grey on green or red, harder to read than the
+comment it stands for. Faded, a comment keeps its own colour and falls back into
+whatever is behind it, as a skim line does. How hard is the reader's slider
+(20–90%) — further than skim may go, since a comment's fade is the reader
+asking for it out of the way rather than the review deciding it.
+
+Skim marks fade too, and are off until the reader turns them on: a skim
+region is washed toward the editor's background, text, band, rail and line
+number alike — a full-strength band behind faded text still draws the eye.
+How hard is the reader's own slider (20–75%), since how faint is too faint
+depends on their screen and scheme; the cap keeps a skim line readable on
+demand. A move the review still says to read is washed by half as much: its
+shape stays in view, but it pulls less than code that is new. A fade is
+never left to explain itself: every faded region carries its reason as a
+label at the editor's right edge, the label folds to a tab so the code under
+it can be read, and a capped bracket down the edge draws where the region
+ends. Moves are drawn in `before` — bracket, label edge and header tag — and
+everything else in `muted-foreground`; the label's text keeps its one colour.
+A region is never tinted: its lines already carry the diff's green or red.

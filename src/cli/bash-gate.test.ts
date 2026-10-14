@@ -1,16 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { reviewBashCommand } from './bash-gate.ts';
 
-const allows = (command: string) => reviewBashCommand(command).allowed;
+const CWD = '/work/repo';
+const allows = (command: string) => reviewBashCommand(command, CWD).allowed;
 /** The commands from `list` that this gate got wrong, so a failure names them. */
 const wrongly = (list: string[], expected: boolean) =>
   list.filter((command) => allows(command) !== expected);
 const refusal = (command: string) => {
-  const decision = reviewBashCommand(command);
+  const decision = reviewBashCommand(command, CWD);
   return decision.allowed ? '' : decision.reason;
 };
 
 describe('what the local agent may run', () => {
+  it('tells a refused agent where it already is', () => {
+    expect(refusal('find / -name core')).toContain('/work/repo');
+    expect(refusal('git -C /elsewhere log')).toContain('/work/repo');
+  });
+
   it('allows the read-only commands a reviewer needs', () => {
     const commands = [
       'git log --oneline -20 -- src/cli',

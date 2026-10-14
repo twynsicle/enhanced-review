@@ -66,6 +66,7 @@ const hunk = (id: string) => ({
   fileOrder: 1,
   original: { startLine: 1, lineCount: 3 },
   modified: { startLine: 1, lineCount: 4 },
+  changedLines: 4,
 });
 
 const options = {
@@ -93,7 +94,13 @@ const answer = (hunkIds: string[]) =>
         id: 'c1',
         title: 'The change',
         insights: [],
-        diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds }],
+        diffChunks: [
+          {
+            filename: 'src/a.ts',
+            language: 'typescript',
+            hunks: hunkIds.map((id) => ({ id, tier: 'read' })),
+          },
+        ],
       },
     ],
   })}</narrative_review>`;

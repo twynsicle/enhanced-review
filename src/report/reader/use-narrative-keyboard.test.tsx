@@ -5,7 +5,7 @@ import type { ReaderSection } from './sections';
 import { useNarrativeKeyboard } from './use-narrative-keyboard';
 
 function chapter(id: string, label: string, chapterNumber: number): ReaderSection {
-  return { id, kind: 'chapter', label, chapterNumber, hasDiagram: false };
+  return { id, kind: 'chapter', label, chapterNumber, hasDiagram: false, core: false };
 }
 
 const sections: ReaderSection[] = [
@@ -15,6 +15,7 @@ const sections: ReaderSection[] = [
     label: 'Summary',
     chapterNumber: null,
     hasDiagram: false,
+    core: false,
   },
   chapter('ch1', 'One', 1),
   chapter('ch2', 'Two', 2),
@@ -22,7 +23,14 @@ const sections: ReaderSection[] = [
 ];
 
 const withRisk: ReaderSection[] = [
-  { id: RISK_SECTION_ID, kind: 'risk', label: 'Risk', chapterNumber: null, hasDiagram: false },
+  {
+    id: RISK_SECTION_ID,
+    kind: 'risk',
+    label: 'Risk',
+    chapterNumber: null,
+    hasDiagram: false,
+    core: false,
+  },
   ...sections,
 ];
 

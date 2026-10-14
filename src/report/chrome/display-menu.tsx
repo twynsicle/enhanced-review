@@ -1,19 +1,34 @@
-import { ActionIcon, Menu, Text, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, Box, Menu, Slider, Text, useMantineColorScheme } from '@mantine/core';
 import {
+  IconBlur,
+  IconBlurOff,
+  IconBug,
+  IconBugOff,
+  IconFold,
+  IconFoldDown,
   IconLayoutColumns,
   IconLayoutRows,
   IconMoon,
   IconSettings,
   IconSun,
+  IconTag,
+  IconTagOff,
   IconTextWrap,
   IconTextWrapDisabled,
   IconViewportNarrow,
   IconViewportWide,
 } from '@tabler/icons-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { selectSpaceLimited, useDiffView, useReaderColumn } from '@/report/stores/diff-view';
 import { useDiffWrap } from '@/report/stores/diff-wrap';
+import { COMMENT_FADES, previewCommentFade, useCommentFade } from '@/report/stores/comment-fade';
+import { useDimComments } from '@/report/stores/dim-comments';
+import type { FadeRange } from '@/report/stores/fade';
+import { useFileHeaders } from '@/report/stores/file-headers';
+import { useHunkDebug } from '@/report/stores/hunk-debug';
 import { useLayoutWidth } from '@/report/stores/layout-width';
+import { previewSkimFade, SKIM_FADES, useSkimFade } from '@/report/stores/skim-fade';
+import { useSkimMarks } from '@/report/stores/skim-marks';
 
 const ICON = 16;
 
@@ -71,12 +86,71 @@ function SettingItem({
   );
 }
 
+/**
+ * How hard a setting above it fades, beneath that setting. Shown only while
+ * the setting is on: a strength for a fade that is not drawn would be a
+ * control that visibly does nothing. A drag paints each step and stores only
+ * where it ends.
+ */
+function FadeSlider({
+  name,
+  range,
+  value,
+  onPreview,
+  onCommit,
+}: {
+  name: string;
+  range: FadeRange;
+  value: number;
+  onPreview: (value: number) => void;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState<number | null>(null);
+  const shown = draft ?? value;
+  return (
+    <Box px="sm" pb="xs">
+      <Text fz="xs" c="dimmed" mb={4}>
+        {name} · {shown}%
+      </Text>
+      <Slider
+        thumbLabel={name}
+        size="sm"
+        min={range.min}
+        max={range.max}
+        step={range.step}
+        value={shown}
+        onChange={(next) => {
+          setDraft(next);
+          onPreview(next);
+        }}
+        onChangeEnd={(next) => {
+          onCommit(next);
+          setDraft(null);
+        }}
+        label={null}
+      />
+    </Box>
+  );
+}
+
 /** Every display preference the report has, in one menu. */
 export function DisplayMenu() {
   const view = useDiffView((s) => s.view);
   const toggleView = useDiffView((s) => s.toggle);
   const wrap = useDiffWrap((s) => s.wrap);
   const toggleWrap = useDiffWrap((s) => s.toggle);
+  const comments = useDimComments((s) => s.comments);
+  const toggleComments = useDimComments((s) => s.toggle);
+  const headers = useFileHeaders((s) => s.headers);
+  const toggleHeaders = useFileHeaders((s) => s.toggle);
+  const marks = useSkimMarks((s) => s.marks);
+  const toggleMarks = useSkimMarks((s) => s.toggle);
+  const debug = useHunkDebug((s) => s.debug);
+  const toggleDebug = useHunkDebug((s) => s.toggle);
+  const skimFade = useSkimFade((s) => s.fade);
+  const setSkimFade = useSkimFade((s) => s.setFade);
+  const commentFade = useCommentFade((s) => s.fade);
+  const setCommentFade = useCommentFade((s) => s.setFade);
   const width = useLayoutWidth((s) => s.width);
   const toggleWidth = useLayoutWidth((s) => s.toggle);
   const spaceLimited = useReaderColumn(selectSpaceLimited);
@@ -113,6 +187,50 @@ export function DisplayMenu() {
           name="Long lines"
           value={wrap === 'on' ? 'Wrapped' : 'Not wrapped'}
           onClick={toggleWrap}
+        />
+        <SettingItem
+          icon={comments === 'dimmed' ? <IconBlur size={ICON} /> : <IconBlurOff size={ICON} />}
+          name="Comments"
+          value={comments === 'dimmed' ? 'Dimmed' : 'Normal'}
+          onClick={toggleComments}
+        />
+        {comments === 'dimmed' && (
+          <FadeSlider
+            name="Comment fade"
+            range={COMMENT_FADES}
+            value={commentFade}
+            onPreview={previewCommentFade}
+            onCommit={setCommentFade}
+          />
+        )}
+        <SettingItem
+          icon={headers === 'one-line' ? <IconFold size={ICON} /> : <IconFoldDown size={ICON} />}
+          name="File headers"
+          value={headers === 'one-line' ? 'One line' : 'Every fact'}
+          onClick={toggleHeaders}
+        />
+        <SettingItem
+          icon={marks === 'marked' ? <IconTag size={ICON} /> : <IconTagOff size={ICON} />}
+          name="Skim hunks"
+          value={marks === 'marked' ? 'Marked' : 'Plain'}
+          hint="Marked fades the lines the review says to skim and labels why"
+          onClick={toggleMarks}
+        />
+        {marks === 'marked' && (
+          <FadeSlider
+            name="Skim fade"
+            range={SKIM_FADES}
+            value={skimFade}
+            onPreview={previewSkimFade}
+            onCommit={setSkimFade}
+          />
+        )}
+        <SettingItem
+          icon={debug === 'on' ? <IconBug size={ICON} /> : <IconBugOff size={ICON} />}
+          name="Hunk debug"
+          value={debug === 'on' ? 'On' : 'Off'}
+          hint="Labels every hunk with its id, tier and split part"
+          onClick={toggleDebug}
         />
         <SettingItem
           icon={

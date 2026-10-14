@@ -6,7 +6,10 @@ const bundle: ReviewBundle = {
   generatedAt: '2026-09-11T10:00:00.000Z',
   meta: {
     repo: 'acme/widgets',
+    kind: 'branch',
     title: 'Scheduled reviews',
+    baseSha: 'a'.repeat(40),
+    headSha: 'b'.repeat(40),
     prNumber: null,
     baseRefName: 'main',
     headRefName: 'feat/scheduler',
@@ -76,5 +79,12 @@ describe('filePair', () => {
     const pair = filePair(bundle, 'nowhere.ts');
     expect(pair.base).toEqual({ kind: 'absent' });
     expect(pair.head).toEqual({ kind: 'absent' });
+  });
+
+  it('reads a path named after an object member, which the bundle does not hold, as absent', () => {
+    expect(filePair(bundle, 'constructor')).toEqual({
+      base: { kind: 'absent' },
+      head: { kind: 'absent' },
+    });
   });
 });

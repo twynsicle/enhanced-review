@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { filePair, parseBundle } from '@/review/bundle';
 import { reviewCoverage } from '@/review/coverage';
 import { buildFileTree, type FileTreeNode } from '@/report/reader/file-tree';
-import { SAMPLE_BUNDLE, SAMPLE_MISSING_FILE } from './sample-bundle';
+import { SAMPLE_BUNDLE, SAMPLE_EXCERPT_FILE, SAMPLE_MISSING_FILE } from './sample-bundle';
 
 const coverage = reviewCoverage(SAMPLE_BUNDLE.review);
 /** Every chunk the reader draws: the chapters' own, and each file's leftovers. */
@@ -30,6 +30,8 @@ const HUNK_ANCHORS: Record<string, string> = {
   H0010: 'export { isDue, type Cadence',
   H0011: "import type { Clock } from '../clock'",
   H0012: "import type { Schedule } from '../cadence'",
+  H0013: "import type { Clock } from '../src/scheduler/clock'",
+  H0014: '/** The owner/name form',
 };
 
 describe('the sample report bundle', () => {
@@ -91,6 +93,24 @@ describe('the sample report bundle', () => {
     expect(anchored.toSorted()).toEqual(Object.keys(HUNK_ANCHORS).toSorted());
   });
 
+  it('shows one excerpt of unchanged code, embedded as its head side alone and listed nowhere as changed', () => {
+    const excerpts = SAMPLE_BUNDLE.review.chapters.flatMap(
+      (chapter) => chapter.contextExcerpts ?? [],
+    );
+    expect(excerpts.map((excerpt) => excerpt.filename)).toEqual([SAMPLE_EXCERPT_FILE]);
+    const [excerpt] = excerpts;
+    const { base, head } = filePair(SAMPLE_BUNDLE, SAMPLE_EXCERPT_FILE);
+    expect(base).toEqual({ kind: 'absent' });
+    expect(head.kind === 'content' && head.content.split('\n')[excerpt!.startLine - 1]).toBe(
+      '/** Reviews one repo may run in a day before the runner backs off. */',
+    );
+    expect(head.kind === 'content' && head.content.split('\n')[excerpt!.endLine - 1]).toBe('}');
+    expect(SAMPLE_BUNDLE.review.files?.map((file) => file.filename)).not.toContain(
+      SAMPLE_EXCERPT_FILE,
+    );
+    expect(chunks.map((chunk) => chunk.filename)).not.toContain(SAMPLE_EXCERPT_FILE);
+  });
+
   it('lists skipped files, which no chunk points at', () => {
     const skipped = (SAMPLE_BUNDLE.review.files ?? []).filter((file) => file.skipped);
     expect(skipped.length).toBeGreaterThan(0);
@@ -120,6 +140,33 @@ describe('the sample report bundle', () => {
     expect(
       scheduler?.kind === 'directory' ? scheduler.children.map((node) => node.kind) : [],
     ).toEqual(['file', 'directory', 'file', 'file']);
+  });
+
+  it('cites both tiers in one diff and carries both proven facts, so the reader fades and tags', () => {
+    const diffChunks = SAMPLE_BUNDLE.review.chapters.flatMap((chapter) => chapter.diffChunks);
+    const cited = diffChunks.flatMap((chunk) => chunk.hunks);
+    expect(
+      diffChunks.some((chunk) => new Set(chunk.hunks.map((hunk) => hunk.tier)).size === 2),
+    ).toBe(true);
+    expect(cited.some((hunk) => hunk.whitespaceOnly)).toBe(true);
+    expect(cited.some((hunk) => hunk.movedFrom)).toBe(true);
+    expect(cited.some((hunk) => hunk.movedTo)).toBe(true);
+  });
+
+  it('plans a brief that the standard read adds to and the full read adds to again', () => {
+    const plan = SAMPLE_BUNDLE.review.readingPlan;
+    const ids = SAMPLE_BUNDLE.review.chapters.map((chapter) => chapter.id);
+    expect(plan?.standard.every((id) => ids.includes(id))).toBe(true);
+    expect(plan?.brief.every((id) => plan.standard.includes(id))).toBe(true);
+    expect(plan && plan.brief.length < plan.standard.length).toBe(true);
+    expect(plan && plan.standard.length < ids.length).toBe(true);
+  });
+
+  it('names two full commits, so progress in the dev server is keyed like a real review’s', () => {
+    const { baseSha, headSha } = SAMPLE_BUNDLE.meta;
+    expect(baseSha).toMatch(/^[0-9a-f]{40}$/);
+    expect(headSha).toMatch(/^[0-9a-f]{40}$/);
+    expect(baseSha).not.toBe(headSha);
   });
 
   it('covers every file-side state the reader draws', () => {

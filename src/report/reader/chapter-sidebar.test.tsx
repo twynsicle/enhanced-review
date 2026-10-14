@@ -30,14 +30,23 @@ const sections: ReaderSection[] = [
     label: 'Summary',
     chapterNumber: null,
     hasDiagram: false,
+    core: false,
   },
-  { id: 'ch1', kind: 'chapter', label: 'Shape of the change', chapterNumber: 1, hasDiagram: false },
+  {
+    id: 'ch1',
+    kind: 'chapter',
+    label: 'Shape of the change',
+    chapterNumber: 1,
+    hasDiagram: false,
+    core: false,
+  },
   {
     id: 'ch2',
     kind: 'chapter',
     label: 'Risks and follow-ups',
     chapterNumber: 2,
     hasDiagram: false,
+    core: false,
   },
 ];
 
@@ -50,7 +59,14 @@ const riskAssessment: ReviewRiskAssessment = {
 
 /** The same list with a risk section, as `readerSections` builds it. */
 const withRisk: ReaderSection[] = [
-  { id: RISK_SECTION_ID, kind: 'risk', label: 'Risk', chapterNumber: null, hasDiagram: false },
+  {
+    id: RISK_SECTION_ID,
+    kind: 'risk',
+    label: 'Risk',
+    chapterNumber: null,
+    hasDiagram: false,
+    core: false,
+  },
   ...sections,
 ];
 
@@ -61,6 +77,8 @@ const hunk = (id: string, fileOrder: number) => ({
   fileOrder,
   original: { startLine: fileOrder * 10, lineCount: 1 },
   modified: { startLine: fileOrder * 10, lineCount: 2 },
+  changedLines: 2,
+  tier: 'read' as const,
 });
 
 describe('<ChapterSidebar />', () => {
@@ -186,9 +204,53 @@ describe('<ChapterSidebar />', () => {
         onSelectFile={noop}
       />,
     );
-    const marks = screen.getAllByLabelText('has a diagram');
+    const marks = screen.getAllByText('has a diagram');
     expect(marks).toHaveLength(1);
     expect(marks[0]?.closest('button')?.textContent).toContain('Risks and follow-ups');
+  });
+
+  it('marks the brief’s chapters as core, in words a screen reader hears', () => {
+    render(
+      <ChapterSidebar
+        sections={sections.map((section) =>
+          section.id === 'ch1' ? { ...section, core: true } : section,
+        )}
+        chapters={chapters}
+        activeId={SUMMARY_SECTION_ID}
+        reviewTitle="t"
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Shape of the change core chapter/ })).toBeDefined();
+    expect(screen.getByRole('button', { name: /Risks and follow-ups/ }).textContent).not.toContain(
+      'core chapter',
+    );
+    expect(screen.getAllByTitle('Core chapter: in the brief reading plan')).toHaveLength(1);
+  });
+
+  it('checks the chapters marked read, in words a screen reader hears, and counts them', () => {
+    render(
+      <ChapterSidebar
+        sections={sections}
+        chapters={chapters}
+        activeId={SUMMARY_SECTION_ID}
+        readIds={new Set(['ch2', SUMMARY_SECTION_ID, 'gone'])}
+        reviewTitle="t"
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+    const read = screen.getByRole('button', { name: /Risks and follow-ups read/ });
+    expect(read).toHaveAttribute('data-read');
+    expect(screen.getByRole('button', { name: /Shape of the change/ })).not.toHaveAttribute(
+      'data-read',
+    );
+    // The summary is not a chapter, and an id no chapter has is not counted.
+    expect(screen.getByRole('button', { name: /Summary/ })).not.toHaveAttribute('data-read');
+    expect(screen.getAllByTitle('Read')).toHaveLength(1);
+    expect(screen.getByText('1/2 read')).toHaveAttribute('aria-hidden');
+    expect(screen.getByText('1 of 2 chapters read')).toBeInTheDocument();
   });
 
   it('falls back to the files chapters selected hunks from', () => {

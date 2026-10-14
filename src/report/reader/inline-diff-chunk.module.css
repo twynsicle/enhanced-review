@@ -4,6 +4,7 @@
  * it reach into Monaco's own DOM, which no prop can express.
  */
 .editor {
+  position: relative;
   overflow: hidden;
   /*
    * Monaco stacks its own furniture well above the card — the split-pane sash
@@ -75,15 +76,32 @@
  * added line the same colour as twenty.
  *
  * Matching on the inline style is the only thing that tells the two apart —
- * they are emitted under the same class name. The mark is the offset, not the
- * width: a whole-line decoration is laid out as `left:0;width:100%`, while a
- * ranged one always writes a unit, `left:0px` included. `width:100%` alone is
- * not enough, because a word-level range that runs past a soft wrap is given
- * one too — so an unanchored match would blank the very highlight this rule
- * exists to keep readable, on precisely the long lines that need it.
+ * they are emitted under the same class name. The mark is a box that starts
+ * at the line's left edge and runs the full width: the stacked view writes it
+ * `left:0;width:100%`, and side by side it is a range from the first column
+ * past the line's end, written `left:0px;width:100%`. `width:100%` alone is
+ * not enough, because the first visual line of a word-level range that runs
+ * past a soft wrap is given it too, at its own offset — so an unanchored match
+ * would blank the very highlight this rule exists to keep readable. The cost
+ * of anchoring at `0px` is a word-level range that spans three or more visual
+ * lines, whose middle lines lose their highlight and keep the band.
  */
 .editor :global(.cdr.char-insert[style^='left:0;width:100%']),
-.editor :global(.cdr.char-delete[style^='left:0;width:100%']) {
+.editor :global(.cdr.char-delete[style^='left:0;width:100%']),
+.editor :global(.cdr.char-insert[style^='left:0px;width:100%']),
+.editor :global(.cdr.char-delete[style^='left:0px;width:100%']) {
+  background-color: transparent;
+}
+
+/*
+ * The same double paint on the stacked view's removed lines, which Monaco
+ * draws in a view zone with the highlight on the text's own spans rather than
+ * as a box. A line every span of which is highlighted is one with nothing
+ * opposite; a line that also keeps an unhighlighted span is a word-level
+ * change, and keeps its highlight. One whose every word changed reads as
+ * wholly removed, which the band still says.
+ */
+.editor :global(.view-zones .view-line:not(:has(> span > span:not(.char-delete))) .char-delete) {
   background-color: transparent;
 }
 
@@ -107,4 +125,250 @@
 
 .editor :global(.gutter-delete) {
   box-shadow: inset -2px 0 0 var(--er-del);
+}
+
+/*
+ * A region's colour, for its bracket, its label's edge and its outline: a
+ * move's own, since moves are the commonest fact and read differently from new
+ * code, and a plain grey for the rest. Never the text's colour, so the label
+ * reads the same whatever its tone.
+ */
+.marks [data-tone] {
+  --mark-colour: var(--er-muted-foreground);
+}
+
+.marks [data-tone='move'] {
+  --mark-colour: var(--er-before);
+}
+
+/*
+ * A labelled region's lines, when the reader has asked for skim marks: washed
+ * toward the editor's own background, text, band, rail and line number alike,
+ * so nothing in them stays at full strength to catch the eye. How far is the
+ * reader's skim fade (`stores/skim-fade.ts`) — half of it for a move the
+ * review says to read, which keeps its shape in view but pulls less than new
+ * code. The label says why.
+ */
+.wash {
+  --wash-share: 1;
+  position: absolute;
+  background: color-mix(
+    in srgb,
+    var(--wash-ground) calc(var(--review-skim-fade, 0.6) * var(--wash-share) * 100%),
+    transparent
+  );
+}
+
+.wash[data-fade='move'] {
+  --wash-share: 0.5;
+}
+
+/* Only the hunk debug labels a region it does not fade; it keeps the outline. */
+.wash[data-fade='none'] {
+  --wash-share: 0;
+}
+
+/* Outlined while its label is pointed at, inside its own lines. */
+.wash[data-pointed] {
+  box-shadow: inset 0 0 0 1px var(--mark-colour);
+}
+
+/*
+ * The labelled regions, over the editor and out of the way of the pointer
+ * except on the label, which carries the whole reason as its title.
+ */
+.marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/*
+ * The region: a bracket down the right edge, the height of its lines, capped
+ * top and bottom so where it ends is drawn rather than inferred.
+ */
+.mark {
+  position: absolute;
+  right: 2px;
+  width: 3px;
+  background: var(--mark-colour);
+}
+
+.mark::before,
+.mark::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  width: 8px;
+  height: 2px;
+  background: var(--mark-colour);
+}
+
+.mark::before {
+  top: 0;
+}
+
+.mark::after {
+  bottom: 0;
+}
+
+/*
+ * The label, hung off the rule's top and set against the card so it reads
+ * over whatever code runs under it.
+ */
+.markLabel {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 28rem;
+  padding: 0 0 0 6px;
+  border: 1px solid var(--er-border);
+  border-left: 3px solid var(--mark-colour);
+  border-radius: 4px;
+  background: var(--er-card);
+  color: var(--er-muted-foreground);
+  font-size: var(--mantine-font-size-xs);
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+/* Folded, the label is its button alone: a tab on the rule. */
+.markLabel[data-folded] {
+  padding: 0;
+}
+
+/*
+ * The label's text in runs. Short of room, a path gives way first and from its
+ * start, behind an ellipsis, as the card header's directory does: the file
+ * name at its end is the part that says where. The words give way after it.
+ */
+.markText {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.markWords {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+
+.markPath {
+  flex-shrink: 1000;
+  min-width: 2ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+}
+
+.markFold {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: inherit;
+}
+
+.markFold:hover {
+  color: var(--er-foreground);
+}
+
+/*
+ * A code card's header. A grid rather than a wrapping row: a flex row wraps an
+ * item whole before it shrinks one, so a long path pushed the actions onto a
+ * line of their own instead of giving up its own leading directories. Side by
+ * side with the facts on one line, the path is sized first and the facts take
+ * what is left; otherwise they get a full-width row below it.
+ */
+.header {
+  z-index: 10;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'path actions'
+    'facts facts';
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--er-border);
+  background: color-mix(in oklab, var(--er-muted) 30%, var(--er-card));
+  font-size: var(--mantine-font-size-sm);
+}
+
+.header[data-one-line] {
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto;
+  grid-template-areas: 'path facts actions';
+}
+
+/* The file name is kept whole; the directory before it gives way first. */
+.path {
+  grid-area: path;
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  font-family: var(--mantine-font-family-monospace);
+  white-space: nowrap;
+}
+
+/*
+ * Right to left, so overflow is cut and the ellipsis drawn at the start of the
+ * directory rather than its end. The `bdi` inside keeps the path itself left
+ * to right, slashes and all.
+ */
+.dirname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  font-size: var(--mantine-font-size-xs);
+  color: var(--er-muted-foreground);
+}
+
+.basename {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.facts {
+  grid-area: facts;
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.header[data-one-line] .facts {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.fact {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* A full fact on a row of its own wraps rather than running off the card. */
+.header:not([data-one-line]) .fact {
+  flex-shrink: 1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }

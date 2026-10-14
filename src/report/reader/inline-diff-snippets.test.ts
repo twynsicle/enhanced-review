@@ -4,14 +4,16 @@ import {
   formatSelectedHunkLabel,
   groupSelectedHunks,
 } from './inline-diff-snippets';
-import type { ResolvedDiffHunk } from '@/review/narrative';
+import type { CitedHunk } from '@/review/narrative';
 
-function makeHunk(overrides: Partial<ResolvedDiffHunk>): ResolvedDiffHunk {
+function makeHunk(overrides: Partial<CitedHunk>): CitedHunk {
   return {
     id: 'H0001',
     fileOrder: 1,
     original: { startLine: 1, lineCount: 1 },
     modified: { startLine: 1, lineCount: 1 },
+    changedLines: 1,
+    tier: 'read',
     ...overrides,
   };
 }
@@ -46,9 +48,48 @@ describe('groupSelectedHunks', () => {
   it('returns no groups for no hunks', () => {
     expect(groupSelectedHunks([])).toEqual([]);
   });
+
+  it('keeps one group across a change of tier, since skim is faded in place', () => {
+    const groups = groupSelectedHunks([
+      makeHunk({ id: 'H0001', fileOrder: 1, tier: 'read' }),
+      makeHunk({ id: 'H0002', fileOrder: 2, tier: 'skim' }),
+      makeHunk({ id: 'H0003', fileOrder: 3, tier: 'read' }),
+    ]);
+    expect(groups.map((group) => group.map((hunk) => hunk.id))).toEqual([
+      ['H0001', 'H0002', 'H0003'],
+    ]);
+  });
 });
 
 describe('buildInlineDiffSnippets', () => {
+  it('draws flush hunks of both tiers as one snippet carrying both', () => {
+    const read = makeHunk({
+      id: 'H0001',
+      fileOrder: 1,
+      original: { startLine: 0, lineCount: 0 },
+      modified: { startLine: 1, lineCount: 10 },
+      changedLines: 10,
+    });
+    const skim = makeHunk({
+      id: 'H0002',
+      fileOrder: 2,
+      original: { startLine: 0, lineCount: 0 },
+      modified: { startLine: 11, lineCount: 10 },
+      changedLines: 10,
+      tier: 'skim',
+    });
+    const snippets = buildInlineDiffSnippets({
+      hunks: [read, skim],
+      original: '',
+      modified: makeLines('m', 20),
+      contextLines: 5,
+    });
+
+    expect(snippets.map((snippet) => snippet.key)).toEqual(['group-1-2']);
+    expect(snippets[0]?.hunks).toEqual([read, skim]);
+    expect(snippets[0]?.modified.split('\n')).toEqual(takeLines('m', 1, 20));
+  });
+
   it('builds one snippet for consecutive hunks and expands with context', () => {
     const snippets = buildInlineDiffSnippets({
       hunks: [
@@ -57,12 +98,14 @@ describe('buildInlineDiffSnippets', () => {
           fileOrder: 1,
           original: { startLine: 10, lineCount: 1 },
           modified: { startLine: 10, lineCount: 1 },
+          changedLines: 1,
         }),
         makeHunk({
           id: 'H0002',
           fileOrder: 2,
           original: { startLine: 14, lineCount: 1 },
           modified: { startLine: 14, lineCount: 1 },
+          changedLines: 1,
         }),
       ],
       original: makeLines('o', 30),
@@ -78,6 +121,76 @@ describe('buildInlineDiffSnippets', () => {
     });
   });
 
+  it('takes no context from a neighbouring part of a split hunk', () => {
+    // A new file split into three parts that sit flush against each other.
+    const parts = [
+      makeHunk({
+        id: 'H0001',
+        fileOrder: 1,
+        original: { startLine: 0, lineCount: 0 },
+        modified: { startLine: 1, lineCount: 20 },
+        changedLines: 20,
+      }),
+      makeHunk({
+        id: 'H0002',
+        fileOrder: 2,
+        original: { startLine: 0, lineCount: 0 },
+        modified: { startLine: 21, lineCount: 18 },
+        changedLines: 18,
+      }),
+      makeHunk({
+        id: 'H0003',
+        fileOrder: 3,
+        original: { startLine: 0, lineCount: 0 },
+        modified: { startLine: 39, lineCount: 18 },
+        changedLines: 18,
+      }),
+    ];
+    const [middle] = buildInlineDiffSnippets({
+      hunks: [parts[1]!],
+      original: '',
+      modified: makeLines('m', 56),
+      contextLines: 5,
+      fileHunks: parts,
+    });
+
+    expect(middle).toMatchObject({
+      modifiedStartLine: 21,
+      modified: takeLines('m', 21, 38).join('\n'),
+    });
+  });
+
+  it('stops context at the unchanged lines between it and the next hunk, on both sides alike', () => {
+    // Two git hunks with three unchanged lines between their spans; five lines
+    // of context would otherwise reach the second hunk's changed lines.
+    const first = makeHunk({
+      id: 'H0001',
+      fileOrder: 1,
+      original: { startLine: 4, lineCount: 4 },
+      modified: { startLine: 4, lineCount: 5 },
+      changedLines: 5,
+    });
+    const second = makeHunk({
+      id: 'H0002',
+      fileOrder: 2,
+      original: { startLine: 11, lineCount: 4 },
+      modified: { startLine: 12, lineCount: 4 },
+      changedLines: 4,
+    });
+    const [snippet] = buildInlineDiffSnippets({
+      hunks: [first],
+      original: makeLines('o', 30),
+      modified: makeLines('m', 30),
+      contextLines: 5,
+      fileHunks: [first, second],
+    });
+
+    expect(snippet).toMatchObject({ originalStartLine: 1, modifiedStartLine: 1 });
+    // Original lines 8-10 and modified 9-11 are the gap: all three, and no more.
+    expect(snippet!.original.split('\n').at(-1)).toBe('o10');
+    expect(snippet!.modified.split('\n').at(-1)).toBe('m11');
+  });
+
   it('splits snippets when file-order gaps imply unselected hunks', () => {
     const snippets = buildInlineDiffSnippets({
       hunks: [
@@ -86,12 +199,14 @@ describe('buildInlineDiffSnippets', () => {
           fileOrder: 1,
           original: { startLine: 5, lineCount: 1 },
           modified: { startLine: 5, lineCount: 1 },
+          changedLines: 1,
         }),
         makeHunk({
           id: 'H0003',
           fileOrder: 3,
           original: { startLine: 15, lineCount: 1 },
           modified: { startLine: 15, lineCount: 1 },
+          changedLines: 1,
         }),
       ],
       original: makeLines('o', 25),
@@ -109,6 +224,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 1, lineCount: 0 },
           modified: { startLine: 1, lineCount: 3 },
+          changedLines: 3,
         }),
       ],
       original: '',
@@ -120,6 +236,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 2, lineCount: 3 },
           modified: { startLine: 2, lineCount: 0 },
+          changedLines: 0,
         }),
       ],
       original: makeLines('o', 5),
@@ -147,6 +264,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 7, lineCount: 0 },
           modified: { startLine: 8, lineCount: 2 },
+          changedLines: 2,
         }),
       ],
       original: makeLines('o', 20),
@@ -168,6 +286,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 12, lineCount: 3 },
           modified: { startLine: 11, lineCount: 0 },
+          changedLines: 0,
         }),
       ],
       original: makeLines('o', 20),
@@ -191,12 +310,14 @@ describe('buildInlineDiffSnippets', () => {
           fileOrder: 1,
           original: { startLine: 7, lineCount: 0 },
           modified: { startLine: 8, lineCount: 2 },
+          changedLines: 2,
         }),
         makeHunk({
           id: 'H0002',
           fileOrder: 2,
           original: { startLine: 12, lineCount: 2 },
           modified: { startLine: 14, lineCount: 2 },
+          changedLines: 2,
         }),
       ],
       original: makeLines('o', 30),
@@ -228,12 +349,14 @@ describe('buildInlineDiffSnippets', () => {
           fileOrder: 1,
           original: { startLine: 5, lineCount: 2 },
           modified: { startLine: 5, lineCount: 2 },
+          changedLines: 2,
         }),
         makeHunk({
           id: 'H0002',
           fileOrder: 2,
           original: { startLine: 12, lineCount: 0 },
           modified: { startLine: 13, lineCount: 2 },
+          changedLines: 2,
         }),
       ],
       original: makeLines('o', 30),
@@ -265,6 +388,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 0, lineCount: 0 },
           modified: { startLine: 1, lineCount: 3 },
+          changedLines: 3,
         }),
       ],
       original: makeLines('o', 4),
@@ -292,6 +416,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 0, lineCount: 0 },
           modified: { startLine: 1, lineCount: 3 },
+          changedLines: 3,
         }),
       ],
       original: makeLines('o', 20),
@@ -316,6 +441,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 1, lineCount: 0 },
           modified: { startLine: 2, lineCount: 3 },
+          changedLines: 3,
         }),
       ],
       original: makeLines('o', 20),
@@ -334,6 +460,7 @@ describe('buildInlineDiffSnippets', () => {
         makeHunk({
           original: { startLine: 10, lineCount: 3 },
           modified: { startLine: 13, lineCount: 5 },
+          changedLines: 5,
         }),
       ],
       original: makeLines('o', 20),
@@ -364,15 +491,26 @@ describe('formatSelectedHunkLabel', () => {
         fileOrder: 2,
         original: { startLine: 20, lineCount: 2 },
         modified: { startLine: 30, lineCount: 0 },
+        changedLines: 0,
       }),
       makeHunk({
         id: 'H0001',
         fileOrder: 1,
         original: { startLine: 5, lineCount: 1 },
         modified: { startLine: 8, lineCount: 3 },
+        changedLines: 3,
       }),
     ]);
     expect(label).toBe('L8-10, orig L20-21');
+  });
+
+  it('joins ranges that touch, as a split hunk’s parts do', () => {
+    const label = formatSelectedHunkLabel([
+      makeHunk({ fileOrder: 1, modified: { startLine: 10, lineCount: 5 } }),
+      makeHunk({ fileOrder: 2, modified: { startLine: 15, lineCount: 5 } }),
+      makeHunk({ fileOrder: 3, modified: { startLine: 30, lineCount: 2 } }),
+    ]);
+    expect(label).toBe('L10-19, L30-31');
   });
 
   it('uses single-line forms for one-line spans', () => {
@@ -381,11 +519,13 @@ describe('formatSelectedHunkLabel', () => {
         fileOrder: 1,
         original: { startLine: 4, lineCount: 1 },
         modified: { startLine: 4, lineCount: 0 },
+        changedLines: 0,
       }),
       makeHunk({
         fileOrder: 2,
         original: { startLine: 9, lineCount: 1 },
         modified: { startLine: 9, lineCount: 1 },
+        changedLines: 1,
       }),
     ]);
     expect(label).toBe('orig L4, L9');

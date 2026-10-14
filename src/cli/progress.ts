@@ -14,12 +14,14 @@ import { note } from './terminal.ts';
  * `--max-turns`.
  *
  * Chapter titles are picked out of the answer as it streams, before there is
- * enough JSON to parse: a chapter is the only object that carries an `id`
- * immediately followed by a `title`, which is what separates it from the
- * insights inside it. Missing one costs nothing — no line for it — so this
- * stays a regex rather than a streaming parser.
+ * enough JSON to parse: an object that opens with an `id` immediately followed
+ * by a `title` is a chapter or a diagram, which is what separates both from
+ * the insights inside a chapter. A diagram is told apart by the key it sits
+ * under. Missing one costs nothing — no line for it — so this stays a regex
+ * rather than a streaming parser.
  */
-const CHAPTER_TITLE = /"id"\s*:\s*"[^"]*"\s*,\s*"title"\s*:\s*"([^"]*)"/g;
+const TITLED_OBJECT = /(?:"(\w+)"\s*:\s*)?\{\s*"id"\s*:\s*"[^"]*"\s*,\s*"title"\s*:\s*"([^"]*)"/g;
+const DIAGRAM_KEYS = new Set(['diagram', 'overviewDiagram']);
 
 /**
  * Silence longer than this gets a line of its own. A turn can spend minutes
@@ -33,6 +35,12 @@ export interface RunProgress {
   activity(what: string, turn: number): void;
   /** A block of the answer, as it arrives. */
   text(chunk: string): void;
+  /**
+   * The answer was refused and the model is writing the whole of it again,
+   * so its chapters count from one: carrying on from the refused answer's
+   * count would read as a review twice as long.
+   */
+  answerAgain(): void;
   /** The run is over: stop the heartbeat. */
   stop(): void;
 }
@@ -84,16 +92,21 @@ export function startProgress(deps: ProgressDeps = HOST_PROGRESS_DEPS): RunProgr
       // Re-scan only the part no complete title has been found in yet.
       const from = scanned;
       const tail = answer.slice(from);
-      CHAPTER_TITLE.lastIndex = 0;
+      TITLED_OBJECT.lastIndex = 0;
       let match: RegExpExecArray | null;
-      while ((match = CHAPTER_TITLE.exec(tail)) !== null) {
-        chapters += 1;
+      while ((match = TITLED_OBJECT.exec(tail)) !== null) {
         // `match.index` is an offset into `tail`, so the cursor is measured
         // from where `tail` starts — not from wherever an earlier match in
         // this same pass already moved it to.
         scanned = from + match.index + match[0].length;
-        print(`writing chapter ${String(chapters)}: ${match[1] ?? ''}`);
+        if (DIAGRAM_KEYS.has(match[1] ?? '')) continue;
+        chapters += 1;
+        print(`writing chapter ${String(chapters)}: ${match[2] ?? ''}`);
       }
+    },
+    answerAgain() {
+      chapters = 0;
+      scanned = answer.length;
     },
     stop() {
       heartbeat.stop();

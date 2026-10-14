@@ -40,6 +40,10 @@ vi.mock('@monaco-editor/react', async () => {
     updateOptions: (options: Options) => Object.assign(widget.sides[which], options),
     getContentHeight: () => 120,
     onDidContentSizeChange: () => disposable,
+    onDidLayoutChange: () => disposable,
+    // No model is handed over, so there are no skim lines to fade.
+    getModel: () => null,
+    createDecorationsCollection: () => ({ clear: () => {} }),
   });
   const original = side('original');
   const modified = side('modified');
@@ -86,7 +90,10 @@ vi.mock('@monaco-editor/react', async () => {
     },
     // The component pins the CDN and waits for the editor through this before
     // it mounts anything.
-    loader: { config: () => {}, init: () => Promise.resolve({}) },
+    loader: {
+      config: () => {},
+      init: () => Promise.resolve({ editor: { defineTheme: () => {} } }),
+    },
   };
 });
 
@@ -99,6 +106,8 @@ const chunk: DiffChunk = {
       fileOrder: 1,
       original: { startLine: 1, lineCount: 1 },
       modified: { startLine: 1, lineCount: 2 },
+      changedLines: 2,
+      tier: 'read',
     },
   ],
 };
@@ -108,7 +117,10 @@ const bundle: ReviewBundle = {
   generatedAt: '2026-09-11T10:00:00.000Z',
   meta: {
     repo: 'a/r',
+    kind: 'branch',
     title: 't',
+    baseSha: 'a'.repeat(40),
+    headSha: 'b'.repeat(40),
     prNumber: null,
     baseRefName: null,
     headRefName: null,

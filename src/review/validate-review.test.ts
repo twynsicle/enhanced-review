@@ -28,9 +28,14 @@ function review(chunks: { filename: string; hunkIds: string[] }[]): string {
         id: 'c',
         title: 'C',
         insights: [],
-        diffChunks: chunks.map((chunk) => ({ ...chunk, language: 'typescript' })),
+        diffChunks: chunks.map(({ filename, hunkIds }) => ({
+          filename,
+          language: 'typescript',
+          hunks: hunkIds.map((id) => ({ id, tier: 'read' })),
+        })),
       },
     ],
+    readingPlan: { brief: ['c'], standard: ['c'] },
   })}</narrative_review>`;
 }
 
@@ -72,10 +77,12 @@ describe('validateReview', () => {
       fileOrder: i + 1,
       original: { startLine: i + 1, lineCount: 1 },
       modified: { startLine: i + 1, lineCount: 1 },
+      changedLines: 1,
     }));
     const result = validateReview(review([{ filename: 'src/a.ts', hunkIds: ['H0001'] }]), {
       shown: { hunks, byId: Object.fromEntries(hunks.map((h) => [h.id, h])) },
       filenames: new Set(['src/a.ts']),
+      changed: new Set(['src/a.ts']),
     });
     // The count leads: a reader who stops after the first line still knows
     // how bad it is.
@@ -106,6 +113,7 @@ describe('validateReview', () => {
       prTitle: 't',
       overviewSummary: { lede: 's' },
       chapters: [{ id: 'c', title: 'C', insights: [], diffChunks: [] }],
+      readingPlan: { brief: ['c'], standard: ['c'] },
     })}</narrative_review>`;
     expect(validateReview(text, groundingFor([])).findings).toEqual([]);
     expect(validateReview(text).findings).toEqual([]);

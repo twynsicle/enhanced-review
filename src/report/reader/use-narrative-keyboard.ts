@@ -9,7 +9,7 @@ const FOCUS_RETRY_FRAMES = 30;
  * section. The heading mounts on the navigation that `onSelect` starts, so
  * this waits a few frames for it rather than assuming it is already there.
  */
-function focusHeading(id: string, framesLeft = FOCUS_RETRY_FRAMES): void {
+export function focusHeading(id: string, framesLeft = FOCUS_RETRY_FRAMES): void {
   requestAnimationFrame(() => {
     const heading = document.getElementById(sectionHeadingId(id));
     if (heading) heading.focus();

@@ -1,4 +1,4 @@
-import type { ResolvedDiffHunk } from '@/review/narrative';
+import type { CitedHunk, DiffLineSpan, ResolvedDiffHunk } from '@/review/narrative';
 
 /**
  * Pure logic for slicing a base/head file pair down to the lines around each
@@ -11,15 +11,24 @@ export interface InlineDiffSnippet {
   modified: string;
   originalStartLine: number;
   modifiedStartLine: number;
+  /** The cited hunks the snippet draws, whatever their tiers. */
+  hunks: readonly CitedHunk[];
 }
 
 interface BuildInlineDiffSnippetsParams {
-  hunks: readonly ResolvedDiffHunk[];
+  hunks: readonly CitedHunk[];
   original: string;
   modified: string;
   originalLineCount?: number;
   modifiedLineCount?: number;
   contextLines?: number;
+  /**
+   * Every hunk of the file, cited or not. Context around a group stops short
+   * of its neighbours, so a chapter never draws lines another hunk changed as
+   * though they were its own — which a split hunk's parts, sitting flush
+   * against each other, would otherwise do on every snippet.
+   */
+  fileHunks?: readonly ResolvedDiffHunk[];
 }
 
 function countLines(text: string): number {
@@ -59,23 +68,63 @@ function getSpanStartLine(startLine: number, lineCount: number): number {
 function buildSliceBounds(
   startLine: number,
   endLine: number,
-  contextLines: number,
+  context: { before: number; after: number },
   maxLine: number,
 ): { startLine: number; endLine: number } | null {
   if (maxLine <= 0) return null;
 
-  const unclampedStart = Math.max(1, startLine - contextLines);
-  const unclampedEnd = Math.max(unclampedStart, endLine + contextLines);
+  const unclampedStart = Math.max(1, startLine - context.before);
+  const unclampedEnd = Math.max(unclampedStart, endLine + context.after);
   const clampedStart = Math.min(unclampedStart, maxLine);
   const clampedEnd = Math.max(clampedStart, Math.min(unclampedEnd, maxLine));
 
   return { startLine: clampedStart, endLine: clampedEnd };
 }
 
-/** Consecutive hunks (by `fileOrder`) form one group; a gap starts a new one. */
-export function groupSelectedHunks(hunks: readonly ResolvedDiffHunk[]): ResolvedDiffHunk[][] {
+/**
+ * Unchanged lines between two hunks of one file, `earlier` before `later`.
+ * The same count on either side, since nothing between them changed; a side
+ * where either hunk has no lines places it after the line it names.
+ */
+function linesBetween(earlier: DiffLineSpan, later: DiffLineSpan): number {
+  const after =
+    earlier.lineCount > 0 ? earlier.startLine + earlier.lineCount : earlier.startLine + 1;
+  const first = later.lineCount > 0 ? later.startLine : later.startLine + 1;
+  return Math.max(0, first - after);
+}
+
+/**
+ * How much context a group may take before and after it without reaching
+ * another hunk. `neighbours` holds the cited hunks as well as the file's, so
+ * a group stops short of a cited neighbour even where the file carries no
+ * catalog.
+ */
+function contextFor(
+  group: readonly ResolvedDiffHunk[],
+  neighbours: readonly ResolvedDiffHunk[],
+  contextLines: number,
+): { before: number; after: number } {
+  const first = group[0]!;
+  const last = group.at(-1)!;
+  const previous = neighbours.find((hunk) => hunk.fileOrder === first.fileOrder - 1);
+  const next = neighbours.find((hunk) => hunk.fileOrder === last.fileOrder + 1);
+  const gap = (a: ResolvedDiffHunk, b: ResolvedDiffHunk) =>
+    Math.min(linesBetween(a.original, b.original), linesBetween(a.modified, b.modified));
+  return {
+    before: previous ? Math.min(contextLines, gap(previous, first)) : contextLines,
+    after: next ? Math.min(contextLines, gap(last, next)) : contextLines,
+  };
+}
+
+/**
+ * Consecutive hunks (by `fileOrder`) form one group, and a hunk this chapter
+ * does not cite between two it does starts a new one. Tier never splits a
+ * group: skim lines are faded inside the one editor, so a file reads as one
+ * piece and the editor's find reaches all of it.
+ */
+export function groupSelectedHunks(hunks: readonly CitedHunk[]): CitedHunk[][] {
   const sorted = hunks.toSorted((a, b) => a.fileOrder - b.fileOrder);
-  const groups: ResolvedDiffHunk[][] = [];
+  const groups: CitedHunk[][] = [];
 
   for (const hunk of sorted) {
     const current = groups.at(-1);
@@ -90,22 +139,29 @@ export function groupSelectedHunks(hunks: readonly ResolvedDiffHunk[]): Resolved
   return groups;
 }
 
-/** "L8-10, orig L20-21": modified ranges, falling back to original for pure deletions. */
+/**
+ * "L8-10, orig L20-21": modified ranges, falling back to original for pure
+ * deletions. Ranges that touch are joined, so the flush parts of a split hunk
+ * read as the one block they came from.
+ */
 export function formatSelectedHunkLabel(hunks: readonly ResolvedDiffHunk[]): string {
-  return hunks
-    .toSorted((a, b) => a.fileOrder - b.fileOrder)
-    .map((hunk) => {
-      if (hunk.modified.lineCount > 0) {
-        const end = getSpanEndLine(hunk.modified.startLine, hunk.modified.lineCount);
-        return hunk.modified.lineCount === 1
-          ? `L${String(hunk.modified.startLine)}`
-          : `L${String(hunk.modified.startLine)}-${String(end)}`;
-      }
-      const end = getSpanEndLine(hunk.original.startLine, hunk.original.lineCount);
-      return hunk.original.lineCount === 1
-        ? `orig L${String(hunk.original.startLine)}`
-        : `orig L${String(hunk.original.startLine)}-${String(end)}`;
-    })
+  const ranges: { prefix: string; start: number; end: number }[] = [];
+  for (const hunk of hunks.toSorted((a, b) => a.fileOrder - b.fileOrder)) {
+    const [prefix, span] =
+      hunk.modified.lineCount > 0 ? ['L', hunk.modified] : ['orig L', hunk.original];
+    const start = span.startLine;
+    const end = getSpanEndLine(span.startLine, span.lineCount);
+    const previous = ranges.at(-1);
+    if (previous?.prefix === prefix && start <= previous.end + 1) {
+      previous.end = Math.max(previous.end, end);
+    } else {
+      ranges.push({ prefix, start, end });
+    }
+  }
+  return ranges
+    .map(({ prefix, start, end }) =>
+      start === end ? `${prefix}${String(start)}` : `${prefix}${String(start)}-${String(end)}`,
+    )
     .join(', ');
 }
 
@@ -116,24 +172,27 @@ export function buildInlineDiffSnippets({
   originalLineCount = countLines(original),
   modifiedLineCount = countLines(modified),
   contextLines = 5,
+  fileHunks = [],
 }: BuildInlineDiffSnippetsParams): InlineDiffSnippet[] {
   const snippets: InlineDiffSnippet[] = [];
+  const neighbours = [...fileHunks, ...hunks];
 
   for (const group of groupSelectedHunks(hunks)) {
     const firstHunk = group[0];
     const lastHunk = group.at(-1);
     if (!firstHunk || !lastHunk) continue;
+    const context = contextFor(group, neighbours, contextLines);
 
     const originalBounds = buildSliceBounds(
       getSpanStartLine(firstHunk.original.startLine, firstHunk.original.lineCount),
       getSpanEndLine(lastHunk.original.startLine, lastHunk.original.lineCount),
-      contextLines,
+      context,
       originalLineCount,
     );
     const modifiedBounds = buildSliceBounds(
       getSpanStartLine(firstHunk.modified.startLine, firstHunk.modified.lineCount),
       getSpanEndLine(lastHunk.modified.startLine, lastHunk.modified.lineCount),
-      contextLines,
+      context,
       modifiedLineCount,
     );
 
@@ -152,6 +211,7 @@ export function buildInlineDiffSnippets({
       modified: modifiedSnippet,
       originalStartLine: originalBounds?.startLine ?? 1,
       modifiedStartLine: modifiedBounds?.startLine ?? 1,
+      hunks: group,
     });
   }
 

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUNDLE_PLACEHOLDER, readEmbeddedBundle } from '../review/bundle-html.ts';
 import { withFileHunks } from '../review/coverage.ts';
 import type { RunContext } from './context.ts';
+import { Shell } from './git.ts';
 import { parseRun, readFindings, readReview } from './parse.ts';
 import { renderRun, reportShell } from './render.ts';
 import { runFiles, type RunFiles } from './run-folder.ts';
@@ -12,6 +13,12 @@ import { writeStubRun } from './stub-run.ts';
 import { SHELL_STAMP_FILE, shellSourceStamp } from './shell-stamp.ts';
 
 vi.mock('./terminal.ts', () => ({ note: vi.fn() }));
+
+/** The stub cites no excerpt, so nothing here may need git. */
+const noGit = new Shell('.', {
+  git: () => Promise.reject(new Error('these stages read no git')),
+  gh: () => Promise.reject(new Error('these stages read no gh')),
+});
 
 let root: string;
 let run: RunFiles;
@@ -28,6 +35,7 @@ const hunk = (id: string, filename: string, fileOrder: number) => ({
   fileOrder,
   original: { startLine: fileOrder * 10, lineCount: 3 },
   modified: { startLine: fileOrder * 10, lineCount: 4 },
+  changedLines: 4,
 });
 
 function context(overrides: Partial<RunContext> = {}): RunContext {
@@ -43,7 +51,10 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
     },
     meta: {
       repo: 'acme/widgets',
+      kind: 'branch',
       title: 'Staged changes on main',
+      baseSha: 'a'.repeat(40),
+      headSha: 'b'.repeat(40),
       prNumber: null,
       baseRefName: 'main',
       headRefName: 'staged',
@@ -84,7 +95,7 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
 describe('stub run → parse', () => {
   it('gives each reviewed file a chapter citing all its hunks', async () => {
     await writeStubRun(context(), run);
-    const { review, findings } = await parseRun(context(), run);
+    const { review, findings } = await parseRun(context(), run, noGit);
 
     expect(review.prTitle).toBe('Staged changes on main');
     // The stub's own event log says the run ended cleanly, so nothing to report.
@@ -99,6 +110,8 @@ describe('stub run → parse', () => {
       { title: 'a.ts', cited: ['H0001', 'H0002'] },
       { title: 'b.ts', cited: ['H0003'] },
     ]);
+    // No model chose a brief, so the first chapter stands in for it.
+    expect(review.readingPlan).toEqual({ brief: ['file-1'], standard: ['file-1', 'file-2'] });
     // The files come from context, each carrying its share of the catalog.
     expect(review.files).toEqual(withFileHunks(context().files, context().hunks));
     expect(review.files?.map((file) => file.hunks?.map((h) => h.id))).toEqual([
@@ -109,17 +122,42 @@ describe('stub run → parse', () => {
     await expect(readReview(run)).resolves.toEqual(review);
   });
 
+  it('skims a whitespace-only hunk and reads the rest, a move unchanged included', async () => {
+    const tiered = context({
+      hunks: [
+        hunk('H0001', 'src/a.ts', 1),
+        { ...hunk('H0002', 'src/a.ts', 2), whitespaceOnly: true },
+        { ...hunk('H0003', 'src/b.ts', 1), movedFrom: { filename: 'src/a.ts', similarity: 100 } },
+        { ...hunk('H0004', 'src/b.ts', 2), movedFrom: { filename: 'src/a.ts', similarity: 90 } },
+      ],
+    });
+    await writeStubRun(tiered, run);
+    const { review, findings } = await parseRun(tiered, run, noGit);
+
+    expect(findings).toEqual([]);
+    expect(
+      review.chapters.flatMap((chapter) =>
+        chapter.diffChunks.flatMap((chunk) => chunk.hunks.map((h) => [h.id, h.tier])),
+      ),
+    ).toEqual([
+      ['H0001', 'read'],
+      ['H0002', 'skim'],
+      ['H0003', 'read'],
+      ['H0004', 'read'],
+    ]);
+  });
+
   it('still writes a review when every file was skipped', async () => {
     const onlySkipped = context({ files: [context().files[2]!], hunks: [], contents: {} });
     await writeStubRun(onlySkipped, run);
-    const { review } = await parseRun(onlySkipped, run);
+    const { review } = await parseRun(onlySkipped, run, noGit);
     expect(review.chapters.map((chapter) => chapter.id)).toEqual(['nothing-reviewed']);
   });
 
   it("points at raw.txt when the model's answer does not parse", async () => {
     await writeStubRun(context(), run);
     writeFileSync(run.raw, 'I could not finish the review.');
-    await expect(parseRun(context(), run)).rejects.toThrow(
+    await expect(parseRun(context(), run, noGit)).rejects.toThrow(
       `The answer contains no complete <narrative_review> block. The model's answer is in ${run.raw}; ` +
         'fix it there and rerun with --from parse',
     );
@@ -128,7 +166,7 @@ describe('stub run → parse', () => {
   it('writes the findings of a failed parse, and no review to render from', async () => {
     await writeStubRun(context(), run);
     writeFileSync(run.raw, 'I could not finish the review.');
-    await expect(parseRun(context(), run)).rejects.toThrow(/no complete <narrative_review>/);
+    await expect(parseRun(context(), run, noGit)).rejects.toThrow(/no complete <narrative_review>/);
 
     expect(JSON.parse(readFileSync(run.findings, 'utf8'))).toEqual([
       {
@@ -142,14 +180,16 @@ describe('stub run → parse', () => {
 
   it('takes the review an earlier parse wrote away with it when it fails', async () => {
     await writeStubRun(context(), run);
-    await parseRun(context(), run);
+    await parseRun(context(), run, noGit);
     expect(existsSync(run.review)).toBe(true);
+    expect(existsSync(run.excerpts)).toBe(true);
 
     writeFileSync(run.raw, 'I could not finish the review.');
-    await expect(parseRun(context(), run)).rejects.toThrow(/no complete <narrative_review>/);
+    await expect(parseRun(context(), run, noGit)).rejects.toThrow(/no complete <narrative_review>/);
 
     // Left there, `--from render` would draw the earlier answer as this run's.
     expect(existsSync(run.review)).toBe(false);
+    expect(existsSync(run.excerpts)).toBe(false);
   });
 
   it('reads what the run itself cost off events.jsonl, so --from parse reports it too', async () => {
@@ -164,7 +204,7 @@ describe('stub run → parse', () => {
       ].join('\n'),
     );
 
-    const { findings } = await parseRun(context(), run);
+    const { findings } = await parseRun(context(), run, noGit);
 
     expect(findings.map((item) => [item.code, item.severity])).toEqual([
       ['commands-refused', 'warning'],
@@ -182,7 +222,7 @@ describe('stub run → parse', () => {
       `${JSON.stringify({ type: 'result', subtype: 'error_max_turns' })}\n`,
     );
 
-    const failure = await parseRun(context(), run).then(
+    const failure = await parseRun(context(), run, noGit).then(
       () => new Error('the parse did not fail'),
       (error: unknown) => error as Error,
     );
@@ -198,7 +238,9 @@ describe('stub run → parse', () => {
     await writeStubRun(context(), run);
     writeFileSync(run.events, `${JSON.stringify({ type: 'tool', tool: 'Read' })}\n`);
 
-    await expect(parseRun(context(), run)).rejects.toThrow(/did not finish cleanly \(no result\)/);
+    await expect(parseRun(context(), run, noGit)).rejects.toThrow(
+      /did not finish cleanly \(no result\)/,
+    );
   });
 
   /** An empty findings list and no record of the run are not the same thing. */
@@ -206,13 +248,13 @@ describe('stub run → parse', () => {
     await writeStubRun(context(), run);
     rmSync(run.events);
 
-    await expect(parseRun(context(), run)).rejects.toThrow(
+    await expect(parseRun(context(), run, noGit)).rejects.toThrow(
       /no record of how the run ended.*Run again from the run stage/s,
     );
   });
 
   it('says which stage to run when a stage file is missing', async () => {
-    await expect(parseRun(context(), run)).rejects.toThrow(/no raw\.txt in .*earlier stage/);
+    await expect(parseRun(context(), run, noGit)).rejects.toThrow(/no raw\.txt in .*earlier stage/);
     await expect(readReview(run)).rejects.toThrow(/no review\.json in .*earlier stage/);
     await expect(readFindings(run)).rejects.toThrow(/no findings\.json in .*run from parse/);
   });
@@ -220,7 +262,7 @@ describe('stub run → parse', () => {
   it('refuses to hand a render stage the findings of a parse that failed', async () => {
     await writeStubRun(context(), run);
     writeFileSync(run.raw, 'I could not finish the review.');
-    await expect(parseRun(context(), run)).rejects.toThrow(/no complete <narrative_review>/);
+    await expect(parseRun(context(), run, noGit)).rejects.toThrow(/no complete <narrative_review>/);
 
     await expect(readFindings(run)).rejects.toThrow(
       /the last parse failed; run from parse\. The answer contains no complete/,
@@ -241,18 +283,22 @@ describe('stub run → parse', () => {
         JSON.stringify({ ms: 3, type: 'result', subtype: 'success', isError: false }),
       ].join('\n'),
     );
-    const { findings } = await parseRun(context(), run);
+    const { findings } = await parseRun(context(), run, noGit);
 
     await expect(readFindings(run)).resolves.toEqual(findings);
   });
 });
+
+function excerpt(startLine: number, endLine: number, filename = 'src/runner.ts') {
+  return { filename, startLine, endLine, reason: 'Reads it.' };
+}
 
 describe('render', () => {
   const shellHtml = `<!doctype html><title>r</title>${BUNDLE_PLACEHOLDER}<div id="root"></div>`;
 
   it('packs the review, header and file contents into the report shell', async () => {
     await writeStubRun(context(), run);
-    const { review } = await parseRun(context(), run);
+    const { review } = await parseRun(context(), run, noGit);
     const at = new Date('2026-09-11T10:00:00.000Z');
 
     await renderRun(context(), review, run, { reportShell: async () => shellHtml }, at);
@@ -264,10 +310,95 @@ describe('render', () => {
       ok: true,
       bundle: {
         generatedAt: at.toISOString(),
-        meta: { title: 'Staged changes on main' },
+        meta: { title: 'Staged changes on main', baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40) },
         review: { chapters: [{ title: 'a.ts' }, { title: 'b.ts' }] },
         files: { 'src/b.ts': { head: { kind: 'content', content: '</script>\n' } } },
       },
+    });
+  });
+
+  it.each([
+    ['an excerpt excerpts.json does not have', 'src/runner.ts', {}],
+    ['an excerpt of a changed file', 'src/a.ts', { 'src/a.ts': 'a' }],
+    ['an excerpt named after an object member excerpts.json does not have', 'toString', {}],
+    [
+      'an excerpt past the end of the text excerpts.json holds',
+      'src/runner.ts',
+      { 'src/runner.ts': '' },
+    ],
+  ])(
+    'refuses %s, since review.json and excerpts.json came from different parses',
+    async (_, filename, excerpts) => {
+      await writeStubRun(context(), run);
+      const { review } = await parseRun(context(), run, noGit);
+      writeFileSync(run.excerpts, JSON.stringify(excerpts));
+      const [first, ...rest] = review.chapters;
+      const excerpted = {
+        ...review,
+        chapters: [
+          {
+            ...first!,
+            contextExcerpts: [{ filename, startLine: 1, endLine: 1, reason: 'Reads it.' }],
+          },
+          ...rest,
+        ],
+      };
+
+      await expect(
+        renderRun(context(), excerpted, run, { reportShell: async () => shellHtml }),
+      ).rejects.toThrow(
+        `the review's excerpt of ${filename} does not match the parse that wrote it; run from parse`,
+      );
+      expect(existsSync(run.html)).toBe(false);
+    },
+  );
+
+  it('embeds an excerpted file as its head side alone, blank but for the lines excerpts show', async () => {
+    await writeStubRun(context(), run);
+    const { review } = await parseRun(context(), run, noGit);
+    const lines = Array.from({ length: 10 }, (_, at) => `line ${String(at + 1)}`);
+    writeFileSync(run.excerpts, JSON.stringify({ 'src/runner.ts': `${lines.join('\n')}\n` }));
+    const [first, second] = review.chapters;
+    const excerpted = {
+      ...review,
+      chapters: [
+        { ...first!, contextExcerpts: [excerpt(2, 3)] },
+        { ...second!, contextExcerpts: [excerpt(6, 6)] },
+      ],
+    };
+
+    await renderRun(context(), excerpted, run, { reportShell: async () => shellHtml });
+
+    const html = readFileSync(run.html, 'utf8');
+    const text = html.slice(html.indexOf('application/json">') + 18, html.lastIndexOf('</script>'));
+    const embedded = readEmbeddedBundle(text);
+    if (!embedded.ok) throw new Error(`no bundle: ${embedded.reason}`);
+    expect(embedded.bundle.files['src/runner.ts']).toEqual({
+      base: { kind: 'absent' },
+      head: { kind: 'content', content: ['', 'line 2', 'line 3', '', '', 'line 6'].join('\n') },
+    });
+  });
+
+  it('embeds a root file named after an object member like any other', async () => {
+    await writeStubRun(context(), run);
+    const { review } = await parseRun(context(), run, noGit);
+    writeFileSync(run.excerpts, JSON.stringify({ constructor: 'one\ntwo\n' }));
+    const [first, ...rest] = review.chapters;
+    const excerpted = {
+      ...review,
+      chapters: [{ ...first!, contextExcerpts: [excerpt(2, 2, 'constructor')] }, ...rest],
+    };
+
+    await renderRun(context(), excerpted, run, { reportShell: async () => shellHtml });
+
+    const html = readFileSync(run.html, 'utf8');
+    const text = html.slice(html.indexOf('application/json">') + 18, html.lastIndexOf('</script>'));
+    const embedded = readEmbeddedBundle(text);
+    if (!embedded.ok) throw new Error(`no bundle: ${embedded.reason}`);
+    expect(Object.hasOwn(embedded.bundle.files, 'constructor')).toBe(true);
+    expect(embedded.bundle.files['constructor']?.head).toEqual({
+      kind: 'content',
+      content: '\ntwo',
     });
   });
 });

@@ -1,6 +1,8 @@
 import { writeFile } from 'node:fs/promises';
 import { plural } from '../review/plural.ts';
 import { detectLanguage } from '../review/language-map.ts';
+import { provenSkim } from '../review/narrative.ts';
+import type { DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
 
@@ -28,7 +30,10 @@ const STUB_RESULT = JSON.stringify({
  * `--stub`: the run stage without a model. It writes
  * `raw.txt` in the shape the model answers in, one chapter per reviewed file
  * citing every one of its hunks, so parse and render run on a real change
- * for free. The prose says plainly that nothing read the code.
+ * for free. The prose says plainly that nothing read the code. Every hunk is
+ * cited `read` and the parser skims the ones a fact proves, so the reader's
+ * faded lines can be seen without a model, and the reading plan is the first chapter for the brief and every chapter for
+ * the standard read, so the plan's block can be too.
  */
 export async function writeStubRun(context: RunContext, run: RunFiles): Promise<number> {
   const review = stubReview(context);
@@ -41,19 +46,19 @@ export async function writeStubRun(context: RunContext, run: RunFiles): Promise<
 }
 
 export function stubReview({ meta, files, hunks }: RunContext) {
-  const idsByFile = new Map<string, string[]>();
+  const byFile = new Map<string, DiffHunk[]>();
   for (const hunk of hunks) {
-    idsByFile.set(hunk.filename, [...(idsByFile.get(hunk.filename) ?? []), hunk.id]);
+    byFile.set(hunk.filename, [...(byFile.get(hunk.filename) ?? []), hunk]);
   }
   const chapters = files
-    .filter((file) => !file.skipped && idsByFile.has(file.filename))
+    .filter((file) => !file.skipped && byFile.has(file.filename))
     .map((file, index) => {
-      const ids = idsByFile.get(file.filename)!;
+      const fileHunks = byFile.get(file.filename)!;
       return {
         id: `file-${String(index + 1)}`,
         title: file.filename.split('/').at(-1)!,
         description: {
-          lede: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${plural(ids.length, 'hunk')}.`,
+          lede: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${plural(fileHunks.length, 'hunk')}.`,
         },
         insights: [
           {
@@ -63,10 +68,31 @@ export function stubReview({ meta, files, hunks }: RunContext) {
           },
         ],
         diffChunks: [
-          { filename: file.filename, language: detectLanguage(file.filename), hunkIds: ids },
+          {
+            filename: file.filename,
+            language: detectLanguage(file.filename),
+            hunks: fileHunks.map((hunk) => ({
+              id: hunk.id,
+              tier: provenSkim(hunk) ? 'skim' : 'read',
+            })),
+          },
         ],
       };
     });
+  const reviewChapters =
+    chapters.length > 0
+      ? chapters
+      : [
+          {
+            id: 'nothing-reviewed',
+            title: 'Nothing to cite',
+            description: {
+              lede: 'Every changed file was left out of the review, so there are no hunks.',
+            },
+            insights: [],
+            diffChunks: [],
+          },
+        ];
   return {
     prTitle: meta.title,
     overviewSummary: {
@@ -75,19 +101,10 @@ export function stubReview({ meta, files, hunks }: RunContext) {
         'From `er review --stub`, so the report can be checked against a real change ' +
         'without running a model.',
     },
-    chapters:
-      chapters.length > 0
-        ? chapters
-        : [
-            {
-              id: 'nothing-reviewed',
-              title: 'Nothing to cite',
-              description: {
-                lede: 'Every changed file was left out of the review, so there are no hunks.',
-              },
-              insights: [],
-              diffChunks: [],
-            },
-          ],
+    chapters: reviewChapters,
+    readingPlan: {
+      brief: [reviewChapters[0]!.id],
+      standard: reviewChapters.map((chapter) => chapter.id),
+    },
   };
 }

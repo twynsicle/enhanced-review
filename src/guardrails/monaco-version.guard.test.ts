@@ -5,10 +5,10 @@ import { importSpecifiers, isTestFile, listFiles, readSource, report } from './h
  * Guardrail — the Monaco the reader is typechecked against and the Monaco it
  * loads are two separate declarations, and nothing else compares them.
  *
- * `inline-diff-chunk.tsx` takes its `editor` types from the `monaco-editor`
+ * The reader's editors take their `editor` types from the `monaco-editor`
  * devDependency; the runtime arrives over the network from the URL in
  * `monaco-cdn.ts`. Each moves on its own, and a property that changed shape
- * between the two versions fails in the diff panes at runtime with every other
+ * between the two versions fails in the editors at runtime with every other
  * check here already green — which is how the pair came to be a minor version
  * apart unnoticed.
  *
@@ -19,7 +19,7 @@ import { importSpecifiers, isTestFile, listFiles, readSource, report } from './h
 const CDN = 'src/report/reader/monaco-cdn.ts';
 
 /** The only module allowed to pull the editor in, because it is the one that pins the URL. */
-const CONFIGURES_THE_LOADER = 'src/report/reader/inline-diff-chunk.tsx';
+const CONFIGURES_THE_LOADER = 'src/report/reader/monaco-editors.tsx';
 
 const MONACO_PACKAGES = /^@monaco-editor\/(react|loader)$/;
 

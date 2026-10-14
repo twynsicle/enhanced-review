@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -365,6 +365,62 @@ describe('staged target', () => {
       headRefName: 'staged',
       prNumber: null,
     });
+  });
+
+  it('gives an unchanged index the same commit on every run, so its progress is kept', async () => {
+    repo.write('README.md', '# fixture\n\nstaged line\n');
+    repo.git('add', 'README.md');
+
+    const first = await resolveTarget({ kind: 'staged' }, shell().shell, { warn });
+    const second = await resolveTarget({ kind: 'staged' }, shell().shell, { warn });
+
+    expect(second.target.headSha).toBe(first.target.headSha);
+    // Dated as its parent rather than by the clock, so a run a second later agrees too.
+    const dates = (sha: string) => repo.git('log', '-1', '--format=%at %ct', sha).trim();
+    expect(dates(first.target.headSha)).toBe(
+      repo.git('log', '-1', '--format=%ct %ct', initial).trim(),
+    );
+  });
+
+  it('neither signs the commit nor reads a signature check as its date, whatever the config says', async () => {
+    // A gpg that cannot sign, and says so on every check, as a real one does
+    // on log.showSignature; and a signed HEAD for it to check.
+    const gpg = path.join(repo.work, '.git', 'fake-gpg');
+    writeFileSync(gpg, '#!/bin/sh\necho "gpg: Signature made by no one" >&2\nexit 1\n', {
+      mode: 0o755,
+    });
+    const tree = repo.git('rev-parse', 'HEAD^{tree}').trim();
+    repo.write(
+      '.git/signed-commit',
+      [
+        `tree ${tree}`,
+        `parent ${initial}`,
+        'author Test Author <author@example.test> 1700000000 +0000',
+        'committer Test Author <author@example.test> 1700000000 +0000',
+        'gpgsig -----BEGIN PGP SIGNATURE-----',
+        ' ',
+        ' iQEzBAABCAAdFiEE',
+        ' -----END PGP SIGNATURE-----',
+        '',
+        'signed',
+        '',
+      ].join('\n'),
+    );
+    const signed = repo.git('hash-object', '-t', 'commit', '-w', '.git/signed-commit').trim();
+    repo.git('reset', '--quiet', '--soft', signed);
+    repo.git('config', 'commit.gpgsign', 'true');
+    repo.git('config', 'gpg.program', gpg.split(path.sep).join('/'));
+    repo.git('config', 'log.showSignature', 'true');
+    repo.write('README.md', '# fixture\n\nstaged line\n');
+    repo.git('add', 'README.md');
+
+    const first = await resolveTarget({ kind: 'staged' }, shell().shell, { warn });
+    const second = await resolveTarget({ kind: 'staged' }, shell().shell, { warn });
+
+    expect(second.target.headSha).toBe(first.target.headSha);
+    const commit = repo.git('cat-file', 'commit', first.target.headSha);
+    expect(commit).not.toContain('gpgsig');
+    expect(commit).toContain('committer er <er@localhost> 1700000000 +0000');
   });
 
   it('refuses an empty index, whatever the working tree holds', async () => {

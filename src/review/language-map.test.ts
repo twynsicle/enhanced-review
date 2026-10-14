@@ -22,6 +22,9 @@ describe('detectLanguage', () => {
     expect(detectLanguage('package.json')).toBe('json');
     expect(detectLanguage('README.md')).toBe('markdown');
     expect(detectLanguage('styles.css')).toBe('css');
+    expect(detectLanguage('app.coffee')).toBe('coffeescript');
+    expect(detectLanguage('Domain.fs')).toBe('fsharp');
+    expect(detectLanguage('page.pug')).toBe('pug');
   });
 
   it('is case insensitive for extensions', () => {

@@ -27,6 +27,8 @@ export interface RunFiles {
   review: string;
   /** Finding[]: what validating the answer, and the run behind it, turned up. */
   findings: string;
+  /** The text of each file the review's excerpts show, read at the head commit by the parse stage. */
+  excerpts: string;
   html: string;
 }
 
@@ -42,6 +44,7 @@ export function runFiles(folder: string): RunFiles {
     events: path.join(folder, 'events.jsonl'),
     review: path.join(folder, 'review.json'),
     findings: path.join(folder, 'findings.json'),
+    excerpts: path.join(folder, 'excerpts.json'),
     html: path.join(folder, 'review.html'),
   };
 }

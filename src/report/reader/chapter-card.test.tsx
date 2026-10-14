@@ -7,7 +7,7 @@ import { ChapterCard, groupInsightsByFile, orderChunksTestsLast } from './chapte
 
 vi.mock('@monaco-editor/react', () => ({
   DiffEditor: () => <div data-testid="diff-editor" />,
-  loader: { config: () => {}, init: () => Promise.resolve({}) },
+  loader: { config: () => {}, init: () => Promise.resolve({ editor: { defineTheme: () => {} } }) },
 }));
 
 function chunk(filename: string): DiffChunk {
@@ -62,7 +62,10 @@ describe('<ChapterCard /> with a mix of insights', () => {
       generatedAt: '2026-09-11T10:00:00.000Z',
       meta: {
         repo: 'a/r',
+        kind: 'branch',
         title: 't',
+        baseSha: 'a'.repeat(40),
+        headSha: 'b'.repeat(40),
         prNumber: null,
         baseRefName: null,
         headRefName: null,
@@ -77,6 +80,7 @@ describe('<ChapterCard /> with a mix of insights', () => {
       <EmbeddedFileSource bundle={bundle}>
         <ChapterCard
           chapter={chapter}
+          meta={bundle.meta}
           chapterIndex={1}
           {...(judgementCalls ? { judgementCalls } : {})}
         />
@@ -106,6 +110,11 @@ describe('<ChapterCard /> with a mix of insights', () => {
     expect(
       orientation.compareDocumentPosition(firstFigure!) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it('gives its reading time on the header’s meta line, after the counts', () => {
+    renderCard();
+    expect(screen.getByText('2 files touched · 2 insights · ~1 min')).toBeDefined();
   });
 
   it('draws the description as a lede over a Markdown body', () => {

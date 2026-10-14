@@ -1,12 +1,59 @@
 import { describe, expect, it } from 'vitest';
 import { DIAGRAM_LIMITS } from '../diagram.ts';
+import { MAX_CONTEXT_EXCERPTS, MAX_EXCERPT_LINES } from '../narrative.ts';
 import { LOCAL_WORKING_TREE, NARRATIVE_SYSTEM_PROMPT } from './instructions.ts';
 
 describe('the review instructions', () => {
-  it('ask for the tagged block and the hunk ids', () => {
+  it('ask for the tagged block and the hunks each chapter cites', () => {
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('<narrative_review>');
-    expect(NARRATIVE_SYSTEM_PROMPT).toContain('hunkIds');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"hunks": [');
     expect(NARRATIVE_SYSTEM_PROMPT).not.toContain('working tree');
+  });
+
+  it('define both attention tiers, a test’s cases and types as read, and what the hints are for', () => {
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"tier": "read | skim —');
+    for (const tier of ['read', 'skim']) {
+      expect(NARRATIVE_SYSTEM_PROMPT).toContain(`- "${tier}":`);
+    }
+    expect(NARRATIVE_SYSTEM_PROMPT).not.toContain('mechanical"');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('When unsure, choose "read"');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('A test case is read whole');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('no hunk is skim for its brackets');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain(
+      'type declarations, interfaces, schemas and signatures',
+    );
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('[whitespace only]');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('is shown as skim whatever tier you give it');
+  });
+
+  it('order the chapters cause first, since the order of the list is the reading order', () => {
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain(
+      'the reader never meets a consequence before its cause',
+    );
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('the shared wiring-and-docs chapter comes last');
+  });
+
+  it('ask for a reading plan of chapter ids, a brief within a standard, and no minutes', () => {
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"readingPlan": {');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"brief": ["string — the id of a chapter');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"standard": ["string — the id of a chapter');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('Reading plan:');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('It holds every brief chapter');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('do not estimate a time');
+  });
+
+  it('offer excerpts of unchanged code, capped as the parser caps them, never of a changed file', () => {
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"contextExcerpts": "optional list');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('"startLine": "number');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('Affected unchanged code:');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain(
+      `up to ${String(MAX_CONTEXT_EXCERPTS)} excerpts of code the change does not touch`,
+    );
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain(`at most ${String(MAX_EXCERPT_LINES)}`);
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain(
+      'Never a file listed in Files Changed or Not Reviewed',
+    );
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('Only lines you have read');
   });
 
   it('state the diagram contract with the real limits, not a template hole', () => {

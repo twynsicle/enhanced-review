@@ -9,12 +9,15 @@ import { ChapterReader } from './chapter-reader';
 
 vi.mock('@monaco-editor/react', () => ({
   DiffEditor: () => <div data-testid="diff-editor" />,
-  loader: { config: () => {}, init: () => Promise.resolve({}) },
+  loader: { config: () => {}, init: () => Promise.resolve({ editor: { defineTheme: () => {} } }) },
 }));
 
 const meta: ReviewMeta = {
   repo: 'acme/widgets',
+  kind: 'pr',
   title: 'Add scheduled reviews',
+  baseSha: 'a'.repeat(40),
+  headSha: 'b'.repeat(40),
   prNumber: 7,
   baseRefName: null,
   headRefName: null,

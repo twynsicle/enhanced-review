@@ -3,8 +3,26 @@ import { fatalFindings } from '../findings.ts';
 import { buildDiffHunkIndex, groundingFor } from './diff-hunk-catalog.ts';
 import { escapeStrayQuotes, parseNarrativeReview, type ParseResult } from './parse-narrative.ts';
 
-function wrap(payload: unknown): string {
-  return `Sure, here you go:\n<narrative_review>${JSON.stringify(payload)}</narrative_review>\nDone.`;
+type Payload = Record<string, unknown>;
+
+/**
+ * The payload as a model following the prompt sends it, with a reading plan
+ * of its first chapter for the brief and every chapter for the standard read,
+ * so that a test about something else is not also a test of a missing plan.
+ * A payload that names `readingPlan`, even as undefined, keeps its own.
+ */
+function withPlan(payload: Payload): Payload {
+  const chapters: unknown[] = Array.isArray(payload['chapters']) ? payload['chapters'] : [];
+  if ('readingPlan' in payload || chapters.length === 0) return payload;
+  const ids = chapters.map((chapter, index) => {
+    const id = (chapter as Payload | null)?.['id'];
+    return typeof id === 'string' && id.length > 0 ? id : `chapter-${String(index + 1)}`;
+  });
+  return { ...payload, readingPlan: { brief: ids.slice(0, 1), standard: ids } };
+}
+
+function wrap(payload: Payload): string {
+  return `Sure, here you go:\n<narrative_review>${JSON.stringify(withPlan(payload))}</narrative_review>\nDone.`;
 }
 
 /** What a failed parse reports: its first fatal finding. Null when it parses. */
@@ -18,10 +36,13 @@ function error(text: string): string | null {
 
 const codes = (result: ParseResult) => result.findings.map((f) => f.code);
 
+/** Citations at the `read` tier, the shape a model that tiers everything conservatively sends. */
+const read = (ids: string[]) => ids.map((id) => ({ id, tier: 'read' }));
+
 const cite = (filename: string, hunkIds: string[]) => ({
   filename,
   language: 'typescript',
-  hunkIds,
+  hunks: read(hunkIds),
 });
 
 const DIFF = `diff --git a/src/a.ts b/src/a.ts
@@ -127,7 +148,7 @@ describe('parseNarrativeReview', () => {
               { type: 'context' },
               'not an insight',
             ],
-            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
+            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunks: read(['H0001']) }],
           },
         ],
       }),
@@ -152,6 +173,8 @@ describe('parseNarrativeReview', () => {
                 fileOrder: 1,
                 original: { startLine: 1, lineCount: 3 },
                 modified: { startLine: 1, lineCount: 4 },
+                changedLines: 1,
+                tier: 'read',
               },
             ],
           },
@@ -172,7 +195,7 @@ describe('parseNarrativeReview', () => {
             id: 'real',
             title: 'Real',
             insights: [],
-            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
+            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunks: read(['H0001']) }],
           },
         ],
       }),
@@ -212,11 +235,11 @@ describe('parseNarrativeReview', () => {
               {
                 filename: 'src/a.ts',
                 language: 'typescript',
-                hunkIds: ['H0002', 'H0001', 'H0002', 'H0003', 'H9999'],
+                hunks: read(['H0002', 'H0001', 'H0002', 'H0003', 'H9999']),
               },
-              { filename: 'src/b.ts', hunkIds: ['H0001'] },
-              { filename: 'src/b.ts', language: 'typescript', hunkIds: ['H0003'] },
-              { hunkIds: ['H0003'] },
+              { filename: 'src/b.ts', hunks: read(['H0001']) },
+              { filename: 'src/b.ts', language: 'typescript', hunks: read(['H0003']) },
+              { hunks: read(['H0003']) },
             ],
           },
         ],
@@ -233,12 +256,16 @@ describe('parseNarrativeReview', () => {
             fileOrder: 1,
             original: { startLine: 1, lineCount: 3 },
             modified: { startLine: 1, lineCount: 4 },
+            changedLines: 1,
+            tier: 'read',
           },
           {
             id: 'H0002',
             fileOrder: 2,
             original: { startLine: 20, lineCount: 2 },
             modified: { startLine: 21, lineCount: 3 },
+            changedLines: 1,
+            tier: 'read',
           },
         ],
       },
@@ -251,6 +278,8 @@ describe('parseNarrativeReview', () => {
             fileOrder: 1,
             original: { startLine: 5, lineCount: 1 },
             modified: { startLine: 5, lineCount: 1 },
+            changedLines: 2,
+            tier: 'read',
           },
         ],
       },
@@ -262,7 +291,9 @@ describe('parseNarrativeReview', () => {
       wrap({
         prTitle: 't',
         overviewSummary: { lede: 's' },
-        chapters: [{ id: 'c', title: 'C', diffChunks: [{ filename: 'a', hunkIds: ['H0001'] }] }],
+        chapters: [
+          { id: 'c', title: 'C', diffChunks: [{ filename: 'a', hunks: read(['H0001']) }] },
+        ],
       }),
     );
     expect(result.ok && result.data.chapters[0]?.diffChunks).toEqual([]);
@@ -315,7 +346,7 @@ describe('parseNarrativeReview', () => {
             id: 'one',
             title: 'One',
             insights: [],
-            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
+            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunks: read(['H0001']) }],
             diagram,
           },
         ],
@@ -356,13 +387,13 @@ const chapter = (description: unknown) => ({
       title: 'C',
       description,
       insights: [],
-      diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
+      diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunks: read(['H0001']) }],
     },
   ],
 });
 
 describe('prose passages', () => {
-  const parse = (payload: unknown) =>
+  const parse = (payload: Payload) =>
     parseNarrativeReview(wrap(payload), groundingFor(buildDiffHunkIndex(DIFF).hunks));
 
   it('keeps a lede and a body apart', () => {
@@ -420,9 +451,9 @@ describe('a chapter that splits one file across two chunks', () => {
             title: 'C',
             insights: [{ type: 'highlight', text: 'Once, not twice.', filename: 'src/a.ts' }],
             diffChunks: [
-              { filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0002'] },
-              { filename: 'src/a.ts', language: 'plaintext', hunkIds: ['H0001', 'H0002'] },
-              { filename: 'src/b.ts', language: 'typescript', hunkIds: ['H0003'] },
+              { filename: 'src/a.ts', language: 'typescript', hunks: read(['H0002']) },
+              { filename: 'src/a.ts', language: 'plaintext', hunks: read(['H0001', 'H0002']) },
+              { filename: 'src/b.ts', language: 'typescript', hunks: read(['H0003']) },
             ],
           },
         ],
@@ -454,7 +485,7 @@ describe('an insight anchored to a file', () => {
             title: 'C',
             description: { lede: 'd' },
             insights,
-            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
+            diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunks: read(['H0001']) }],
           },
         ],
       }),
@@ -640,6 +671,70 @@ describe('what a repair records', () => {
     ]);
   });
 
+  it('gives a repeated chapter id a fresh one, the first holder keeping it, and warns', () => {
+    const result = parse(
+      [
+        { id: 'auth', title: 'A', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+        { id: 'auth', title: 'B', insights: [], diffChunks: [cite('src/a.ts', ['H0002'])] },
+        { id: '__summary__', title: 'C', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+      ],
+      { readingPlan: { brief: ['auth'], standard: ['auth'] } },
+    );
+    expect(result.ok && result.data.chapters.map((c) => c.id)).toEqual([
+      'auth',
+      'chapter-2',
+      'chapter-3',
+    ]);
+    expect(result.ok && result.data.readingPlan).toEqual({ brief: ['auth'], standard: ['auth'] });
+    expect(result.findings.filter((f) => f.code === 'chapter-id-duplicate')).toEqual([
+      expect.objectContaining({ severity: 'warning', chapterId: 'chapter-2' }),
+      expect.objectContaining({ severity: 'warning', chapterId: 'chapter-3' }),
+    ]);
+  });
+
+  it('keeps every model id a synthesised one would have taken, and synthesises around it', () => {
+    const result = parse(
+      [
+        { title: 'A', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+        { id: 'chapter-1', title: 'B', insights: [], diffChunks: [cite('src/a.ts', ['H0002'])] },
+        { id: 'chapter-4', title: 'C', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+        { title: 'D', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+      ],
+      { readingPlan: { brief: ['chapter-1'], standard: ['chapter-1'] } },
+    );
+    expect(result.ok && result.data.chapters.map((c) => c.id)).toEqual([
+      'chapter-1-2',
+      'chapter-1',
+      'chapter-4',
+      'chapter-4-2',
+    ]);
+    expect(codes(result).filter((code) => code.startsWith('chapter-id'))).toEqual([
+      'chapter-id-synthesised',
+      'chapter-id-synthesised',
+    ]);
+    expect(result.ok && result.data.readingPlan?.brief).toEqual(['chapter-1']);
+  });
+
+  it('never gives a made-up id to a chapter whose own id a later chapter holds', () => {
+    const result = parse(
+      [
+        { title: 'A', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+        { id: 'x', title: 'B', insights: [], diffChunks: [cite('src/a.ts', ['H0002'])] },
+        { id: 'chapter-1', title: 'C', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+        { id: 'chapter-3', title: 'D', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+      ],
+      { readingPlan: { brief: ['chapter-3'], standard: ['chapter-3'] } },
+    );
+    expect(result.ok && result.data.chapters.map((c) => [c.id, c.title])).toEqual([
+      ['chapter-1-2', 'A'],
+      ['x', 'B'],
+      ['chapter-1', 'C'],
+      ['chapter-3', 'D'],
+    ]);
+    expect(codes(result)).not.toContain('chapter-id-duplicate');
+    expect(result.ok && result.data.readingPlan?.brief).toEqual(['chapter-3']);
+  });
+
   it('notes prose that arrived as a bare string, and prose that arrived with no lede', () => {
     const result = parse([
       {
@@ -726,7 +821,7 @@ describe('what a repair records', () => {
     expect(codes(patched)).toEqual(['risk-part-dropped', 'risk-part-dropped']);
   });
 
-  it('notes a chunk that names no file, and one with no hunk id to resolve', () => {
+  it('notes a chunk that names no file, and one with no hunk to resolve', () => {
     const result = parse([
       {
         id: 'c',
@@ -734,9 +829,9 @@ describe('what a repair records', () => {
         insights: [],
         diffChunks: [
           'src/a.ts',
-          { language: 'typescript', hunkIds: ['H0001'] },
-          { filename: 'src/b.ts', language: 'typescript', hunkIds: 'H0003' },
-          { filename: 'src/a.ts', language: 'typescript', hunkIds: [] },
+          { language: 'typescript', hunks: read(['H0001']) },
+          { filename: 'src/b.ts', language: 'typescript', hunks: 'H0003' },
+          { filename: 'src/a.ts', language: 'typescript', hunks: read([]) },
           cite('src/a.ts', ['H0001']),
         ],
       },
@@ -752,7 +847,7 @@ describe('what a repair records', () => {
       chapterId: 'c',
       filename: 'src/b.ts',
     });
-    expect(result.findings[2]?.message).toContain('no hunk id to resolve');
+    expect(result.findings[2]?.message).toContain('no hunk to resolve');
     // The one usable chunk keeps the chapter, so nothing here is fatal.
     expect(result.ok).toBe(true);
   });
@@ -823,7 +918,7 @@ describe('an answer that contains more than one block', () => {
           id: chapterId,
           title: 'C',
           insights: [],
-          diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunkIds: ['H0001'] }],
+          diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunks: read(['H0001']) }],
         },
       ],
     });
@@ -1025,5 +1120,540 @@ describe('the repairs a reader never sees', () => {
     const dropped = result.findings.find((f) => f.code === 'hunk-id-dropped');
     expect(dropped).toBeDefined();
     expect(dropped && 'filename' in dropped).toBe(false);
+  });
+});
+
+/** Each cited hunk of the first chapter as [id, tier]. */
+const tiers = (result: ParseResult) =>
+  result.ok
+    ? result.data.chapters[0]!.diffChunks.flatMap((chunk) =>
+        chunk.hunks.map((hunk) => [hunk.id, hunk.tier]),
+      )
+    : null;
+
+describe('a cited hunk’s tier', () => {
+  const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
+  const parse = (...chunks: unknown[]): ParseResult =>
+    parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [{ id: 'c', title: 'C', insights: [], diffChunks: chunks }],
+      }),
+      grounding,
+    );
+  it('keeps each tier as sent', () => {
+    const result = parse(
+      {
+        filename: 'src/a.ts',
+        language: 'typescript',
+        hunks: [
+          { id: 'H0001', tier: 'skim' },
+          { id: 'H0002', tier: 'skim' },
+        ],
+      },
+      { filename: 'src/b.ts', language: 'typescript', hunks: [{ id: 'H0003', tier: 'read' }] },
+    );
+    expect(tiers(result)).toEqual([
+      ['H0001', 'skim'],
+      ['H0002', 'skim'],
+      ['H0003', 'read'],
+    ]);
+    expect(result.findings).toEqual([]);
+  });
+
+  it('keeps a skim hunk’s reason, trimmed, and drops one on a read hunk or a blank one', () => {
+    const result = parse(
+      {
+        filename: 'src/a.ts',
+        language: 'typescript',
+        hunks: [
+          { id: 'H0001', tier: 'skim', skimReason: '  test fixtures ' },
+          { id: 'H0002', tier: 'skim', skimReason: ' ' },
+        ],
+      },
+      {
+        filename: 'src/b.ts',
+        language: 'typescript',
+        hunks: [{ id: 'H0003', tier: 'read', skimReason: 'imports' }],
+      },
+    );
+    const reasons = result.ok
+      ? result.data.chapters[0]!.diffChunks.flatMap((chunk) =>
+          chunk.hunks.map((hunk) => [hunk.id, hunk.skimReason]),
+        )
+      : null;
+    expect(reasons).toEqual([
+      ['H0001', 'test fixtures'],
+      ['H0002', undefined],
+      ['H0003', undefined],
+    ]);
+  });
+
+  it('drops a skim reason too long to be a label, keeping the hunk skim, in one note', () => {
+    const result = parse({
+      filename: 'src/a.ts',
+      language: 'typescript',
+      hunks: [
+        {
+          id: 'H0001',
+          tier: 'skim',
+          skimReason: 'these lines only set up the shared fixtures the cases below use',
+        },
+      ],
+    });
+    const hunk = result.ok ? result.data.chapters[0]!.diffChunks[0]!.hunks[0] : null;
+    expect([hunk?.tier, hunk?.skimReason]).toEqual(['skim', undefined]);
+    expect(result.findings.map((f) => [f.code, f.hunkIds])).toEqual([
+      ['skim-reason-dropped', ['H0001']],
+    ]);
+  });
+
+  it('reads a bare id, a missing tier and an unknown one as read, in one warning', () => {
+    const result = parse(
+      {
+        filename: 'src/a.ts',
+        language: 'typescript',
+        hunks: ['H0001', { id: 'H0002', tier: 'mechanical' }],
+      },
+      { filename: 'src/b.ts', language: 'typescript', hunks: [{ id: 'H0003' }] },
+    );
+    expect(tiers(result)).toEqual([
+      ['H0001', 'read'],
+      ['H0002', 'read'],
+      ['H0003', 'read'],
+    ]);
+    expect(result.findings).toEqual([
+      expect.objectContaining({
+        code: 'hunk-tier-missing',
+        severity: 'warning',
+        hunkIds: ['H0001', 'H0002', 'H0003'],
+      }),
+    ]);
+    expect(result.findings[0]?.message).toMatch(/^3 cited hunks /);
+  });
+
+  it('raises a hunk a judgement call asks about to read on the card that asks it, in one note', () => {
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          {
+            id: 'first',
+            title: 'First',
+            insights: [],
+            diffChunks: [
+              {
+                filename: 'src/a.ts',
+                language: 'typescript',
+                hunks: [
+                  { id: 'H0001', tier: 'skim' },
+                  { id: 'H0002', tier: 'skim' },
+                ],
+              },
+              { filename: 'src/b.ts', language: 'typescript', hunks: read(['H0003']) },
+            ],
+          },
+          {
+            id: 'second',
+            title: 'Second',
+            insights: [],
+            diffChunks: [
+              {
+                filename: 'src/a.ts',
+                language: 'typescript',
+                hunks: [{ id: 'H0001', tier: 'skim' }],
+              },
+            ],
+          },
+        ],
+        judgementCalls: [
+          {
+            title: 'Q',
+            text: 'Is this import needed?',
+            filename: 'src/a.ts',
+            hunkIds: ['H0001', 'H0002'],
+          },
+          { title: 'R', text: 'Is this right?', filename: 'src/b.ts', hunkIds: ['H0003'] },
+        ],
+      }),
+      grounding,
+    );
+    expect(tiers(result)).toEqual([
+      ['H0001', 'read'],
+      ['H0002', 'read'],
+      ['H0003', 'read'],
+    ]);
+    // Only the card that draws the question is raised.
+    expect(result.ok && result.data.chapters[1]?.diffChunks[0]?.hunks[0]).toMatchObject({
+      tier: 'skim',
+    });
+    expect(result.findings).toEqual([
+      expect.objectContaining({
+        code: 'hunk-tier-raised',
+        severity: 'note',
+        hunkIds: ['H0001', 'H0002'],
+      }),
+    ]);
+  });
+
+  it('keeps the more attentive tier of a hunk cited twice, in one chunk or across two', () => {
+    const result = parse(
+      {
+        filename: 'src/a.ts',
+        language: 'typescript',
+        hunks: [
+          { id: 'H0001', tier: 'skim' },
+          { id: 'H0001', tier: 'skim' },
+          { id: 'H0002', tier: 'skim' },
+        ],
+      },
+      {
+        filename: 'src/a.ts',
+        language: 'typescript',
+        hunks: [{ id: 'H0002', tier: 'read' }],
+      },
+    );
+    expect(tiers(result)).toEqual([
+      ['H0001', 'skim'],
+      ['H0002', 'read'],
+    ]);
+    expect(codes(result)).toEqual(['chunks-merged', 'chunks-merged']);
+  });
+
+  it('carries the catalog’s proven facts onto the hunk, and skims a whitespace-only one whatever its tier', () => {
+    const facts = groundingFor(
+      buildDiffHunkIndex(DIFF).hunks.map((hunk) => {
+        if (hunk.id === 'H0001') {
+          return { ...hunk, movedFrom: { filename: 'src/c.ts', similarity: 100 } };
+        }
+        if (hunk.id === 'H0002') {
+          return { ...hunk, movedFrom: { filename: 'src/c.ts', similarity: 90 } };
+        }
+        if (hunk.id === 'H0003') return { ...hunk, whitespaceOnly: true as const };
+        return hunk;
+      }),
+    );
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          {
+            id: 'c',
+            title: 'C',
+            insights: [],
+            diffChunks: [
+              {
+                filename: 'src/a.ts',
+                language: 'typescript',
+                hunks: [{ id: 'H0001', tier: 'read' }, 'H0002'],
+              },
+              {
+                filename: 'src/b.ts',
+                language: 'typescript',
+                hunks: [{ id: 'H0003', tier: 'read' }],
+              },
+            ],
+          },
+        ],
+      }),
+      facts,
+    );
+    // A move unchanged keeps the model's tier.
+    expect(tiers(result)).toEqual([
+      ['H0001', 'read'],
+      ['H0002', 'read'],
+      ['H0003', 'skim'],
+    ]);
+    expect(result.ok && result.data.chapters[0]?.diffChunks[0]?.hunks[0]?.movedFrom).toEqual({
+      filename: 'src/c.ts',
+      similarity: 100,
+    });
+    expect(result.ok && result.data.chapters[0]?.diffChunks[1]?.hunks[0]?.whitespaceOnly).toBe(
+      true,
+    );
+    expect(result.findings.map((f) => [f.code, f.hunkIds])).toEqual([
+      ['hunk-tier-missing', ['H0002']],
+      ['hunk-tier-lowered', ['H0003']],
+    ]);
+  });
+
+  it('skims an imports-only hunk whatever its tier, as it does a whitespace-only one', () => {
+    const facts = groundingFor(
+      buildDiffHunkIndex(DIFF).hunks.map((hunk) =>
+        hunk.id === 'H0001' ? { ...hunk, importsOnly: true as const } : hunk,
+      ),
+    );
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          {
+            id: 'c',
+            title: 'C',
+            insights: [],
+            diffChunks: [
+              {
+                filename: 'src/a.ts',
+                language: 'typescript',
+                hunks: [{ id: 'H0001', tier: 'read' }],
+              },
+            ],
+          },
+        ],
+      }),
+      facts,
+    );
+    expect(tiers(result)).toEqual([['H0001', 'skim']]);
+    expect(result.ok && result.data.chapters[0]?.diffChunks[0]?.hunks[0]?.importsOnly).toBe(true);
+    expect(result.findings.map((f) => [f.code, f.hunkIds])).toEqual([
+      ['hunk-tier-lowered', ['H0001']],
+    ]);
+  });
+});
+
+describe('a reading plan', () => {
+  const grounding = groundingFor(buildDiffHunkIndex(DIFF).hunks);
+  const chapters = [
+    { id: 'types', title: 'Types', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+    { id: 'core', title: 'Core', insights: [], diffChunks: [cite('src/a.ts', ['H0002'])] },
+    { id: 'wiring', title: 'Wiring', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
+  ];
+  const parse = (readingPlan: unknown, withChapters: unknown[] = chapters) =>
+    parseNarrativeReview(
+      wrap({ prTitle: 't', overviewSummary: { lede: 's' }, chapters: withChapters, readingPlan }),
+      grounding,
+    );
+
+  it('keeps the chapters each list names, in chapter order, with nothing to report', () => {
+    const result = parse({ brief: ['core'], standard: ['wiring', 'core', 'types'] });
+    expect(result.ok && result.data.readingPlan).toEqual({
+      brief: ['core'],
+      standard: ['types', 'core', 'wiring'],
+    });
+    expect(result.findings).toEqual([]);
+  });
+
+  it('drops ids that name no chapter, and repeats, in one note', () => {
+    const result = parse({ brief: ['core', 'nope', 'core'], standard: ['types', 'core', 7] });
+    expect(result.ok && result.data.readingPlan).toEqual({
+      brief: ['core'],
+      standard: ['types', 'core'],
+    });
+    expect(codes(result)).toEqual(['reading-plan-id-dropped']);
+    expect(result.findings[0]?.message).toBe(
+      'The reading plan named "nope", "7", which no chapter is called, and "core" more than once in one list; those entries were dropped.',
+    );
+  });
+
+  it('names an unknown id once, however many lists it turns up in', () => {
+    const result = parse({ brief: ['nope', 'core'], standard: ['nope', 'core'] });
+    expect(codes(result)).toEqual(['reading-plan-id-dropped']);
+    expect(result.findings[0]?.message).toBe(
+      'The reading plan named "nope", which no chapter is called; those entries were dropped.',
+    );
+  });
+
+  it('widens the standard read to hold the brief, in chapter order, in one note', () => {
+    const result = parse({ brief: ['wiring', 'core'], standard: ['types'] });
+    expect(result.ok && result.data.readingPlan).toEqual({
+      brief: ['core', 'wiring'],
+      standard: ['types', 'core', 'wiring'],
+    });
+    expect(codes(result)).toEqual(['reading-plan-widened']);
+    expect(result.findings[0]?.message).toContain('left out "core", "wiring" from its brief');
+  });
+
+  it('makes a standard read that never came the brief alone', () => {
+    const result = parse({ brief: ['core'] });
+    expect(result.ok && result.data.readingPlan).toEqual({ brief: ['core'], standard: ['core'] });
+    expect(codes(result)).toEqual(['reading-plan-widened']);
+  });
+
+  it('ships the review without a plan that is missing, not an object, or briefs nothing real', () => {
+    for (const plan of [
+      undefined,
+      null,
+      'core',
+      ['core'],
+      { standard: ['core'] },
+      { brief: ['nope'], standard: ['core'] },
+    ]) {
+      const result = parse(plan);
+      expect(result.ok).toBe(true);
+      expect(result.ok && result.data.readingPlan).toBeUndefined();
+      expect(result.findings.filter((f) => f.code === 'reading-plan-dropped')).toEqual([
+        expect.objectContaining({ severity: 'warning' }),
+      ]);
+    }
+  });
+
+  it('reads a plan sent as a list as no object at all, rather than as an empty brief', () => {
+    const result = parse(['core']);
+    expect(result.ok && result.data.readingPlan).toBeUndefined();
+    expect(result.findings.map((f) => f.message)).toEqual([
+      'The reading plan was not an object, so the review has none.',
+    ]);
+  });
+
+  it('asks for nothing from a review with no chapters to plan', () => {
+    expect(parse(undefined, []).findings).toEqual([]);
+  });
+});
+
+const excerpt = (filename: string, startLine: unknown, endLine: unknown, reason: unknown) => ({
+  filename,
+  startLine,
+  endLine,
+  reason,
+});
+
+const excerptsOf = (result: ParseResult) =>
+  result.ok ? result.data.chapters.map((each) => each.contextExcerpts) : null;
+
+describe('excerpts of unchanged code', () => {
+  // src/c.ts is in the change but skipped, so the prompt showed none of its hunks.
+  const grounding = groundingFor(
+    buildDiffHunkIndex(DIFF).hunks,
+    ['src/a.ts', 'src/b.ts'],
+    ['src/a.ts', 'src/b.ts', 'src/c.ts'],
+  );
+  const parse = (contextExcerpts: unknown) =>
+    parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          {
+            id: 'c1',
+            title: 'C',
+            insights: [],
+            diffChunks: [cite('src/a.ts', ['H0001', 'H0002']), cite('src/b.ts', ['H0003'])],
+            contextExcerpts,
+          },
+        ],
+      }),
+      grounding,
+    );
+
+  it('keeps an excerpt that keeps the rules, its reason trimmed, with nothing to report', () => {
+    const result = parse([excerpt('src/runner.ts', 10, 30, ' Calls isDue every pass. ')]);
+    expect(excerptsOf(result)).toEqual([
+      [
+        {
+          filename: 'src/runner.ts',
+          startLine: 10,
+          endLine: 30,
+          reason: 'Calls isDue every pass.',
+        },
+      ],
+    ]);
+    expect(result.findings).toEqual([]);
+  });
+
+  it('leaves the field off a chapter that sent none, or an empty list', () => {
+    const result = parse(undefined);
+    expect(result.ok && 'contextExcerpts' in result.data.chapters[0]!).toBe(false);
+    expect(parse([]).findings).toEqual([]);
+  });
+
+  it('drops each excerpt that breaks a rule, and says which and why in one warning', () => {
+    const result = parse([
+      excerpt('src/a.ts', 1, 5, 'Changed here.'),
+      excerpt('src/c.ts', 1, 5, 'Skipped, but still changed.'),
+      excerpt('src/runner.ts', 30, 10, 'Backwards.'),
+      excerpt('src/runner.ts', 1, 61, 'Too long.'),
+      excerpt('src/runner.ts', 0, 5, 'From line zero.'),
+      excerpt('src/runner.ts', 1.5, 5, 'Half a line.'),
+      excerpt('src/runner.ts', 1, 5, '  '),
+      excerpt('', 1, 5, 'No file.'),
+      'src/runner.ts',
+    ]);
+    expect(result.ok).toBe(true);
+    expect(excerptsOf(result)).toEqual([undefined]);
+    expect(codes(result)).toEqual(['excerpt-dropped']);
+    expect(result.findings[0]).toMatchObject({ severity: 'warning' });
+    expect(result.findings[0]?.message).toBe(
+      '9 excerpts of unchanged code were dropped: ' +
+        'src/a.ts L1–5 in chapter c1 (a file this change touches); ' +
+        'src/c.ts L1–5 in chapter c1 (a file this change touches); ' +
+        'src/runner.ts L30–10 in chapter c1 (its span runs backwards); ' +
+        'src/runner.ts L1–61 in chapter c1 (61 lines, over the 60-line limit); ' +
+        'src/runner.ts L0–5 in chapter c1 (its lines are not whole numbers from 1); ' +
+        'src/runner.ts L1.5–5 in chapter c1 (its lines are not whole numbers from 1); ' +
+        'src/runner.ts L1–5 in chapter c1 (it gives no reason); ' +
+        'an excerpt L1–5 in chapter c1 (it names no file); ' +
+        'an excerpt in chapter c1 (not an object).',
+    );
+  });
+
+  it('drops a path git would not read as one from the repository root', () => {
+    const result = parse([
+      excerpt('../outside.ts', 1, 5, 'Above the repository.'),
+      excerpt('/etc/hosts', 1, 5, 'Absolute.'),
+      excerpt('C:/repo/src/x.ts', 1, 5, 'A drive.'),
+      excerpt('./src/x.ts', 1, 5, 'A dot segment.'),
+      excerpt(`src${String.fromCharCode(92)}x.ts`, 1, 5, 'A Windows separator.'),
+    ]);
+    expect(excerptsOf(result)).toEqual([undefined]);
+    expect(result.findings[0]?.message).toMatch(/^5 excerpts of unchanged code were dropped: /);
+    expect(result.findings[0]?.message.match(/not a path from the repository root/g)).toHaveLength(
+      5,
+    );
+  });
+
+  it('keeps sixty lines exactly', () => {
+    const result = parse([excerpt('src/runner.ts', 41, 100, 'Sixty lines.')]);
+    expect(excerptsOf(result)?.[0]).toHaveLength(1);
+    expect(result.findings).toEqual([]);
+  });
+
+  it('keeps the first two that pass, and drops the rest as past the cap', () => {
+    const result = parse([
+      excerpt('src/a.ts', 1, 5, 'Changed, so not counted against the cap.'),
+      excerpt('src/one.ts', 1, 5, 'First.'),
+      excerpt('src/two.ts', 1, 5, 'Second.'),
+      excerpt('src/three.ts', 1, 5, 'Third.'),
+    ]);
+    expect(excerptsOf(result)?.[0]?.map((kept) => kept.filename)).toEqual([
+      'src/one.ts',
+      'src/two.ts',
+    ]);
+    expect(result.findings[0]?.message).toContain(
+      'src/three.ts L1–5 in chapter c1 (past the 2 a chapter may show)',
+    );
+  });
+
+  it('reports the drops of every chapter in the one warning', () => {
+    const both = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          {
+            id: 'first',
+            title: 'First',
+            insights: [],
+            diffChunks: [cite('src/a.ts', ['H0001', 'H0002'])],
+            contextExcerpts: [excerpt('src/a.ts', 1, 5, 'Changed.')],
+          },
+          {
+            id: 'second',
+            title: 'Second',
+            insights: [],
+            diffChunks: [cite('src/b.ts', ['H0003'])],
+            contextExcerpts: 'src/runner.ts',
+          },
+        ],
+      }),
+      grounding,
+    );
+    expect(codes(both)).toEqual(['excerpt-dropped']);
+    expect(both.findings[0]?.message).toBe(
+      '2 excerpts of unchanged code were dropped: src/a.ts L1–5 in chapter first (a file this change touches); its excerpts in chapter second (not a list).',
+    );
   });
 });
