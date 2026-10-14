@@ -20,8 +20,9 @@ src/report/
   index.html         the page, with the empty er-bundle element the render stage fills
   main.tsx           reads the embedded bundle, applies the stored layout and sidebar widths, renders ReportRoot
   report-root.tsx    ReportRoot: ReportPage under a class error boundary whose fallback is ReportCrashed
-  report-page.tsx    the header (TopbarFrame: Brand + DisplayMenu), then ChapterReader over EmbeddedFileSource,
-                     or ReportProblem when there is no bundle to read
+  report-page.tsx    the header (TopbarFrame: Brand, the change's tag and title as a link to the summary, and
+                     DisplayMenu) and the tab's <title>, then ChapterReader over EmbeddedFileSource, or ReportProblem
+                     — and no change named — when there is no bundle to read
   report-problem.tsx the one "cannot show the review" surface: ReportProblem for a missing / version-mismatch /
                      invalid bundle, ReportCrashed for a reader that threw — nothing taken off the error, which
                      React has already logged
@@ -29,7 +30,11 @@ src/report/
                      unchanged code (SAMPLE_EXCERPT_FILE) in the cadence-table chapter
   chrome/            brand-mark (+ brand-mark.svg, imported so the build inlines it), caption (the one uppercase
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
-                     topbar (TopbarFrame, Brand), display-menu (every display preference in one labelled
+                     topbar (+ .module.css; TopbarFrame, Brand — the mark alone on a phone — and TopbarChange,
+                     the tag in mono and the title, each cut with an ellipsis and whole in the hover),
+                     change-name.ts (changeTitle, the one place the review's title falls back to the meta's;
+                     changeTag, `#<n>` for a PR, `staged`, or the branch; documentTitle, led by the PR number
+                     alone), display-menu (every display preference in one labelled
                      dropdown: diffs, long lines, comments, file headers, skim hunks, hunk debug, layout, theme — comments
                      and skim hunks each with a fade slider beneath while they are dimmed or marked)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through

@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
 import { Caption } from '@/report/chrome/caption';
+import { changeTitle } from '@/report/chrome/change-name';
 import classes from '@/report/reader/article.module.css';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
 import type { AnchoredJudgementCall } from '@/report/reader/judgement-calls';
@@ -51,7 +52,7 @@ export function SummaryCard({
   footer?: ReactNode;
 }) {
   const { baseRefName: baseRef, headRefName: headRef, authorLogin: author, prNumber } = meta;
-  const title = review.prTitle || meta.title;
+  const title = changeTitle(review, meta);
   const reviewedFiles = review.files ?? [];
   const reviewedFileCount = reviewedFiles.length || meta.stats?.changedFiles || 0;
   const additions =

@@ -88,13 +88,11 @@ describe('<ChapterSidebar />', () => {
         sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="My PR"
         onSelect={noop}
         onSelectFile={noop}
       />,
     );
     expect(screen.getByText('Summary')).toBeDefined();
-    expect(screen.queryByText('My PR')).toBeNull();
     expect(screen.getByText('Shape of the change')).toBeDefined();
     expect(screen.getByText('Risks and follow-ups')).toBeDefined();
   });
@@ -105,7 +103,6 @@ describe('<ChapterSidebar />', () => {
         sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         onSelect={noop}
         onSelectFile={noop}
       />,
@@ -122,7 +119,6 @@ describe('<ChapterSidebar />', () => {
         sections={sections}
         chapters={chapters}
         activeId="ch2"
-        reviewTitle="t"
         onSelect={noop}
         onSelectFile={noop}
       />,
@@ -139,7 +135,6 @@ describe('<ChapterSidebar />', () => {
         sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         onSelect={onSelect}
         onSelectFile={noop}
       />,
@@ -155,7 +150,6 @@ describe('<ChapterSidebar />', () => {
         sections={withRisk}
         chapters={chapters}
         activeId="ch1"
-        reviewTitle="t"
         riskAssessment={riskAssessment}
         onSelect={onSelect}
         onSelectFile={noop}
@@ -178,7 +172,6 @@ describe('<ChapterSidebar />', () => {
         sections={withRisk}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         riskAssessment={riskAssessment}
         onSelect={noop}
         onSelectFile={noop}
@@ -199,7 +192,6 @@ describe('<ChapterSidebar />', () => {
           { ...(chapters[1] as NarrativeChapter), diagram: HAND_BEFORE_AFTER },
         ]}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         onSelect={noop}
         onSelectFile={noop}
       />,
@@ -217,7 +209,6 @@ describe('<ChapterSidebar />', () => {
         )}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         onSelect={noop}
         onSelectFile={noop}
       />,
@@ -236,7 +227,6 @@ describe('<ChapterSidebar />', () => {
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
         readIds={new Set(['ch2', SUMMARY_SECTION_ID, 'gone'])}
-        reviewTitle="t"
         onSelect={noop}
         onSelectFile={noop}
       />,
@@ -259,7 +249,6 @@ describe('<ChapterSidebar />', () => {
         sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         onSelect={noop}
         onSelectFile={noop}
       />,
@@ -277,7 +266,6 @@ describe('<ChapterSidebar />', () => {
         sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         files={[{ filename: 'src/app/page.tsx', status: 'modified', additions: 12, deletions: 3 }]}
         onSelect={onSelect}
         onSelectFile={onSelectFile}
@@ -300,7 +288,6 @@ describe('<ChapterSidebar />', () => {
         sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         files={[
           {
             filename: 'package-lock.json',
@@ -369,7 +356,6 @@ describe('<ChapterSidebar />', () => {
         files={files}
         coverage={coverage}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         onSelect={noop}
         onSelectFile={noop}
       />,
@@ -395,7 +381,6 @@ describe('<ChapterSidebar />', () => {
         sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         files={[
           {
             filename: 'src/app/page.tsx',
@@ -424,7 +409,6 @@ describe('<ChapterSidebar />', () => {
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
         activeFile="src/app/page.tsx"
-        reviewTitle="t"
         files={[{ filename: 'src/app/page.tsx', status: 'modified', additions: 1, deletions: 0 }]}
         onSelect={noop}
         onSelectFile={noop}
@@ -462,7 +446,6 @@ function renderFiles(activeFile: string | null = null) {
       chapters={chapters}
       activeId={SUMMARY_SECTION_ID}
       activeFile={activeFile}
-      reviewTitle="t"
       files={treeFiles}
       onSelect={noop}
       onSelectFile={noop}
@@ -510,7 +493,6 @@ describe('<ChapterSidebar /> file list view', () => {
         sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         files={treeFiles}
         onSelect={noop}
         onSelectFile={onSelectFile}
@@ -552,7 +534,6 @@ describe('<ChapterSidebar /> file list view', () => {
         sections={sections}
         chapters={chapters}
         activeId={SUMMARY_SECTION_ID}
-        reviewTitle="t"
         files={treeFiles}
         onSelect={noop}
         onSelectFile={onSelectFile}

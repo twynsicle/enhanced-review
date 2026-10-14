@@ -1,0 +1,64 @@
+/*
+ * The start of the bar gives way before the display menu does: the change's
+ * title is the one thing here that can be cut and still be recognised.
+ */
+.start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.end {
+  flex: none;
+}
+
+@media (min-width: 48em) {
+  .start {
+    gap: 28px;
+  }
+}
+
+.change {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  font-size: var(--mantine-font-size-sm);
+  color: var(--er-foreground);
+  text-decoration: none;
+}
+
+.change:hover .title {
+  text-decoration: underline;
+}
+
+.tag,
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Wide enough for a PR number whole and a branch recognisable from its start;
+ * narrower on a phone, where a full-width branch would leave the title no room.
+ */
+.tag {
+  flex: none;
+  max-width: 12ch;
+  font-family: var(--mantine-font-family-monospace);
+  color: var(--er-muted-foreground);
+}
+
+.title {
+  min-width: 0;
+  font-weight: 500;
+}
+
+@media (min-width: 48em) {
+  .tag {
+    max-width: 24ch;
+  }
+}
