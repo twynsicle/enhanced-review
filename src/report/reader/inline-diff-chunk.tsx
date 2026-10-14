@@ -65,7 +65,11 @@ interface FileData {
   originalLineCount: number;
   modifiedLineCount: number;
   language: string;
+  /** The side a new file (`original`) or a deleted one (`modified`) has nothing on. */
+  emptySide: Side | null;
 }
+
+type Side = 'original' | 'modified';
 
 type FileState =
   { kind: 'ok'; data: FileData } | { kind: 'unavailable'; reason: 'absent' | 'too-large' };
@@ -89,6 +93,7 @@ function resolveFileState({ base, head }: FilePair, filename: string): FileState
       modified: head.kind === 'content' ? head.content : '',
       originalLineCount: base.kind === 'content' ? base.lineCount : 0,
       modifiedLineCount: head.kind === 'content' ? head.lineCount : 0,
+      emptySide: base.kind === 'absent' ? 'original' : head.kind === 'absent' ? 'modified' : null,
       language:
         base.kind === 'content'
           ? base.language
@@ -122,7 +127,7 @@ function splitFilename(path: string): { dirname: string; basename: string } {
   return { dirname: path.slice(0, slash), basename: path.slice(slash + 1) };
 }
 
-function buildModelPath(filename: string, key: string, side: 'original' | 'modified'): string {
+function buildModelPath(filename: string, key: string, side: Side): string {
   const encodedPath = filename.split('/').map(encodeURIComponent).join('/');
   return `file:///__inline__/${side}/${encodeURIComponent(key)}/${encodedPath}`;
 }
@@ -144,9 +149,13 @@ function applySnippetLayout(
   diffEditor: editor.IStandaloneDiffEditor,
   snippet: InlineDiffSnippet,
   expanded: boolean,
+  emptySide: Side | null,
 ): void {
+  // A side the file does not exist on has no line to number.
+  const numbers = (side: Side, start: number): editor.LineNumbersType =>
+    emptySide === side ? 'off' : expanded ? 'on' : makeOffsetLineNumbers(start);
   diffEditor.getOriginalEditor().updateOptions({
-    lineNumbers: expanded ? 'on' : makeOffsetLineNumbers(snippet.originalStartLine),
+    lineNumbers: numbers('original', snippet.originalStartLine),
     lineNumbersMinChars: lineNumberWidth(snippet.originalStartLine, snippet.original),
     /*
      * Monaco turns the left side's glyph margin on whenever it renders side by
@@ -158,8 +167,10 @@ function applySnippetLayout(
     glyphMargin: false,
   });
   diffEditor.getModifiedEditor().updateOptions({
-    lineNumbers: expanded ? 'on' : makeOffsetLineNumbers(snippet.modifiedStartLine),
+    lineNumbers: numbers('modified', snippet.modifiedStartLine),
     lineNumbersMinChars: lineNumberWidth(snippet.modifiedStartLine, snippet.modified),
+    // The cursor sits on a deleted file's one blank line, and would box it.
+    renderLineHighlight: emptySide === 'modified' ? 'none' : 'line',
   });
   diffEditor.layout();
 }
@@ -335,6 +346,50 @@ function markBoxes(
   });
 }
 
+/** Pixels cut off the top and the bottom of an editor. */
+interface Cut {
+  top: number;
+  bottom: number;
+}
+
+const NO_CUT: Cut = { top: 0, bottom: 0 };
+
+/**
+ * Monaco diffs an empty side as its one blank line replaced by the whole file,
+ * so a stacked new file opens on a removed blank row — a view zone above its
+ * first line — and a deleted file ends on its modified side's one blank line.
+ * Neither is a line of the file, so the host cuts it off rather than draw it.
+ */
+function blankRow(diffEditor: editor.IStandaloneDiffEditor, emptySide: Side | null): Cut {
+  const modified = diffEditor.getModifiedEditor();
+  if (emptySide === 'original') {
+    // Line 1's top with and without the zones directly above it.
+    return {
+      top: modified.getTopForLineNumber(1) - modified.getTopForLineNumber(1, true),
+      bottom: 0,
+    };
+  }
+  if (emptySide === 'modified') {
+    return { top: 0, bottom: modified.getBottomForLineNumber(1) - modified.getTopForLineNumber(1) };
+  }
+  return NO_CUT;
+}
+
+/** Boxes measured on the whole editor, moved and trimmed to what the cut leaves on screen. */
+function clipBoxes(boxes: readonly MarkBox[], cut: Cut, visible: number): MarkBox[] {
+  if (cut.top === 0 && cut.bottom === 0) return [...boxes];
+  const clip = <T extends { top: number; height: number }>(box: T): T | null => {
+    const top = Math.max(0, box.top - cut.top);
+    const bottom = Math.min(visible, box.top + box.height - cut.top);
+    return bottom > top ? { ...box, top, height: bottom - top } : null;
+  };
+  return boxes.flatMap((box) => {
+    const clipped = clip(box);
+    if (!clipped) return [];
+    return [{ ...clipped, panes: box.panes.flatMap((pane) => clip(pane) ?? []) }];
+  });
+}
+
 function boxesKey(boxes: readonly MarkBox[]): string {
   return JSON.stringify(
     boxes.map(({ mark, top, height, panes }) => [mark.key, top, height, panes]),
@@ -482,6 +537,7 @@ function SnippetEditor({
   language,
   snippet,
   expanded,
+  emptySide,
   view,
   wrap,
   skimMarks,
@@ -491,6 +547,7 @@ function SnippetEditor({
   language: string;
   snippet: InlineDiffSnippet;
   expanded: boolean;
+  emptySide: Side | null;
   view: DiffView;
   wrap: DiffWrap;
   skimMarks: SkimMarks;
@@ -500,6 +557,7 @@ function SnippetEditor({
   const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
   const [boxes, setBoxes] = useState<MarkBox[]>([]);
   const [ground, setGround] = useState('');
+  const [cut, setCut] = useState<Cut>(NO_CUT);
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const disposables = useRef<IDisposable[]>([]);
   const host = useRef<HTMLDivElement | null>(null);
@@ -535,16 +593,17 @@ function SnippetEditor({
   snippetRef.current = snippet;
   const marksRef = useRef(marks);
   marksRef.current = marks;
+  const emptySideRef = useRef(emptySide);
+  emptySideRef.current = emptySide;
 
   const measureMarks = useCallback(() => {
     const diffEditor = editorRef.current;
     if (!diffEditor || !host.current) return;
-    const next = markBoxes(
-      diffEditor,
-      host.current,
-      snippetRef.current,
-      marksRef.current,
-      viewRef.current,
+    const blank = blankRow(diffEditor, emptySideRef.current);
+    const next = clipBoxes(
+      markBoxes(diffEditor, host.current, snippetRef.current, marksRef.current, viewRef.current),
+      blank,
+      diffEditor.getModifiedEditor().getContentHeight() - blank.top - blank.bottom,
     );
     setBoxes((previous) => (boxesKey(previous) === boxesKey(next) ? previous : next));
     if (next.length === 0) return;
@@ -577,7 +636,16 @@ function SnippetEditor({
           modified.getContentHeight(),
           MIN_EDITOR_HEIGHT - EDITOR_HEIGHT_PADDING,
         );
-        setEditorHeight(contentHeight + EDITOR_HEIGHT_PADDING);
+        const blank = blankRow(diffEditor, emptySideRef.current);
+        setCut((previous) =>
+          previous.top === blank.top && previous.bottom === blank.bottom ? previous : blank,
+        );
+        setEditorHeight(
+          Math.max(
+            contentHeight + EDITOR_HEIGHT_PADDING - blank.top - blank.bottom,
+            MIN_EDITOR_HEIGHT,
+          ),
+        );
         measureMarks();
       };
       disposables.current = [
@@ -587,10 +655,10 @@ function SnippetEditor({
         modified.onDidLayoutChange(measureMarks),
       ];
       applyWordWrap(diffEditor, wrapRef.current);
-      applySnippetLayout(diffEditor, snippet, expanded);
+      applySnippetLayout(diffEditor, snippet, expanded, emptySide);
       measure();
     },
-    // The mount-time snippet/expanded are right for the first paint; later
+    // The mount-time snippet/expanded/emptySide are right for the first paint; later
     // changes are applied by the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -599,8 +667,8 @@ function SnippetEditor({
   // `view` belongs here for the relayout, not for the line numbers — see
   // `applySnippetLayout`.
   useEffect(() => {
-    if (editorRef.current) applySnippetLayout(editorRef.current, snippet, expanded);
-  }, [snippet, expanded, view]);
+    if (editorRef.current) applySnippetLayout(editorRef.current, snippet, expanded, emptySide);
+  }, [snippet, expanded, emptySide, view]);
 
   // A flip of the view or the marks moves the lines after this render; the
   // editors have laid out again by the next frame.
@@ -719,28 +787,32 @@ function SnippetEditor({
     <div
       ref={host}
       className={classes.editor}
+      data-empty-side={emptySide ?? undefined}
       style={{ height: editorHeight }}
       onClick={onClick}
       onPointerDown={keepScroll.onPointerDown}
       onFocus={keepScroll.onFocus}
     >
-      <Suspense fallback={fallback}>
-        <DiffEditor
-          original={snippet.original}
-          modified={snippet.modified}
-          language={language}
-          originalLanguage={language}
-          modifiedLanguage={language}
-          originalModelPath={buildModelPath(chunkFilename, snippet.key, 'original')}
-          modifiedModelPath={buildModelPath(chunkFilename, snippet.key, 'modified')}
-          keepCurrentOriginalModel
-          keepCurrentModifiedModel
-          theme={theme}
-          onMount={onMount}
-          loading={fallback}
-          options={options}
-        />
-      </Suspense>
+      {/* Taller than the host by the cut and lifted by its top, so the host's clip takes both rows off. */}
+      <div style={{ marginTop: -cut.top, height: editorHeight + cut.top + cut.bottom }}>
+        <Suspense fallback={fallback}>
+          <DiffEditor
+            original={snippet.original}
+            modified={snippet.modified}
+            language={language}
+            originalLanguage={language}
+            modifiedLanguage={language}
+            originalModelPath={buildModelPath(chunkFilename, snippet.key, 'original')}
+            modifiedModelPath={buildModelPath(chunkFilename, snippet.key, 'modified')}
+            keepCurrentOriginalModel
+            keepCurrentModifiedModel
+            theme={theme}
+            onMount={onMount}
+            loading={fallback}
+            options={options}
+          />
+        </Suspense>
+      </div>
       {boxes.length > 0 && (
         <MarkOverlay boxes={boxes} editorHeight={editorHeight} ground={ground} />
       )}
@@ -774,13 +846,9 @@ function AnchoredAsides({
   judgementCalls: readonly JudgementCall[];
 }) {
   return (
-    <Box
-      px={12}
-      py={12}
-      maw="var(--er-measure)"
-      style={{ borderBottom: `1px solid ${token('border')}` }}
-    >
-      <Box style={{ display: 'grid', rowGap: 16 }}>
+    // The rule under them spans the card, as the header's does; only the text keeps the measure.
+    <Box style={{ borderBottom: `1px solid ${token('border')}` }}>
+      <Box px={12} py={12} maw="var(--er-measure)" style={{ display: 'grid', rowGap: 16 }}>
         {judgementCalls.map((call, i) => (
           <JudgementCallout key={`judgement-${String(i)}`} call={call} />
         ))}
@@ -847,11 +915,14 @@ export function CodeCard({
  */
 export function CodeCardHeader({
   filename,
+  badge,
   facts,
   actions,
   foldable = false,
 }: {
   filename: string;
+  /** Before the path: what the file as a whole is, which every fact after it is about. */
+  badge?: ReactNode;
   facts?: ReactNode;
   actions?: ReactNode;
   foldable?: boolean;
@@ -867,6 +938,7 @@ export function CodeCardHeader({
       style={{ position: 'sticky', top: TOPBAR_HEIGHT }}
     >
       <span className={classes.path} title={filename}>
+        {badge}
         {dirname.length > 0 && (
           <span className={classes.dirname}>
             <bdi>{dirname}/</bdi>
@@ -929,10 +1001,16 @@ export function InlineDiffChunk({
   const skimMarks = useSkimMarks((s) => s.marks);
   const hunkDebug = useHunkDebug((s) => s.debug);
   const spaceLimited = useReaderColumn(selectSpaceLimited);
-  // Too narrow for two panes is not a preference the column can honour.
-  const view: DiffView = spaceLimited ? 'unified' : stored;
   const [expanded, setExpanded] = useState(false);
   const state = useMemo(() => resolveFileState(pair, chunk.filename), [pair, chunk.filename]);
+  const emptySide = state.kind === 'ok' ? state.data.emptySide : null;
+  /*
+   * Too narrow for two panes is not a preference the column can honour, and a
+   * file with nothing on one side would spend half its card on that side's
+   * hatching. Decided by the sides rather than the status, so a copy shown
+   * against its origin keeps both panes.
+   */
+  const view: DiffView = spaceLimited || emptySide ? 'unified' : stored;
 
   const snippets = useMemo<InlineDiffSnippet[]>(() => {
     if (state.kind !== 'ok') return [];
@@ -958,9 +1036,16 @@ export function InlineDiffChunk({
     <CodeCard label={`Diff for ${chunk.filename}`} diffFile={chunk.filename}>
       <CodeCardHeader
         filename={chunk.filename}
+        badge={
+          emptySide && (
+            <span className={classes.badge} data-empty-side={emptySide}>
+              {emptySide === 'original' ? 'New' : 'Deleted'}
+            </span>
+          )
+        }
         foldable={file?.origin !== undefined || tags.length > 0}
         facts={
-          (file?.origin || tags.length > 0) && (
+          (file?.origin || emptySide || tags.length > 0) && (
             <>
               {file?.origin && (
                 <Text component="span" fz="xs" c="dimmed" className={classes.fact}>
@@ -1029,6 +1114,7 @@ export function InlineDiffChunk({
               language={language}
               snippet={snippet}
               expanded={expanded}
+              emptySide={emptySide}
               view={view}
               wrap={wrap}
               skimMarks={skimMarks}

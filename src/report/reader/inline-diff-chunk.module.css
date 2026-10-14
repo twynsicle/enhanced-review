@@ -69,6 +69,28 @@
 }
 
 /*
+ * Monaco diffs an empty side as its one blank line replaced by the whole file.
+ * The host cuts that row off (`blankRow`), but its colour still reaches what
+ * is left on screen — the bottom padding under a deleted file, the rail down
+ * the collapsed original gutter beside a new one. It is the only change of its
+ * kind such a file has, and not a line of the file, so that kind goes
+ * uncoloured.
+ */
+.editor[data-empty-side='original'] :global(.monaco-editor),
+.editor[data-empty-side='original'] :global(.monaco-diff-editor) {
+  --vscode-diffEditor-removedLineBackground: transparent;
+  --vscode-diffEditor-removedTextBackground: transparent;
+  --vscode-diffEditorGutter-removedLineBackground: transparent;
+}
+
+.editor[data-empty-side='modified'] :global(.monaco-editor),
+.editor[data-empty-side='modified'] :global(.monaco-diff-editor) {
+  --vscode-diffEditor-insertedLineBackground: transparent;
+  --vscode-diffEditor-insertedTextBackground: transparent;
+  --vscode-diffEditorGutter-insertedLineBackground: transparent;
+}
+
+/*
  * A line with nothing opposite it — a new file, or any run of purely added or
  * purely deleted lines — is given both its line decoration and a *whole-line*
  * word-level one, so Monaco paints it twice and it lands at nearly double the
@@ -125,6 +147,12 @@
 
 .editor :global(.gutter-delete) {
   box-shadow: inset -2px 0 0 var(--er-del);
+}
+
+/* The rail's half of that blank row. */
+.editor[data-empty-side='original'] :global(.gutter-delete),
+.editor[data-empty-side='modified'] :global(.gutter-insert) {
+  box-shadow: none;
 }
 
 /*
@@ -338,6 +366,30 @@
 .basename {
   flex-shrink: 0;
   font-weight: 600;
+}
+
+/*
+ * Whether the file is new or deleted, in the sidebar's colours for the same
+ * thing. Ahead of the path rather than among the facts, where it was one more
+ * grey word: it is why the card is drawn stacked when its neighbours are not.
+ */
+.badge {
+  flex-shrink: 0;
+  margin-right: 8px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-family: var(--mantine-font-family);
+  font-size: var(--mantine-font-size-xs);
+}
+
+.badge[data-empty-side='original'] {
+  background: var(--er-after-soft);
+  color: var(--er-after-ink);
+}
+
+.badge[data-empty-side='modified'] {
+  background: var(--er-risk-soft);
+  color: var(--er-risk-ink);
 }
 
 .facts {

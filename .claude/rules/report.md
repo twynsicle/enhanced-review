@@ -131,7 +131,9 @@ src/report/
                      removed lines, and one measurement for all of it, so a labelled region is always the one
                      that fades; the file stays one editor the find widget reaches; each proven fact is
                      one tag in the card's header over every line it holds for, the similarity in its hover;
-                     the full-file view keeps the chapter's hunks, so its marks stay;
+                     the full-file view keeps the chapter's hunks, so its marks stay; a file with nothing on one side
+                     is stacked whatever the preference, a "New" or "Deleted" badge ahead of its path, the empty
+                     side's line numbers off and the blank row Monaco draws for that side cut off by the host;
                      the asides for this file above the diff — judgement calls first, then the chapter's
                      insights that named it — and a lazy Monaco DiffEditor, its theme from useEditorTheme;
                      the wrap preference goes to the live widget as diffWordWrap, never through its
@@ -205,7 +207,8 @@ src/report/
                      review or value being no progress, and every storage call caught.
                      diff-view.ts also holds useReaderColumn, the only store here that is never persisted: the
                      column width chapter-reader measures, with selectSpaceLimited over it — under
-                     SIDE_BY_SIDE_MIN_WIDTH the toggle disables and inline-diff-chunk forces unified. A per-frame
+                     SIDE_BY_SIDE_MIN_WIDTH the toggle disables and inline-diff-chunk forces unified (as it also
+                     does, whatever the column, for a file with one side only: new or deleted). A per-frame
                      measurement is kept off the persisted store because persist writes its slice after every set
   theme/             Editorial Iris tokens.ts (palette + per-scheme highlight.js colours + FONT_SIZES/DISPLAY_SIZE/
                      CAPTION_TYPE, the type scale) → theme.ts (Mantine ramps, fontSizes, sans + mono),
