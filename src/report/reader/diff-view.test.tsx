@@ -158,7 +158,7 @@ describe('a file that exists on one side only', () => {
       head: { kind: 'content', content: 'one\ntwo\n' },
     });
     expect(lastOptions.current?.renderSideBySide).toBe(false);
-    expect(screen.getByText('new file')).toBeInTheDocument();
+    expect(screen.getByText('New')).toBeInTheDocument();
   });
 
   it('stacks a deleted file while the preference is split', async () => {
@@ -167,15 +167,15 @@ describe('a file that exists on one side only', () => {
       head: { kind: 'absent' },
     });
     expect(lastOptions.current?.renderSideBySide).toBe(false);
-    expect(screen.getByText('deleted file')).toBeInTheDocument();
+    expect(screen.getByText('Deleted')).toBeInTheDocument();
   });
 
   // A copy is a new path, but its base is the file it was copied from.
   it('keeps both panes for a file with content on both sides', async () => {
     await renderDiff();
     expect(lastOptions.current?.renderSideBySide).toBe(true);
-    expect(screen.queryByText('new file')).toBeNull();
-    expect(screen.queryByText('deleted file')).toBeNull();
+    expect(screen.queryByText('New')).toBeNull();
+    expect(screen.queryByText('Deleted')).toBeNull();
   });
 });
 

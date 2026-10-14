@@ -132,8 +132,8 @@ src/report/
                      that fades; the file stays one editor the find widget reaches; each proven fact is
                      one tag in the card's header over every line it holds for, the similarity in its hover;
                      the full-file view keeps the chapter's hunks, so its marks stay; a file with nothing on one side
-                     is stacked whatever the preference, its header saying "new file" or "deleted file", the empty
-                     side's line numbers off and Monaco's blank row for that side left uncoloured;
+                     is stacked whatever the preference, a "New" or "Deleted" badge ahead of its path, the empty
+                     side's line numbers off and the blank row Monaco draws for that side cut off by the host;
                      the asides for this file above the diff — judgement calls first, then the chapter's
                      insights that named it — and a lazy Monaco DiffEditor, its theme from useEditorTheme;
                      the wrap preference goes to the live widget as diffWordWrap, never through its
