@@ -29,6 +29,7 @@ export function toResolvedHunk(hunk: DiffHunk): ResolvedDiffHunk {
     modified: { ...hunk.modified },
     changedLines: hunk.changedLines,
     ...(hunk.whitespaceOnly ? { whitespaceOnly: true as const } : {}),
+    ...(hunk.importsOnly ? { importsOnly: true as const } : {}),
     ...(hunk.movedFrom ? { movedFrom: { ...hunk.movedFrom } } : {}),
     ...(hunk.movedTo ? { movedTo: { ...hunk.movedTo } } : {}),
   };

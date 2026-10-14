@@ -1379,6 +1379,40 @@ describe('a cited hunk’s tier', () => {
       ['hunk-tier-lowered', ['H0003']],
     ]);
   });
+
+  it('skims an imports-only hunk whatever its tier, as it does a whitespace-only one', () => {
+    const facts = groundingFor(
+      buildDiffHunkIndex(DIFF).hunks.map((hunk) =>
+        hunk.id === 'H0001' ? { ...hunk, importsOnly: true as const } : hunk,
+      ),
+    );
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 's' },
+        chapters: [
+          {
+            id: 'c',
+            title: 'C',
+            insights: [],
+            diffChunks: [
+              {
+                filename: 'src/a.ts',
+                language: 'typescript',
+                hunks: [{ id: 'H0001', tier: 'read' }],
+              },
+            ],
+          },
+        ],
+      }),
+      facts,
+    );
+    expect(tiers(result)).toEqual([['H0001', 'skim']]);
+    expect(result.ok && result.data.chapters[0]?.diffChunks[0]?.hunks[0]?.importsOnly).toBe(true);
+    expect(result.findings.map((f) => [f.code, f.hunkIds])).toEqual([
+      ['hunk-tier-lowered', ['H0001']],
+    ]);
+  });
 });
 
 describe('a reading plan', () => {

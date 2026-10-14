@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { plural } from '../review/plural.ts';
 import { detectLanguage } from '../review/language-map.ts';
+import { provenSkim } from '../review/narrative.ts';
 import type { DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
@@ -72,7 +73,7 @@ export function stubReview({ meta, files, hunks }: RunContext) {
             language: detectLanguage(file.filename),
             hunks: fileHunks.map((hunk) => ({
               id: hunk.id,
-              tier: hunk.whitespaceOnly ? 'skim' : 'read',
+              tier: provenSkim(hunk) ? 'skim' : 'read',
             })),
           },
         ],

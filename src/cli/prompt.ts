@@ -205,11 +205,13 @@ function formatHunkCatalog(hunks: readonly DiffHunk[]): string {
 
 /**
  * What the CLI proved about a hunk, as hints for the tier. The parser settles
- * the tier of a whitespace-only hunk itself; a move is the model's to judge.
+ * the tier of a whitespace-only or imports-only hunk itself; a move is the
+ * model's to judge.
  */
 function formatHints(hunk: DiffHunk): string {
   const hints = [
     hunk.whitespaceOnly ? '[whitespace only]' : null,
+    hunk.importsOnly ? '[imports only]' : null,
     hunk.movedFrom
       ? `[moved from ${hunk.movedFrom.filename}, ${String(hunk.movedFrom.similarity)}%]`
       : null,

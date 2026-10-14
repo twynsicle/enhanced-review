@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { buildDiffHunkIndex } from './diff-hunk-catalog.ts';
-import { hunkLines, provenFacts, type HunkBody } from './hunk-facts.ts';
+import { hunkLines, provenFacts, type FileSides, type HunkBody } from './hunk-facts.ts';
 
 let next = 0;
 function body(filename: string, removed: string[], added: string[]): HunkBody {
   next += 1;
-  return { id: `H${String(next).padStart(4, '0')}`, filename, removed, added };
+  return {
+    id: `H${String(next).padStart(4, '0')}`,
+    filename,
+    removed,
+    added,
+    removedAt: removed.map((_, i) => i + 1),
+    addedAt: added.map((_, i) => i + 1),
+  };
 }
+
+/** No file text on either side, so nothing is proven about imports. */
+const NO_FILES = (): FileSides => ({ base: null, head: null });
 
 const APPLY_DISCOUNT = [
   'export function applyDiscount(price: number, percent: number): number {',
@@ -28,7 +38,7 @@ const DISCOUNTED = [
 ];
 
 describe('hunkLines', () => {
-  it('reads each hunk’s removed and added lines in the order the catalog numbers them', () => {
+  it('reads each hunk’s removed and added lines, and where each sits, in the order the catalog numbers them', () => {
     const diff = [
       'diff --git a/src/a.ts b/src/a.ts',
       '--- a/src/a.ts',
@@ -46,9 +56,9 @@ describe('hunkLines', () => {
     ].join('\n');
 
     expect(hunkLines(diff)).toEqual([
-      { removed: ['old'], added: ['new'] },
-      { removed: [], added: ['--not a header'] },
-      { removed: [], added: ['fresh'] },
+      { removed: ['old'], added: ['new'], removedAt: [2], addedAt: [2] },
+      { removed: [], added: ['--not a header'], removedAt: [], addedAt: [10] },
+      { removed: [], added: ['fresh'], removedAt: [], addedAt: [1] },
     ]);
     expect(hunkLines(diff)).toHaveLength(buildDiffHunkIndex(diff).hunks.length);
   });
@@ -66,14 +76,14 @@ describe('provenFacts: whitespace only', () => {
       ['export function pad(s: string): string { return s.padStart(4); }'],
       ['export function pad(s: string): string {', '  return s.padStart(4);', '}', ''],
     );
-    const facts = provenFacts([reindent, rewrap]);
+    const facts = provenFacts([reindent, rewrap], NO_FILES);
     expect(facts.get(reindent.id)).toEqual({ whitespaceOnly: true });
     expect(facts.get(rewrap.id)).toEqual({ whitespaceOnly: true });
   });
 
   it('treats added or removed blank lines alone as whitespace only', () => {
     const blank = body('src/a.ts', [], ['', '   ']);
-    expect(provenFacts([blank]).get(blank.id)).toEqual({ whitespaceOnly: true });
+    expect(provenFacts([blank], NO_FILES).get(blank.id)).toEqual({ whitespaceOnly: true });
   });
 
   it('keeps the spacing inside a string literal, which is behaviour', () => {
@@ -87,7 +97,7 @@ describe('provenFacts: whitespace only', () => {
       ['const line = `${a} ${b}`;'],
       ['const line = `${a}  ${b}`;'],
     );
-    const facts = provenFacts([joined, template]);
+    const facts = provenFacts([joined, template], NO_FILES);
     expect(facts.has(joined.id)).toBe(false);
     expect(facts.has(template.id)).toBe(false);
 
@@ -97,7 +107,7 @@ describe('provenFacts: whitespace only', () => {
       ["log.info('started at', when);"],
       ['log.info(', "  'started at',", '  when);'],
     );
-    expect(provenFacts([rewrapped]).get(rewrapped.id)).toEqual({ whitespaceOnly: true });
+    expect(provenFacts([rewrapped], NO_FILES).get(rewrapped.id)).toEqual({ whitespaceOnly: true });
   });
 
   it('holds each line to its indentation where indentation is syntax', () => {
@@ -107,7 +117,7 @@ describe('provenFacts: whitespace only', () => {
     const recipe = body('Makefile', ['\tnpm test'], ['    npm test']);
     // Spacing within a line, and blank lines, still prove it.
     const spaced = body('src/jobs.py', ['    total = a+b', ''], ['    total = a + b']);
-    const facts = provenFacts([dedent, yaml, recipe, spaced]);
+    const facts = provenFacts([dedent, yaml, recipe, spaced], NO_FILES);
     expect(facts.has(dedent.id)).toBe(false);
     expect(facts.has(yaml.id)).toBe(false);
     expect(facts.has(recipe.id)).toBe(false);
@@ -126,7 +136,7 @@ describe('provenFacts: whitespace only', () => {
     // Two names merged into one.
     const merged = body('src/jobs.py', ['    if not ready:'], ['    if notready:']);
     const fused = body('src/a.ts', ['total = a + +b;'], ['total = a ++b;']);
-    const facts = provenFacts([intoComment, returnBroken, merged, fused]);
+    const facts = provenFacts([intoComment, returnBroken, merged, fused], NO_FILES);
     expect(facts.has(intoComment.id)).toBe(false);
     expect(facts.has(returnBroken.id)).toBe(false);
     expect(facts.has(merged.id)).toBe(false);
@@ -137,7 +147,7 @@ describe('provenFacts: whitespace only', () => {
     // Two statements, the second a bare -1, joined into a subtraction.
     const afterBracket = body('a.rb', ['total = compute()', '-1'], ['total = compute() -1']);
     const afterQuote = body('a.rb', ['name = "a"', '+ suffix'], ['name = "a" + suffix']);
-    const facts = provenFacts([afterBracket, afterQuote]);
+    const facts = provenFacts([afterBracket, afterQuote], NO_FILES);
     expect(facts.has(afterBracket.id)).toBe(false);
     expect(facts.has(afterQuote.id)).toBe(false);
   });
@@ -151,7 +161,7 @@ describe('provenFacts: whitespace only', () => {
       ['a.rb', 'x = A : : B', 'x = A :: B'],
     ];
     const hunks = pairs.map(([file, before, after]) => body(file!, [before!], [after!]));
-    const facts = provenFacts(hunks);
+    const facts = provenFacts(hunks, NO_FILES);
     for (const hunk of hunks) expect(facts.has(hunk.id)).toBe(false);
   });
 
@@ -166,7 +176,7 @@ describe('provenFacts: whitespace only', () => {
       ['call(first, second);'],
       ['call(', '  first,', '  second', ');'],
     );
-    const facts = provenFacts([comment, closing]);
+    const facts = provenFacts([comment, closing], NO_FILES);
     expect(facts.get(comment.id)).toEqual({ whitespaceOnly: true });
     expect(facts.get(closing.id)).toEqual({ whitespaceOnly: true });
   });
@@ -174,7 +184,7 @@ describe('provenFacts: whitespace only', () => {
   it('proves nothing about a hunk that changes a character', () => {
     const edit = body('src/a.ts', ['return x;'], ['return y;']);
     const added = body('src/a.ts', [], ['const z = 1;']);
-    const facts = provenFacts([edit, added]);
+    const facts = provenFacts([edit, added], NO_FILES);
     expect(facts.has(edit.id)).toBe(false);
     expect(facts.has(added.id)).toBe(false);
   });
@@ -184,7 +194,7 @@ describe('provenFacts: moved', () => {
   it('finds a body lifted into a differently named function in another file, both ways', () => {
     const removing = body('src/billing.ts', ['', ...APPLY_DISCOUNT], []);
     const adding = body('src/pricing.ts', [], DISCOUNTED);
-    const facts = provenFacts([removing, adding]);
+    const facts = provenFacts([removing, adding], NO_FILES);
 
     // Four of the five significant added lines are the moved body's; the
     // signature is new.
@@ -203,13 +213,13 @@ describe('provenFacts: moved', () => {
       [],
       ['export class Pricing {', ...DISCOUNTED, '  readonly currency = "EUR";', '}'],
     );
-    expect(provenFacts([removing, adding]).size).toBe(0);
+    expect(provenFacts([removing, adding], NO_FILES).size).toBe(0);
   });
 
   it('finds a move within one file', () => {
     const removing = body('src/a.ts', APPLY_DISCOUNT, []);
     const adding = body('src/a.ts', [], APPLY_DISCOUNT);
-    const facts = provenFacts([removing, adding]);
+    const facts = provenFacts([removing, adding], NO_FILES);
     expect(facts.get(adding.id)?.movedFrom).toEqual({ filename: 'src/a.ts', similarity: 100 });
     expect(facts.get(removing.id)?.movedTo).toEqual({ filename: 'src/a.ts', similarity: 100 });
   });
@@ -240,7 +250,7 @@ describe('provenFacts: moved', () => {
         '  return allowed;',
       ],
     );
-    expect(provenFacts([removing, adding]).size).toBe(0);
+    expect(provenFacts([removing, adding], NO_FILES).size).toBe(0);
   });
 
   it('moves nothing into or out of a hunk that edits in place', () => {
@@ -254,8 +264,8 @@ describe('provenFacts: moved', () => {
       'export { applyDiscount } from "./new";',
     ]);
     const adding = body('src/new.ts', [], APPLY_DISCOUNT);
-    expect(provenFacts([removing, editing]).size).toBe(0);
-    expect(provenFacts([removingAndAdding, adding]).size).toBe(0);
+    expect(provenFacts([removing, editing], NO_FILES).size).toBe(0);
+    expect(provenFacts([removingAndAdding, adding], NO_FILES).size).toBe(0);
   });
 
   it('is never proven by boilerplate alone', () => {
@@ -274,7 +284,7 @@ describe('provenFacts: moved', () => {
       [],
       closers.map((line) => `  ${line}`),
     );
-    expect(provenFacts([removing, adding]).size).toBe(0);
+    expect(provenFacts([removing, adding], NO_FILES).size).toBe(0);
   });
 
   it('never matches a hunk against itself', () => {
@@ -285,7 +295,7 @@ describe('provenFacts: moved', () => {
       APPLY_DISCOUNT,
       APPLY_DISCOUNT.map((line) => `  ${line}`),
     );
-    expect(provenFacts([reindent]).get(reindent.id)).toEqual({ whitespaceOnly: true });
+    expect(provenFacts([reindent], NO_FILES).get(reindent.id)).toEqual({ whitespaceOnly: true });
   });
 
   it('wants most of the added lines found, and at least three', () => {
@@ -302,7 +312,7 @@ describe('provenFacts: moved', () => {
     );
     // Every line found, but only two of them.
     const tiny = body('src/c.ts', [], APPLY_DISCOUNT.slice(1, 3));
-    const facts = provenFacts([removing, diluted, tiny]);
+    const facts = provenFacts([removing, diluted, tiny], NO_FILES);
     expect([...facts.keys()]).toEqual([]);
   });
 
@@ -332,7 +342,7 @@ describe('provenFacts: moved', () => {
         '});',
       ],
     );
-    expect(provenFacts([removing, adding]).get(adding.id)?.movedFrom).toEqual({
+    expect(provenFacts([removing, adding], NO_FILES).get(adding.id)?.movedFrom).toEqual({
       filename: 'src/a.ts',
       similarity: 99,
     });
@@ -347,7 +357,7 @@ describe('provenFacts: moved', () => {
     ];
     const respaced = APPLY_DISCOUNT.map((line) => line.replace('price * (', 'price  * ('));
     const similarity = (removed: string[], added: string[], filename = 'src/a.ts') =>
-      provenFacts([body(filename, removed, []), body(filename, [], added)])
+      provenFacts([body(filename, removed, []), body(filename, [], added)], NO_FILES)
         .values()
         .next().value?.movedFrom?.similarity;
 
@@ -366,7 +376,7 @@ describe('provenFacts: moved', () => {
       'never from a feature branch.',
     ];
     const similarity = (filename: string, removed: string[], added: string[]) =>
-      provenFacts([body(filename, removed, []), body(filename, [], added)])
+      provenFacts([body(filename, removed, []), body(filename, [], added)], NO_FILES)
         .values()
         .next().value?.movedFrom?.similarity;
 
@@ -396,7 +406,7 @@ describe('provenFacts: moved', () => {
     ];
     const dedented = [...block.slice(0, 2), '    ledger.reject(account)', block[3]!];
     const similarity = (added: string[]) =>
-      provenFacts([body('jobs/old.py', block, []), body('jobs/new.py', [], added)])
+      provenFacts([body('jobs/old.py', block, []), body('jobs/new.py', [], added)], NO_FILES)
         .values()
         .next().value?.movedFrom?.similarity;
 
@@ -422,7 +432,7 @@ describe('provenFacts: moved', () => {
       ],
     );
     // Three found of five: one `advance(clock);` was removed, not three.
-    expect(provenFacts([removing, adding]).has(adding.id)).toBe(false);
+    expect(provenFacts([removing, adding], NO_FILES).has(adding.id)).toBe(false);
   });
 
   it('takes the source with the most lines in common, and gives it one destination', () => {
@@ -430,12 +440,78 @@ describe('provenFacts: moved', () => {
     const whole = body('src/old-b.ts', APPLY_DISCOUNT, []);
     const first = body('src/new-a.ts', [], APPLY_DISCOUNT);
     const copy = body('src/new-b.ts', [], APPLY_DISCOUNT.slice(0, 5));
-    const facts = provenFacts([partial, whole, first, copy]);
+    const facts = provenFacts([partial, whole, first, copy], NO_FILES);
 
     expect(facts.get(first.id)?.movedFrom?.filename).toBe('src/old-b.ts');
     expect(facts.get(copy.id)?.movedFrom?.filename).toBe('src/old-b.ts');
     // Both copies came from old-b; it names the one that kept the most of it.
     expect(facts.get(whole.id)?.movedTo?.filename).toBe('src/new-a.ts');
     expect(facts.has(partial.id)).toBe(false);
+  });
+});
+
+describe('provenFacts: imports only', () => {
+  const head = [
+    "import { a } from './a';",
+    'import {',
+    '  b,',
+    '  c,',
+    "} from './b';",
+    '',
+    'export const x = a(b, c);',
+  ].join('\n');
+  const base = [
+    "import { a } from './a';",
+    "import { b } from './b';",
+    '',
+    'export const x = a(b);',
+  ].join('\n');
+  const files = (): FileSides => ({ base, head });
+  const at = (
+    filename: string,
+    removed: [number, string][],
+    added: [number, string][],
+  ): HunkBody => ({
+    ...body(
+      filename,
+      removed.map(([, line]) => line),
+      added.map(([, line]) => line),
+    ),
+    removedAt: removed.map(([n]) => n),
+    addedAt: added.map(([n]) => n),
+  });
+
+  it('proves a hunk whose every changed line is part of an import, across lines', () => {
+    const rewrap = at(
+      'src/x.ts',
+      [[2, "import { b } from './b';"]],
+      [
+        [2, 'import {'],
+        [3, '  b,'],
+        [4, '  c,'],
+        [5, "} from './b';"],
+      ],
+    );
+    expect(provenFacts([rewrap], files).get(rewrap.id)).toEqual({ importsOnly: true });
+  });
+
+  it('proves nothing once a hunk also changes code, or in a file that is not a script', () => {
+    const mixed = at(
+      'src/x.ts',
+      [[4, 'export const x = a(b);']],
+      [
+        [4, '  c,'],
+        [7, 'export const x = a(b, c);'],
+      ],
+    );
+    const python = at('src/x.py', [], [[4, '  c,']]);
+    const facts = provenFacts([mixed, python], files);
+    expect(facts.has(mixed.id)).toBe(false);
+    expect(facts.has(python.id)).toBe(false);
+  });
+
+  it('proves nothing where the side a line comes from could not be read', () => {
+    const added = at('src/x.ts', [], [[4, '  c,']]);
+    expect(provenFacts([added], () => ({ base, head: null })).has(added.id)).toBe(false);
   });
 });

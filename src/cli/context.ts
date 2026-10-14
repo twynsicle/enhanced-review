@@ -90,9 +90,11 @@ export async function gather(
   const diffs = (
     await mapLimit(reviewed, PARALLEL_GIT, (file) => fileDiff(shell, target, file))
   ).map((patch) => splitPatch(patch, splitLines));
-  const hunks = numberHunks(reviewed, diffs);
-  const diffFile = annotatedDiffFile(reviewed, diffs, hunks);
+  // Read before the hunks are numbered: an imports-only hunk is proven
+  // against the whole file on each side, not just its own lines.
   const contents = await embedContents(shell, target, reviewed);
+  const hunks = numberHunks(reviewed, diffs, contents);
+  const diffFile = annotatedDiffFile(reviewed, diffs, hunks);
 
   const context: RunContext = {
     target,
@@ -180,7 +182,11 @@ async function fileDiff(shell: Shell, target: Target, file: ChangedFile): Promis
  * cannot hide its hunks from the catalog. Facts are found across the whole
  * change at once, since a move is as likely to cross files as not.
  */
-function numberHunks(files: readonly ChangedFile[], diffs: readonly string[]): DiffHunk[] {
+function numberHunks(
+  files: readonly ChangedFile[],
+  diffs: readonly string[],
+  contents: Readonly<Record<string, EmbeddedFile>>,
+): DiffHunk[] {
   const hunks: DiffHunk[] = [];
   const bodies: HunkBody[] = [];
   files.forEach((file, index) => {
@@ -199,8 +205,16 @@ function numberHunks(files: readonly ChangedFile[], diffs: readonly string[]): D
       bodies.push({ id, filename: file.filename, ...lines[at]! });
     });
   });
-  const facts = provenFacts(bodies);
+  const facts = provenFacts(bodies, (filename) => ({
+    base: sideText(contents[filename]?.base),
+    head: sideText(contents[filename]?.head),
+  }));
   return hunks.map((hunk) => ({ ...hunk, ...facts.get(hunk.id) }));
+}
+
+/** A side's text, or null for one gather did not embed: absent or too large. */
+function sideText(side: EmbeddedSide | undefined): string | null {
+  return side?.kind === 'content' ? side.content : null;
 }
 
 /** `context/diff.patch`'s text: every reviewed file's patch, in file order, each hunk's id on the line above its header. */

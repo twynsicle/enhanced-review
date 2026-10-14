@@ -125,7 +125,7 @@ const SEVERITY_BY_CODE = {
    */
   'hunk-tier-raised': 'note',
   /**
-   * Hunks the model tiered `read` that the CLI proved change only whitespace,
+   * Hunks the model tiered `read` that the CLI proved change only whitespace or imports,
    * skimmed: there is nothing in them to read. One per review.
    */
   'hunk-tier-lowered': 'note',

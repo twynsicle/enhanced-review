@@ -152,7 +152,7 @@ src/report/
                      when er-dim-comments says so — which the library applies to the live editor with
                      setTheme, so a flip never remounts; the offset gutter helpers, the relayout once the
                      reader's column settles, and the scroll kept on a click's focus, which both editors share),
-                     hunk-marks.ts (pure: provenNote, a proven fact's few words and its hover — a move said as
+                     hunk-marks.ts (pure: provenNote, a proven fact's few words and its hover — "Imports only" among them, a move said as
                      unchanged or with edits, the percentage kept for the hover; factTags, one header tag per
                      fact with its hunks' touching ranges joined; hunkMarks, the regions a diff labels — every
                      skim hunk, as "Skim · <fact> · <the review's reason>", and every hunk with a fact whatever

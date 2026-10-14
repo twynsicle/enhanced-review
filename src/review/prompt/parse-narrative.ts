@@ -15,6 +15,7 @@ import {
   MAX_JUDGEMENT_CALLS,
   MAX_SKIM_REASON,
   NarrativeReviewSchema,
+  provenSkim,
   ReviewRiskFactorImpactSchema,
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
@@ -40,7 +41,7 @@ import { sanitizeDiagram } from './parse-diagram.ts';
  * assessment, and hunk ids are resolved against what the prompt showed
  * (unknown or wrong-file ids are dropped). A cited hunk with no usable tier is
  * read as `read`, leaning toward more of the reader's attention, never less;
- * one proven whitespace-only is `skim` whatever it says. A skim reason is kept
+ * one proven whitespace-only or imports-only is `skim` whatever it says. A skim reason is kept
  * on a skim hunk only. A reading plan keeps only
  * real chapters, its standard read widened to hold its brief, and is dropped
  * when no brief chapter is left. An excerpt of unchanged code that breaks a
@@ -168,7 +169,7 @@ function sanitizeRiskAssessment(raw: unknown, log: FindingLog): ReviewRiskAssess
 interface TierRepairs {
   /** No tier, or one that is not read or skim: read as `read`. */
   tierMissing: Set<string>;
-  /** Tiered `read` but proven whitespace only: skimmed. */
+  /** Tiered `read` but proven whitespace only or imports only: skimmed. */
   tierLowered: Set<string>;
   /** A skim reason too long to be a label: dropped. */
   reasonDropped: Set<string>;
@@ -185,8 +186,8 @@ function readCitation(raw: unknown): { id: unknown; tier: unknown; skimReason: u
 }
 
 /**
- * A whitespace-only hunk is skim whatever the model says, so a missing tier
- * there is no loss. A reason that is not a string, is blank, or is too long
+ * A whitespace-only or imports-only hunk is skim whatever the model says, so
+ * a missing tier there is no loss. A reason that is not a string, is blank, or is too long
  * to be a label is no reason: the reader then labels the lines "Skim" alone.
  */
 function citedHunk(
@@ -204,7 +205,7 @@ function citedHunk(
       ...(reason && reason.length <= MAX_SKIM_REASON ? { skimReason: reason } : {}),
     };
   };
-  if (hunk.whitespaceOnly) {
+  if (provenSkim(hunk)) {
     if (parsed.success && parsed.data === 'read') repairs.tierLowered.add(hunk.id);
     return skim();
   }
@@ -281,7 +282,7 @@ function reportTierRepairs(
   if (tierLowered.size > 0) {
     log.add(
       'hunk-tier-lowered',
-      `${plural(tierLowered.size, 'cited hunk')} tiered to be read ${tierLowered.size > 1 ? 'change' : 'changes'} only whitespace, so ${tierLowered.size > 1 ? 'they are' : 'it is'} marked to be skimmed.`,
+      `${plural(tierLowered.size, 'cited hunk')} tiered to be read ${tierLowered.size > 1 ? 'change' : 'changes'} only whitespace or imports, so ${tierLowered.size > 1 ? 'they are' : 'it is'} marked to be skimmed.`,
       { hunkIds: [...tierLowered] },
     );
   }

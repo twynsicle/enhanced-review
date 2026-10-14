@@ -24,11 +24,12 @@ src/review/
                      that raised it;
                      ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
                      ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
-                     reviewable and not only what was cited; HunkFacts (whitespaceOnly?, movedFrom?/movedTo? —
-                     what the CLI proved, carried on every ResolvedDiffHunk); ResolvedDiffHunk.part? (which part
+                     reviewable and not only what was cited; HunkFacts (whitespaceOnly?, importsOnly?, movedFrom?/movedTo? —
+                     what the CLI proved, carried on every ResolvedDiffHunk; provenSkim, the facts that settle a
+                     hunk as skim — whitespace and imports — which the parser and the stub both ask); ResolvedDiffHunk.part? (which part
                      of a split hunk it is, from its header, for the reader's hunk debug); .changedLines, the
-                     lines it adds and removes without git's context, what the reader times; a whitespace-only hunk is skim whatever the
-                     model said, a move only a hint; DiffChunk.hunks is
+                     lines it adds and removes without git's context, what the reader times; a whitespace-only or imports-only hunk is skim
+                     whatever the model said, a move only a hint; DiffChunk.hunks is
                      CitedHunk[], a resolved hunk plus its HunkTier (read | skim, the model's call on how hard to
                      look; nothing folds, and the reader can fade skim lines in place) and, on a skim hunk only,
                      skimReason, the model's few words on why, which the reader labels the lines with;
@@ -84,8 +85,11 @@ src/review/
                      diff-hunk-catalog (H0001… ids, each hunk's changedLines counted off its body;
                      PromptGrounding/groundingFor, what a model's answer is
                      checked against, `changed` being every path the change touches, skipped files included; toResolvedHunk, a catalog hunk as a review stores it, facts and split part kept),
-                     hunk-facts (hunkLines reads each hunk's removed and added lines in catalog order;
-                     provenFacts: whitespaceOnly when the two sides match with whitespace outside a string literal
+                     hunk-facts (hunkLines reads each hunk's removed and added lines in catalog order, each with its
+                     line number on its own side;
+                     provenFacts, handed the hunks and each file's two sides as text (null where gather embedded
+                     none): importsOnly when a TypeScript or JavaScript hunk changes a line that is not blank and
+                     every such line is import wiring on its own side, read off the whole file by import-lines; whitespaceOnly when the two sides match with whitespace outside a string literal
                      cut to what can change a parse — one space between two characters that could fuse (two
                      words, or any two operator characters: `+ +`, `< -`, `= >`), one line break after a line
                      comment, or straight after a word, a closing bracket or a closing quote unless a closing
@@ -98,8 +102,15 @@ src/review/
                      moved unchanged (in order, each line whole but for a margin the block shifted by as a
                      whole, in the same whitespace character), best overlap winning and the
                      removing hunk naming its best destination; any file, never a hunk that edits in place; facts
-                     are hints for the tier and tags in the reader, and whitespace only settles it; each
+                     are hints for the tier and tags in the reader, and whitespace or imports only settle it; each
                      errs toward proving nothing, since a fact can fade a hunk the model called read),
+                     import-lines (importLines: the 1-based lines of a script file that are a top-level import,
+                     side-effect import or `export … from`, each over every line it is written on — read off the
+                     whole file, since a member a hunk adds to a long import list says nothing alone; no parser,
+                     but a scan for where each line starts, in code at bracket depth 0 or inside a string,
+                     comment or template, so an import in a fixture's template is never one; a statement must
+                     match whole with nothing after it on its line but `;`, an attribute or a line comment, and
+                     every miss leaves a hunk unproven rather than proven wrongly; isScriptFile),
                      split-hunks (splitPatch: one file's patch with each hunk over the target rewritten as parts,
                      each a real hunk with a synthesised `@@ … @@ (part k of n)` header, so nothing downstream
                      needs to know a part from a hunk; a hunk's body is delimited by its header's counts, an
@@ -144,8 +155,8 @@ src/review/
                      applied here rather than by the schema, which could only refuse the whole review;
                      sanitizeProse takes a `{ lede, body? }` object or a bare string, which is promoted to the
                      lede, as is a body that arrived without one; a diffChunk's `hunks` entry may arrive as a bare
-                     id string; a whitespace-only hunk is skim whatever tier came with it (a `read` there is one
-                     `hunk-tier-lowered` note naming the hunks), and otherwise a
+                     id string; a whitespace-only or imports-only hunk is skim whatever tier came with it (a `read` there is
+                     one `hunk-tier-lowered` note naming the hunks), and otherwise a
                      missing or unknown tier is read as `read` — leniency toward the model, recorded once per
                      review as a `hunk-tier-missing` warning naming the hunks, never a reason to fail; a
                      skimReason is kept trimmed on a skim hunk and dropped on a read one, when blank, or past

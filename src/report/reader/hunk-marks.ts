@@ -72,6 +72,13 @@ export function provenNote(hunk: CitedHunk): HunkNote | null {
       tone: 'plain',
     };
   }
+  if (hunk.importsOnly) {
+    return {
+      ...joinParts([words('Imports only')]),
+      detail: 'Every line changed here is part of an import or re-export',
+      tone: 'plain',
+    };
+  }
   if (hunk.movedFrom) return moveNote('from', hunk.movedFrom);
   if (hunk.movedTo) return moveNote('to', hunk.movedTo);
   return null;

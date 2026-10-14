@@ -67,14 +67,15 @@ src/cli/
                    target's kind and its base and head commits, files with skip reasons and origins, each file's
                    patch put through splitPatch (a hunk over --split-hunks changed lines becomes parts, each a real
                    hunk) before its hunks are numbered across the change, each hunk carrying what provenFacts
-                   proved about it across the whole change (whitespace only, moved from/to another hunk), embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
+                   proved about it across the whole change (whitespace only, imports only, moved from/to another
+                   hunk) — the contents are embedded first, since imports are read off the whole file — embedded contents (bundle shape, >1 MB too-large), commits, dirty paths;
                    one diff file carrying every reviewed file's annotated patch (a patch holding two file sections
                    where the list paired one fails the stage), its line count carried as
                    `diffLines` so the prompt can ask the agent to Read it in one call; pr.md
   prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
                    commits, where the agent is, Files Changed, Not Reviewed, the hunk table (each hunk's proven
-                   facts after it as hints: `[whitespace only]`, `[moved from <path>, N%]`; the parser settles
-                   the tier of a whitespace-only hunk itself), and where the diff
+                   facts after it as hints: `[whitespace only]`, `[imports only]`, `[moved from <path>, N%]`; the
+                   parser settles the tier of a whitespace-only or imports-only hunk itself), and where the diff
                    file is, with its length, then the overview style's section (none for narrative, and never
                    in system.md, which stays the same on every run so it is read from cache), then the
                    engineer's own instructions when given; the dirty paths
@@ -112,8 +113,8 @@ src/cli/
                    refusing one missing or half-written); a review with no excerpts reads no git; paths are
                    looked up in Maps, never as a plain object's keys, since a root file may be `constructor`
                    or `__proto__`
-  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing its hunks as `read`, a proven
-                   whitespace-only one as `skim` (as the parser would make it in any answer), and
+  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing its hunks as `read`, one
+                   provenSkim says is skim (whitespace or imports only) as `skim` (as the parser would make it in any answer), and
                    a reading plan of the first chapter for the brief and every chapter for the standard read,
                    so the reader's faded lines and its plan can be seen without a model, and no excerpts, since
                    choosing what unchanged code matters is a judgement and a stub has none. It also

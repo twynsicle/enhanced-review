@@ -1,5 +1,6 @@
 import { detectLanguage } from '../language-map.ts';
 import type { HunkFacts } from '../narrative.ts';
+import { importLines, isScriptFile } from './import-lines.ts';
 
 /**
  * What the patch proves about a hunk on its own, with no model and no
@@ -12,8 +13,13 @@ import type { HunkFacts } from '../narrative.ts';
  * landed, even unchanged, is the model's call, not this module's. Moving
  * validation after the charge it guarded changes no line.
  *
- * A whitespace-only hunk is skim whatever the model says, so each fact errs
- * toward proving nothing: a hunk left unproven is the model's to tier, while a
+ * In a TypeScript or JavaScript file, a hunk can also be proven to change only
+ * import wiring (`import-lines.ts`): every line it adds or removes is part of
+ * an import or re-export statement, read off the whole file on that side.
+ *
+ * A whitespace-only or imports-only hunk is skim whatever the model says —
+ * the same call every time, where the model's own varies from hunk to hunk —
+ * so each fact errs toward proving nothing: a hunk left unproven is the model's to tier, while a
  * behaviour change proven to be whitespace is faded as though it were nothing.
  *
  * A move is found per hunk rather than per file, so it sees a block that git
@@ -23,7 +29,7 @@ import type { HunkFacts } from '../narrative.ts';
  * of its hunk rather than a tenth of it.
  */
 
-const HUNK_HEADER_RE = /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/;
+const HUNK_HEADER_RE = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
 
 /**
  * A move needs at least this share of the significant lines on each side: of
@@ -105,6 +111,10 @@ const INDENTED_FILE_RE = /(?:^|\/)(?:gnu)?makefile$|\.(?:mk|hs|lhs|sass)$/i;
 export interface HunkLines {
   removed: string[];
   added: string[];
+  /** Each removed line's number in the base file, in order. */
+  removedAt: number[];
+  /** Each added line's number in the head file, in order. */
+  addedAt: number[];
 }
 
 export interface HunkBody extends HunkLines {
@@ -120,26 +130,51 @@ export function hunkLines(diff: string): HunkLines[] {
   const hunks: HunkLines[] = [];
   let inFile = false;
   let current: HunkLines | null = null;
+  let originalLine = 0;
+  let modifiedLine = 0;
   for (const line of diff.split('\n')) {
     if (line.startsWith('diff --git ')) {
       inFile = true;
       current = null;
       continue;
     }
-    if (inFile && HUNK_HEADER_RE.test(line)) {
-      current = { removed: [], added: [] };
+    const header = inFile ? HUNK_HEADER_RE.exec(line) : null;
+    if (header) {
+      current = { removed: [], added: [], removedAt: [], addedAt: [] };
+      originalLine = Number(header[1]);
+      modifiedLine = Number(header[2]);
       hunks.push(current);
       continue;
     }
     if (!current) continue;
-    if (line.startsWith('+')) current.added.push(line.slice(1));
-    else if (line.startsWith('-')) current.removed.push(line.slice(1));
+    if (line.startsWith('+')) {
+      current.added.push(line.slice(1));
+      current.addedAt.push(modifiedLine);
+      modifiedLine += 1;
+    } else if (line.startsWith('-')) {
+      current.removed.push(line.slice(1));
+      current.removedAt.push(originalLine);
+      originalLine += 1;
+    } else if (!line.startsWith('\\')) {
+      // Context, which git may write as an empty line.
+      originalLine += 1;
+      modifiedLine += 1;
+    }
   }
   return hunks;
 }
 
+/** A file's text on each side, or null where that side is absent or too large to read. */
+export interface FileSides {
+  base: string | null;
+  head: string | null;
+}
+
 /** Facts by hunk id; a hunk with nothing proven has no entry. */
-export function provenFacts(hunks: readonly HunkBody[]): Map<string, HunkFacts> {
+export function provenFacts(
+  hunks: readonly HunkBody[],
+  sides: (filename: string) => FileSides,
+): Map<string, HunkFacts> {
   const facts = new Map<string, HunkFacts>();
   const factsOf = (id: string): HunkFacts => {
     let entry = facts.get(id);
@@ -150,8 +185,10 @@ export function provenFacts(hunks: readonly HunkBody[]): Map<string, HunkFacts> 
     return entry;
   };
 
+  const imports = importWiring(sides);
   for (const hunk of hunks) {
     if (isWhitespaceOnly(hunk)) factsOf(hunk.id).whitespaceOnly = true;
+    if (imports(hunk)) factsOf(hunk.id).importsOnly = true;
   }
   const moves = findMoves(hunks);
   // A block copied to two places was moved from one hunk to both, but the
@@ -173,6 +210,45 @@ export function provenFacts(hunks: readonly HunkBody[]): Map<string, HunkFacts> 
     };
   }
   return facts;
+}
+
+/**
+ * Whether a hunk changes nothing but import wiring: a script file's hunk that
+ * changes a line that is not blank, every such line inside an import or
+ * re-export on its own side. Each file's sides are read once however many of
+ * its hunks ask.
+ */
+function importWiring(sides: (filename: string) => FileSides): (hunk: HunkBody) => boolean {
+  const cache = new Map<string, { base: Set<number> | null; head: Set<number> | null }>();
+  const linesOf = (filename: string) => {
+    let entry = cache.get(filename);
+    if (!entry) {
+      const { base, head } = sides(filename);
+      entry = {
+        base: base === null ? null : importLines(base),
+        head: head === null ? null : importLines(head),
+      };
+      cache.set(filename, entry);
+    }
+    return entry;
+  };
+  return (hunk) => {
+    if (!isScriptFile(hunk.filename)) return false;
+    if (![...hunk.removed, ...hunk.added].some((line) => line.trim().length > 0)) return false;
+    const { base, head } = linesOf(hunk.filename);
+    return (
+      allWiring(hunk.removed, hunk.removedAt, base) && allWiring(hunk.added, hunk.addedAt, head)
+    );
+  };
+}
+
+/** Every line that is not blank is at a line number the side's wiring holds. */
+function allWiring(
+  text: readonly string[],
+  at: readonly number[],
+  wiring: Set<number> | null,
+): boolean {
+  return text.every((line, i) => line.trim().length === 0 || (wiring?.has(at[i]!) ?? false));
 }
 
 /**

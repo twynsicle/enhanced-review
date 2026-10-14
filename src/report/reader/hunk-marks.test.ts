@@ -45,10 +45,12 @@ describe('factTags', () => {
       makeHunk(1, moved(90)),
       makeHunk(2, moved(90)),
       makeHunk(5, { whitespaceOnly: true }),
+      makeHunk(7, { importsOnly: true }),
     ]);
     expect(tags.map((tag) => `${tag.label} · ${tag.lines}`)).toEqual([
       'Moved from src/old.ts, with edits · L11-40',
       'Whitespace only · L51-60',
+      'Imports only · L71-80',
     ]);
   });
 

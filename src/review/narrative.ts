@@ -105,17 +105,26 @@ export const HunkMoveSchema = z.object({
 export type HunkMove = z.infer<typeof HunkMoveSchema>;
 
 /**
- * What the CLI can prove about a hunk from the patch alone
+ * What the CLI can prove about a hunk from the patch and the files
  * (`prompt/hunk-facts.ts`). The model is shown them as hints and the reader
- * draws them as tags. A whitespace-only hunk is skim whatever the model says:
- * there is nothing new in it to read. A move, even of unchanged lines, stays a
- * hint, since putting code somewhere else can change what runs it and when.
+ * draws them as tags. A whitespace-only or imports-only hunk is skim whatever
+ * the model says (`provenSkim`): there is nothing in it to read closely, and
+ * the same call on every such hunk is worth more than the model's, which
+ * varies. A move, even of unchanged lines, stays a hint, since putting code
+ * somewhere else can change what runs it and when.
  */
 export const HunkFactsSchema = z.object({
   whitespaceOnly: z.literal(true).optional(),
+  /** Every changed line is part of an import or re-export, in a TypeScript or JavaScript file. */
+  importsOnly: z.literal(true).optional(),
   movedFrom: HunkMoveSchema.optional(),
   movedTo: HunkMoveSchema.optional(),
 });
+
+/** Whether a hunk's facts settle it as skim, whatever tier the model gave it. */
+export function provenSkim(facts: HunkFacts): boolean {
+  return facts.whitespaceOnly === true || facts.importsOnly === true;
+}
 export type HunkFacts = z.infer<typeof HunkFactsSchema>;
 
 /**
