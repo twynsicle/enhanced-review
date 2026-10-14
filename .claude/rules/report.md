@@ -31,7 +31,8 @@ src/report/
   chrome/            brand-mark (+ brand-mark.svg, imported so the build inlines it), caption (the one uppercase
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
                      topbar (+ .module.css; TopbarFrame, Brand — the mark alone on a phone — and TopbarChange,
-                     the tag in mono and the title, each cut with an ellipsis and whole in the hover),
+                     the tag in mono and the title, each cut with an ellipsis and whole in the hover, a branch tag
+                     giving way before the title on a phone),
                      change-label.ts (changeTitle, the one place the review's title falls back to the meta's;
                      changeLabel, the header's tag — `#<n>` for a PR, `staged`, or the branch, dropped when the
                      title is that same name — and title; documentTitle, led by the PR number alone; unrelated

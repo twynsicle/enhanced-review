@@ -42,12 +42,12 @@
 }
 
 /*
- * Wide enough for a PR number whole and a branch recognisable from its start;
- * narrower on a phone, where a full-width branch would leave the title no room.
+ * A PR number or `staged` is kept whole. A branch is capped where it is still
+ * recognisable from its start, and on a phone it shrinks three times as fast
+ * as the title, down to a stub, so the title is what keeps the room.
  */
 .tag {
   flex: none;
-  max-width: 12ch;
   font-family: var(--mantine-font-family-monospace);
   color: var(--er-muted-foreground);
 }
@@ -57,8 +57,15 @@
   font-weight: 500;
 }
 
+.tag[data-kind='name'] {
+  flex: 0 3 auto;
+  min-width: 6ch;
+  max-width: 12ch;
+}
+
 @media (min-width: 48em) {
-  .tag {
+  .tag[data-kind='name'] {
+    flex: none;
     max-width: 24ch;
   }
 }
