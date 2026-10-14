@@ -44,7 +44,6 @@ interface ChapterSidebarProps {
   /** Sidebar entries are buttons, not links: the URL strategy lives a layer up. */
   onSelect: (id: string) => void;
   onSelectFile: (filename: string) => void;
-  reviewTitle: string;
   files?: readonly ReviewFile[];
   /** Which files the chapters left out, wholly or in part; see `coverage.ts`. */
   coverage?: ReviewCoverage;
@@ -54,7 +53,7 @@ interface ChapterSidebarProps {
 /**
  * Editorial navigation. Section links sit first; a compact changed-file list
  * follows so readers can jump by file when the narrative is not the path
- * they want. `reviewTitle` is accepted for parity with the page but not shown.
+ * they want.
  *
  * The risk card is the risk section's entry. It is not repeated as a row in
  * the list below, because two controls that go to one place make a list the

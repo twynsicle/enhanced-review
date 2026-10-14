@@ -236,7 +236,6 @@ export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderPr
           readIds={readIds}
           activeFile={activeFile}
           readingFile={activeFile === null ? readingFile : null}
-          reviewTitle={review.prTitle}
           riskAssessment={review.riskAssessment}
           onSelect={onSelect}
           onSelectFile={onSelectFile}

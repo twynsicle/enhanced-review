@@ -1,8 +1,10 @@
-import { Box, Group, Text } from '@mantine/core';
+import { Box, Group, Text, VisuallyHidden } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { BrandMark } from '@/report/chrome/brand-mark';
+import type { ChangeLabel } from '@/report/chrome/change-label';
 import { SHELL_MAX_WIDTH, SHELL_PX } from '@/report/chrome/page-shell';
 import { token, TOPBAR_HEIGHT } from '@/report/theme/tokens';
+import classes from './topbar.module.css';
 
 /**
  * Sticky, translucent header bar. Its inner bar takes its width and gutter
@@ -32,10 +34,8 @@ export function TopbarFrame({ start, end }: { start: ReactNode; end: ReactNode }
         gap={24}
         wrap="nowrap"
       >
-        <Group gap={28} wrap="nowrap">
-          {start}
-        </Group>
-        <Group gap={6} wrap="nowrap">
+        <div className={classes.start}>{start}</div>
+        <Group gap={6} wrap="nowrap" className={classes.end}>
           {end}
         </Group>
       </Group>
@@ -43,17 +43,55 @@ export function TopbarFrame({ start, end }: { start: ReactNode; end: ReactNode }
   );
 }
 
-/** The mark and the name, as the header shows them. */
+/** The mark and the name, as the header shows them; on a phone the mark alone. */
 export function Brand() {
   return (
     <Box
       component="span"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: token('foreground') }}
+      style={{
+        display: 'inline-flex',
+        flex: 'none',
+        alignItems: 'center',
+        gap: 10,
+        color: token('foreground'),
+      }}
     >
       <BrandMark size={48} />
-      <Text component="span" fz="md" fw={600} style={{ letterSpacing: '-0.01em' }}>
+      <Text component="span" fz="md" fw={600} visibleFrom="sm" style={{ letterSpacing: '-0.01em' }}>
         Enhanced&nbsp;Review
       </Text>
     </Box>
+  );
+}
+
+/**
+ * Which change this report is about, on every section. It links to the
+ * summary, which is `#/`: the reader's hash state with no section named.
+ *
+ * On the summary already the hash does not change, so the reader has nothing
+ * to react to and a click would leave the page where it is; the click scrolls
+ * to the top itself, which from any other section the reader does anyway.
+ */
+export function TopbarChange({ tag, title }: ChangeLabel) {
+  return (
+    <a
+      href="#/"
+      className={classes.change}
+      onClick={(event) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+          return;
+        window.scrollTo({ top: 0 });
+      }}
+    >
+      {tag !== null && (
+        <span className={classes.tag} data-kind={tag.kind} title={tag.text}>
+          {tag.text}
+        </span>
+      )}
+      <span className={classes.title} title={title}>
+        {title}
+      </span>
+      <VisuallyHidden>, back to the summary</VisuallyHidden>
+    </a>
   );
 }

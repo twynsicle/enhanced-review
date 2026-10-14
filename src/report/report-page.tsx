@@ -1,23 +1,22 @@
-import { Text } from '@mantine/core';
+import type { ReviewBundle } from '@/review/bundle';
 import type { EmbeddedBundleResult } from '@/review/bundle-html';
 import { SUMMARY_SECTION_ID } from '@/review/narrative';
 import { ChapterReader } from '@/report/reader/chapter-reader';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
+import { changeLabel, documentTitle } from '@/report/chrome/change-label';
 import { PageShell } from '@/report/chrome/page-shell';
 import { DisplayMenu } from '@/report/chrome/display-menu';
-import { Brand, TopbarFrame } from '@/report/chrome/topbar';
+import { Brand, TopbarChange, TopbarFrame } from '@/report/chrome/topbar';
 import { ReportProblem } from './report-problem';
 
-/** The header: the brand, and the display settings. */
-function ReportTopbar() {
+/** The header: the brand, the change when there is one to name, and the display settings. */
+function ReportTopbar({ bundle }: { bundle?: ReviewBundle }) {
   return (
     <TopbarFrame
       start={
         <>
           <Brand />
-          <Text component="span" fz="sm" c="dimmed">
-            Local review
-          </Text>
+          {bundle && <TopbarChange {...changeLabel(bundle.review, bundle.meta)} />}
         </>
       }
       end={<DisplayMenu />}
@@ -41,12 +40,12 @@ export function ReportPage({ result }: { result: EmbeddedBundleResult }) {
   const { bundle } = result;
   return (
     <>
-      <ReportTopbar />
+      <ReportTopbar bundle={bundle} />
       <PageShell
         py={32}
         style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: '100%' }}
       >
-        <title>{`${bundle.review.prTitle || bundle.meta.title} · enhanced-review`}</title>
+        <title>{documentTitle(bundle.review, bundle.meta)}</title>
         <EmbeddedFileSource bundle={bundle}>
           {/*
            * The report carries no findings. Whoever ran `er` is told what
