@@ -32,9 +32,10 @@ src/report/
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
                      topbar (+ .module.css; TopbarFrame, Brand — the mark alone on a phone — and TopbarChange,
                      the tag in mono and the title, each cut with an ellipsis and whole in the hover),
-                     change-name.ts (changeTitle, the one place the review's title falls back to the meta's;
-                     changeTag, `#<n>` for a PR, `staged`, or the branch; documentTitle, led by the PR number
-                     alone), display-menu (every display preference in one labelled
+                     change-label.ts (changeTitle, the one place the review's title falls back to the meta's;
+                     changeLabel, the header's tag — `#<n>` for a PR, `staged`, or the branch, dropped when the
+                     title is that same name — and title; documentTitle, led by the PR number alone; unrelated
+                     to ask-prompt's changeName, which words the change for a prompt), display-menu (every display preference in one labelled
                      dropdown: diffs, long lines, comments, file headers, skim hunks, hunk debug, layout, theme — comments
                      and skim hunks each with a fade slider beneath while they are dimmed or marked)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through

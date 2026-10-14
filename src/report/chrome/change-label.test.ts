@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NarrativeReview } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
-import { changeTag, changeTitle, documentTitle } from './change-name';
+import { changeLabel, documentTitle } from './change-label';
 
 const pr: ReviewMeta = {
   repo: 'acme/widgets',
@@ -36,28 +36,33 @@ const review = (prTitle: string): NarrativeReview => ({
   chapters: [],
 });
 
-describe('changeTag', () => {
-  it('is the PR number for a PR', () => {
-    expect(changeTag(pr)).toBe('#42');
+describe('changeLabel', () => {
+  const tagOf = (meta: ReviewMeta, title = 'A title') => changeLabel(review(title), meta).tag;
+
+  it('tags a PR with its number', () => {
+    expect(tagOf(pr)).toEqual({ text: '#42', kind: 'number' });
   });
 
-  it('is the PR number for a branch with an open PR', () => {
-    expect(changeTag({ ...branch, prNumber: 7 })).toBe('#7');
+  it('tags a branch with an open PR with the PR number', () => {
+    expect(tagOf({ ...branch, prNumber: 7 })).toEqual({ text: '#7', kind: 'number' });
   });
 
-  it('is the branch for a branch with no PR', () => {
-    expect(changeTag(branch)).toBe('feat/schedules');
+  it('tags a branch with no PR with its name', () => {
+    expect(tagOf(branch)).toEqual({ text: 'feat/schedules', kind: 'name' });
   });
 
-  it('is "staged" for staged changes', () => {
-    expect(changeTag(staged)).toBe('staged');
+  it('tags staged changes as staged', () => {
+    expect(tagOf(staged)).toEqual({ text: 'staged', kind: 'staged' });
   });
-});
 
-describe('changeTitle', () => {
-  it("is the review's title, or the meta's when the review gave none", () => {
-    expect(changeTitle(review('Schedules, hourly'), pr)).toBe('Schedules, hourly');
-    expect(changeTitle(review(''), branch)).toBe('feat/schedules');
+  it("uses the review's title, or the meta's when the review gave none", () => {
+    expect(changeLabel(review('Schedules, hourly'), pr).title).toBe('Schedules, hourly');
+    expect(changeLabel(review(''), pr).title).toBe('Add scheduled reviews');
+  });
+
+  it('names a branch once when its title falls back to the branch name', () => {
+    expect(changeLabel(review(''), branch)).toEqual({ tag: null, title: 'feat/schedules' });
+    expect(changeLabel(review('feat/schedules'), branch).tag).toBeNull();
   });
 });
 

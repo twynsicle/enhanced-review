@@ -3,7 +3,7 @@ import type { EmbeddedBundleResult } from '@/review/bundle-html';
 import { SUMMARY_SECTION_ID } from '@/review/narrative';
 import { ChapterReader } from '@/report/reader/chapter-reader';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
-import { changeTag, changeTitle, documentTitle } from '@/report/chrome/change-name';
+import { changeLabel, documentTitle } from '@/report/chrome/change-label';
 import { PageShell } from '@/report/chrome/page-shell';
 import { DisplayMenu } from '@/report/chrome/display-menu';
 import { Brand, TopbarChange, TopbarFrame } from '@/report/chrome/topbar';
@@ -16,12 +16,7 @@ function ReportTopbar({ bundle }: { bundle?: ReviewBundle }) {
       start={
         <>
           <Brand />
-          {bundle && (
-            <TopbarChange
-              tag={changeTag(bundle.meta)}
-              title={changeTitle(bundle.review, bundle.meta)}
-            />
-          )}
+          {bundle && <TopbarChange {...changeLabel(bundle.review, bundle.meta)} />}
         </>
       }
       end={<DisplayMenu />}

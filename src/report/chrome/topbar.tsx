@@ -1,6 +1,7 @@
 import { Box, Group, Text } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { BrandMark } from '@/report/chrome/brand-mark';
+import type { ChangeLabel } from '@/report/chrome/change-label';
 import { SHELL_MAX_WIDTH, SHELL_PX } from '@/report/chrome/page-shell';
 import { token, TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import classes from './topbar.module.css';
@@ -67,11 +68,17 @@ export function Brand() {
  * Which change this report is about, on every section. It links to the
  * summary, which is `#/`: the reader's hash state with no section named.
  */
-export function TopbarChange({ tag, title }: { tag: string | null; title: string }) {
+export function TopbarChange({ tag, title }: ChangeLabel) {
   return (
-    <a href="#/" className={classes.change} title={tag === null ? title : `${tag} · ${title}`}>
-      {tag !== null && <span className={classes.tag}>{tag}</span>}
-      <span className={classes.title}>{title}</span>
+    <a href="#/" className={classes.change}>
+      {tag !== null && (
+        <span className={classes.tag} data-kind={tag.kind} title={tag.text}>
+          {tag.text}
+        </span>
+      )}
+      <span className={classes.title} title={title}>
+        {title}
+      </span>
     </a>
   );
 }

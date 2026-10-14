@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
 import { Caption } from '@/report/chrome/caption';
-import { changeTitle } from '@/report/chrome/change-name';
+import { changeTitle } from '@/report/chrome/change-label';
 import classes from '@/report/reader/article.module.css';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
 import type { AnchoredJudgementCall } from '@/report/reader/judgement-calls';
