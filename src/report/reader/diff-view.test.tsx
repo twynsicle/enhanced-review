@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/review/bundle';
+import { BUNDLE_SCHEMA_VERSION, type EmbeddedFile, type ReviewBundle } from '@/review/bundle';
 import type { DiffChunk } from '@/review/narrative';
 import { EmbeddedFileSource } from '@/report/reader/file-source';
 import { DisplayMenu } from '@/report/chrome/display-menu';
@@ -66,9 +66,9 @@ const bundle: ReviewBundle = {
   },
 };
 
-async function renderDiff() {
+async function renderDiff(file: EmbeddedFile = bundle.files['src/main.ts']!) {
   render(
-    <EmbeddedFileSource bundle={bundle}>
+    <EmbeddedFileSource bundle={{ ...bundle, files: { 'src/main.ts': file } }}>
       <InlineDiffChunk chunk={chunk} />
     </EmbeddedFileSource>,
   );
@@ -138,6 +138,44 @@ describe('diff view preference', () => {
     // Monaco's own rule, from diffEditorOptions.js.
     const breakpoint = lastOptions.current?.renderSideBySideInlineBreakpoint as number;
     expect(width <= breakpoint).toBe(!sideBySide);
+  });
+});
+
+/*
+ * A file with nothing on one side would spend half a split card on hatching,
+ * so it is stacked whatever the preference; the header says why the card is
+ * drawn differently from its neighbours.
+ */
+describe('a file that exists on one side only', () => {
+  beforeEach(() => {
+    lastOptions.current = null;
+    resetDiffView();
+  });
+
+  it('stacks a new file while the preference is split', async () => {
+    await renderDiff({
+      base: { kind: 'absent' },
+      head: { kind: 'content', content: 'one\ntwo\n' },
+    });
+    expect(lastOptions.current?.renderSideBySide).toBe(false);
+    expect(screen.getByText('new file')).toBeInTheDocument();
+  });
+
+  it('stacks a deleted file while the preference is split', async () => {
+    await renderDiff({
+      base: { kind: 'content', content: 'one\ntwo\n' },
+      head: { kind: 'absent' },
+    });
+    expect(lastOptions.current?.renderSideBySide).toBe(false);
+    expect(screen.getByText('deleted file')).toBeInTheDocument();
+  });
+
+  // A copy is a new path, but its base is the file it was copied from.
+  it('keeps both panes for a file with content on both sides', async () => {
+    await renderDiff();
+    expect(lastOptions.current?.renderSideBySide).toBe(true);
+    expect(screen.queryByText('new file')).toBeNull();
+    expect(screen.queryByText('deleted file')).toBeNull();
   });
 });
 

@@ -69,6 +69,26 @@
 }
 
 /*
+ * Monaco diffs an empty side as its one blank line replaced by the whole file,
+ * so a new file opens on a removed blank row and a deleted file ends on an
+ * added one. That row is the only change of its kind such a file has, and it
+ * is not a line of the file, so the kind goes uncoloured.
+ */
+.editor[data-empty-side='original'] :global(.monaco-editor),
+.editor[data-empty-side='original'] :global(.monaco-diff-editor) {
+  --vscode-diffEditor-removedLineBackground: transparent;
+  --vscode-diffEditor-removedTextBackground: transparent;
+  --vscode-diffEditorGutter-removedLineBackground: transparent;
+}
+
+.editor[data-empty-side='modified'] :global(.monaco-editor),
+.editor[data-empty-side='modified'] :global(.monaco-diff-editor) {
+  --vscode-diffEditor-insertedLineBackground: transparent;
+  --vscode-diffEditor-insertedTextBackground: transparent;
+  --vscode-diffEditorGutter-insertedLineBackground: transparent;
+}
+
+/*
  * A line with nothing opposite it — a new file, or any run of purely added or
  * purely deleted lines — is given both its line decoration and a *whole-line*
  * word-level one, so Monaco paints it twice and it lands at nearly double the
@@ -125,6 +145,12 @@
 
 .editor :global(.gutter-delete) {
   box-shadow: inset -2px 0 0 var(--er-del);
+}
+
+/* The rail's half of the blank row above. */
+.editor[data-empty-side='original'] :global(.gutter-delete),
+.editor[data-empty-side='modified'] :global(.gutter-insert) {
+  box-shadow: none;
 }
 
 /*

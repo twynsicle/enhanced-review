@@ -65,7 +65,11 @@ interface FileData {
   originalLineCount: number;
   modifiedLineCount: number;
   language: string;
+  /** The side a new file (`original`) or a deleted one (`modified`) has nothing on. */
+  emptySide: Side | null;
 }
+
+type Side = 'original' | 'modified';
 
 type FileState =
   { kind: 'ok'; data: FileData } | { kind: 'unavailable'; reason: 'absent' | 'too-large' };
@@ -89,6 +93,7 @@ function resolveFileState({ base, head }: FilePair, filename: string): FileState
       modified: head.kind === 'content' ? head.content : '',
       originalLineCount: base.kind === 'content' ? base.lineCount : 0,
       modifiedLineCount: head.kind === 'content' ? head.lineCount : 0,
+      emptySide: base.kind === 'absent' ? 'original' : head.kind === 'absent' ? 'modified' : null,
       language:
         base.kind === 'content'
           ? base.language
@@ -122,7 +127,7 @@ function splitFilename(path: string): { dirname: string; basename: string } {
   return { dirname: path.slice(0, slash), basename: path.slice(slash + 1) };
 }
 
-function buildModelPath(filename: string, key: string, side: 'original' | 'modified'): string {
+function buildModelPath(filename: string, key: string, side: Side): string {
   const encodedPath = filename.split('/').map(encodeURIComponent).join('/');
   return `file:///__inline__/${side}/${encodeURIComponent(key)}/${encodedPath}`;
 }
@@ -144,9 +149,13 @@ function applySnippetLayout(
   diffEditor: editor.IStandaloneDiffEditor,
   snippet: InlineDiffSnippet,
   expanded: boolean,
+  emptySide: Side | null,
 ): void {
+  // A side the file does not exist on has no line to number.
+  const numbers = (side: Side, start: number): editor.LineNumbersType =>
+    emptySide === side ? 'off' : expanded ? 'on' : makeOffsetLineNumbers(start);
   diffEditor.getOriginalEditor().updateOptions({
-    lineNumbers: expanded ? 'on' : makeOffsetLineNumbers(snippet.originalStartLine),
+    lineNumbers: numbers('original', snippet.originalStartLine),
     lineNumbersMinChars: lineNumberWidth(snippet.originalStartLine, snippet.original),
     /*
      * Monaco turns the left side's glyph margin on whenever it renders side by
@@ -158,7 +167,7 @@ function applySnippetLayout(
     glyphMargin: false,
   });
   diffEditor.getModifiedEditor().updateOptions({
-    lineNumbers: expanded ? 'on' : makeOffsetLineNumbers(snippet.modifiedStartLine),
+    lineNumbers: numbers('modified', snippet.modifiedStartLine),
     lineNumbersMinChars: lineNumberWidth(snippet.modifiedStartLine, snippet.modified),
   });
   diffEditor.layout();
@@ -482,6 +491,7 @@ function SnippetEditor({
   language,
   snippet,
   expanded,
+  emptySide,
   view,
   wrap,
   skimMarks,
@@ -491,6 +501,7 @@ function SnippetEditor({
   language: string;
   snippet: InlineDiffSnippet;
   expanded: boolean;
+  emptySide: Side | null;
   view: DiffView;
   wrap: DiffWrap;
   skimMarks: SkimMarks;
@@ -587,10 +598,10 @@ function SnippetEditor({
         modified.onDidLayoutChange(measureMarks),
       ];
       applyWordWrap(diffEditor, wrapRef.current);
-      applySnippetLayout(diffEditor, snippet, expanded);
+      applySnippetLayout(diffEditor, snippet, expanded, emptySide);
       measure();
     },
-    // The mount-time snippet/expanded are right for the first paint; later
+    // The mount-time snippet/expanded/emptySide are right for the first paint; later
     // changes are applied by the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -599,8 +610,8 @@ function SnippetEditor({
   // `view` belongs here for the relayout, not for the line numbers — see
   // `applySnippetLayout`.
   useEffect(() => {
-    if (editorRef.current) applySnippetLayout(editorRef.current, snippet, expanded);
-  }, [snippet, expanded, view]);
+    if (editorRef.current) applySnippetLayout(editorRef.current, snippet, expanded, emptySide);
+  }, [snippet, expanded, emptySide, view]);
 
   // A flip of the view or the marks moves the lines after this render; the
   // editors have laid out again by the next frame.
@@ -719,6 +730,7 @@ function SnippetEditor({
     <div
       ref={host}
       className={classes.editor}
+      data-empty-side={emptySide ?? undefined}
       style={{ height: editorHeight }}
       onClick={onClick}
       onPointerDown={keepScroll.onPointerDown}
@@ -929,10 +941,16 @@ export function InlineDiffChunk({
   const skimMarks = useSkimMarks((s) => s.marks);
   const hunkDebug = useHunkDebug((s) => s.debug);
   const spaceLimited = useReaderColumn(selectSpaceLimited);
-  // Too narrow for two panes is not a preference the column can honour.
-  const view: DiffView = spaceLimited ? 'unified' : stored;
   const [expanded, setExpanded] = useState(false);
   const state = useMemo(() => resolveFileState(pair, chunk.filename), [pair, chunk.filename]);
+  const emptySide = state.kind === 'ok' ? state.data.emptySide : null;
+  /*
+   * Too narrow for two panes is not a preference the column can honour, and a
+   * file with nothing on one side would spend half its card on that side's
+   * hatching. Decided by the sides rather than the status, so a copy shown
+   * against its origin keeps both panes.
+   */
+  const view: DiffView = spaceLimited || emptySide ? 'unified' : stored;
 
   const snippets = useMemo<InlineDiffSnippet[]>(() => {
     if (state.kind !== 'ok') return [];
@@ -960,8 +978,13 @@ export function InlineDiffChunk({
         filename={chunk.filename}
         foldable={file?.origin !== undefined || tags.length > 0}
         facts={
-          (file?.origin || tags.length > 0) && (
+          (file?.origin || emptySide || tags.length > 0) && (
             <>
+              {emptySide && (
+                <Text component="span" fz="xs" c="dimmed" className={classes.fact}>
+                  {emptySide === 'original' ? 'new file' : 'deleted file'}
+                </Text>
+              )}
               {file?.origin && (
                 <Text component="span" fz="xs" c="dimmed" className={classes.fact}>
                   {originVerb(file).toLowerCase()}{' '}
@@ -1029,6 +1052,7 @@ export function InlineDiffChunk({
               language={language}
               snippet={snippet}
               expanded={expanded}
+              emptySide={emptySide}
               view={view}
               wrap={wrap}
               skimMarks={skimMarks}
