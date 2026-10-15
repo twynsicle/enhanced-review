@@ -101,8 +101,8 @@ the rest that need only a glance. Turn on skim marks and they fade, so the
 lines that need reading stand out.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/5e770a12-e020-4d24-800d-b099926782e1">
-  <img alt="A diff card with a note anchored to it, and an imports-only hunk labelled as skim and faded" src="https://github.com/user-attachments/assets/d9d63c9b-532e-40b8-94a3-bd91f83f76cb">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/fb18dca3-ce10-4eb6-a401-5d83b0bf1d17">
+  <img alt="A diff card with a note anchored to it, and an imports-only hunk labelled as skim and faded" src="https://github.com/user-attachments/assets/2f19ab98-7dc3-48a9-8327-801803ff424e">
 </picture>
 
 ### Nothing left out
