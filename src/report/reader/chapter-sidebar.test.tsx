@@ -7,6 +7,7 @@ import {
   type ReviewFile,
   type ReviewRiskAssessment,
 } from '@/review/narrative';
+import { useFileListScope } from '@/report/stores/file-list-scope';
 import { FILE_LIST_VIEW_KEY, useFileListView } from '@/report/stores/file-list-view';
 import { HAND_BEFORE_AFTER } from '@/report/test/diagram-fixtures';
 import { fireEvent, render, screen } from '@/report/test/render';
@@ -617,5 +618,88 @@ describe('<ChapterSidebar /> file list view', () => {
 
     renderFiles();
     expect(dirRow('src/web/components').getAttribute('aria-expanded')).toBe('true');
+  });
+});
+
+describe('<ChapterSidebar /> finding a file', () => {
+  /** Two chapters over the tree files: the first cites the sidebar and the guide. */
+  const scopedChapters: NarrativeChapter[] = [
+    {
+      id: 'ch1',
+      title: 'Shape of the change',
+      insights: [],
+      diffChunks: [
+        { filename: 'src/web/components/chapter-sidebar.tsx', language: 'typescript', hunks: [] },
+        { filename: 'docs/guide.md', language: 'markdown', hunks: [] },
+      ],
+    },
+    {
+      id: 'ch2',
+      title: 'Risks and follow-ups',
+      insights: [],
+      diffChunks: [
+        { filename: 'src/web/components/file-tree.ts', language: 'typescript', hunks: [] },
+      ],
+    },
+  ];
+
+  const listed = () =>
+    fileRowButtons().map((button) => button.querySelector('span + span span')!.textContent);
+
+  function renderAt(activeId: string) {
+    return render(
+      <ChapterSidebar
+        sections={sections}
+        chapters={scopedChapters}
+        activeId={activeId}
+        files={treeFiles}
+        onSelect={noop}
+        onSelectFile={noop}
+      />,
+    );
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    useFileListView.setState({ view: 'flat' });
+    useFileListScope.setState({ scope: 'all' });
+  });
+
+  it('narrows the list to paths holding the filter, ignoring case, and says when none do', () => {
+    renderAt(SUMMARY_SECTION_ID);
+    const filter = screen.getByLabelText('Filter files');
+    fireEvent.change(filter, { target: { value: 'COMPONENTS/' } });
+    expect(listed()).toEqual(['chapter-sidebar.tsx', 'file-tree.ts']);
+    fireEvent.change(filter, { target: { value: 'nothing-here' } });
+    expect(screen.getByText('No files match')).toBeDefined();
+    fireEvent.click(screen.getByLabelText('Clear the file filter'));
+    expect(listed()).toHaveLength(treeFiles.length);
+  });
+
+  it('opens every directory while filtering, so a match is never folded away', () => {
+    renderAt(SUMMARY_SECTION_ID);
+    fireEvent.click(screen.getByLabelText('Group files by directory'));
+    fireEvent.click(dirRow('src/web/components'));
+    expect(screen.queryByText('file-tree.ts')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Filter files'), { target: { value: 'tree' } });
+    expect(screen.getByText('file-tree.ts')).toBeDefined();
+  });
+
+  it("lists only the open chapter's files when asked, and remembers it", () => {
+    renderAt('ch1');
+    const toggle = screen.getByRole('button', { name: "Only this chapter's files" });
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(listed()).toEqual(['guide.md', 'chapter-sidebar.tsx']);
+    expect(useFileListScope.getState().scope).toBe('chapter');
+  });
+
+  it('lists every file, and disables the toggle, where no chapter is open', () => {
+    useFileListScope.setState({ scope: 'chapter' });
+    renderAt(SUMMARY_SECTION_ID);
+    const toggle = screen.getByRole('button', { name: "Only this chapter's files" });
+    expect((toggle as HTMLButtonElement).disabled).toBe(true);
+    expect(listed()).toHaveLength(treeFiles.length);
   });
 });

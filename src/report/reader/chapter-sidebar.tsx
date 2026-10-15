@@ -1,5 +1,23 @@
-import { ActionIcon, Box, Group, Stack, UnstyledButton, VisuallyHidden } from '@mantine/core';
-import { IconCheck, IconList, IconListTree, IconSchema, IconTarget } from '@tabler/icons-react';
+import {
+  ActionIcon,
+  Box,
+  CloseButton,
+  Group,
+  Stack,
+  Text,
+  TextInput,
+  UnstyledButton,
+  VisuallyHidden,
+} from '@mantine/core';
+import {
+  IconCheck,
+  IconFiles,
+  IconList,
+  IconListTree,
+  IconSchema,
+  IconSearch,
+  IconTarget,
+} from '@tabler/icons-react';
 import { useCallback, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import type { FileCoverage, ReviewCoverage } from '@/review/coverage';
 import {
@@ -18,10 +36,12 @@ import { originSentence } from '@/report/reader/file-origin';
 import { RiskInlineLabel, RiskScoreBars } from '@/report/reader/risk-score';
 import { readCountLabel, sectionIndexLabel, type ReaderSection } from '@/report/reader/sections';
 import { SKIP_REASON_LABEL } from '@/report/reader/skipped-file';
+import { useFileListScope } from '@/report/stores/file-list-scope';
 import { useFileListView } from '@/report/stores/file-list-view';
 import classes from './chapter-sidebar.module.css';
 
 const NONE_READ: ReadonlySet<string> = new Set();
+const NONE_COLLAPSED: ReadonlySet<string> = new Set();
 
 /** The row marks' icon size: the label's cap height, so a mark never sets the row's. */
 const MARK_SIZE = 12;
@@ -76,6 +96,22 @@ export function ChapterSidebar({
   // this array, and a fresh one each render would rebuild the tree on every
   // pointer event the sidebar's drag handle fires.
   const reviewFiles = useMemo(() => buildReviewFiles(chapters, files), [chapters, files]);
+  const [query, setQuery] = useState('');
+  const scope = useFileListScope((s) => s.scope);
+  const openChapter = chapters.find((chapter) => chapter.id === activeId) ?? null;
+  const needle = query.trim().toLowerCase();
+  // Memoised for the same reason as reviewFiles: the tree is built off this array.
+  const listedFiles = useMemo(() => {
+    const cited =
+      scope === 'chapter' && openChapter
+        ? new Set(openChapter.diffChunks.map((chunk) => chunk.filename))
+        : null;
+    return reviewFiles.filter(
+      (file) =>
+        (cited === null || cited.has(file.filename)) &&
+        file.filename.toLowerCase().includes(needle),
+    );
+  }, [reviewFiles, scope, openChapter, needle]);
   const rows = sections.filter((section) => section.kind !== 'risk');
   const chapterRows = rows.filter((section) => section.kind === 'chapter');
   const readCount = chapterRows.filter((section) => readIds.has(section.id)).length;
@@ -127,14 +163,22 @@ export function ChapterSidebar({
 
       {reviewFiles.length > 0 && (
         <section className={classes.files}>
-          <FilesHeader files={reviewFiles} />
-          <FileList
-            files={reviewFiles}
-            coverage={coverage?.byFile}
-            activeFile={activeFile}
-            readingFile={readingFile}
-            onSelectFile={onSelectFile}
-          />
+          <FilesHeader files={listedFiles} chapterOpen={openChapter !== null} />
+          <FileFilter query={query} onChange={setQuery} />
+          {listedFiles.length > 0 ? (
+            <FileList
+              files={listedFiles}
+              coverage={coverage?.byFile}
+              activeFile={activeFile}
+              readingFile={readingFile}
+              expandAll={needle.length > 0}
+              onSelectFile={onSelectFile}
+            />
+          ) : (
+            <Text fz="sm" c="dimmed" px={6}>
+              No files match
+            </Text>
+          )}
         </section>
       )}
     </nav>
@@ -268,7 +312,73 @@ function FileListViewToggle() {
   );
 }
 
-function FilesHeader({ files }: { files: readonly ReviewFile[] }) {
+/**
+ * Every changed file ⇄ only those the open chapter cites. A preference, like
+ * the flat/tree toggle beside it, but one that needs a chapter to act on: on
+ * the summary, the risk card or a file's view it is disabled rather than left
+ * pressed over a list it is not narrowing.
+ */
+function FileListScopeToggle({ chapterOpen }: { chapterOpen: boolean }) {
+  const scope = useFileListScope((s) => s.scope);
+  const toggle = useFileListScope((s) => s.toggle);
+
+  const pressed = scope === 'chapter';
+  return (
+    <ActionIcon
+      variant="subtle"
+      color="gray"
+      size="sm"
+      aria-label="Only this chapter's files"
+      aria-pressed={pressed}
+      title={
+        chapterOpen
+          ? pressed
+            ? 'List every changed file'
+            : "List only this chapter's files"
+          : 'Open a chapter to list only its files'
+      }
+      disabled={!chapterOpen}
+      // Pressed is drawn in the accent rather than on a fill: no tint makes a clear state cue.
+      c={pressed && chapterOpen ? 'var(--er-before)' : undefined}
+      onClick={toggle}
+    >
+      <IconFiles size={16} />
+    </ActionIcon>
+  );
+}
+
+/**
+ * Narrows the list to the paths holding what was typed. Component state, not
+ * a stored preference: what a reader is looking for belongs to this visit.
+ */
+function FileFilter({ query, onChange }: { query: string; onChange: (query: string) => void }) {
+  return (
+    <TextInput
+      size="xs"
+      placeholder="Filter files"
+      aria-label="Filter files"
+      value={query}
+      onChange={(event) => onChange(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onChange('');
+      }}
+      leftSection={<IconSearch size={14} aria-hidden />}
+      rightSection={
+        query.length > 0 && (
+          <CloseButton size="sm" aria-label="Clear the file filter" onClick={() => onChange('')} />
+        )
+      }
+    />
+  );
+}
+
+function FilesHeader({
+  files,
+  chapterOpen,
+}: {
+  files: readonly ReviewFile[];
+  chapterOpen: boolean;
+}) {
   let additions = 0;
   let deletions = 0;
   for (const file of files) {
@@ -282,6 +392,7 @@ function FilesHeader({ files }: { files: readonly ReviewFile[] }) {
       <Group gap={4} align="center" wrap="nowrap">
         <Caption>Files</Caption>
         <FileListViewToggle />
+        <FileListScopeToggle chapterOpen={chapterOpen} />
       </Group>
       {(additions > 0 || deletions > 0) && <Stats additions={additions} deletions={deletions} />}
     </Group>
@@ -392,6 +503,8 @@ interface FileListProps {
   coverage: ReadonlyMap<string, FileCoverage> | undefined;
   activeFile: string | null;
   readingFile: string | null;
+  /** Show every directory open, whatever the reader folded: set while the list is filtered. */
+  expandAll: boolean;
   onSelectFile: (filename: string) => void;
 }
 
@@ -449,7 +562,14 @@ interface TreeContext {
  * lands, and that button is named by its own contents — the folded path, not
  * the subtree under it.
  */
-function FileTreeList({ files, coverage, activeFile, readingFile, onSelectFile }: FileListProps) {
+function FileTreeList({
+  files,
+  coverage,
+  activeFile,
+  readingFile,
+  expandAll,
+  onSelectFile,
+}: FileListProps) {
   const nodes = useMemo(() => buildFileTree(files), [files]);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set<string>());
   const onToggle = useCallback((path: string) => {
@@ -463,7 +583,8 @@ function FileTreeList({ files, coverage, activeFile, readingFile, onSelectFile }
   return (
     <ul className={classes.fileList} aria-label="Changed files">
       {treeItems(nodes, 0, {
-        collapsed,
+        // A match folded out of sight would read as no match at all.
+        collapsed: expandAll ? NONE_COLLAPSED : collapsed,
         onToggle,
         coverage,
         activeFile,
