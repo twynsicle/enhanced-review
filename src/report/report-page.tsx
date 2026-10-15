@@ -41,10 +41,13 @@ export function ReportPage({ result }: { result: EmbeddedBundleResult }) {
   return (
     <>
       <ReportTopbar bundle={bundle} />
-      <PageShell
-        py={32}
-        style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: '100%' }}
-      >
+      {/*
+       * No bottom padding: the reader ends its own column with room instead.
+       * The sidebar is sticky, so it can never sit lower than the end of the
+       * reader's grid, and padding after the grid held it that far above the
+       * window's bottom once the page was scrolled to its end.
+       */}
+      <PageShell py={32} pb={0} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <title>{documentTitle(bundle.review, bundle.meta)}</title>
         <EmbeddedFileSource bundle={bundle}>
           {/*

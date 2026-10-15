@@ -37,3 +37,11 @@ export function useHashParams(): [URLSearchParams, (next: URLSearchParams) => vo
   }, []);
   return [params, setParams];
 }
+
+/**
+ * A link to a file's view, for a plain anchor: following it changes the hash,
+ * which `useHashParams` hears, and it opens in a new tab like any other link.
+ */
+export function fileHref(filename: string): string {
+  return `#/?${new URLSearchParams({ file: filename }).toString()}`;
+}

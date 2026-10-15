@@ -21,7 +21,8 @@ import {
   buildInlineDiffSnippets,
   type InlineDiffSnippet,
 } from '@/report/reader/inline-diff-snippets';
-import { debugMarks, factTags, hunkMarks, type HunkMark } from '@/report/reader/hunk-marks';
+import { fileHref } from '@/report/reader/hash-params';
+import { debugMarks, hunkMarks, moveTags, type HunkMark } from '@/report/reader/hunk-marks';
 import { detectLanguage } from '@/review/language-map';
 import type {
   CitedHunk,
@@ -1030,7 +1031,7 @@ export function InlineDiffChunk({
   }, [state, expanded, chunk.hunks, file?.hunks]);
 
   const language = state.kind === 'ok' ? state.data.language : chunk.language;
-  const tags = useMemo(() => factTags(chunk.hunks), [chunk.hunks]);
+  const tags = useMemo(() => moveTags(chunk.hunks), [chunk.hunks]);
 
   return (
     <CodeCard label={`Diff for ${chunk.filename}`} diffFile={chunk.filename}>
@@ -1058,18 +1059,19 @@ export function InlineDiffChunk({
               {tags.map((tag) => (
                 <Text
                   key={tag.label}
-                  component="span"
+                  component="a"
+                  href={fileHref(tag.filename)}
                   fz="xs"
                   c="dimmed"
                   px={6}
                   py={1}
                   title={tag.detail}
-                  className={classes.fact}
+                  className={`${classes.fact} ${classes.moveTag}`}
                   style={{
                     borderRadius: 4,
                     border: `1px solid ${token('border')}`,
-                    // A move's tag is edged in the colour its region is drawn in.
-                    borderLeft: `3px solid ${token(tag.tone === 'move' ? 'before' : 'border')}`,
+                    // Edged in the colour the move's region is drawn in.
+                    borderLeft: `3px solid ${token('before')}`,
                   }}
                 >
                   {tag.label} · {tag.lines}

@@ -206,7 +206,7 @@ describe('<InlineDiffChunk /> by attention tier', () => {
     expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
   });
 
-  it('tags each proven fact in the header once, over all the lines it holds for', async () => {
+  it('tags each move in the header once, over all its lines, as a link to the other file', async () => {
     tiered([
       { movedFrom: { filename: 'src/old.ts', similarity: 92 } },
       { movedFrom: { filename: 'src/old.ts', similarity: 92 } },
@@ -218,7 +218,8 @@ describe('<InlineDiffChunk /> by attention tier', () => {
     expect(moved.getAttribute('title')).toBe(
       '92% of these lines match the lines removed from src/old.ts',
     );
-    expect(within(header).getByText('Whitespace only · L21-30')).toBeDefined();
+    expect(moved.getAttribute('href')).toBe('#/?file=src%2Fold.ts');
+    expect(within(header).queryByText(/Whitespace only/)).toBeNull();
   });
 
   it('folds every file header onto one line from a chevron, and offers none with nothing to fold', async () => {

@@ -12,8 +12,13 @@
   display: none;
 }
 
+/*
+ * The page's closing room sits inside the column rather than after the grid,
+ * so the grid — and with it the sticky sidebar — runs to the page's end.
+ */
 .main {
   min-width: 0;
+  padding-bottom: 40px;
 }
 
 @media (min-width: 64em) {

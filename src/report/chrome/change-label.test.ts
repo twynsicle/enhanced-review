@@ -47,8 +47,8 @@ describe('changeLabel', () => {
     expect(tagOf({ ...branch, prNumber: 7 })).toEqual({ text: '#7', kind: 'number' });
   });
 
-  it('tags a branch with no PR with its name', () => {
-    expect(tagOf(branch)).toEqual({ text: 'feat/schedules', kind: 'name' });
+  it('gives a branch with no PR no tag', () => {
+    expect(tagOf(branch)).toBeNull();
   });
 
   it('tags staged changes as staged', () => {
@@ -58,11 +58,6 @@ describe('changeLabel', () => {
   it("uses the review's title, or the meta's when the review gave none", () => {
     expect(changeLabel(review('Schedules, hourly'), pr).title).toBe('Schedules, hourly');
     expect(changeLabel(review(''), pr).title).toBe('Add scheduled reviews');
-  });
-
-  it('names a branch once when its title falls back to the branch name', () => {
-    expect(changeLabel(review(''), branch)).toEqual({ tag: null, title: 'feat/schedules' });
-    expect(changeLabel(review('feat/schedules'), branch).tag).toBeNull();
   });
 });
 

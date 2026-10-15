@@ -411,6 +411,16 @@
   white-space: nowrap;
 }
 
+.moveTag {
+  text-decoration: none;
+  transition: background-color 150ms;
+}
+
+.moveTag:hover {
+  background: var(--er-muted);
+  text-decoration: underline;
+}
+
 /* A full fact on a row of its own wraps rather than running off the card. */
 .header:not([data-one-line]) .fact {
   flex-shrink: 1;

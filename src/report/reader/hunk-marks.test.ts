@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { debugMarks, factTags, hunkMarks } from './hunk-marks';
+import { debugMarks, hunkMarks, moveTags } from './hunk-marks';
 import type { CitedHunk } from '@/review/narrative';
 
 function makeHunk(fileOrder: number, overrides: Partial<CitedHunk> = {}): CitedHunk {
@@ -17,21 +17,23 @@ function makeHunk(fileOrder: number, overrides: Partial<CitedHunk> = {}): CitedH
 
 const moved = (similarity: number) => ({ movedFrom: { filename: 'src/old.ts', similarity } });
 
-describe('factTags', () => {
+describe('moveTags', () => {
   it('says a move is unchanged or edited, and keeps the percentage for the hover', () => {
-    expect(factTags([makeHunk(1, moved(100))])).toEqual([
+    expect(moveTags([makeHunk(1, moved(100))])).toEqual([
       expect.objectContaining({
         label: 'Moved unchanged from src/old.ts',
+        filename: 'src/old.ts',
         detail: 'Every line was removed from src/old.ts as it is here',
         tone: 'move',
         lines: 'L11-20',
       }),
     ]);
     expect(
-      factTags([makeHunk(1, { movedTo: { filename: 'src/new.ts', similarity: 85 } })]),
+      moveTags([makeHunk(1, { movedTo: { filename: 'src/new.ts', similarity: 85 } })]),
     ).toEqual([
       expect.objectContaining({
         label: 'Moved to src/new.ts, with edits',
+        filename: 'src/new.ts',
         detail: '85% of these lines match the lines added to src/new.ts',
         tone: 'move',
         lines: 'L11-20',
@@ -39,8 +41,8 @@ describe('factTags', () => {
     ]);
   });
 
-  it('gives one tag per fact, its touching parts joined into one range', () => {
-    const tags = factTags([
+  it('gives one tag per move, its touching parts joined into one range, and none for other facts', () => {
+    const tags = moveTags([
       makeHunk(3, moved(90)),
       makeHunk(1, moved(90)),
       makeHunk(2, moved(90)),
@@ -49,13 +51,11 @@ describe('factTags', () => {
     ]);
     expect(tags.map((tag) => `${tag.label} · ${tag.lines}`)).toEqual([
       'Moved from src/old.ts, with edits · L11-40',
-      'Whitespace only · L51-60',
-      'Imports only · L71-80',
     ]);
   });
 
   it('gives each part its own strength in the hover when the parts of one tag differ', () => {
-    const [tag] = factTags([makeHunk(1, moved(92)), makeHunk(4, moved(61))]);
+    const [tag] = moveTags([makeHunk(1, moved(92)), makeHunk(4, moved(61))]);
     expect(tag?.detail.split('\n')).toEqual([
       'L11-20: 92% of these lines match the lines removed from src/old.ts',
       'L41-50: 61% of these lines match the lines removed from src/old.ts',
