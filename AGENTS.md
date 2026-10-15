@@ -8,7 +8,8 @@ tree; it is kept at the git tag `hosted-app-final`.
 
 This file is the map of the tree for anyone changing it, cut to what every
 change needs. The detail for each area lives beside it (see "Where the rest
-lives"). `README.md` is the product-and-setup document.
+lives"). `README.md` is the showcase and quick start; `docs/usage.md` is the
+full reference for running `er`.
 
 Library APIs here (Mantine 9, Vite 8, Vitest 4, Zod 4,
 TypeScript 7, oxlint, the Claude Agent SDK) may be newer than your training
@@ -50,6 +51,7 @@ src/
                        see Comments), monaco-version (the Monaco the reader loads is the one it is typechecked
                        against)
   test/                git-repo.ts (a throwaway repository with a bare origin, for tests that drive real git)
+docs/usage.md          running `er`: prerequisites, targets, every option, cost, where it writes
 .github/workflows/ci.yml  npm ci → npm run check
 .claude/rules/         area detail, loaded when you open a file in that area (see below)
 .claude/skills/        workflows loaded on demand (see below)
