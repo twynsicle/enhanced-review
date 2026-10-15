@@ -164,7 +164,8 @@ src/report/
                      hunk-marks.ts (pure: provenNote, a proven fact's few words and its hover — "Imports only" among them, a move said as
                      unchanged or with edits, the percentage kept for the hover; factTags, one header tag per
                      fact with its hunks' touching ranges joined; hunkMarks, the regions a diff labels — every
-                     skim hunk, as "Skim · <fact> · <the review's reason>", and every hunk with a fact whatever
+                     skim hunk, as "Skim · <fact> · <the review's reason>" (the reason left out when it only repeats
+                     the fact), and every hunk with a fact whatever
                      its tier — neighbours saying the same joined into one; hunks sharing a label but not a
                      hover, such as two edited moves at different strengths, give each its own line in it;
                      each note carries a tone, `move` or `plain`, its label in runs with the paths marked, and

@@ -96,6 +96,25 @@ describe('hunkMarks', () => {
     expect(mark?.label).toBe('Skim · Moved from src/old.ts, with edits · helper');
   });
 
+  it('drops a skim reason that only repeats the proven fact', () => {
+    const marks = hunkMarks([
+      makeHunk(1, { tier: 'skim', importsOnly: true, skimReason: 'imports only' }),
+      makeHunk(3, { tier: 'skim', whitespaceOnly: true, skimReason: ' Whitespace only . ' }),
+      makeHunk(5, { tier: 'skim', importsOnly: true, skimReason: 'barrel re-exports' }),
+    ]);
+    expect(marks.map((mark) => [mark.label, mark.detail])).toEqual([
+      ['Skim · Imports only', 'Every line changed here is part of an import or re-export'],
+      [
+        'Skim · Whitespace only',
+        'Only whitespace changed, and none of it where it could change how the code parses',
+      ],
+      [
+        'Skim · Imports only · barrel re-exports',
+        'Every line changed here is part of an import or re-export. barrel re-exports',
+      ],
+    ]);
+  });
+
   it('joins neighbours that say the same, and only neighbours', () => {
     const fixtures = { tier: 'skim', skimReason: 'test fixtures' } as const;
     const marks = hunkMarks([

@@ -55,7 +55,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
             {
               "id": "string — a hunk ID from the Changed Hunks list (example: H0007)",
               "tier": "read | skim — how hard the reviewer must look at this hunk. See Attention tiers below",
-              "skimReason": "string — a skim hunk only: 2-5 words, at most ${String(MAX_SKIM_REASON)} characters, on why it can be skimmed, e.g. 'import wiring' or 'shared test fixtures'. Omit it on a read hunk"
+              "skimReason": "string — a skim hunk only: 2-5 words, at most ${String(MAX_SKIM_REASON)} characters, on why it can be skimmed, e.g. 'call sites of the rename' or 'shared test fixtures'. Omit it on a read hunk"
             }
           ]
         }

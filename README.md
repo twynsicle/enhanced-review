@@ -1,328 +1,190 @@
 # enhanced-review
 
-AI code review: a chaptered narrative with an overview, a risk assessment,
-insights, diagrams of what changed, inline diffs you can open beside the prose,
-the unchanged code a change reaches without editing it, a reading plan for
-when you have five minutes rather than fifty, and — where the code cannot
-settle it — a question or two put back to you.
-It runs as `er`, one command inside the repository you want reviewed. The
-hosted web app was removed; it is kept at the git tag `hosted-app-final`.
+**A code review you read like a story, not a diff.**
 
-- **Working on the code** — [AGENTS.md](AGENTS.md) is the map of the tree:
-  layering rules and module conventions. The per-area detail it points to lives in
-  [.claude/rules/](.claude/rules/).
-- **What is not built yet** — the `Backlog` of the Linear team
-  [enhanced-reviews](https://linear.app/lemon-dev/team/ER/backlog)
+`er` is one command, run inside your repository. It has Claude review a
+branch, a pull request or your staged changes, and writes the result as a
+single `review.html`: the change told as chapters in the order to read them,
+each beside the diffs that show it, with a risk assessment, diagrams of what
+changed, and a reading plan for when you have five minutes rather than fifty.
 
-## Local mode
+<!-- The screenshots are attachments on https://github.com/twynsicle/enhanced-review/issues/33, which says what they were taken from and how to retake them. -->
 
-`er review` runs the whole review on your laptop: it gathers the change with
-`git` and `gh`, runs the Claude Agent SDK as **you**, and writes one
-`review.html`. No server, no
-database, no GitHub App — which is the point, because getting an app installed
-in an organisation can take months.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/01d85cf5-a4d1-4fe0-ae34-1381b304b0e4">
+  <img alt="An er report: the summary of a 23-file pull request, with its overview, reading plan and chapter list" src="https://github.com/user-attachments/assets/04987385-f817-4bb3-8f5b-1c0a6313e76a">
+</picture>
 
-The report is a single file: every script, style and font is inlined, so there
-is nothing beside it to keep or to send. The diff editor is the exception — it
-is fetched from a CDN when a diff is opened, which keeps the file small enough
-to email. Reading the review needs no network; reading a diff does.
+## Why
 
-### What reaches the network
+A diff lists every changed line, file by file in alphabetical order, and
+gives each the same weight. On a change of any size the reviewer's first job
+is to work the story out of that list: where to start, which hunks matter and
+which are a rename rippling outwards, and what the change is for. That is most
+of the effort of a review, and it is the part that gets skipped when time is
+short.
 
-`er` has no server of its own, opens no port and uploads nothing. What it
-reaches, and why:
+`er` does that part first. It reads the change with the repository around it,
+then tells it back as a handful of chapters — one idea each, with only the
+hunks that show it — and says which of it you can afford to skim. You still
+read the code, in an order that makes sense, with someone having already said
+what it is for.
 
-- **GitHub**, through your own `git` and `gh`: fetching the branch or the pull
+It works before a pull request exists, which makes it a good way to check work
+an agent wrote for you.
+
+## What a review gives you
+
+### A reading plan
+
+The summary opens with an overview and three ways through the change — Brief,
+Standard and Full — each with a time estimate and the chapters it adds. Read
+the brief when that is all the time there is; the chapters you leave out are
+the ones that can wait.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/1f54cd4a-8c46-4832-b9e9-6a454ed32f7d">
+  <img alt="The reading plan: Brief, Standard and Full, each with its estimate and the chapters it adds" src="https://github.com/user-attachments/assets/853a6aec-3d2b-469d-a1cc-5cbe9cc9142a">
+</picture>
+
+### Chapters, with the code beside the prose
+
+Each chapter leads with one line saying what changed or what to worry about,
+then why, then the diffs it cites: real side-by-side diffs, only the hunks
+that chapter is about. A note about one file sits on that file's diff. Below
+the diffs is the unchanged code the change reaches without editing it — the
+caller whose behaviour shifts, the limit a new path now runs into.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/ffee7142-85ef-4b9c-9011-a0be5a6d2ece">
+  <img alt="A chapter: its lede and reasoning, then the diffs it cites, with a block of moved code marked" src="https://github.com/user-attachments/assets/82697da1-9d0b-4fad-9591-c41fb53f0bf8">
+</picture>
+
+### A risk assessment
+
+How risky the change is to merge, scored from one to five, with the reasoning
+and the factors that raise or lower it.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/a43d4117-d640-4bc8-aa4c-5554da3f628a">
+  <img alt="The risk assessment: a score and the concerns behind it" src="https://github.com/user-attachments/assets/414056e5-0a61-460f-a911-3f66facc07c5">
+</picture>
+
+### Diagrams of the change, not the system
+
+Where a picture helps, the review draws one: an architecture map, a state
+machine, a before and after, or a sequence. Every node and edge says whether
+the change added, removed or modified it, and a node for a file opens that
+file's diff.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/d3b7e57c-45ae-47bf-bf2c-59bd83abf324">
+  <img alt="A diagram of what the change did, with added, modified and unchanged parts marked" src="https://github.com/user-attachments/assets/8bbaf0fc-ae31-4516-b201-eacebfb0be46">
+</picture>
+
+### Questions only you can answer
+
+Some things the code cannot settle — whether a behaviour is intended, which of
+two policies is right. Rather than guess, the review puts them back to you as
+judgement calls, each on the code it is about.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/c45e64e7-bd5c-4d4e-b2d0-3b297d757dc9">
+  <img alt="A judgement call: a question the review asks the reader, above the diff it concerns" src="https://github.com/user-attachments/assets/adb3eb52-5db6-4045-99ec-0de20c60cb1a">
+</picture>
+
+### What to skim
+
+A hunk `er` can prove is mechanical — whitespace only, imports only, or code
+moved from elsewhere in the change — is tagged as such, and the review marks
+the rest that need only a glance. Turn on skim marks and they fade, so the
+lines that need reading stand out.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/fb18dca3-ce10-4eb6-a401-5d83b0bf1d17">
+  <img alt="A diff card with a note anchored to it, and an imports-only hunk labelled as skim and faded" src="https://github.com/user-attachments/assets/2f19ab98-7dc3-48a9-8327-801803ff424e">
+</picture>
+
+### Nothing left out
+
+Every hunk the model is shown must be placed in a chapter; an answer that
+leaves one out is sent back, and a review that still does not hold up fails
+rather than looking complete. The sidebar marks any file the chapters skipped
+or only partly covered, and a file's own view shows every hunk, discussed or
+not.
+
+And the smaller things: chapters you mark read are remembered, each chapter
+copies a ready-made prompt to ask Claude Code about it, the overview can be
+written in six styles from prose to a checklist, `--instructions` tells the
+review what to look hardest at, and the report follows your light or dark
+theme.
+
+## Your code stays yours
+
+`er` has no server, opens no port and uploads nothing. It runs Claude **as
+you** — your own sign-in or API key, your own settings — and the agent it runs
+can only read: `Read`, `Glob`, `Grep`, and a `Bash` limited to read-only git
+commands (`log`, `show`, `diff`, `blame` and the like) and `rg`, `grep`, `ls`,
+`cat`, `head`, `tail` and `wc`, with every command checked before it runs
+([`src/cli/bash-gate.ts`](src/cli/bash-gate.ts)).
+
+What reaches the network, and why:
+
+- **GitHub**, through your own `git` and `gh`: fetching the branch or pull
   request under review, and reading a pull request's title, description and
   base.
-- **Anthropic**, through the Claude Agent SDK, which runs as you with your own
-  sign-in: the prompt, and whatever the agent reads from the repository while
-  it reviews. The agent's tools are read-only — Read, Glob, Grep, and Bash
-  limited to read-only git history (`src/cli/bash-gate.ts`).
+- **Anthropic**, through the Claude Agent SDK: the prompt, and whatever the
+  agent reads from the repository while it reviews.
 - **cdn.jsdelivr.net**, from the report in your browser: the Monaco diff
-  editor, pinned to the version in `package.json`, fetched when a diff is
-  first shown (`src/report/reader/monaco-cdn.ts`). Nothing about the review is
-  sent with that request.
+  editor, pinned to one version, fetched when a diff is first shown. Nothing
+  about the review is sent with that request.
 - **npm**, once, when you install `er`.
 
-### Prerequisites
+You install `er` by cloning this repository, so everything it runs is here to
+read first. The report is one self-contained file — every script, style and
+font inlined — that you can keep, delete or send to a colleague.
 
-| Tool                                          | Version | Why                                                                                      |
-| --------------------------------------------- | ------- | ---------------------------------------------------------------------------------------- |
-| Node                                          | >= 24   | Type stripping runs `er` directly — no build step.                                       |
-| npm                                           | >= 10   | Bundled with Node; `npm link` puts `er` on PATH.                                         |
-| Git                                           | recent  | `er` shells out to `git` to gather the change and, for a PR review, to add a worktree.   |
-| `gh`                                          | recent  | Reads pull request metadata — `er review 42` and a branch review with an open PR.        |
-| a Claude Code sign-in, or `ANTHROPIC_API_KEY` | —       | `er` runs the Agent SDK as you; see [Authentication is yours](#authentication-is-yours). |
+## Quick start
 
-Windows and macOS are both supported — everything OS-specific lives behind
-`src/cli/platform.ts`.
-
-### Install
+You need Node 24 or later, `git`, `gh`, and either a Claude Code sign-in or an
+`ANTHROPIC_API_KEY`.
 
 ```bash
+git clone https://github.com/twynsicle/enhanced-review.git
+cd enhanced-review
 npm install
-```
-
-```bash
 npm link
 ```
 
-That puts `er` on your PATH, pointing at this working tree: pull a change and
-it takes effect, with no rebuild. Then run it from inside **any** repository
-you want reviewed, not from this one.
-
-```bash
-er review --help
-```
-
-confirms it is installed and lists the options below.
-
-### Authentication is yours
-
-`er` never reads or stores a credential. It starts the Agent SDK as a
-subprocess, which inherits your environment and signs in the same way your
-own `claude` does — either an `ANTHROPIC_API_KEY` in the environment, or the
-session `claude` itself wrote when you signed in.
-
-A run that ends in `Not logged in` means that session has expired, however
-recently you used Claude elsewhere. Fix it where you would normally:
-
-```bash
-claude
-```
-
-Then `/login`, and run `er review` again.
-
-### The three targets
+Then, inside the repository you want reviewed:
 
 ```bash
 er review
 ```
 
-The current branch, against its pull request's base if one is open, and the
-default branch otherwise. It works before a PR exists, which is how you check work an agent wrote for you.
+That reviews the current branch against its pull request's base, or the
+default branch when there is no pull request. `er review 42` reviews pull
+request #42 and `er review --staged` what you have staged. The report opens in
+your browser when it is written. The review most of these screenshots come
+from, of a 23-file pull request, took six minutes and $1.62 of your own Claude
+allowance.
 
-```bash
-er review --base lemon/trickle/parent-branch
-```
-
-Compares against `<ref>` instead of the PR's base or the default branch.
-Reach for this when the current branch is stacked on another branch rather
-than on `main` — without it, "against the default branch" pulls in every
-commit from every branch underneath it too, which stops being a review of
-just your branch once the stack gets more than one deep.
-
-```bash
-er review 42
-```
-
-Pull request #42, read through `gh`. The review happens in a temporary
-worktree of the PR's head, so your own working tree is never touched and
-never has to be clean.
-
-```bash
-er review --staged
-```
-
-What you have staged, against `HEAD` — a review before the commit.
-
-### Every option
-
-| Flag                         | Applies to   | What it does                                                                                   |
-| ---------------------------- | ------------ | ---------------------------------------------------------------------------------------------- |
-| `--base <ref>`               | branch, PR   | compare against `<ref>` instead of the PR's base or the default branch                         |
-| `--model <name>`             | every review | review with `<name>` (default: `claude-sonnet-5[1m]`)                                          |
-| `--max-turns <n>`            | every review | let the model take at most `<n>` turns (default: `120`)                                        |
-| `--timeout <minutes>`        | every review | give up on the model run after `<minutes>` (default: `15`)                                     |
-| `--instructions <text>`      | every review | add your own guidance to the prompt — what to focus on, what to explain — see below            |
-| `--instructions-file <path>` | every review | the same, read from a file, for anything long or multi-line                                    |
-| `--overview-style <name>`    | every review | how the overview and each chapter are written beneath their one-line lede — see below          |
-| `--split-hunks <lines>`      | every review | split a hunk of more changed lines than this into parts of about this size — see below         |
-| `--stub`                     | every review | write a mechanical review instead of running a model — see below                               |
-| `--from <stage>`             | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below      |
-| `--no-open`                  | every review | write the report without opening it                                                            |
-| `--keep-worktree`            | PR reviews   | leave the PR's temporary worktree in place instead of removing it                              |
-| `--allow-large`              | every review | run the model on more than 300 reviewed files, which `er` otherwise refuses (it warns past 50) |
-| `-h`, `--help`               | —            | show usage and exit                                                                            |
-| `-v`, `--version`            | —            | show the installed version and exit                                                            |
-
-`--staged` (a target, not an option) and `--base` cannot be combined: the
-staged tree has no branch to compare against but `HEAD`.
-
-`--instructions` goes straight into the model's prompt, as guidance from the
-person who will read the review, and steers where it looks hardest and what it
-explains; it cannot change what a review is made of. For example:
-
-```bash
-er review 42 --instructions "Focus on the retry logic and whether it can double-charge. Keep the UI chapters brief."
-```
-
-Instructions that start with a dash, such as a bullet list, need the `=` form:
-`--instructions="- check the retry path"`. For anything longer, write it to a
-file and pass `--instructions-file`, which reads UTF-8 or the UTF-16 Windows
-PowerShell writes. The text is part of the prompt, so it is paid for on every
-turn; the prompt stage line counts it in.
-
-`--split-hunks` sets how finely a long hunk is cut. Git makes a hunk out of
-nearby changes, so a new file is one hunk however many things it does, and a
-chapter that wants one function of it has to show all of it. `er` cuts any hunk
-of more than 10 changed lines (the default) into parts of about that size,
-between declarations, and the model can then tell each part in the chapter it
-belongs to. `0` keeps git's hunks. It cannot be given with `--from`, which
-reuses the hunks the last run numbered.
-
-`--overview-style` chooses how the overview and each chapter are written
-beneath their one-line lede, which never changes:
-
-| Style          | The text beneath the lede                                             |
-| -------------- | --------------------------------------------------------------------- |
-| `narrative`    | the default: why it changed, and the tradeoffs, in prose              |
-| `checklist`    | a short list of yes-or-no questions a reviewer should check           |
-| `before-after` | **Before:** / **After:** pairs, one per behaviour that changed        |
-| `five-whys`    | a chain of why-questions down to the reason, rarely all five          |
-| `plain`        | two or three plain sentences for someone who has never seen this code |
-| `tldr`         | nothing: the lede alone carries the change or its one risk            |
-
-The prompt stage line names the style when it is not `narrative`.
-
-The instructions and the style are written into `prompt.md`, so `--from run`
-reuses them; they cannot be given with `--from run`, `parse` or `render`,
-which write no new prompt. `--from prompt` writes the prompt again from that
-command's flags, so repeat them there to keep them.
-
-### What it costs, and how long
-
-The model run is the only stage that costs anything.
-Measured on this repository, an 88-file, 138-hunk change:
-
-|           |                                         |
-| --------- | --------------------------------------- |
-| Turns     | 27–32                                   |
-| Wall time | 5–8 minutes                             |
-| Cost      | **$1.87–$2.98** of your own allowance   |
-| Tokens in | ~1.1M, of which 93% was read from cache |
-| Report    | 2.4 MB of HTML                          |
-
-That is what an agentic review costs: it pays for its whole context on every
-turn, so the bill tracks the number of turns more than the size of the diff.
-The run line reports all of it as it finishes, cache share included.
-
-Two ways to spend nothing while working on the tool itself:
-
-```bash
-er review --stub
-```
-
-A mechanical review with one chapter per file — no model, no cost, and the
-right way to iterate on the reader. Every hunk is read, except one `er` can
-prove is whitespace-only, which is skim — as it is in any review — so the
-reader's faded lines show too, and the first chapter stands in
-as the reading plan's brief.
-
-```bash
-er review --from parse
-```
-
-Re-runs only the later stages against the answer the last run already saved.
-Every stage writes its input and output to the run folder, so `--from prompt`,
-`run`, `parse` or `render` picks up the newest run for that target. If a
-review fails to parse, its text is still on disk and this is how you rebuild
-the report without paying twice.
-
-### Where it writes
-
-`er-reviews/<target>/<timestamp>/` inside the repository under review,
-ignored by git automatically. The report is `review.html`, and it opens when
-it is written unless you pass `--no-open`. Beside it sit the stage files:
-`context.json` (what changed), `prompt.md` and `system.md` (what was asked),
-`raw.txt` (what the model said), `events.jsonl` (what it did, what it cost,
-any command the read-only gate refused and any answer it was asked to write
-again), `review.json` (the parsed review), `findings.json` (what validating
-it turned up) and `excerpts.json` (the unchanged files the review shows
-excerpts of, as the reviewed commit has them). A run folder is a complete record; delete the tree whenever you
-like.
-
-The report remembers which chapters you marked read in the browser's own
-storage, keyed by the repository and the two commits reviewed, so rendering
-the same range again keeps your place. Nothing about it leaves the browser.
-
-`er review` exits 0 for a clean review, 2 for one that was written but carries
-warnings — each of them printed as it finishes — and 1 when there is no review
-to open.
-
-### What the model may do
-
-It gets `Read`, `Glob` and `Grep`, and `Bash` for read-only history —
-`git log`, `git show`, `git blame`, `git diff`, and `rg`/`grep`/`ls`/`cat`
-piped together. Every command is checked before it runs, and anything that
-could write, or reach a program not on the list, is refused with a message
-saying what it may run instead. Refusals are recorded in `events.jsonl` and
-reported as one warning when the review finishes; a review is never failed by
-one.
-
-`--model`, `--max-turns` and `--timeout` override the defaults it runs with —
-see "Every option" above.
-
-### Diagrams
-
-The model may attach a diagram to the review and to any chapter: an
-architecture map, a state machine, a before/after of one procedure, or a
-sequence. It does not write mermaid. It writes a small JSON schema
-(`src/review/diagram.ts`) in which every node and edge says what the
-pull request did to it — added, removed, modified or unchanged — because a
-review diagram describes a change, not a system. A code node can point at a
-file and hunks from the diff, and the parser drops any path or hunk the diff
-does not contain, so a diagram can only link to code that is really there.
-An invalid diagram is dropped on its own and never fails the review.
-
-The reader lays diagrams out with dagre and draws them as SVG,
-in the design system's tokens and type scale. They render at full size and
-scroll sideways rather than shrinking text, and every diagram opens in a
-full-screen view with pan and zoom.
-
-### Known gaps
-
-Local mode's model run is not covered by automated tests: tests stop at the
-Agent SDK boundary and use `--stub`, so the real SDK call is exercised by hand
-rather than CI.
+**[docs/usage.md](docs/usage.md)** has the rest: every option, stacked
+branches, your own instructions, overview styles, what a run costs and where
+it writes.
 
 ## Development
 
-### Tech stack
+[AGENTS.md](AGENTS.md) is the map of the tree, with the layering rules the
+guardrail tests enforce; [.claude/rules/](.claude/rules/) holds the detail for
+each area.
 
-- **Node 24** (Volta-pinned). `er` is TypeScript that Node runs directly via
-  type stripping — no build step for `src/cli/`.
-- **React 19** + **Mantine 9** (theme-driven, minimal per-component CSS) on
-  **Vite 8**, Tabler icons, Zustand for persisted reader preferences, **Zod 4**
-  at every boundary. This is the report `er review` renders into: one
-  client-rendered page, no router, no server.
-- **oxlint**, Prettier, **Vitest 4**.
+| Script               | What                                                                |
+| -------------------- | ------------------------------------------------------------------- |
+| `npm run check`      | **The gate**: typecheck + report:build + test + lint + format:check |
+| `npm run report:dev` | The report, against a committed sample review                       |
+| `npm run test:watch` | Vitest: unit + report + guardrails                                  |
 
-### Repo layout
-
-| Path              | What                                                                |
-| ----------------- | ------------------------------------------------------------------- |
-| `src/cli/`        | `er`, the local review CLI, and its stages. Node only               |
-| `src/review/`     | What a review is: schemas, validation, prompt, parser. Read by both |
-| `src/report/`     | The report: the reader, its chrome, theme and stores. Browser only  |
-| `src/guardrails/` | Tests that read the repo and enforce its conventions                |
-
-`AGENTS.md` has the tree and the layering rules the guardrails enforce;
-`.claude/rules/` holds the file-by-file detail for each area.
-
-### Scripts
-
-| Script                            | What                                                                |
-| --------------------------------- | ------------------------------------------------------------------- |
-| `npm run typecheck`               | `tsc --noEmit`                                                      |
-| `npm test` / `npm run test:watch` | Vitest: unit + report + guardrails                                  |
-| `npm run lint` / `format`         | oxlint / Prettier                                                   |
-| `npm run check`                   | **The gate**: typecheck + report:build + test + lint + format:check |
-| `npm run report:dev`              | The report, against sample data                                     |
-| `npm run report:build`            | The report shell `er review` renders into                           |
-
-### Testing
-
-`npm run check` is the gate. It never calls the Anthropic API: the tests stop
-at the Agent SDK boundary and use `--stub`.
+`er review --stub` writes a mechanical review with no model run, which is how
+to work on the reader for nothing. The tests never call the Anthropic API:
+they stop at the Agent SDK boundary and use `--stub`.

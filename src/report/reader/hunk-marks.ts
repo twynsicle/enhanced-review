@@ -175,10 +175,25 @@ export function hunkMarks(hunks: readonly CitedHunk[]): HunkMark[] {
   }));
 }
 
+const sameWords = (a: string, b: string) => {
+  const norm = (text: string) =>
+    text
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\s*\.$/, '')
+      .toLowerCase();
+  return norm(a) === norm(b);
+};
+
 function markNote(hunk: CitedHunk): HunkNote | null {
   const proven = provenNote(hunk);
   if (hunk.tier === 'read') return proven;
-  const reason = hunk.skimReason;
+  // The prompt asks for a reason that adds to the proof, but the model still
+  // sends "imports only" for an imports-only hunk, which would label it twice.
+  const reason =
+    proven && hunk.skimReason && sameWords(hunk.skimReason, proven.label)
+      ? undefined
+      : hunk.skimReason;
   const detail = [proven?.detail, reason].filter(Boolean).join('. ');
   return {
     ...joinParts([
