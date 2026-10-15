@@ -10,8 +10,8 @@ function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
     prTitle: 'A change',
     overviewSummary: { lede: 'It changes things.' },
     chapters: [
-      { id: 'ch1', title: 'One', insights: [], diffChunks: [] },
-      { id: 'ch2', title: 'Two', insights: [], diffChunks: [] },
+      { id: 'ch1', title: 'One', headline: 'A headline.', insights: [], diffChunks: [] },
+      { id: 'ch2', title: 'Two', headline: 'A headline.', insights: [], diffChunks: [] },
     ],
     ...overrides,
   };
@@ -54,8 +54,15 @@ describe('readerSections', () => {
       review({
         overviewDiagram: REAL_ARCHITECTURE,
         chapters: [
-          { id: 'ch1', title: 'One', insights: [], diffChunks: [], diagram: HAND_BEFORE_AFTER },
-          { id: 'ch2', title: 'Two', insights: [], diffChunks: [] },
+          {
+            id: 'ch1',
+            title: 'One',
+            headline: 'A headline.',
+            insights: [],
+            diffChunks: [],
+            diagram: HAND_BEFORE_AFTER,
+          },
+          { id: 'ch2', title: 'Two', headline: 'A headline.', insights: [], diffChunks: [] },
         ],
       }),
     );

@@ -70,6 +70,7 @@ function review(cites: Record<string, string[]>): NarrativeReview {
       {
         id: 'ch1',
         title: 'One',
+        headline: 'A headline.',
         insights: [],
         diffChunks: Object.entries(cites).map(([filename, ids]) => ({
           filename,
@@ -214,7 +215,13 @@ function chapter(
   hunks: CitedHunk[],
   { filename = 'src/a.ts', language = 'typescript' } = {},
 ): NarrativeChapter {
-  return { id, title: id, insights: [], diffChunks: [{ filename, language, hunks }] };
+  return {
+    id,
+    title: id,
+    headline: 'A headline.',
+    insights: [],
+    diffChunks: [{ filename, language, hunks }],
+  };
 }
 
 describe('citedChunk', () => {

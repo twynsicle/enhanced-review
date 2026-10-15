@@ -96,7 +96,7 @@ What you have staged, against `HEAD` — a review before the commit.
 | `--timeout <minutes>`        | every review | give up on the model run after `<minutes>` (default: `15`)                                     |
 | `--instructions <text>`      | every review | add your own guidance to the prompt — what to focus on, what to explain — see below            |
 | `--instructions-file <path>` | every review | the same, read from a file, for anything long or multi-line                                    |
-| `--overview-style <name>`    | every review | how the overview and each chapter are written beneath their one-line lede — see below          |
+| `--overview-style <name>`    | every review | how the overview and each chapter are written beneath their opening sentence — see below       |
 | `--split-hunks <lines>`      | every review | split a hunk of more changed lines than this into parts of about this size — see below         |
 | `--stub`                     | every review | write a mechanical review instead of running a model — see below                               |
 | `--from <stage>`             | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below      |
@@ -138,16 +138,16 @@ reuses the hunks the last run numbered.
 ### Overview styles
 
 `--overview-style` chooses how the overview and each chapter are written
-beneath their one-line lede, which never changes:
+beneath their opening sentence (the overview's lede, a chapter's headline),
+which never changes:
 
-| Style          | The text beneath the lede                                             |
+| Style          | The text beneath the opening sentence                                 |
 | -------------- | --------------------------------------------------------------------- |
 | `narrative`    | the default: why it changed, and the tradeoffs, in prose              |
-| `checklist`    | a short list of yes-or-no questions a reviewer should check           |
 | `before-after` | **Before:** / **After:** pairs, one per behaviour that changed        |
 | `five-whys`    | a chain of why-questions down to the reason, rarely all five          |
 | `plain`        | two or three plain sentences for someone who has never seen this code |
-| `tldr`         | nothing: the lede alone carries the change or its one risk            |
+| `tldr`         | nothing: the opening sentence alone carries the change or its risk    |
 
 The prompt stage line names the style when it is not `narrative`.
 

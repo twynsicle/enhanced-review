@@ -3,7 +3,7 @@ import type { Prose } from '@/review/narrative';
 import { MarkdownText } from './markdown-text';
 
 /**
- * A narrative passage: the reviewer's overview, or a chapter's description.
+ * The reviewer's overview: its lede, then its body.
  *
  * The lede is set one step up the scale from the body, in the same face and the
  * same grey. That is the whole of the hierarchy here, and the restraint is

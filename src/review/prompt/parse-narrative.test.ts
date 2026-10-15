@@ -6,23 +6,30 @@ import { escapeStrayQuotes, parseNarrativeReview, type ParseResult } from './par
 type Payload = Record<string, unknown>;
 
 /**
- * The payload as a model following the prompt sends it, with a reading plan
- * of its first chapter for the brief and every chapter for the standard read,
- * so that a test about something else is not also a test of a missing plan.
- * A payload that names `readingPlan`, even as undefined, keeps its own.
+ * The payload as a model following the prompt sends it, so that a test about
+ * something else is not also a test of a missing field: every chapter given a
+ * headline, and a reading plan of the first chapter for the brief and every
+ * chapter for the standard read. A chapter that names `headline`, and a
+ * payload that names `readingPlan`, even as undefined, keep their own.
  */
-function withPlan(payload: Payload): Payload {
+function asPrompted(payload: Payload): Payload {
   const chapters: unknown[] = Array.isArray(payload['chapters']) ? payload['chapters'] : [];
-  if ('readingPlan' in payload || chapters.length === 0) return payload;
+  const headlined = chapters.map((chapter) =>
+    chapter !== null && typeof chapter === 'object' && !('headline' in chapter)
+      ? { ...chapter, headline: 'What this chapter changes.' }
+      : chapter,
+  );
+  const withHeadlines = 'chapters' in payload ? { ...payload, chapters: headlined } : payload;
+  if ('readingPlan' in payload || chapters.length === 0) return withHeadlines;
   const ids = chapters.map((chapter, index) => {
     const id = (chapter as Payload | null)?.['id'];
     return typeof id === 'string' && id.length > 0 ? id : `chapter-${String(index + 1)}`;
   });
-  return { ...payload, readingPlan: { brief: ids.slice(0, 1), standard: ids } };
+  return { ...withHeadlines, readingPlan: { brief: ids.slice(0, 1), standard: ids } };
 }
 
 function wrap(payload: Payload): string {
-  return `Sure, here you go:\n<narrative_review>${JSON.stringify(withPlan(payload))}</narrative_review>\nDone.`;
+  return `Sure, here you go:\n<narrative_review>${JSON.stringify(asPrompted(payload))}</narrative_review>\nDone.`;
 }
 
 /** What a failed parse reports: its first fatal finding. Null when it parses. */
@@ -141,7 +148,7 @@ describe('parseNarrativeReview', () => {
         overviewSummary: { lede: 's' },
         chapters: [
           {
-            description: { lede: 'No id and no title of its own.' },
+            headline: 'No id and no title of its own.',
             insights: [
               { type: 'highlight', title: '  Headline  ', text: 'body' },
               { type: 'bogus', text: 'falls back to context' },
@@ -158,7 +165,7 @@ describe('parseNarrativeReview', () => {
       {
         id: 'chapter-1',
         title: 'Chapter 1',
-        description: { lede: 'No id and no title of its own.' },
+        headline: 'No id and no title of its own.',
         insights: [
           { type: 'highlight', title: 'Headline', text: 'body' },
           { type: 'context', text: 'falls back to context' },
@@ -378,28 +385,28 @@ describe('parseNarrativeReview', () => {
 /** One double quote, built rather than escaped, so it survives any tooling. */
 const DQ = String.fromCharCode(34);
 
-const chapter = (description: unknown) => ({
+const chapter = (fields: Payload) => ({
   prTitle: 't',
   overviewSummary: { lede: 'A lede.', body: 'And a body.' },
   chapters: [
     {
       id: 'c',
       title: 'C',
-      description,
+      ...fields,
       insights: [],
       diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunks: read(['H0001']) }],
     },
   ],
 });
 
-describe('prose passages', () => {
+describe('prose', () => {
   const parse = (payload: Payload) =>
     parseNarrativeReview(wrap(payload), groundingFor(buildDiffHunkIndex(DIFF).hunks));
 
-  it('keeps a lede and a body apart', () => {
-    const result = parse(chapter({ lede: 'The lede.', body: '- a\n- b' }));
-    expect(result.ok && result.data.chapters[0]?.description).toEqual({
-      lede: 'The lede.',
+  it("keeps a chapter's headline and body apart, trimmed", () => {
+    const result = parse(chapter({ headline: ' The headline. ', body: '- a\n- b\n' }));
+    expect(result.ok && result.data.chapters[0]).toMatchObject({
+      headline: 'The headline.',
       body: '- a\n- b',
     });
     expect(result.ok && result.data.overviewSummary).toEqual({
@@ -408,28 +415,31 @@ describe('prose passages', () => {
     });
   });
 
-  it('promotes a plain-string description to a lede', () => {
-    const result = parse(chapter('one flat string, not the object the prompt asks for'));
-    expect(result.ok && result.data.chapters[0]?.description).toEqual({
-      lede: 'one flat string, not the object the prompt asks for',
-    });
-  });
-
-  it('drops a description with no prose in it whatever its shape', () => {
-    for (const description of [7, null, ['a lede'], '   ', {}]) {
-      const result = parse(chapter(description));
-      expect(result.ok && result.data.chapters[0]?.description).toBeUndefined();
+  it('leaves out a body with nothing in it', () => {
+    for (const body of ['   ', 7, undefined]) {
+      const result = parse(chapter({ headline: 'The headline.', body }));
+      expect(result.ok && result.data.chapters[0]?.body).toBeUndefined();
     }
   });
 
-  it('promotes a body that arrived without a lede', () => {
-    const result = parse(chapter({ body: 'only the detail' }));
-    expect(result.ok && result.data.chapters[0]?.description).toEqual({ lede: 'only the detail' });
+  it('fails the review when a chapter has no headline to open on, whatever came instead', () => {
+    for (const headline of [undefined, '   ', 7, { lede: 'in the wrong shape' }]) {
+      const result = parse(chapter({ headline, body: 'A body is not a headline.' }));
+      expect(result.ok).toBe(false);
+      expect(firstFatal(result)).toBe(
+        'Chapter "C" (c) has no headline, the one sentence its card opens on.',
+      );
+    }
   });
 
-  it('drops a description with nothing in it', () => {
-    const result = parse(chapter({ lede: '   ', body: '' }));
-    expect(result.ok && result.data.chapters[0]?.description).toBeUndefined();
+  it('promotes an overview that arrived as a plain string to its lede', () => {
+    const result = parse({ ...chapter({}), overviewSummary: 'one flat string' });
+    expect(result.ok && result.data.overviewSummary).toEqual({ lede: 'one flat string' });
+  });
+
+  it('promotes an overview body that arrived without a lede', () => {
+    const result = parse({ ...chapter({}), overviewSummary: { body: 'only the detail' } });
+    expect(result.ok && result.data.overviewSummary).toEqual({ lede: 'only the detail' });
   });
 
   it('fails the review when the overview has no prose at all', () => {
@@ -483,7 +493,7 @@ describe('an insight anchored to a file', () => {
           {
             id: 'c',
             title: 'C',
-            description: { lede: 'd' },
+            headline: 'd',
             insights,
             diffChunks: [{ filename: 'src/a.ts', language: 'typescript', hunks: read(['H0001']) }],
           },
@@ -735,26 +745,31 @@ describe('what a repair records', () => {
     expect(result.ok && result.data.readingPlan?.brief).toEqual(['chapter-3']);
   });
 
-  it('notes prose that arrived as a bare string, and prose that arrived with no lede', () => {
+  it('notes an overview that arrived as a bare string, or with a body and no lede', () => {
+    const cited = [
+      { id: 'c', title: 'C', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+    ];
+    const bare = parseNarrativeReview(
+      wrap({ prTitle: 't', overviewSummary: 'a bare string', chapters: cited }),
+    );
+    const bodyOnly = parseNarrativeReview(
+      wrap({ prTitle: 't', overviewSummary: { body: 'only the detail' }, chapters: cited }),
+    );
+    expect(codes(bare)).toEqual(['prose-promoted']);
+    expect(codes(bodyOnly)).toEqual(['prose-promoted']);
+  });
+
+  it('names every chapter with no headline in one go, so one retry can mend them all', () => {
     const result = parse([
-      {
-        id: 'c',
-        title: 'C',
-        description: 'a bare string',
-        insights: [],
-        diffChunks: [cite('src/a.ts', ['H0001'])],
-      },
-      {
-        id: 'd',
-        title: 'D',
-        description: { body: 'only the detail' },
-        insights: [],
-        diffChunks: [cite('src/b.ts', ['H0003'])],
-      },
+      { id: 'c', title: 'C', headline: '', diffChunks: [cite('src/a.ts', ['H0001'])] },
+      { id: 'd', title: 'D', diffChunks: [cite('src/b.ts', ['H0003'])] },
+      { id: 'e', title: 'E', headline: undefined, diffChunks: [cite('src/a.ts', ['H0002'])] },
     ]);
-    expect(codes(result)).toEqual(['prose-promoted', 'prose-promoted']);
-    expect(result.findings[0]?.chapterId).toBe('c');
-    expect(result.findings[1]?.chapterId).toBe('d');
+    expect(result.ok).toBe(false);
+    expect(fatalFindings(result.findings).map((f) => [f.code, f.chapterId])).toEqual([
+      ['chapter-no-headline', 'c'],
+      ['chapter-no-headline', 'e'],
+    ]);
   });
 
   it('notes the stray-quote repair the parse depended on', () => {
@@ -852,33 +867,11 @@ describe('what a repair records', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('notes prose that arrived with nothing readable in it, and nothing for prose that never came', () => {
-    const result = parse([
-      {
-        id: 'c',
-        title: 'C',
-        description: '   ',
-        insights: [],
-        diffChunks: [cite('src/a.ts', ['H0001'])],
-      },
-      {
-        id: 'd',
-        title: 'D',
-        description: { lede: '', body: '  ' },
-        insights: [],
-        diffChunks: [cite('src/b.ts', ['H0003'])],
-      },
-      {
-        id: 'e',
-        title: 'E',
-        description: 7,
-        insights: [],
-        diffChunks: [cite('src/a.ts', ['H0002'])],
-      },
-      { id: 'f', title: 'F', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
-    ]);
-    expect(codes(result)).toEqual(['prose-dropped', 'prose-dropped', 'prose-dropped']);
-    expect(result.findings[0]).toMatchObject({ severity: 'note', chapterId: 'c' });
+  it('notes an overview that arrived with nothing readable in it before failing on it', () => {
+    const result = parseNarrativeReview(
+      wrap({ prTitle: 't', overviewSummary: { lede: '   ' }, chapters: [] }),
+    );
+    expect(codes(result)).toEqual(['prose-dropped', 'fields-missing']);
   });
 
   it('notes a risk assessment that gave its factors as something other than a list', () => {

@@ -27,7 +27,7 @@ Options:
   --instructions-file <path>
                        the same, read from a file
   --overview-style <name>
-                       write what follows each one-line lede in the overview and chapters as:
+                       write what follows the overview's lede and each chapter's headline as:
                        ${OVERVIEW_STYLES.join(', ')} (default: ${DEFAULT_OVERVIEW_STYLE})
   --split-hunks <lines>
                        split a hunk of more changed lines than this into parts of about this

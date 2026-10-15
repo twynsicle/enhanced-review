@@ -46,8 +46,8 @@ function excerptSeconds(excerpt: ContextExcerpt): number {
 export function chapterSeconds(chapter: NarrativeChapter): number {
   const excerpts = chapter.contextExcerpts ?? [];
   const prose = proseSeconds([
-    chapter.description?.lede,
-    chapter.description?.body,
+    chapter.headline,
+    chapter.body,
     ...chapter.insights.map((insight) => insight.text),
     ...excerpts.map((excerpt) => excerpt.reason),
   ]);

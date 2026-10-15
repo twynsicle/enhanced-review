@@ -14,7 +14,13 @@ vi.mock('@monaco-editor/react', () => ({
 }));
 
 const chapters: NarrativeChapter[] = [
-  { id: 'ch1', title: 'Shape of the change', insights: [], diffChunks: [] },
+  {
+    id: 'ch1',
+    title: 'Shape of the change',
+    headline: 'A headline.',
+    insights: [],
+    diffChunks: [],
+  },
 ];
 
 const hunk = (id: string, fileOrder: number): CitedHunk => ({
@@ -187,6 +193,7 @@ describe('FileView with hunks the chapters left out', () => {
       {
         id: 'ch1',
         title: 'Shape of the change',
+        headline: 'A headline.',
         insights: [],
         diffChunks: [{ filename: 'src/app.ts', language: 'typescript', hunks: [hunk('H0001', 1)] }],
       },
@@ -205,12 +212,14 @@ describe('FileView with hunks the chapters left out', () => {
       {
         id: 'ch1',
         title: 'Shape of the change',
+        headline: 'A headline.',
         insights: [],
         diffChunks: [{ filename: 'src/app.ts', language: 'typescript', hunks: [hunk('H0001', 1)] }],
       },
       {
         id: 'ch2',
         title: 'And its neighbour',
+        headline: 'A headline.',
         insights: [],
         diffChunks: [{ filename: 'src/app.ts', language: 'typescript', hunks: [hunk('H0002', 2)] }],
       },
@@ -231,6 +240,7 @@ describe('FileView with hunks the chapters left out', () => {
       {
         id: 'ch1',
         title: 'Shape of the change',
+        headline: 'A headline.',
         insights: [],
         diffChunks: [
           {

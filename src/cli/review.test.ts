@@ -74,12 +74,12 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
 const MODEL_REVIEW = `<narrative_review>
 {
   "prTitle": "The staged change",
-  "overviewSummary": { "lede": "One chapter, written by the model in this test." },
+  "overviewSummary": "One chapter, written by the model in this test.",
   "chapters": [
     {
       "id": "app",
       "title": "App",
-      "description": "src/app.ts changed.",
+      "headline": "src/app.ts changed.",
       "insights": [{ "type": "context", "title": "From the test model", "text": "Not a real run." }],
       "diffChunks": [{ "filename": "src/app.ts", "language": "typescript", "hunks": [{ "id": "H0001", "tier": "read" }] }]
     }

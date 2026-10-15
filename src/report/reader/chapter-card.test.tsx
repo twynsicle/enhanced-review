@@ -43,7 +43,8 @@ describe('<ChapterCard /> with a mix of insights', () => {
   const chapter: NarrativeChapter = {
     id: 'ch1',
     title: 'Removals pipeline',
-    description: { lede: 'Late cancellations stop counting against a tech.', body: '- one\n- two' },
+    headline: 'Late cancellations stop counting against a tech.',
+    body: '- one\n- two',
     insights: [
       { type: 'context', title: 'Read this first', text: 'Orientation, before any code.' },
       {

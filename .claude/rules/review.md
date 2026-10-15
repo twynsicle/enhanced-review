@@ -13,9 +13,11 @@ package is Zod.
 ```
 src/review/
   narrative.ts       NarrativeReview Zod schema + types; chapter.diagram? + overviewDiagram?;
-                     ProseSchema — overviewSummary and chapter.description are a `{ lede, body? }`, the lede one
-                     short sentence and the body Markdown, because one free-text field is what produced the
-                     50-word sentences this replaced; Insight.filename? — the file an insight is about, drawn on
+                     ProseSchema — overviewSummary is a `{ lede, body? }`, the lede one short sentence and the
+                     body Markdown, because one free-text field is what produced the 50-word sentences this
+                     replaced; a chapter is `title` (the label lists show), `headline` (required, the one
+                     sentence its card opens on) and `body?` (Markdown) — the headline its own field so that no
+                     overview style can restyle or drop it; Insight.filename? — the file an insight is about, drawn on
                      that diff card rather than above all of them; three insight types, not four — a pointer to
                      related code or docs is `context` with a link, which is what `reference` was;
                      JudgementCall / judgementCalls? / MAX_JUDGEMENT_CALLS — the questions only a human can
@@ -126,7 +128,8 @@ src/review/
                      overview-styles (OVERVIEW_STYLES, the names --overview-style takes and er validates against,
                      and OVERVIEW_STYLE_TEXT, each one's instruction for the overview's and the chapters' bodies —
                      narrative, the default, has none; overviewStyleSection, the prompt.md section saying the
-                     body is restyled and nothing else is: the lede stays one sentence, the JSON is unchanged),
+                     body is restyled and nothing else is: the overview's lede and every chapter's headline stay
+                     one sentence, every chapter keeps its headline, the JSON is unchanged),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; every repair it makes
                      is recorded as a Finding, so leniency is not silence; it assumes no pairing of the
                      <narrative_review> tags — opening tags are tried last to first, and for each one every closing
@@ -153,8 +156,11 @@ src/review/
                      its judgementCallOwner's card (coverage.ts), so its hunk ids are narrowed to the ones that
                      card shows, and the reader picks the owner the same way; the cap is
                      applied here rather than by the schema, which could only refuse the whole review;
-                     sanitizeProse takes a `{ lede, body? }` object or a bare string, which is promoted to the
-                     lede, as is a body that arrived without one; a diffChunk's `hunks` entry may arrive as a bare
+                     sanitizeProse takes the overview's `{ lede, body? }` object or a bare string, which is
+                     promoted to the lede, as is a body that arrived without one; a chapter with no headline (absent,
+                     blank or not a string) is a fatal `chapter-no-headline`, every such chapter named before the
+                     review fails, so one retry mends them all — never a heading made up from the title; a
+                     chapter's body is kept trimmed when it is a non-blank string and otherwise left out; a diffChunk's `hunks` entry may arrive as a bare
                      id string; a whitespace-only or imports-only hunk is skim whatever tier came with it (a `read` there is
                      one `hunk-tier-lowered` note naming the hunks), and otherwise a
                      missing or unknown tier is read as `read` — leniency toward the model, recorded once per

@@ -28,8 +28,20 @@ const review: NarrativeReview = {
   overviewSummary: { lede: 'The scheduler runs reviews on a cadence.' },
   riskAssessment: { score: 2, summary: 'Low.', rationale: 'Small.', factors: [] },
   chapters: [
-    { id: 'ch1', title: 'The cadence table', insights: [], diffChunks: [] },
-    { id: 'ch2', title: 'The queue', insights: [], diffChunks: [] },
+    {
+      id: 'ch1',
+      title: 'The cadence table',
+      headline: 'A headline.',
+      insights: [],
+      diffChunks: [],
+    },
+    {
+      id: 'ch2',
+      title: 'The queue',
+      headline: 'Due reviews come off one queue.',
+      insights: [],
+      diffChunks: [],
+    },
   ],
 };
 
@@ -92,7 +104,10 @@ describe('the section footer', () => {
 
     expect(readIds()).toEqual(['ch1']);
     expect(window.location.hash).toBe('#/?ch=ch2');
-    const heading = screen.getByRole('heading', { level: 1, name: 'The queue' });
+    const heading = screen.getByRole('heading', {
+      level: 1,
+      name: 'Due reviews come off one queue.',
+    });
     await waitFor(() => expect(document.activeElement).toBe(heading));
   });
 

@@ -432,10 +432,8 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
       {
         id: 'cadence-table',
         title: 'Cadence becomes a table',
-        description: {
-          lede: 'Due-date maths becomes a lookup table instead of a ternary.',
-          body: 'That is what makes the third cadence a one-line change rather than another branch.',
-        },
+        headline: 'Due-date maths becomes a lookup table instead of a ternary.',
+        body: 'That is what makes the third cadence a one-line change rather than another branch.',
         insights: [
           {
             type: 'rationale',
@@ -468,10 +466,8 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
       {
         id: 'pausing',
         title: 'Pausing and the due queue',
-        description: {
-          lede: 'A paused schedule keeps its cadence but never comes due.',
-          body: 'The new queue asks each schedule whether it is due, then orders the answers oldest first.',
-        },
+        headline: 'A paused schedule keeps its cadence but never comes due.',
+        body: 'The new queue asks each schedule whether it is due, then orders the answers oldest first.',
         insights: [
           {
             type: 'context',
@@ -578,10 +574,8 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
       {
         id: 'clean-up',
         title: 'The cron job goes',
-        description: {
-          lede: 'The nightly job is deleted rather than disabled.',
-          body: 'The generated schema grows the new field alongside it, and the docs change is described but was not captured.',
-        },
+        headline: 'The nightly job is deleted rather than disabled.',
+        body: 'The generated schema grows the new field alongside it, and the docs change is described but was not captured.',
         insights: [
           {
             type: 'context',

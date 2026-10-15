@@ -18,7 +18,8 @@ Two rules, both enforced by the `palette` guardrail, both the result of the
 reader growing twelve font sizes and nine near-identical label styles:
 
 - **Six font sizes, no more.** `FONT_SIZES` (Mantine's `xs`–`xl`: 11/13/15/19/28)
-  plus `DISPLAY_SIZE` (40) for page and chapter titles. Use `fz="sm"` or
+  plus `DISPLAY_SIZE` (40) for page titles and the headline a chapter opens on.
+  Use `fz="sm"` or
   `var(--mantine-font-size-sm)`, never a literal `fz={13}` or `font-size: 13px`.
 - **One uppercase label.** `chrome/caption.tsx`; it varies only by `tone`.
   A component that needs the treatment without the component (a Mantine

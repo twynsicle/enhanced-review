@@ -25,7 +25,7 @@ describe('the command line', () => {
   it('refuses a style it does not know, naming the ones it does', () => {
     expect(() => reviewOptions(['--overview-style', 'haiku'])).toThrow(UsageError);
     expect(() => reviewOptions(['--overview-style', 'haiku'])).toThrow(
-      '--overview-style takes one of: narrative, checklist, before-after, five-whys, plain, tldr',
+      '--overview-style takes one of: narrative, before-after, five-whys, plain, tldr',
     );
   });
 

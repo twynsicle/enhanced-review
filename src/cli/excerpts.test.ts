@@ -46,6 +46,7 @@ function review(...perChapter: ContextExcerpt[][]): NarrativeReview {
     chapters: perChapter.map((contextExcerpts, index) => ({
       id: `c${String(index + 1)}`,
       title: 'C',
+      headline: 'A headline.',
       insights: [],
       diffChunks: [],
       ...(contextExcerpts.length > 0 ? { contextExcerpts } : {}),

@@ -27,6 +27,7 @@ function review(chunks: { filename: string; hunkIds: string[] }[]): string {
       {
         id: 'c',
         title: 'C',
+        headline: 'What C changes.',
         insights: [],
         diffChunks: chunks.map(({ filename, hunkIds }) => ({
           filename,
@@ -112,7 +113,9 @@ describe('validateReview', () => {
     const text = `<narrative_review>${JSON.stringify({
       prTitle: 't',
       overviewSummary: { lede: 's' },
-      chapters: [{ id: 'c', title: 'C', insights: [], diffChunks: [] }],
+      chapters: [
+        { id: 'c', title: 'C', headline: 'Nothing to cite.', insights: [], diffChunks: [] },
+      ],
       readingPlan: { brief: ['c'], standard: ['c'] },
     })}</narrative_review>`;
     expect(validateReview(text, groundingFor([])).findings).toEqual([]);

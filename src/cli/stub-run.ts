@@ -57,9 +57,7 @@ export function stubReview({ meta, files, hunks }: RunContext) {
       return {
         id: `file-${String(index + 1)}`,
         title: file.filename.split('/').at(-1)!,
-        description: {
-          lede: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${plural(fileHunks.length, 'hunk')}.`,
-        },
+        headline: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${plural(fileHunks.length, 'hunk')}.`,
         insights: [
           {
             type: 'context',
@@ -86,9 +84,7 @@ export function stubReview({ meta, files, hunks }: RunContext) {
           {
             id: 'nothing-reviewed',
             title: 'Nothing to cite',
-            description: {
-              lede: 'Every changed file was left out of the review, so there are no hunks.',
-            },
+            headline: 'Every changed file was left out of the review, so there are no hunks.',
             insights: [],
             diffChunks: [],
           },

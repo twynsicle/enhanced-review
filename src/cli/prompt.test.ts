@@ -193,13 +193,13 @@ describe('the local prompt', () => {
   });
 
   it('writes a chosen overview style as its own section, before the reviewer’s instructions', () => {
-    const prompt = buildPrompt(context(), run, 'Skip the CSS.', 'checklist');
+    const prompt = buildPrompt(context(), run, 'Skip the CSS.', 'five-whys');
 
-    const [before, after] = prompt.split('## Overview Style: checklist\n');
+    const [before, after] = prompt.split('## Overview Style: five-whys\n');
     expect(before).toMatch(/code around it\.\n\n$/);
     expect(after).toContain('This replaces what your system prompt says a body holds.');
-    expect(after).toContain(OVERVIEW_STYLE_TEXT.checklist);
-    expect(after!.indexOf(OVERVIEW_STYLE_TEXT.checklist!)).toBeLessThan(
+    expect(after).toContain(OVERVIEW_STYLE_TEXT['five-whys']);
+    expect(after!.indexOf(OVERVIEW_STYLE_TEXT['five-whys']!)).toBeLessThan(
       after!.indexOf('## Reviewer’s Instructions'),
     );
   });

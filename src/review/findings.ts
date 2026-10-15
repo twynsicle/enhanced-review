@@ -43,6 +43,8 @@ const SEVERITY_BY_CODE = {
   'fields-missing': 'fatal',
   /** A chapter left with no diffChunks once its hunk ids were resolved. */
   'chapter-no-hunks': 'fatal',
+  /** A chapter with no headline, the sentence its card is headed by. */
+  'chapter-no-headline': 'fatal',
   /** A hunk the prompt showed that no chapter cites. */
   'hunk-uncited': 'fatal',
   /** The run ended on anything but a clean success (max turns, an SDK error). */
@@ -96,9 +98,9 @@ const SEVERITY_BY_CODE = {
   'chapter-id-synthesised': 'note',
   /** A chapter arrived without a title, so one was synthesised. */
   'chapter-title-synthesised': 'note',
-  /** Prose arrived as a bare string, or as a body with no lede, and was promoted. */
+  /** The overview arrived as a bare string, or as a body with no lede, and was promoted. */
   'prose-promoted': 'note',
-  /** Prose arrived with nothing readable in it, so a chapter has none. */
+  /** The overview's prose arrived with nothing readable in it. */
   'prose-dropped': 'note',
   /** A chapter's diff chunk that named no file, or listed no hunk id to resolve. */
   'chunk-dropped': 'note',
