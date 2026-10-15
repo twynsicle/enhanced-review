@@ -176,7 +176,12 @@ export function hunkMarks(hunks: readonly CitedHunk[]): HunkMark[] {
 }
 
 const sameWords = (a: string, b: string) => {
-  const norm = (text: string) => text.trim().replace(/\.$/, '').replace(/\s+/g, ' ').toLowerCase();
+  const norm = (text: string) =>
+    text
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\s*\.$/, '')
+      .toLowerCase();
   return norm(a) === norm(b);
 };
 

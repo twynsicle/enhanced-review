@@ -159,19 +159,23 @@ command's flags, so repeat them there to keep them.
 ## What it costs, and how long
 
 The model run is the only stage that costs anything.
-Measured on this repository, an 88-file, 138-hunk change:
+Measured on two of this repository's own pull requests:
 
-|           |                                         |
-| --------- | --------------------------------------- |
-| Turns     | 27–32                                   |
-| Wall time | 5–8 minutes                             |
-| Cost      | **$1.87–$2.98** of your own allowance   |
-| Tokens in | ~1.1M, of which 93% was read from cache |
-| Report    | 2.4 MB of HTML                          |
+|           | #18: 23 files, 96 hunks                 | #22: 10 files, 37 hunks                 |
+| --------- | --------------------------------------- | --------------------------------------- |
+| Turns     | 4                                       | 6                                       |
+| Wall time | 6 minutes                               | 10 minutes                              |
+| Cost      | **$1.62** of your own allowance         | **$1.85** of your own allowance         |
+| Tokens in | ~511k, of which 84% was read from cache | ~436k, of which 94% was read from cache |
+| Report    | 2.3 MB of HTML                          | 1.9 MB of HTML                          |
 
 That is what an agentic review costs: it pays for its whole context on every
 turn, so the bill tracks the number of turns more than the size of the diff.
 The run line reports all of it as it finishes, cache share included.
+
+A very large change does not finish yet: on a 72-file change of 379 hunks the
+answer outgrows the model's output limit, so the run stops without a review
+(ER-56).
 
 Two ways to spend nothing while working on the tool itself:
 

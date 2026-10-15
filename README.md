@@ -124,7 +124,8 @@ theme.
 `er` has no server, opens no port and uploads nothing. It runs Claude **as
 you** — your own sign-in or API key, your own settings — and the agent it runs
 can only read: `Read`, `Glob`, `Grep`, and a `Bash` limited to read-only git
-history, with every command checked before it runs
+commands (`log`, `show`, `diff`, `blame` and the like) and `rg`, `grep`, `ls`,
+`cat`, `head`, `tail` and `wc`, with every command checked before it runs
 ([`src/cli/bash-gate.ts`](src/cli/bash-gate.ts)).
 
 What reaches the network, and why:
@@ -164,8 +165,9 @@ er review
 That reviews the current branch against its pull request's base, or the
 default branch when there is no pull request. `er review 42` reviews pull
 request #42 and `er review --staged` what you have staged. The report opens in
-your browser when it is written. The review in these screenshots, of a
-23-file pull request, took six minutes and $1.62 of your own Claude allowance.
+your browser when it is written. The review most of these screenshots come
+from, of a 23-file pull request, took six minutes and $1.62 of your own Claude
+allowance.
 
 **[docs/usage.md](docs/usage.md)** has the rest: every option, stacked
 branches, your own instructions, overview styles, what a run costs and where
@@ -182,7 +184,7 @@ each area.
 | `npm run check`      | **The gate**: typecheck + report:build + test + lint + format:check |
 | `npm run report:dev` | The report, against a committed sample review                       |
 | `npm run test:watch` | Vitest: unit + report + guardrails                                  |
-| `er review --stub`   | A mechanical review with no model run, for working on the reader    |
 
-The tests never call the Anthropic API: they stop at the Agent SDK boundary
-and use `--stub`.
+`er review --stub` writes a mechanical review with no model run, which is how
+to work on the reader for nothing. The tests never call the Anthropic API:
+they stop at the Agent SDK boundary and use `--stub`.

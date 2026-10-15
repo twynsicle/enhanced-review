@@ -99,7 +99,7 @@ describe('hunkMarks', () => {
   it('drops a skim reason that only repeats the proven fact', () => {
     const marks = hunkMarks([
       makeHunk(1, { tier: 'skim', importsOnly: true, skimReason: 'imports only' }),
-      makeHunk(3, { tier: 'skim', whitespaceOnly: true, skimReason: ' Whitespace only. ' }),
+      makeHunk(3, { tier: 'skim', whitespaceOnly: true, skimReason: ' Whitespace only . ' }),
       makeHunk(5, { tier: 'skim', importsOnly: true, skimReason: 'barrel re-exports' }),
     ]);
     expect(marks.map((mark) => [mark.label, mark.detail])).toEqual([
