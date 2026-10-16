@@ -20,10 +20,10 @@
  * A script's test file is cut by its test runner's blocks as well. A case
  * nearly always runs longer than a part, and cut at the blank lines inside it
  * arrives in pieces, each cited and tiered apart; a `describe(` cut away from
- * its cases reads as boilerplate. So there a part may begin at any suite, case
- * or hook, never inside a case or hook, and never between a suite's opening
- * line and its first child. A hunk that starts inside a case shows no opening
- * line to go by, and is cut as any other file is.
+ * what it frames reads as boilerplate. So there a part may begin at any suite,
+ * case or hook, never inside a case or hook, and never straight after a
+ * suite's opening line, which goes with whatever follows it. A hunk that starts
+ * inside a case shows no opening line to go by, and is cut as any other file is.
  */
 
 import { isTestFile } from '../test-file.ts';
@@ -266,12 +266,13 @@ function partStarts(body: readonly BodyLine[], testAware: boolean): boolean[] {
   for (const { open } of blocks) {
     if (open > 0 && isCode(body[open - 1]!) && !splitsAnEdit(body, open)) starts[open] = true;
   }
-  for (const block of blocks) {
-    // A suite keeps its first child, so the line framing the cases goes with them.
-    const end = block.suite
-      ? (blocks.find((b) => b.open > block.open && b.open <= block.close)?.open ?? block.open)
-      : block.close;
-    for (let i = block.open + 1; i <= end; i += 1) starts[i] = false;
+  for (const { open, close } of blocks.filter((block) => !block.suite)) {
+    for (let i = open + 1; i <= close; i += 1) starts[i] = false;
+  }
+  // A suite's opening line goes with whatever follows it, setup or a case.
+  for (const { open, close } of blocks.filter((block) => block.suite)) {
+    const first = starts.findIndex((start, i) => start && i > open && i <= close);
+    if (first !== -1) starts[first] = false;
   }
   return starts;
 }

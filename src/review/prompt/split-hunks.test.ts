@@ -319,11 +319,32 @@ describe('splitPatch on a test file', () => {
     '});',
   ];
 
-  it("cuts only between cases, and keeps a suite's opening line with its first case", () => {
+  it("cuts only between cases, a suite's opening line going with its first case when nothing comes before it", () => {
     expect(partOpenings(splitPatch(newFile(suite), 10, TEST_FILE))).toEqual([
       "import { it } from 'vitest';",
       "  it('b', () => {",
       "  it('c', () => {",
+    ]);
+  });
+
+  it("keeps a suite's setup apart from its cases, the opening line going with the setup", () => {
+    const withSetup = [
+      "describe('x', () => {",
+      "  const NAME = 'x';",
+      '',
+      '  function arrange() {',
+      ...Array.from({ length: 8 }, (_, n) => `    prepare${String(n)}();`),
+      '  }',
+      '',
+      ...testCase('a'),
+      '',
+      ...testCase('b'),
+      '});',
+    ];
+    expect(partOpenings(splitPatch(newFile(withSetup), 10, TEST_FILE))).toEqual([
+      "describe('x', () => {",
+      "  it('a', () => {",
+      "  it('b', () => {",
     ]);
   });
 

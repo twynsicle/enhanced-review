@@ -124,8 +124,8 @@ src/review/
                      to its neighbour past the target, since alone it is tiered by its bracket; in a script's test
                      file (isScriptFile and isTestFile) a part may also open at a suite, case or hook line
                      (describe/it/test and the rest, modifiers included), never inside a case or hook — one over
-                     the target stays whole — nor between a suite's opening line and its first child, so a
-                     `describe(` is never a part of its own; a block ends at the next line no deeper than its
+                     the target stays whole — nor straight after a suite's opening line, which goes with
+                     whatever follows it, its setup or its first case, so a `describe(` is never a part of its own; a block ends at the next line no deeper than its
                      opener, measured on the opener's own side; a hunk that starts mid-case has no opener to go
                      by and is cut by paragraphs; splitPart reads a header's part number back),
                      instructions.ts (NARRATIVE_SYSTEM_PROMPT, the review instructions and output schema, and
