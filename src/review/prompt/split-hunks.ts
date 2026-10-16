@@ -245,6 +245,8 @@ function testBlocks(body: readonly BodyLine[]): TestBlock[] {
       const next = body[j]!;
       if (next.kind === otherSide || !isCode(next) || next.content.trim() === '') continue;
       if (indentOf(next.content) > indent) continue;
+      // `it.each` with a table: the line that closes it opens the case's body.
+      if (next.content.trimStart().startsWith('`')) continue;
       close = CLOSER_RE.test(next.content.trim()) ? j : j - 1;
       break;
     }

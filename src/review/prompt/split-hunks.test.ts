@@ -400,6 +400,41 @@ describe('splitPatch on a test file', () => {
     ]);
   });
 
+  it('keeps a case whose table is a template literal whole', () => {
+    const table = [
+      "describe('x', () => {",
+      ...testCase('a'),
+      '',
+      '  it.each`',
+      '    a    | b',
+      '    ${1} | ${2}',
+      "  `('adds $a', ({ a, b }) => {",
+      ...testCase('b', '  ').slice(1),
+      '});',
+    ];
+    expect(partOpenings(splitPatch(newFile(table), 10, TEST_FILE))).toEqual([
+      "describe('x', () => {",
+      '  it.each`',
+    ]);
+  });
+
+  it('cuts a deleted test file between its cases too', () => {
+    const patch = [
+      'diff --git a/src/x.test.ts b/src/x.test.ts',
+      'deleted file mode 100644',
+      '--- a/src/x.test.ts',
+      '+++ /dev/null',
+      `@@ -1,${String(suite.length)} +0,0 @@`,
+      ...suite.map((l) => `-${l}`),
+      '',
+    ].join('\n');
+    expect(partOpenings(splitPatch(patch, 10, TEST_FILE))).toEqual([
+      "import { it } from 'vitest';",
+      "  it('b', () => {",
+      "  it('c', () => {",
+    ]);
+  });
+
   it('falls back to paragraphs in a hunk that starts inside a case', () => {
     const body = [
       ...['a', 'b', 'c', 'd', 'e', 'f'].map((v) => `+    const ${v} = make('${v}');`),
