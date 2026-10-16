@@ -25,14 +25,22 @@ export const SHELL_PX = { base: 20, sm: 28 };
  */
 const SHELL_PB = { base: 72, sm: 96 };
 
+type Padding = number | { base: number; sm: number };
+
 export function PageShell({
   children,
   py = { base: 40, sm: 48 },
+  pb = SHELL_PB,
   style,
 }: {
   children: ReactNode;
-  /** Top padding. The bottom is always `SHELL_PB` — see the note above it. */
-  py?: number | { base: number; sm: number };
+  /** Top padding. */
+  py?: Padding;
+  /**
+   * Bottom padding, `SHELL_PB` unless the page puts its own room at the end —
+   * see the note above it.
+   */
+  pb?: Padding;
   style?: CSSProperties;
 }) {
   return (
@@ -43,7 +51,7 @@ export function PageShell({
       maw={SHELL_MAX_WIDTH}
       px={SHELL_PX}
       pt={py}
-      pb={SHELL_PB}
+      pb={pb}
       style={style}
     >
       {children}

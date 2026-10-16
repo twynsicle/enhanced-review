@@ -61,7 +61,9 @@ sidebar is dragged, and storage is for a preference or a record such as reading
 progress, never a per-frame measurement. Widening the shell
 is still not the same as widening the text: prose keeps its own measure in `ch`.
 `PageShell` pads the bottom more than the top (`SHELL_PB`): a page that ends
-flush with its last element reads as cut off.
+flush with its last element reads as cut off. The reader passes `pb={0}` and
+ends its own column with a smaller chin instead, since its sticky sidebar can sit
+no lower than the end of the grid it is in.
 
 Two text families: sans for everything, mono for identifiers, paths, SHAs and
 code. There is no display serif.

@@ -21,6 +21,7 @@ import {
   buildInlineDiffSnippets,
   type InlineDiffSnippet,
 } from '@/report/reader/inline-diff-snippets';
+import { fileHref } from '@/report/reader/hash-params';
 import { debugMarks, factTags, hunkMarks, type HunkMark } from '@/report/reader/hunk-marks';
 import { detectLanguage } from '@/review/language-map';
 import type {
@@ -1030,7 +1031,7 @@ export function InlineDiffChunk({
   }, [state, expanded, chunk.hunks, file?.hunks]);
 
   const language = state.kind === 'ok' ? state.data.language : chunk.language;
-  const tags = useMemo(() => factTags(chunk.hunks), [chunk.hunks]);
+  const tags = useMemo(() => factTags(chunk.hunks, chunk.filename), [chunk.hunks, chunk.filename]);
 
   return (
     <CodeCard label={`Diff for ${chunk.filename}`} diffFile={chunk.filename}>
@@ -1058,13 +1059,21 @@ export function InlineDiffChunk({
               {tags.map((tag) => (
                 <Text
                   key={tag.label}
-                  component="span"
+                  {...(tag.opens === null
+                    ? { component: 'span' }
+                    : {
+                        component: 'a',
+                        href: fileHref(tag.opens),
+                        'aria-label': `${tag.label} · ${tag.lines}, opens ${tag.opens}`,
+                      })}
                   fz="xs"
                   c="dimmed"
                   px={6}
                   py={1}
                   title={tag.detail}
-                  className={classes.fact}
+                  className={
+                    tag.opens === null ? classes.fact : `${classes.fact} ${classes.moveTag}`
+                  }
                   style={{
                     borderRadius: 4,
                     border: `1px solid ${token('border')}`,

@@ -1,5 +1,5 @@
 import { ActionIcon, Box, Group, Stack, UnstyledButton, VisuallyHidden } from '@mantine/core';
-import { IconCheck, IconList, IconListTree, IconSchema, IconStar } from '@tabler/icons-react';
+import { IconCheck, IconList, IconListTree, IconSchema, IconTarget } from '@tabler/icons-react';
 import { useCallback, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import type { FileCoverage, ReviewCoverage } from '@/review/coverage';
 import {
@@ -174,7 +174,7 @@ function SidebarItem({
              */}
             {core && (
               <span className={classes.rowMark} title="Core chapter: in the brief reading plan">
-                <IconStar size={MARK_SIZE} aria-hidden />
+                <IconTarget size={MARK_SIZE} aria-hidden />
                 <VisuallyHidden>core chapter</VisuallyHidden>
               </span>
             )}

@@ -206,7 +206,7 @@ describe('<InlineDiffChunk /> by attention tier', () => {
     expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
   });
 
-  it('tags each proven fact in the header once, over all the lines it holds for', async () => {
+  it('tags each fact in the header once, over all its lines, a move as a link to the other file', async () => {
     tiered([
       { movedFrom: { filename: 'src/old.ts', similarity: 92 } },
       { movedFrom: { filename: 'src/old.ts', similarity: 92 } },
@@ -218,7 +218,19 @@ describe('<InlineDiffChunk /> by attention tier', () => {
     expect(moved.getAttribute('title')).toBe(
       '92% of these lines match the lines removed from src/old.ts',
     );
-    expect(within(header).getByText('Whitespace only · L21-30')).toBeDefined();
+    expect(moved.getAttribute('href')).toBe('#/?file=src%2Fold.ts');
+    expect(within(header).getByRole('link', { name: /opens src\/old\.ts$/ })).toBe(moved);
+    const whitespace = within(header).getByText('Whitespace only · L21-30');
+    expect(whitespace.tagName).toBe('SPAN');
+  });
+
+  it('tags a move within the file without linking it to itself', async () => {
+    tiered([{ movedFrom: { filename: 'src/main.ts', similarity: 100 } }]);
+    await screen.findAllByTestId('diff-editor');
+    const header = screen.getByText('main.ts').closest('div')!;
+    const moved = within(header).getByText('Moved unchanged from src/main.ts · L1-10');
+    expect(moved.tagName).toBe('SPAN');
+    expect(within(header).queryByRole('link')).toBeNull();
   });
 
   it('folds every file header onto one line from a chevron, and offers none with nothing to fold', async () => {

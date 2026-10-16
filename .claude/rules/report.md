@@ -31,11 +31,10 @@ src/report/
   chrome/            brand-mark (+ brand-mark.svg, imported so the build inlines it), caption (the one uppercase
                      label), page-shell (SHELL_MAX_WIDTH, the toggle-driven width shared with the topbar),
                      topbar (+ .module.css; TopbarFrame, Brand — the mark alone on a phone — and TopbarChange,
-                     the tag in mono and the title, each cut with an ellipsis and whole in the hover, a branch tag
-                     giving way before the title on a phone),
+                     the tag in mono and the title, the title cut with an ellipsis and whole in the hover),
                      change-label.ts (changeTitle, the one place the review's title falls back to the meta's;
-                     changeLabel, the header's tag — `#<n>` for a PR, `staged`, or the branch, dropped when the
-                     title is that same name — and title; documentTitle, led by the PR number alone; unrelated
+                     changeLabel, the header's tag — `#<n>` for a PR, `staged`, or none for a branch, whose
+                     name outweighed the title beside it — and title; documentTitle, led by the PR number alone; unrelated
                      to ask-prompt's changeName, which words the change for a prompt), display-menu (every display preference in one labelled
                      dropdown: diffs, long lines, comments, file headers, skim hunks, hunk debug, layout, theme — comments
                      and skim hunks each with a fade slider beneath while they are dimmed or marked)
@@ -55,7 +54,7 @@ src/report/
                      is "Back to summary", which marks it too; the summary and risk get Next alone, and a summary
                      with nothing after it no footer),
                      chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, a row carrying
-                     a diagram is marked, a core chapter carries a star and a chapter marked read a tick, the three
+                     a diagram is marked, a core chapter carries a target and a chapter marked read a tick, the three
                      one outline icon size and one muted-foreground colour, grouped tight at the row's end in that
                      order — the tick last, so it sits in one place down the list — each with hidden text ("core
                      chapter", "has a diagram", "read"), and the Chapters header
@@ -136,8 +135,10 @@ src/report/
                      which is the only one that defines it) at `--review-skim-fade`, half of it for a read move
                      — an overlay rather than decorations, since no decoration reaches the stacked view's
                      removed lines, and one measurement for all of it, so a labelled region is always the one
-                     that fades; the file stays one editor the find widget reaches; each proven fact is
-                     one tag in the card's header over every line it holds for, the similarity in its hover;
+                     that fades; the file stays one editor the find widget reaches; each proven fact is one tag
+                     in the card's header over every line it holds for, a move's similarity in its hover, and a
+                     move a link (hash-params.ts's fileHref) to the file at its other end — whitespace only,
+                     imports only and a move within the file plain text;
                      the full-file view keeps the chapter's hunks, so its marks stay; a file with nothing on one side
                      is stacked whatever the preference, a "New" or "Deleted" badge ahead of its path, the empty
                      side's line numbers off and the blank row Monaco draws for that side cut off by the host;
@@ -149,7 +150,7 @@ src/report/
                      only a diff's carries data-diff-file; the header is a grid of path, facts and actions, the
                      path never wrapping: its file name whole and its directory cut from the start behind an
                      ellipsis, the whole path in its hover; no language badge, which the extension already says;
-                     a header whose facts can outgrow a line (a diff card with an origin or a fact tag) carries a
+                     a header whose facts can outgrow a line (a diff card with an origin or a move tag) carries a
                      chevron that flips er-file-headers for every card — facts beside the path, clipped, or on
                      rows of their own below it),
                      monaco-editors (the one place that imports the editor: one shared load, where
@@ -163,7 +164,7 @@ src/report/
                      reader's column settles, and the scroll kept on a click's focus, which both editors share),
                      hunk-marks.ts (pure: provenNote, a proven fact's few words and its hover — "Imports only" among them, a move said as
                      unchanged or with edits, the percentage kept for the hover; factTags, one header tag per
-                     fact with its hunks' touching ranges joined; hunkMarks, the regions a diff labels — every
+                     fact with its hunks' touching ranges joined, and for a move to another file that file; hunkMarks, the regions a diff labels — every
                      skim hunk, as "Skim · <fact> · <the review's reason>" (the reason left out when it only repeats
                      the fact), and every hunk with a fact whatever
                      its tier — neighbours saying the same joined into one; hunks sharing a label but not a

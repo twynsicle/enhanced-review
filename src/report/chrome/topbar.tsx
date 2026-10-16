@@ -84,8 +84,8 @@ export function TopbarChange({ tag, title }: ChangeLabel) {
       }}
     >
       {tag !== null && (
-        <span className={classes.tag} data-kind={tag.kind} title={tag.text}>
-          {tag.text}
+        <span className={classes.tag} title={tag}>
+          {tag}
         </span>
       )}
       <span className={classes.title} title={title}>
