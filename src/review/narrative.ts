@@ -14,6 +14,35 @@ import { DiagramSchema } from './diagram.ts';
  */
 
 /**
+ * How a body is written: chosen per run with `--overview-style`, whose prompt
+ * text is in `prompt/overview-styles.ts`. Named here because a review carries
+ * one body per style it was asked for, keyed by these names.
+ */
+export const OVERVIEW_STYLES = [
+  'narrative',
+  'before-after',
+  'five-whys',
+  'plain',
+  'simple',
+  'pros-cons',
+  'tldr',
+] as const;
+export const OverviewStyleSchema = z.enum(OVERVIEW_STYLES);
+export type OverviewStyle = z.infer<typeof OverviewStyleSchema>;
+
+/** The styles a run asked for, in the order the engineer named them. */
+export const OverviewStylesSchema = z.array(OverviewStyleSchema).nonempty();
+export type OverviewStyles = z.infer<typeof OverviewStylesSchema>;
+
+/**
+ * One Markdown body per overview style, keyed by the style. A style with no
+ * key has no body here: the headline was the whole story, or the style is
+ * `tldr`, whose body is none.
+ */
+export const BodiesSchema = z.partialRecord(OverviewStyleSchema, z.string().min(1));
+export type Bodies = z.infer<typeof BodiesSchema>;
+
+/**
  * A passage of the review's prose: one short sentence, and the detail beneath
  * it when there is any.
  *
@@ -23,12 +52,12 @@ import { DiagramSchema } from './diagram.ts';
  * that governed it budgeted *sentences* ("2-4 sentences"), which caps the wrong
  * unit: the model settles on what it wants to say and then fits it into the
  * allowance, so a tighter budget bought longer sentences rather than less text.
- * A `lede` that must fit one short sentence cannot be crammed, and a `body` that
+ * A `lede` that must fit one short sentence cannot be crammed, and a body that
  * is explicitly Markdown is free to be the list most of that prose wanted to be.
  */
 export const ProseSchema = z.object({
   lede: z.string(),
-  body: z.string().optional(),
+  bodies: BodiesSchema.optional(),
 });
 export type Prose = z.infer<typeof ProseSchema>;
 
@@ -292,8 +321,8 @@ export const NarrativeChapterSchema = z.object({
    * the chapter still opens on one plain sentence.
    */
   headline: z.string().min(1),
-  /** Markdown beneath the headline, written as the run's overview style asks. */
-  body: z.string().optional(),
+  /** Markdown beneath the headline, one per overview style the run asked for. */
+  bodies: BodiesSchema.optional(),
   insights: z.array(InsightSchema),
   diffChunks: z.array(DiffChunkSchema),
   /** Absent and empty mean the same: nothing outside the diff needed showing. */
@@ -326,6 +355,12 @@ export type ReadingPlan = z.infer<typeof ReadingPlanSchema>;
 
 export const NarrativeReviewSchema = z.object({
   prTitle: z.string(),
+  /**
+   * The styles the engineer asked for, in the order they named them: what the
+   * reader offers to switch between, the first shown until they choose.
+   * Carried even when a style has no body anywhere, since `tldr` never has one.
+   */
+  overviewStyles: OverviewStylesSchema,
   overviewSummary: ProseSchema,
   riskAssessment: ReviewRiskAssessmentSchema.optional(),
   files: z.array(ReviewFileSchema).optional(),

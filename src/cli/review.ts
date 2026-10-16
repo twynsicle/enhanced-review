@@ -5,8 +5,8 @@ import { plural } from '../review/plural.ts';
 import { reviewCoverage } from '../review/coverage.ts';
 import { MAX_VALIDATION_RETRIES } from './validation-stop-hook.ts';
 import type { Finding } from '../review/findings.ts';
-import type { NarrativeReview } from '../review/narrative.ts';
-import { DEFAULT_OVERVIEW_STYLE, type OverviewStyle } from '../review/prompt/overview-styles.ts';
+import type { NarrativeReview, OverviewStyles } from '../review/narrative.ts';
+import { DEFAULT_OVERVIEW_STYLE } from '../review/prompt/overview-styles.ts';
 import { splitPart } from '../review/prompt/split-hunks.ts';
 import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
 import { gather, readContext, type RunContext } from './context.ts';
@@ -15,7 +15,7 @@ import { onInterrupt } from './interrupts.ts';
 import { groundingForRun, parseRun, readFindings, readReview } from './parse.ts';
 import { openFile } from './platform.ts';
 import { startProgress } from './progress.ts';
-import { writePrompt } from './prompt.ts';
+import { readOverviewStyles, writePrompt } from './prompt.ts';
 import { HOST_RENDER_DEPS, renderRun, type RenderDeps } from './render.ts';
 import { createRunFolder, latestRunFolder, reportFileName, type RunFiles } from './run-folder.ts';
 import { writeStubRun } from './stub-run.ts';
@@ -81,8 +81,8 @@ export interface ReviewOptions {
   instructions: string | null;
   /** Split a hunk with more changed lines than this into parts; `0` keeps git's hunks. */
   splitLines: number;
-  /** How the overview's and the chapters' bodies are written, written into the prompt. */
-  overviewStyle: OverviewStyle;
+  /** How the overview's and the chapters' bodies are written, written into the prompt; several to compare. */
+  overviewStyles: OverviewStyles;
 }
 
 export interface ReviewDeps {
@@ -112,12 +112,13 @@ export async function review(
 
   if (runs('prompt')) {
     const started = performance.now();
-    const prompt = await writePrompt(context, run, options.instructions, options.overviewStyle);
+    const prompt = await writePrompt(context, run, options.instructions, options.overviewStyles);
     const yours = options.instructions === null ? '' : ' with yours';
+    const styles = options.overviewStyles;
     const style =
-      options.overviewStyle === DEFAULT_OVERVIEW_STYLE
+      styles.length === 1 && styles[0] === DEFAULT_OVERVIEW_STYLE
         ? ''
-        : `; ${options.overviewStyle} overview style`;
+        : `; ${styles.join(', ')} overview ${styles.length === 1 ? 'style' : 'styles'}`;
     stage(
       'prompt',
       `~${tokens(prompt)} tokens${yours}, plus the review instructions${style}`,
@@ -146,7 +147,7 @@ export async function review(
     const where = worktree ? ', in a worktree of the PR' : '';
     try {
       if (options.stub) {
-        const chapters = await writeStubRun(context, run);
+        const chapters = await writeStubRun(context, run, await readOverviewStyles(run));
         stage(
           'run',
           `stub review, ${plural(chapters, 'chapter')}${where}`,
@@ -164,7 +165,7 @@ export async function review(
               model: options.model,
               maxTurns: options.maxTurns,
               timeoutMs: options.timeoutMs,
-              grounding: groundingForRun(context),
+              grounding: groundingForRun(context, await readOverviewStyles(run)),
             },
             {
               onActivity: progress.activity,

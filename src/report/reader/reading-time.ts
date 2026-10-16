@@ -3,6 +3,7 @@ import type {
   ContextExcerpt,
   NarrativeChapter,
   NarrativeReview,
+  OverviewStyle,
 } from '@/review/narrative';
 
 /**
@@ -43,11 +44,12 @@ function excerptSeconds(excerpt: ContextExcerpt): number {
   return ((excerpt.endLine - excerpt.startLine + 1) * 60) / SKIM_LINES_PER_MINUTE;
 }
 
-export function chapterSeconds(chapter: NarrativeChapter): number {
+/** Only the body in the style being read: the others are not on the page. */
+export function chapterSeconds(chapter: NarrativeChapter, style: OverviewStyle): number {
   const excerpts = chapter.contextExcerpts ?? [];
   const prose = proseSeconds([
     chapter.headline,
-    chapter.body,
+    chapter.bodies?.[style],
     ...chapter.insights.map((insight) => insight.text),
     ...excerpts.map((excerpt) => excerpt.reason),
   ]);
@@ -68,12 +70,13 @@ export function wholeMinutes(seconds: number): number {
   return Math.max(1, Math.ceil(Math.round(seconds) / 60));
 }
 
-export function chapterMinutes(chapter: NarrativeChapter): number {
-  return wholeMinutes(chapterSeconds(chapter));
+export function chapterMinutes(chapter: NarrativeChapter, style: OverviewStyle): number {
+  return wholeMinutes(chapterSeconds(chapter, style));
 }
 
-function overviewSeconds(review: NarrativeReview): number {
-  const prose = proseSeconds([review.overviewSummary.lede, review.overviewSummary.body]);
+function overviewSeconds(review: NarrativeReview, style: OverviewStyle): number {
+  const { lede, bodies } = review.overviewSummary;
+  const prose = proseSeconds([lede, bodies?.[style]]);
   return prose + (review.overviewDiagram ? DIAGRAM_SECONDS : 0);
 }
 
@@ -96,14 +99,14 @@ export interface PlanRow {
  * once. Summing the headers' rounded figures instead charges every chapter up
  * to a minute it does not take, and a review of forty chapters forty minutes.
  */
-export function readingPlanRows(review: NarrativeReview): PlanRow[] {
+export function readingPlanRows(review: NarrativeReview, style: OverviewStyle): PlanRow[] {
   const plan = review.readingPlan;
   if (!plan) return [];
-  const overview = overviewSeconds(review);
+  const overview = overviewSeconds(review, style);
   const brief = new Set(plan.brief);
   const standard = new Set([...plan.brief, ...plan.standard]);
   const minutesOf = (chapters: readonly NarrativeChapter[]): number =>
-    wholeMinutes(chapters.reduce((sum, chapter) => sum + chapterSeconds(chapter), overview));
+    wholeMinutes(chapters.reduce((sum, chapter) => sum + chapterSeconds(chapter, style), overview));
   const inBrief = review.chapters.filter((chapter) => brief.has(chapter.id));
   const inStandard = review.chapters.filter((chapter) => standard.has(chapter.id));
   return [

@@ -23,6 +23,7 @@ const baseMeta: ReviewMeta = {
 function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
   return {
     prTitle: 'Add scheduled reviews',
+    overviewStyles: ['narrative'],
     overviewSummary: { lede: 'The scheduler runs reviews on a cadence.' },
     chapters: [],
     files: [{ filename: 'src/a.ts', status: 'modified', additions: 10, deletions: 4 }],
@@ -33,6 +34,7 @@ function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
 function renderCard(overrides: Partial<NarrativeReview> = {}, meta: Partial<ReviewMeta> = {}) {
   return render(
     <SummaryCard
+      bodyStyle="narrative"
       review={review(overrides)}
       meta={{ ...baseMeta, ...meta }}
       onSelectChapter={() => {}}
@@ -124,6 +126,7 @@ describe('<SummaryCard /> and the judgement calls', () => {
   function renderIndex(onSelectChapter: (chapterId: string) => void) {
     return render(
       <SummaryCard
+        bodyStyle="narrative"
         review={review()}
         meta={baseMeta}
         judgementCalls={anchored}
@@ -192,6 +195,7 @@ describe('<SummaryCard /> and the reading plan', () => {
   ) {
     return render(
       <SummaryCard
+        bodyStyle="narrative"
         review={review({ chapters, ...(readingPlan ? { readingPlan } : {}) })}
         meta={baseMeta}
         onSelectChapter={onSelectChapter}

@@ -354,6 +354,7 @@ describe('<ChapterSidebar />', () => {
     ];
     const coverage = reviewCoverage({
       prTitle: 't',
+      overviewStyles: ['narrative'],
       overviewSummary: { lede: '' },
       files,
       chapters: cited,

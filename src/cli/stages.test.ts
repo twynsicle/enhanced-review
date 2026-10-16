@@ -25,6 +25,8 @@ let run: RunFiles;
 beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), 'cli-test-stages-'));
   run = runFiles(root);
+  // What the prompt stage would have recorded, which parse reads back.
+  writeFileSync(run.styles, '["narrative"]');
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
@@ -94,7 +96,7 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
 
 describe('stub run → parse', () => {
   it('gives each reviewed file a chapter citing all its hunks', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     const { review, findings } = await parseRun(context(), run, noGit);
 
     expect(review.prTitle).toBe('Staged changes on main');
@@ -131,7 +133,7 @@ describe('stub run → parse', () => {
         { ...hunk('H0004', 'src/b.ts', 2), movedFrom: { filename: 'src/a.ts', similarity: 90 } },
       ],
     });
-    await writeStubRun(tiered, run);
+    await writeStubRun(tiered, run, ['narrative']);
     const { review, findings } = await parseRun(tiered, run, noGit);
 
     expect(findings).toEqual([]);
@@ -149,13 +151,13 @@ describe('stub run → parse', () => {
 
   it('still writes a review when every file was skipped', async () => {
     const onlySkipped = context({ files: [context().files[2]!], hunks: [], contents: {} });
-    await writeStubRun(onlySkipped, run);
+    await writeStubRun(onlySkipped, run, ['narrative']);
     const { review } = await parseRun(onlySkipped, run, noGit);
     expect(review.chapters.map((chapter) => chapter.id)).toEqual(['nothing-reviewed']);
   });
 
   it("points at raw.txt when the model's answer does not parse", async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     writeFileSync(run.raw, 'I could not finish the review.');
     await expect(parseRun(context(), run, noGit)).rejects.toThrow(
       `The answer contains no complete <narrative_review> block. The model's answer is in ${run.raw}; ` +
@@ -164,7 +166,7 @@ describe('stub run → parse', () => {
   });
 
   it('writes the findings of a failed parse, and no review to render from', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     writeFileSync(run.raw, 'I could not finish the review.');
     await expect(parseRun(context(), run, noGit)).rejects.toThrow(/no complete <narrative_review>/);
 
@@ -179,7 +181,7 @@ describe('stub run → parse', () => {
   });
 
   it('takes the review an earlier parse wrote away with it when it fails', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     await parseRun(context(), run, noGit);
     expect(existsSync(run.review)).toBe(true);
     expect(existsSync(run.excerpts)).toBe(true);
@@ -193,7 +195,7 @@ describe('stub run → parse', () => {
   });
 
   it('reads what the run itself cost off events.jsonl, so --from parse reports it too', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     writeFileSync(
       run.events,
       [
@@ -216,7 +218,7 @@ describe('stub run → parse', () => {
   });
 
   it('fails the review when the run behind it did not finish cleanly', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     writeFileSync(
       run.events,
       `${JSON.stringify({ type: 'result', subtype: 'error_max_turns' })}\n`,
@@ -235,7 +237,7 @@ describe('stub run → parse', () => {
   });
 
   it('fails the review when the run left no result at all', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     writeFileSync(run.events, `${JSON.stringify({ type: 'tool', tool: 'Read' })}\n`);
 
     await expect(parseRun(context(), run, noGit)).rejects.toThrow(
@@ -245,7 +247,7 @@ describe('stub run → parse', () => {
 
   /** An empty findings list and no record of the run are not the same thing. */
   it('fails the review when nothing recorded how the run ended', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     rmSync(run.events);
 
     await expect(parseRun(context(), run, noGit)).rejects.toThrow(
@@ -260,7 +262,7 @@ describe('stub run → parse', () => {
   });
 
   it('refuses to hand a render stage the findings of a parse that failed', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     writeFileSync(run.raw, 'I could not finish the review.');
     await expect(parseRun(context(), run, noGit)).rejects.toThrow(/no complete <narrative_review>/);
 
@@ -275,7 +277,7 @@ describe('stub run → parse', () => {
   });
 
   it('hands the render stage what the last parse recorded', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     writeFileSync(
       run.events,
       [
@@ -297,7 +299,7 @@ describe('render', () => {
   const shellHtml = `<!doctype html><title>r</title>${BUNDLE_PLACEHOLDER}<div id="root"></div>`;
 
   it('packs the review, header and file contents into the report shell', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     const { review } = await parseRun(context(), run, noGit);
     const at = new Date('2026-09-11T10:00:00.000Z');
 
@@ -329,7 +331,7 @@ describe('render', () => {
   ])(
     'refuses %s, since review.json and excerpts.json came from different parses',
     async (_, filename, excerpts) => {
-      await writeStubRun(context(), run);
+      await writeStubRun(context(), run, ['narrative']);
       const { review } = await parseRun(context(), run, noGit);
       writeFileSync(run.excerpts, JSON.stringify(excerpts));
       const [first, ...rest] = review.chapters;
@@ -354,7 +356,7 @@ describe('render', () => {
   );
 
   it('embeds an excerpted file as its head side alone, blank but for the lines excerpts show', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     const { review } = await parseRun(context(), run, noGit);
     const lines = Array.from({ length: 10 }, (_, at) => `line ${String(at + 1)}`);
     writeFileSync(run.excerpts, JSON.stringify({ 'src/runner.ts': `${lines.join('\n')}\n` }));
@@ -380,7 +382,7 @@ describe('render', () => {
   });
 
   it('embeds a root file named after an object member like any other', async () => {
-    await writeStubRun(context(), run);
+    await writeStubRun(context(), run, ['narrative']);
     const { review } = await parseRun(context(), run, noGit);
     writeFileSync(run.excerpts, JSON.stringify({ constructor: 'one\ntwo\n' }));
     const [first, ...rest] = review.chapters;

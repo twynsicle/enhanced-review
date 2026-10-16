@@ -25,6 +25,7 @@ const KEY = reviewKey(meta);
 
 const review: NarrativeReview = {
   prTitle: 'Add scheduled reviews',
+  overviewStyles: ['narrative'],
   overviewSummary: { lede: 'The scheduler runs reviews on a cadence.' },
   riskAssessment: { score: 2, summary: 'Low.', rationale: 'Small.', factors: [] },
   chapters: [

@@ -33,6 +33,7 @@ const meta: ReviewMeta = {
 
 const review: NarrativeReview = {
   prTitle: 'Add scheduled reviews',
+  overviewStyles: ['narrative'],
   overviewSummary: { lede: 'The scheduler runs reviews on a cadence.' },
   chapters: [],
   files: [{ filename: 'src/a.ts', status: 'modified', additions: 10, deletions: 4 }],

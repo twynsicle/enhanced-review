@@ -34,7 +34,13 @@ function call(
 }
 
 function review(chapters: NarrativeChapter[], judgementCalls: JudgementCall[]): NarrativeReview {
-  return { prTitle: 't', overviewSummary: { lede: 's' }, chapters, judgementCalls };
+  return {
+    prTitle: 't',
+    overviewStyles: ['narrative'],
+    overviewSummary: { lede: 's' },
+    chapters,
+    judgementCalls,
+  };
 }
 
 describe('anchorJudgementCalls', () => {

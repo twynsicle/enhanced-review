@@ -55,13 +55,23 @@ describe('a chapter’s reading time', () => {
   it('adds its prose at 200 words a minute: lede, body and every insight’s text', () => {
     const prose = chapter('c', [], {
       headline: words(50),
-      body: words(100),
+      bodies: { narrative: words(100) },
       insights: [
         { type: 'context', title: 'not counted', text: words(30) },
         { type: 'highlight', text: words(20) },
       ],
     });
-    expect(chapterSeconds(prose)).toBe(60);
+    expect(chapterSeconds(prose, 'narrative')).toBe(60);
+  });
+
+  it('times only the body in the style being read', () => {
+    const styled = chapter('c', [], {
+      headline: words(10),
+      bodies: { narrative: words(190), simple: words(90) },
+    });
+    expect(chapterSeconds(styled, 'narrative')).toBe(60);
+    expect(chapterSeconds(styled, 'simple')).toBe(30);
+    expect(chapterSeconds(styled, 'tldr')).toBe(3);
   });
 
   it('adds each hunk by its own tier, and 30 seconds for a diagram', () => {
@@ -69,7 +79,7 @@ describe('a chapter’s reading time', () => {
       diagram: HAND_BEFORE_AFTER,
     });
     // 24s read, 30s skimmed, 30s of diagram.
-    expect(chapterSeconds(mixed)).toBe(84);
+    expect(chapterSeconds(mixed, 'narrative')).toBe(84);
   });
 
   it('skims each excerpt of unchanged code, and reads its reason as prose', () => {
@@ -79,13 +89,13 @@ describe('a chapter’s reading time', () => {
       ],
     });
     // 20 lines skimmed at 100 a minute, and 40 words at 200.
-    expect(chapterSeconds(withExcerpt)).toBe(24);
+    expect(chapterSeconds(withExcerpt, 'narrative')).toBe(24);
   });
 
   it('rounds up to a whole minute, and never down to none', () => {
-    expect(chapterMinutes(chapter('c', [hunk('read', 25)]))).toBe(1);
-    expect(chapterMinutes(chapter('c', [hunk('read', 26)]))).toBe(2);
-    expect(chapterMinutes(chapter('c', [hunk('skim', 1)]))).toBe(1);
+    expect(chapterMinutes(chapter('c', [hunk('read', 25)]), 'narrative')).toBe(1);
+    expect(chapterMinutes(chapter('c', [hunk('read', 26)]), 'narrative')).toBe(2);
+    expect(chapterMinutes(chapter('c', [hunk('skim', 1)]), 'narrative')).toBe(1);
     expect(wholeMinutes(0)).toBe(1);
   });
 
@@ -108,7 +118,13 @@ describe('the reading plans', () => {
   ];
 
   function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
-    return { prTitle: 't', overviewSummary: { lede: words(10) }, chapters, ...overrides };
+    return {
+      prTitle: 't',
+      overviewStyles: ['narrative'],
+      overviewSummary: { lede: words(10) },
+      chapters,
+      ...overrides,
+    };
   }
 
   it('opens every plan with the overview, timed by its prose and its diagram', () => {
@@ -119,6 +135,7 @@ describe('the reading plans', () => {
           readingPlan: { brief: ['empty'], standard: ['empty'] },
           ...overrides,
         }),
+        'narrative',
       )[0]!.minutes;
     // 110 words is 33s; a diagram adds 30.
     expect(overviewOnly({ overviewSummary: { lede: words(110) } })).toBe(1);
@@ -130,6 +147,7 @@ describe('the reading plans', () => {
   it('rounds each plan once over the overview and its chapters, and lists what each adds', () => {
     const rows = readingPlanRows(
       review({ readingPlan: { brief: ['core'], standard: ['types', 'core'] } }),
+      'narrative',
     );
     // Brief 243s, Standard 363s, Full 429s. Summing the rounded headers instead
     // (1 + 2 + 4 + 2) would make the full read 9.
@@ -141,6 +159,6 @@ describe('the reading plans', () => {
   });
 
   it('has no rows for a review with no plan', () => {
-    expect(readingPlanRows(review())).toEqual([]);
+    expect(readingPlanRows(review(), 'narrative')).toEqual([]);
   });
 });

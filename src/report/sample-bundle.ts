@@ -274,9 +274,18 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
   },
   review: {
     prTitle: 'Add hourly and paused review schedules',
+    // Several styles, so `report:dev` shows the display menu's switch between them.
+    overviewStyles: ['narrative', 'simple', 'pros-cons', 'tldr'],
     overviewSummary: {
       lede: 'Scheduling moves from one nightly cron job to a cadence table.',
-      body: 'A schedule can now run hourly, daily or weekly, and can be paused without losing its cadence. A new queue collects whatever has come due, oldest first.\n\nThe cron job is deleted outright rather than kept behind a flag, so anything else that imported it breaks at build time rather than silently running twice.',
+      bodies: {
+        narrative:
+          'A schedule can now run hourly, daily or weekly, and can be paused without losing its cadence. A new queue collects whatever has come due, oldest first.\n\nThe cron job is deleted outright rather than kept behind a flag, so anything else that imported it breaks at build time rather than silently running twice.',
+        simple:
+          'A schedule can run hourly, daily or weekly. It can also be paused. A paused schedule keeps its cadence.\n\nA new queue holds the schedules that are due. The oldest comes first. The nightly cron job is gone.',
+        'pros-cons':
+          '**Pros**\n\n- A third cadence is a one-line change.\n- Pausing no longer loses the cadence.\n\n**Cons**\n\n- Every scheduled review now runs through new code.',
+      },
     },
     riskAssessment: {
       score: 3,
@@ -433,7 +442,13 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         id: 'cadence-table',
         title: 'Cadence becomes a table',
         headline: 'Due-date maths becomes a lookup table instead of a ternary.',
-        body: 'That is what makes the third cadence a one-line change rather than another branch.',
+        bodies: {
+          narrative:
+            'That is what makes the third cadence a one-line change rather than another branch.',
+          simple: 'Each cadence is one row in a table. Adding a cadence means adding a row.',
+          'pros-cons':
+            '**Pros**\n\n- A new cadence is one row.\n\n**Cons**\n\n- A wrong row skips reviews without an error.',
+        },
         insights: [
           {
             type: 'rationale',
@@ -467,7 +482,13 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         id: 'pausing',
         title: 'Pausing and the due queue',
         headline: 'A paused schedule keeps its cadence but never comes due.',
-        body: 'The new queue asks each schedule whether it is due, then orders the answers oldest first.',
+        bodies: {
+          narrative:
+            'The new queue asks each schedule whether it is due, then orders the answers oldest first.',
+          simple: 'The queue asks each schedule if it is due. Then it sorts them, oldest first.',
+          'pros-cons':
+            '**Pros**\n\n- A paused schedule resumes on its old cadence.\n\n**Cons**\n\nNone found.',
+        },
         insights: [
           {
             type: 'context',
@@ -575,7 +596,13 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
         id: 'clean-up',
         title: 'The cron job goes',
         headline: 'The nightly job is deleted rather than disabled.',
-        body: 'The generated schema grows the new field alongside it, and the docs change is described but was not captured.',
+        bodies: {
+          narrative:
+            'The generated schema grows the new field alongside it, and the docs change is described but was not captured.',
+          simple: 'The schema gets the new `paused` field. The docs change is not in this diff.',
+          'pros-cons':
+            '**Pros**\n\n- Nothing can run the old job by mistake.\n\n**Cons**\n\n- Code that imported the job fails to build.',
+        },
         insights: [
           {
             type: 'context',

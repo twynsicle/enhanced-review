@@ -1,8 +1,13 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { LOCAL_WORKING_TREE, NARRATIVE_SYSTEM_PROMPT } from '../review/prompt/instructions.ts';
 import type { DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
-import { type OverviewStyle, overviewStyleSection } from '../review/prompt/overview-styles.ts';
-import type { ReviewFile, ReviewFileSkipReason } from '../review/narrative.ts';
+import { overviewStyleSection } from '../review/prompt/overview-styles.ts';
+import {
+  OverviewStylesSchema,
+  type OverviewStyles,
+  type ReviewFile,
+  type ReviewFileSkipReason,
+} from '../review/narrative.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
 
@@ -22,19 +27,37 @@ export async function writePrompt(
   context: RunContext,
   run: RunFiles,
   instructions: string | null,
-  style: OverviewStyle,
+  styles: OverviewStyles,
 ): Promise<string> {
-  const user = buildPrompt(context, run, instructions, style);
+  const user = buildPrompt(context, run, instructions, styles);
   await writeFile(run.system, NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
   await writeFile(run.prompt, user);
+  await writeFile(run.styles, `${JSON.stringify(styles)}\n`);
   return user;
+}
+
+/**
+ * The styles this run's prompt asked for. Read back rather than taken from the
+ * command line, since a run resumed past the prompt reuses that prompt and
+ * cannot be given new styles.
+ */
+export async function readOverviewStyles(run: RunFiles): Promise<OverviewStyles> {
+  let text: string;
+  try {
+    text = await readFile(run.styles, 'utf8');
+  } catch {
+    throw new Error(`no styles.json in ${run.folder}; run from the prompt stage`);
+  }
+  const parsed = OverviewStylesSchema.safeParse(JSON.parse(text));
+  if (!parsed.success) throw new Error(`${run.styles} does not name the overview styles`);
+  return parsed.data;
 }
 
 export function buildPrompt(
   context: RunContext,
   run: RunFiles,
   instructions: string | null,
-  style: OverviewStyle,
+  styles: OverviewStyles,
 ): string {
   const { target, meta, files, hunks, diffLines } = context;
   const reviewed = files.filter((file) => !file.skipped);
@@ -63,7 +86,7 @@ export function buildPrompt(
       'instead of paging through it. Each hunk’s id is on a `# H0001` line directly above its `@@` ' +
       'header. Read that for the change itself, and the files in your working directory for the ' +
       'code around it.',
-    overviewStyleSection(style),
+    overviewStyleSection(styles),
     reviewerInstructions(instructions),
   ];
   return `${sections.filter((section) => section !== null).join('\n\n')}\n`;

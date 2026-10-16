@@ -30,6 +30,7 @@ const FILES = ['src/a.ts', 'src/b.ts', 'src/c.ts'];
 
 const review: NarrativeReview = {
   prTitle: 'Add scheduled reviews',
+  overviewStyles: ['narrative'],
   overviewSummary: { lede: 'The scheduler runs reviews on a cadence.' },
   chapters: [
     {

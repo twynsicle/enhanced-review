@@ -1,5 +1,6 @@
 import { ActionIcon, Box, Menu, Slider, Text, useMantineColorScheme } from '@mantine/core';
 import {
+  IconAlignLeft,
   IconBlur,
   IconBlurOff,
   IconBug,
@@ -19,6 +20,7 @@ import {
   IconViewportWide,
 } from '@tabler/icons-react';
 import { useState, type ReactNode } from 'react';
+import type { OverviewStyle, OverviewStyles } from '@/review/narrative';
 import { selectSpaceLimited, useDiffView, useReaderColumn } from '@/report/stores/diff-view';
 import { useDiffWrap } from '@/report/stores/diff-wrap';
 import { COMMENT_FADES, previewCommentFade, useCommentFade } from '@/report/stores/comment-fade';
@@ -27,10 +29,26 @@ import type { FadeRange } from '@/report/stores/fade';
 import { useFileHeaders } from '@/report/stores/file-headers';
 import { useHunkDebug } from '@/report/stores/hunk-debug';
 import { useLayoutWidth } from '@/report/stores/layout-width';
+import {
+  nextStyle,
+  useOverviewStyle,
+  useOverviewStyleChoice,
+} from '@/report/stores/overview-style';
 import { previewSkimFade, SKIM_FADES, useSkimFade } from '@/report/stores/skim-fade';
 import { useSkimMarks } from '@/report/stores/skim-marks';
 
 const ICON = 16;
+
+/** What each overview style is called in the menu; `tldr` is what it shows rather than its flag. */
+const STYLE_NAMES: Record<OverviewStyle, string> = {
+  narrative: 'Narrative',
+  'before-after': 'Before and after',
+  'five-whys': 'Five whys',
+  plain: 'Plain',
+  simple: 'Simple',
+  'pros-cons': 'Pros and cons',
+  tldr: 'Headlines only',
+};
 
 /**
  * One display setting: what it is on the left, what it is currently set to on
@@ -133,8 +151,30 @@ function FadeSlider({
   );
 }
 
-/** Every display preference the report has, in one menu. */
-export function DisplayMenu() {
+/**
+ * Which style the overview and chapter bodies are read in, for a review written
+ * in several. A click steps to the next in the review's own order: a handful of
+ * styles, read one after another on the same chapter, is what it is for.
+ */
+function OverviewStyleItem({ styles }: { styles: OverviewStyles }) {
+  const shown = useOverviewStyle(styles);
+  const choose = useOverviewStyleChoice((s) => s.choose);
+  return (
+    <SettingItem
+      icon={<IconAlignLeft size={ICON} />}
+      name="Overview style"
+      value={STYLE_NAMES[shown]}
+      hint={`Steps through the ${String(styles.length)} styles this review was written in`}
+      onClick={() => choose(nextStyle(styles, shown))}
+    />
+  );
+}
+
+/**
+ * Every display preference the report has, in one menu. `styles` are the
+ * review's overview styles, offered only when there is more than one to choose.
+ */
+export function DisplayMenu({ styles }: { styles?: OverviewStyles }) {
   const view = useDiffView((s) => s.view);
   const toggleView = useDiffView((s) => s.toggle);
   const wrap = useDiffWrap((s) => s.wrap);
@@ -170,6 +210,7 @@ export function DisplayMenu() {
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>Display settings</Menu.Label>
+        {styles && styles.length > 1 && <OverviewStyleItem styles={styles} />}
         <SettingItem
           icon={split ? <IconLayoutColumns size={ICON} /> : <IconLayoutRows size={ICON} />}
           name="Diffs"

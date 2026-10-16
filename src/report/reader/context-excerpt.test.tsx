@@ -113,7 +113,12 @@ describe('a chapter with an excerpt', () => {
   it('draws it after the chapter’s diffs, under its own rule, and does not count it as touched', () => {
     render(
       <EmbeddedFileSource bundle={SAMPLE_BUNDLE}>
-        <ChapterCard chapter={chapter} meta={SAMPLE_BUNDLE.meta} chapterIndex={1} />
+        <ChapterCard
+          chapter={chapter}
+          bodyStyle="narrative"
+          meta={SAMPLE_BUNDLE.meta}
+          chapterIndex={1}
+        />
       </EmbeddedFileSource>,
     );
     const files = screen.getByText('Files in this chapter');

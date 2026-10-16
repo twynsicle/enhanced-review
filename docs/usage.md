@@ -96,7 +96,7 @@ What you have staged, against `HEAD` — a review before the commit.
 | `--timeout <minutes>`        | every review | give up on the model run after `<minutes>` (default: `15`)                                     |
 | `--instructions <text>`      | every review | add your own guidance to the prompt — what to focus on, what to explain — see below            |
 | `--instructions-file <path>` | every review | the same, read from a file, for anything long or multi-line                                    |
-| `--overview-style <name>`    | every review | how the overview and each chapter are written beneath their opening sentence — see below       |
+| `--overview-style <names>`   | every review | how the overview and each chapter are written beneath their opening sentence — see below       |
 | `--split-hunks <lines>`      | every review | split a hunk of more changed lines than this into parts of about this size — see below         |
 | `--stub`                     | every review | write a mechanical review instead of running a model — see below                               |
 | `--from <stage>`             | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below      |
@@ -148,12 +148,29 @@ which never changes:
 | `before-after` | **Before:** / **After:** pairs, one per behaviour that changed        |
 | `five-whys`    | a chain of why-questions down to the reason, rarely all five          |
 | `plain`        | two or three plain sentences for someone who has never seen this code |
+| `simple`       | short sentences in everyday words, for an engineer new to this area   |
+| `pros-cons`    | **Pros** and **Cons** lists: what the change gains and what it costs  |
 | `tldr`         | nothing: the opening sentence alone carries the change or its risk    |
 
-The prompt stage line names the style when it is not `narrative`.
+Name several, comma-separated, or `all`, to compare them on the same review:
 
-The instructions and the style are written into `prompt.md`, so `--from run`
-reuses them; they cannot be given with `--from run`, `parse` or `render`,
+```bash
+er review 42 --overview-style narrative,simple,pros-cons
+```
+
+The model then writes every body once per style, on the same chapters, and the
+report's display menu (the gear in the header) gains an **Overview style** row
+that steps between them; the choice is remembered for the next review. The
+headlines are shared, so `tldr` in a list asks the model for nothing and shows
+as **Headlines only**. Each extra style adds roughly a thousand output tokens,
+a few cents, but a longer answer the model must get right in one go, which is
+why one style stays the default.
+
+The prompt stage line names the styles when they are not `narrative` alone.
+
+The instructions and the styles are written into `prompt.md` (the styles also
+into `styles.json`, which the parse stage reads back), so `--from run` reuses
+them; they cannot be given with `--from run`, `parse` or `render`,
 which write no new prompt. `--from prompt` writes the prompt again from that
 command's flags, so repeat them there to keep them.
 
@@ -205,7 +222,7 @@ the report without paying twice.
 `er-reviews/<target>/<timestamp>/` inside the repository under review,
 ignored by git automatically. The report is `review.html`, and it opens when
 it is written unless you pass `--no-open`. Beside it sit the stage files:
-`context.json` (what changed), `prompt.md` and `system.md` (what was asked),
+`context.json` (what changed), `prompt.md`, `system.md` and `styles.json` (what was asked),
 `raw.txt` (what the model said), `events.jsonl` (what it did, what it cost,
 any command the read-only gate refused and any answer it was asked to write
 again), `review.json` (the parsed review), `findings.json` (what validating

@@ -1,4 +1,5 @@
-import type { DiffLineSpan, HunkFacts, ResolvedDiffHunk } from '../narrative.ts';
+import type { DiffLineSpan, HunkFacts, OverviewStyles, ResolvedDiffHunk } from '../narrative.ts';
+import { DEFAULT_OVERVIEW_STYLE } from './overview-styles.ts';
 import { splitPart } from './split-hunks.ts';
 
 /**
@@ -57,17 +58,20 @@ export interface PromptGrounding {
    * unchanged code may never name.
    */
   changed: ReadonlySet<string>;
+  /** The overview styles the prompt asked for, which the review's bodies are keyed by. */
+  styles: OverviewStyles;
 }
 
 /**
  * Grounding over the hunks a prompt showed. `filenames` defaults to the files
  * those hunks belong to, which is the whole change wherever nothing was
- * trimmed away, and `changed` to `filenames`.
+ * trimmed away, `changed` to `filenames`, and `styles` to the default style.
  */
 export function groundingFor(
   shown: readonly DiffHunk[],
   filenames?: Iterable<string>,
   changed?: Iterable<string>,
+  styles: OverviewStyles = [DEFAULT_OVERVIEW_STYLE],
 ): PromptGrounding {
   const byId: Partial<Record<string, DiffHunk>> = {};
   for (const hunk of shown) byId[hunk.id] = hunk;
@@ -76,6 +80,7 @@ export function groundingFor(
     shown: { hunks: [...shown], byId },
     filenames: covered,
     changed: changed ? new Set(changed) : covered,
+    styles,
   };
 }
 

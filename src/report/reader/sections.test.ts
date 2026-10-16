@@ -8,6 +8,7 @@ const sectionsOf = (r: NarrativeReview) => readerSections(r);
 function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {
   return {
     prTitle: 'A change',
+    overviewStyles: ['narrative'],
     overviewSummary: { lede: 'It changes things.' },
     chapters: [
       { id: 'ch1', title: 'One', headline: 'A headline.', insights: [], diffChunks: [] },

@@ -19,12 +19,14 @@ src/cli/
   command-line.ts  USAGE, UsageError and parseCommand, every flag checked before anything runs (no side
                    effects but reading an --instructions-file, so the tests drive it directly):
                    --instructions or --instructions-file becomes ReviewOptions.instructions and
-                   --overview-style <name> ReviewOptions.overviewStyle (one of OVERVIEW_STYLES), each refused
+                   --overview-style <names> ReviewOptions.overviewStyles (one or more of OVERVIEW_STYLES,
+                   comma-separated, in the order named and each once, or `all`), each refused
                    with a --from past prompt, which writes no new prompt; --split-hunks <lines> becomes
                    ReviewOptions.splitLines, refused with any --from, since hunks are numbered at gather
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
                    --keep-worktree, --model, --max-turns, --timeout, --allow-large, --instructions, --overview-style
-                   (named on the prompt stage line unless it is narrative); past 300 reviewed files a model run is
+                   (named on the prompt stage line unless it is narrative alone); the run and parse stages hold
+                   the answer to the styles readOverviewStyles reads back off styles.json, never the command line; past 300 reviewed files a model run is
                    refused (a fresh one inside gather, before any blob is read; a resumed one before the run),
                    past 50 it warns, and --stub is held to neither; prints each warning finding after the parse
                    line and returns WARNED (2) when there was one — --from render reads them back with
@@ -72,7 +74,9 @@ src/cli/
                    one diff file carrying every reviewed file's annotated patch (a patch holding two file sections
                    where the list paired one fails the stage), its line count carried as
                    `diffLines` so the prompt can ask the agent to Read it in one call; pr.md
-  prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md: header, description,
+  prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md + styles.json (the overview
+                   styles asked for, which readOverviewStyles reads back for the run and parse stages, refusing a
+                   run folder without one): header, description,
                    commits, where the agent is, Files Changed, Not Reviewed, the hunk table (each hunk's proven
                    facts after it as hints: `[whitespace only]`, `[imports only]`, `[moved from <path>, N%]`; the
                    parser settles the tier of a whitespace-only or imports-only hunk itself), and where the diff
@@ -113,7 +117,9 @@ src/cli/
                    refusing one missing or half-written); a review with no excerpts reads no git; paths are
                    looked up in Maps, never as a plain object's keys, since a root file may be `constructor`
                    or `__proto__`
-  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing its hunks as `read`, one
+  stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing its hunks as `read` (and, when
+                   several overview styles were asked for, a body in each naming its style, so the reader's switch
+                   can be seen), one
                    provenSkim says is skim (whitespace or imports only) as `skim` (as the parser would make it in any answer), and
                    a reading plan of the first chapter for the brief and every chapter for the standard read,
                    so the reader's faded lines and its plan can be seen without a model, and no excerpts, since

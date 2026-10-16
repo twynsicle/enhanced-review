@@ -19,6 +19,7 @@ const bundle: ReviewBundle = {
   },
   review: {
     prTitle: 'Scheduled reviews',
+    overviewStyles: ['narrative'],
     overviewSummary: { lede: 'Adds a scheduler.' },
     chapters: [],
   },

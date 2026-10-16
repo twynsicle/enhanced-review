@@ -50,7 +50,13 @@ function renderWithSource(files: ReviewFile[], cited: NarrativeChapter[]) {
       description: null,
       stats: null,
     },
-    review: { prTitle: 't', overviewSummary: { lede: '' }, chapters: cited, files },
+    review: {
+      prTitle: 't',
+      overviewStyles: ['narrative'],
+      overviewSummary: { lede: '' },
+      chapters: cited,
+      files,
+    },
     files: {
       'src/app.ts': {
         base: { kind: 'content', content: 'a\nb\nc\n' },

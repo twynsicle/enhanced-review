@@ -44,7 +44,7 @@ describe('<ChapterCard /> with a mix of insights', () => {
     id: 'ch1',
     title: 'Removals pipeline',
     headline: 'Late cancellations stop counting against a tech.',
-    body: '- one\n- two',
+    bodies: { narrative: '- one\n- two' },
     insights: [
       { type: 'context', title: 'Read this first', text: 'Orientation, before any code.' },
       {
@@ -74,13 +74,19 @@ describe('<ChapterCard /> with a mix of insights', () => {
         description: null,
         stats: null,
       },
-      review: { prTitle: 't', overviewSummary: { lede: '' }, chapters: [chapter] },
+      review: {
+        prTitle: 't',
+        overviewStyles: ['narrative'],
+        overviewSummary: { lede: '' },
+        chapters: [chapter],
+      },
       files: {},
     };
     return render(
       <EmbeddedFileSource bundle={bundle}>
         <ChapterCard
           chapter={chapter}
+          bodyStyle="narrative"
           meta={bundle.meta}
           chapterIndex={1}
           {...(judgementCalls ? { judgementCalls } : {})}

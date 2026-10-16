@@ -64,6 +64,7 @@ const FILES: ReviewFile[] = [
 function review(cites: Record<string, string[]>): NarrativeReview {
   return {
     prTitle: 'A change',
+    overviewStyles: ['narrative'],
     overviewSummary: { lede: 'It changes things.' },
     files: withFileHunks(FILES, HUNKS),
     chapters: [

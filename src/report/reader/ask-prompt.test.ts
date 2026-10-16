@@ -55,7 +55,7 @@ function chapter(diffChunks: DiffChunk[], extra: Partial<NarrativeChapter> = {})
     id: 'ch1',
     title: 'Cadence becomes a table',
     headline: 'Due-date maths becomes a lookup table.',
-    body: 'Not in the prompt.',
+    bodies: { narrative: 'Not in the prompt.' },
     insights: [],
     diffChunks,
     ...extra,
