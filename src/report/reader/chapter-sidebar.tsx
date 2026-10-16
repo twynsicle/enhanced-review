@@ -38,6 +38,7 @@ import { readCountLabel, sectionIndexLabel, type ReaderSection } from '@/report/
 import { SKIP_REASON_LABEL } from '@/report/reader/skipped-file';
 import { useFileListScope } from '@/report/stores/file-list-scope';
 import { useFileListView } from '@/report/stores/file-list-view';
+import { token } from '@/report/theme/tokens';
 import classes from './chapter-sidebar.module.css';
 
 const NONE_READ: ReadonlySet<string> = new Set();
@@ -171,7 +172,7 @@ export function ChapterSidebar({
               coverage={coverage?.byFile}
               activeFile={activeFile}
               readingFile={readingFile}
-              expandAll={needle.length > 0}
+              filtering={needle.length > 0}
               onSelectFile={onSelectFile}
             />
           ) : (
@@ -339,7 +340,10 @@ function FileListScopeToggle({ chapterOpen }: { chapterOpen: boolean }) {
       }
       disabled={!chapterOpen}
       // Pressed is drawn in the accent rather than on a fill: no tint makes a clear state cue.
-      c={pressed && chapterOpen ? 'var(--er-before)' : undefined}
+      c={pressed && chapterOpen ? token('before') : undefined}
+      // Mantine fills a disabled ActionIcon whatever its variant, which beside
+      // the flat/tree toggle reads as pressed rather than unavailable.
+      bg={chapterOpen ? undefined : 'transparent'}
       onClick={toggle}
     >
       <IconFiles size={16} />
@@ -503,8 +507,11 @@ interface FileListProps {
   coverage: ReadonlyMap<string, FileCoverage> | undefined;
   activeFile: string | null;
   readingFile: string | null;
-  /** Show every directory open, whatever the reader folded: set while the list is filtered. */
-  expandAll: boolean;
+  /**
+   * Set while the list is filtered: every directory starts open, and folds
+   * made meanwhile last only until the filter clears.
+   */
+  filtering: boolean;
   onSelectFile: (filename: string) => void;
 }
 
@@ -567,24 +574,37 @@ function FileTreeList({
   coverage,
   activeFile,
   readingFile,
-  expandAll,
+  filtering,
   onSelectFile,
 }: FileListProps) {
   const nodes = useMemo(() => buildFileTree(files), [files]);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set<string>());
-  const onToggle = useCallback((path: string) => {
-    setCollapsed((previous) => {
-      const next = new Set(previous);
-      if (!next.delete(path)) next.add(path);
-      return next;
-    });
-  }, []);
+  /*
+   * A filter gets folds of its own, starting from every directory open — a
+   * match folded out of sight would read as no match at all — so the reader's
+   * own folds are as they left them once it clears.
+   */
+  const [folded, setFolded] = useState<ReadonlySet<string>>(NONE_COLLAPSED);
+  const [filterFolded, setFilterFolded] = useState<ReadonlySet<string>>(NONE_COLLAPSED);
+  const [wasFiltering, setWasFiltering] = useState(filtering);
+  if (filtering !== wasFiltering) {
+    setWasFiltering(filtering);
+    setFilterFolded(NONE_COLLAPSED);
+  }
+  const onToggle = useCallback(
+    (path: string) => {
+      (filtering ? setFilterFolded : setFolded)((previous) => {
+        const next = new Set(previous);
+        if (!next.delete(path)) next.add(path);
+        return next;
+      });
+    },
+    [filtering],
+  );
 
   return (
     <ul className={classes.fileList} aria-label="Changed files">
       {treeItems(nodes, 0, {
-        // A match folded out of sight would read as no match at all.
-        collapsed: expandAll ? NONE_COLLAPSED : collapsed,
+        collapsed: filtering ? filterFolded : folded,
         onToggle,
         coverage,
         activeFile,

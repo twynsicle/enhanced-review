@@ -65,7 +65,7 @@ src/report/
                      its Files header carries the flat ⇄ tree toggle for the changed-file list and the
                      all ⇄ this chapter's files toggle (aria-pressed, disabled with no chapter open), its +/−
                      totals counting the files listed, then a text filter on the path, ignoring case, held in
-                     component state, that shows every directory open while it holds text, and says when
+                     component state, that opens every directory while it holds text, with folds of its own that the clear drops, and says when
                      nothing matches; one shared row
                      component under both views, the tree drawn as nested lists with aria-expanded on the
                      directory buttons — a disclosure list, not an ARIA tree, since there is no roving tabindex —

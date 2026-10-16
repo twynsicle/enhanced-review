@@ -685,6 +685,21 @@ describe('<ChapterSidebar /> finding a file', () => {
     expect(screen.getByText('file-tree.ts')).toBeDefined();
   });
 
+  it('folds a directory while filtering, and gives back the folds from before once it clears', () => {
+    renderAt(SUMMARY_SECTION_ID);
+    fireEvent.click(screen.getByLabelText('Group files by directory'));
+    fireEvent.click(dirRow('src/web/components'));
+    const filter = screen.getByLabelText('Filter files');
+    fireEvent.change(filter, { target: { value: 'tree' } });
+    fireEvent.click(dirRow('src/web/components'));
+    expect(dirRow('src/web/components').getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByText('file-tree.ts')).toBeNull();
+    fireEvent.change(filter, { target: { value: '' } });
+    expect(dirRow('src/web/components').getAttribute('aria-expanded')).toBe('false');
+    fireEvent.change(filter, { target: { value: 'tree' } });
+    expect(screen.getByText('file-tree.ts')).toBeDefined();
+  });
+
   it("lists only the open chapter's files when asked, and remembers it", () => {
     renderAt('ch1');
     const toggle = screen.getByRole('button', { name: "Only this chapter's files" });
