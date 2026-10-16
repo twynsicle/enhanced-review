@@ -16,7 +16,18 @@
  * one level deeper still, between a function's setup and its body. Doc
  * comments and decorators stay with what follows them because no blank line
  * separates the two.
+ *
+ * A script's test file is cut by its test runner's blocks as well. A case
+ * nearly always runs longer than a part, and cut at the blank lines inside it
+ * arrives in pieces, each cited and tiered apart; a `describe(` cut away from
+ * its cases reads as boilerplate. So there a part may begin at any suite, case
+ * or hook, never inside a case or hook, and never between a suite's opening
+ * line and its first child. A hunk that starts inside a case shows no opening
+ * line to go by, and is cut as any other file is.
  */
+
+import { isTestFile } from '../test-file.ts';
+import { isScriptFile } from './import-lines.ts';
 
 const HEADER_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/;
 
@@ -45,12 +56,14 @@ interface Range {
 }
 
 /**
- * `patch` with every hunk of more than `target` changed lines rewritten as
- * parts of about `target` changed lines each. Everything before the first
- * hunk, and every hunk at or under the target, is returned as it was.
+ * `patch`, the diff of `filename`, with every hunk of more than `target`
+ * changed lines rewritten as parts of about `target` changed lines each.
+ * Everything before the first hunk, and every hunk at or under the target, is
+ * returned as it was.
  */
-export function splitPatch(patch: string, target: number): string {
+export function splitPatch(patch: string, target: number, filename: string): string {
   if (target <= 0) return patch;
+  const testAware = isScriptFile(filename) && isTestFile(filename);
   const lines = patch.split('\n');
   const out: string[] = [];
   let i = 0;
@@ -62,7 +75,8 @@ export function splitPatch(patch: string, target: number): string {
       continue;
     }
     const end = bodyEnd(lines, i, header);
-    out.push(...(splitHunk(header, lines.slice(i + 1, end), target) ?? lines.slice(i, end)));
+    const body = lines.slice(i + 1, end);
+    out.push(...(splitHunk(header, body, target, testAware) ?? lines.slice(i, end)));
     i = end;
   }
   return out.join('\n');
@@ -101,14 +115,21 @@ function sideCount(countRaw: string | undefined): number {
 }
 
 /** The hunk as several, header and body each; null when it stays whole. */
-function splitHunk(header: RegExpExecArray, raw: string[], target: number): string[] | null {
+function splitHunk(
+  header: RegExpExecArray,
+  raw: string[],
+  target: number,
+  testAware: boolean,
+): string[] | null {
   // An empty line is a blank context line written without its space.
   const body: BodyLine[] = raw.map((line) => ({
     kind: (line[0] ?? ' ') as Kind,
     content: line.slice(1),
   }));
   if (changedIn(body, { start: 0, end: body.length }) <= target) return null;
-  const parts = pack(body, blocksOf(body, { start: 0, end: body.length }, -1, target), target);
+  const starts = partStarts(body, testAware);
+  const whole = { start: 0, end: body.length };
+  const parts = pack(body, blocksOf(body, starts, whole, -1, target), target);
   if (parts.length < 2) return null;
 
   let original = cursor(header[1]!, header[2]);
@@ -192,13 +213,83 @@ function indentOf(content: string): number {
 }
 
 /**
- * `range` cut at its shallowest paragraph starts deeper than `floor`, with any
+ * A line that opens a test runner's block, modifiers and all: `it.only(`,
+ * `test.each([…])(`, `describe.skip(`.
+ */
+const TEST_BLOCK_RE =
+  /^(describe|context|suite|it|test|bench|beforeAll|beforeEach|afterAll|afterEach)\b[\w.$]*\s*[(`]/;
+const SUITES: ReadonlySet<string> = new Set(['describe', 'context', 'suite']);
+
+/** A test runner's block in a hunk, from its opening line to its last, inclusive. */
+interface TestBlock {
+  open: number;
+  close: number;
+  suite: boolean;
+}
+
+/**
+ * The test blocks a hunk shows the opening line of. A block ends at the first
+ * line after it indented no deeper than its opening line, which it takes when
+ * that line is a closing bracket. Lines only the other side has are passed
+ * over, so a removed case is measured on the base and an added one on the head.
+ */
+function testBlocks(body: readonly BodyLine[]): TestBlock[] {
+  const blocks: TestBlock[] = [];
+  body.forEach((line, open) => {
+    const match = TEST_BLOCK_RE.exec(line.content.trimStart());
+    if (!match || !isCode(line)) return;
+    const indent = indentOf(line.content);
+    const otherSide = line.kind === '-' ? '+' : '-';
+    let close = body.length - 1;
+    for (let j = open + 1; j < body.length; j += 1) {
+      const next = body[j]!;
+      if (next.kind === otherSide || !isCode(next) || next.content.trim() === '') continue;
+      if (indentOf(next.content) > indent) continue;
+      close = CLOSER_RE.test(next.content.trim()) ? j : j - 1;
+      break;
+    }
+    blocks.push({ open, close, suite: SUITES.has(match[1]!) });
+  });
+  return blocks;
+}
+
+/** A line of the file, as against git's no-newline marker. */
+function isCode(line: BodyLine): boolean {
+  return line.kind === ' ' || line.kind === '+' || line.kind === '-';
+}
+
+/** Where a part may begin, line by line: the note at the top of the file says why. */
+function partStarts(body: readonly BodyLine[], testAware: boolean): boolean[] {
+  const starts = body.map((_, i) => i > 0 && opensParagraph(body, i));
+  if (!testAware) return starts;
+  const blocks = testBlocks(body);
+  for (const { open } of blocks) {
+    if (open > 0 && isCode(body[open - 1]!) && !splitsAnEdit(body, open)) starts[open] = true;
+  }
+  for (const block of blocks) {
+    // A suite keeps its first child, so the line framing the cases goes with them.
+    const end = block.suite
+      ? (blocks.find((b) => b.open > block.open && b.open <= block.close)?.open ?? block.open)
+      : block.close;
+    for (let i = block.open + 1; i <= end; i += 1) starts[i] = false;
+  }
+  return starts;
+}
+
+/**
+ * `range` cut at its shallowest part starts deeper than `floor`, with any
  * block still over `target` cut again one level further in.
  */
-function blocksOf(body: readonly BodyLine[], range: Range, floor: number, target: number): Range[] {
+function blocksOf(
+  body: readonly BodyLine[],
+  partStart: readonly boolean[],
+  range: Range,
+  floor: number,
+  target: number,
+): Range[] {
   const starts: number[] = [];
   for (let i = range.start + 1; i < range.end; i += 1) {
-    if (opensParagraph(body, i) && indentOf(body[i]!.content) > floor) starts.push(i);
+    if (partStart[i] && indentOf(body[i]!.content) > floor) starts.push(i);
   }
   if (starts.length === 0) return [range];
   const level = Math.min(...starts.map((i) => indentOf(body[i]!.content)));
@@ -211,7 +302,7 @@ function blocksOf(body: readonly BodyLine[], range: Range, floor: number, target
     from = cut;
   }
   return blocks.flatMap((block) =>
-    changedIn(body, block) > target ? blocksOf(body, block, level, target) : [block],
+    changedIn(body, block) > target ? blocksOf(body, partStart, block, level, target) : [block],
   );
 }
 
