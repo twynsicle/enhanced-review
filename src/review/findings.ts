@@ -100,8 +100,10 @@ const SEVERITY_BY_CODE = {
   'chapter-title-synthesised': 'note',
   /** The overview arrived as a bare string, or as a body with no lede, and was promoted. */
   'prose-promoted': 'note',
-  /** The overview's prose arrived with nothing readable in it. */
+  /** The overview's prose, or a chapter's body, arrived with nothing readable in it. */
   'prose-dropped': 'note',
+  /** A chapter's headline ran past MAX_HEADLINE_WORDS; it is kept, as written. */
+  'headline-long': 'note',
   /** A chapter's diff chunk that named no file, or listed no hunk id to resolve. */
   'chunk-dropped': 'note',
   /** The JSON parsed only after a quote the model forgot to escape was escaped. */

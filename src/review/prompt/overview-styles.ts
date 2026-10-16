@@ -1,3 +1,5 @@
+import { MAX_HEADLINE_WORDS } from '../narrative.ts';
+
 /**
  * How the overview's and the chapters' bodies are written, chosen per run with
  * `--overview-style`. The overview's lede and each chapter's headline are never
@@ -68,7 +70,7 @@ export function overviewStyleSection(style: OverviewStyle): string | null {
     'The engineer who ran this review chose what goes in the "body" of overviewSummary and of ' +
     'each chapter. This replaces what your system prompt says a body holds. Everything else ' +
     'there still holds: the overview’s "lede" and every chapter’s "headline" are each one ' +
-    'sentence of at most 20 words, every chapter has a headline, the JSON shape does not ' +
+    `sentence of at most ${String(MAX_HEADLINE_WORDS)} words, every chapter has a headline, the JSON shape does not ` +
     'change, and a body states nothing the diff, the description, the commits or the code you ' +
     'read does not support.\n\n' +
     text

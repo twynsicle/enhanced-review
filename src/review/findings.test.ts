@@ -40,6 +40,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {
   'chapter-title-synthesised': 'note',
   'prose-promoted': 'note',
   'prose-dropped': 'note',
+  'headline-long': 'note',
   'chunk-dropped': 'note',
   'json-quote-repaired': 'note',
   'chunks-merged': 'note',

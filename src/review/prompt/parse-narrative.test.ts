@@ -415,11 +415,24 @@ describe('prose', () => {
     });
   });
 
-  it('leaves out a body with nothing in it', () => {
-    for (const body of ['   ', 7, undefined]) {
+  it('leaves out a body with nothing in it, noting one that arrived unreadable', () => {
+    for (const body of ['   ', 7, ['- a list'], undefined]) {
       const result = parse(chapter({ headline: 'The headline.', body }));
       expect(result.ok && result.data.chapters[0]?.body).toBeUndefined();
+      expect(codes(result).includes('prose-dropped')).toBe(body !== undefined);
     }
+  });
+
+  it('keeps a headline past the word limit as written, and notes it', () => {
+    const long = Array.from({ length: 21 }, (_, i) => `word${String(i)}`).join(' ');
+    const result = parse(chapter({ headline: long }));
+    expect(result.ok && result.data.chapters[0]?.headline).toBe(long);
+    expect(result.findings.find((f) => f.code === 'headline-long')).toMatchObject({
+      chapterId: 'c',
+      message: "Chapter c's headline runs to 21 words, past the 20 asked for.",
+    });
+    const atLimit = parse(chapter({ headline: long.split(' ').slice(1).join(' ') }));
+    expect(codes(atLimit)).not.toContain('headline-long');
   });
 
   it('fails the review when a chapter has no headline to open on, whatever came instead', () => {

@@ -18,18 +18,12 @@ import { MarkdownText } from './markdown-text';
  * as a block would put a paragraph wrapper between the two halves of one
  * passage.
  */
-export function ProsePassage({
-  prose,
-  emptyFallback = 'No overview was generated for this review.',
-}: {
-  prose: Prose | undefined;
-  emptyFallback?: string;
-}) {
+export function ProsePassage({ prose }: { prose: Prose | undefined }) {
   const lede = prose?.lede.trim() ?? '';
   const body = prose?.body?.trim() ?? '';
 
   if (lede.length === 0 && body.length === 0) {
-    return <Text c="dimmed">{emptyFallback}</Text>;
+    return <Text c="dimmed">No overview was generated for this review.</Text>;
   }
 
   return (

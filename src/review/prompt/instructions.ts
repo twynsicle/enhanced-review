@@ -1,5 +1,10 @@
 import { DIAGRAM_LIMITS } from '../diagram.ts';
-import { MAX_CONTEXT_EXCERPTS, MAX_EXCERPT_LINES, MAX_SKIM_REASON } from '../narrative.ts';
+import {
+  MAX_CONTEXT_EXCERPTS,
+  MAX_EXCERPT_LINES,
+  MAX_HEADLINE_WORDS,
+  MAX_SKIM_REASON,
+} from '../narrative.ts';
 
 /**
  * What the model is asked to do: the review instructions and output schema,
@@ -15,7 +20,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
 {
   "prTitle": "string — the PR title",
   "overviewSummary": {
-    "lede": "string — one sentence, at most 20 words, saying what this PR does. See Writing the prose below",
+    "lede": "string — one sentence, at most ${String(MAX_HEADLINE_WORDS)} words, saying what this PR does. See Writing the prose below",
     "body": "string — optional Markdown. The rest of the top-level picture: what changed, in what parts, and anything that spans chapters. Library/API specifics and potential issues belong in the chapters' insights, not folded in here"
   },
   "overviewDiagram": "optional object — see Diagrams below. Only for the shape of the whole change",
@@ -35,7 +40,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
     {
       "id": "string — unique slug like 'auth-middleware'",
       "title": "string — short chapter label for the sidebar and the reading plan, usually 2-6 words",
-      "headline": "string — required. One sentence, at most 20 words, saying what this chapter's change does. It heads the chapter in place of the title. See Writing the prose below",
+      "headline": "string — required. One sentence, at most ${String(MAX_HEADLINE_WORDS)} words, saying what this chapter's change does. It heads the chapter in place of the title. See Writing the prose below",
       "body": "string — optional Markdown. Why it likely changed, and the tradeoffs or alternatives the author likely considered. Omit it when the headline is the whole story; don't pad a one-sentence change out to sound bigger than it is",
       "insights": [
         {
@@ -151,7 +156,7 @@ Writing the prose:
 
 Every "headline", "lede" and "body" here is read by someone skimming, on a screen, with the diff waiting below. The prose that fails is not the prose that is too short — it is the prose that has to be read twice. These are rules, not preferences, and they apply to every field that holds a sentence: the headlines, ledes and bodies, riskAssessment.rationale, each factor's detail, each insight's text.
 
-- A "headline" or a "lede" is one sentence, at most 20 words, in the words you would use saying it out loud. No semicolon, no dash holding two halves together, no trailing clause that begins "which" or "so that". If it will not fit in 20 words, you are describing two things, and this is probably two chapters.
+- A "headline" or a "lede" is one sentence, at most ${String(MAX_HEADLINE_WORDS)} words, in the words you would use saying it out loud. No semicolon, no dash holding two halves together, no trailing clause that begins "which" or "so that". If it will not fit in ${String(MAX_HEADLINE_WORDS)} words, you are describing two things, and this is probably two chapters.
 - No sentence anywhere runs past 30 words. Count them. A 50-word sentence carrying three coordinate clauses is a defect and not a style: the reader has to hold the first clause until the end and then start again. Two plain sentences always beat one clever one.
 - Three or more parallel items become a Markdown list. Always, no exceptions. This is the single commonest way this prose goes wrong — "classifies each cancel into a removal based on whether a tech was ever assigned, whether the cancellation was later undone, whether a reschedule was a same-day shuffle, and whether it falls inside the threshold" is a four-item list wearing a sentence. Write the list.
 - Never open a headline or a lede with an identifier. "computeExplainedDowntimeSummaryFields is a shared helper that..." makes the reader tokenize a 40-character camelCase name before reaching a verb, and a review whose chapters all open that way reads as one undifferentiated block. Lead with what the code does — "A shared helper derives the explained/unexplained split" — and name the function in the body, or let the file list name it. At most one identifier in any headline or lede.

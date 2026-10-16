@@ -12,6 +12,7 @@ import {
   InsightTypeSchema,
   MAX_CONTEXT_EXCERPTS,
   MAX_EXCERPT_LINES,
+  MAX_HEADLINE_WORDS,
   MAX_JUDGEMENT_CALLS,
   MAX_SKIM_REASON,
   NarrativeReviewSchema,
@@ -843,7 +844,20 @@ function sanitizeChapter(
   }
   // A missing headline is reported with every other chapter's, once all are read.
   const headline = typeof raw['headline'] === 'string' ? raw['headline'].trim() : '';
+  const words = headline.split(/\s+/).filter(Boolean).length;
+  if (words > MAX_HEADLINE_WORDS) {
+    log.add(
+      'headline-long',
+      `Chapter ${id}'s headline runs to ${String(words)} words, past the ${String(MAX_HEADLINE_WORDS)} asked for.`,
+      { chapterId: id },
+    );
+  }
   const body = typeof raw['body'] === 'string' ? raw['body'].trim() : '';
+  if (raw['body'] !== undefined && body.length === 0) {
+    log.add('prose-dropped', `Chapter ${id}'s body arrived with nothing readable in it.`, {
+      chapterId: id,
+    });
+  }
 
   const rawChunks: unknown[] = Array.isArray(raw['diffChunks']) ? raw['diffChunks'] : [];
   const diffChunks = mergeChunksByFile(

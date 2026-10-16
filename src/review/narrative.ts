@@ -251,6 +251,13 @@ export const ReviewRiskAssessmentSchema = z.object({
 });
 export type ReviewRiskAssessment = z.infer<typeof ReviewRiskAssessmentSchema>;
 
+/**
+ * The words the prompt allows a chapter's headline or the overview's lede: one
+ * sentence a reader takes in at a glance, and a headline is set at the page's
+ * display size, where a longer one fills the screen.
+ */
+export const MAX_HEADLINE_WORDS = 20;
+
 /** At most two excerpts a chapter, each at most sixty lines. */
 export const MAX_CONTEXT_EXCERPTS = 2;
 export const MAX_EXCERPT_LINES = 60;

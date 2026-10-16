@@ -160,7 +160,10 @@ src/review/
                      promoted to the lede, as is a body that arrived without one; a chapter with no headline (absent,
                      blank or not a string) is a fatal `chapter-no-headline`, every such chapter named before the
                      review fails, so one retry mends them all — never a heading made up from the title; a
-                     chapter's body is kept trimmed when it is a non-blank string and otherwise left out; a diffChunk's `hunks` entry may arrive as a bare
+                     chapter's body is kept trimmed when it is a non-blank string and otherwise left out, a
+                     `prose-dropped` note when one arrived; a headline past MAX_HEADLINE_WORDS (the prompt's
+                     limit, which the instructions and the style section interpolate) is kept as written, in a
+                     `headline-long` note; a diffChunk's `hunks` entry may arrive as a bare
                      id string; a whitespace-only or imports-only hunk is skim whatever tier came with it (a `read` there is
                      one `hunk-tier-lowered` note naming the hunks), and otherwise a
                      missing or unknown tier is read as `read` — leniency toward the model, recorded once per
