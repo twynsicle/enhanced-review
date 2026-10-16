@@ -20,18 +20,21 @@ import {
   ReviewRiskFactorImpactSchema,
   RISK_SECTION_ID,
   SUMMARY_SECTION_ID,
+  type Bodies,
   type CitedHunk,
   type ContextExcerpt,
   type DiffChunk,
   type Insight,
   type JudgementCall,
   type NarrativeReview,
+  type OverviewStyle,
   type Prose,
   type ReviewRiskAssessment,
   type ReviewRiskFactorImpact,
   type ReviewRiskScore,
 } from '../narrative.ts';
 import { toResolvedHunk, type DiffHunk, type PromptGrounding } from './diff-hunk-catalog.ts';
+import { bodyStyles, DEFAULT_OVERVIEW_STYLE } from './overview-styles.ts';
 import { sanitizeDiagram } from './parse-diagram.ts';
 
 /**
@@ -297,17 +300,22 @@ function reportTierRepairs(
 }
 
 /**
- * The overview's `{ lede, body }` passage. Nothing written is `undefined`
+ * The overview's `{ lede, bodies }` passage. Nothing written is `undefined`
  * rather than a passage of empty strings, so the caller can tell "no prose"
  * from "a lede that is a space".
  *
- * A body arriving without a lede is promoted to one, and so is a bare string,
- * the shape the model drops back to when it forgets the object. Both are
- * leniency toward a nondeterministic producer, not compatibility with an older
- * stored shape: an overview dropped for arriving in the wrong field fails the
- * review, over a sentence the model did write.
+ * A bare string is promoted to the lede, the shape the model drops back to
+ * when it forgets the object, and so is the body when no lede came with it
+ * and only one style was asked for. Both are leniency toward a nondeterministic producer, not compatibility
+ * with an older stored shape: an overview dropped for arriving in the wrong
+ * field fails the review, over a sentence the model did write.
  */
-function sanitizeProse(raw: unknown, whose: string, log: FindingLog): Prose | undefined {
+function sanitizeProse(
+  raw: unknown,
+  whose: string,
+  styles: readonly OverviewStyle[],
+  log: FindingLog,
+): Prose | undefined {
   // Nothing sent is not something lost, and the caller decides what a missing
   // passage means; a passage that arrived and was unreadable is recorded.
   const nothing = (): undefined => {
@@ -324,13 +332,78 @@ function sanitizeProse(raw: unknown, whose: string, log: FindingLog): Prose | un
   }
   if (!isRecord(raw)) return nothing();
   const lede = typeof raw['lede'] === 'string' ? raw['lede'].trim() : '';
-  const body = typeof raw['body'] === 'string' ? raw['body'].trim() : '';
-  if (lede.length === 0) {
-    if (body.length === 0) return nothing();
-    log.add('prose-promoted', `${whose} arrived with a body and no lede.`);
-    return { lede: body };
+  const bodies = sanitizeBodies(raw, whose, styles, log);
+  if (lede.length > 0) return { lede, ...(bodies ? { bodies } : {}) };
+  if (!bodies) return nothing();
+  // Beside other styles, one style's body as the lede would leave that style
+  // alone without a body and every other repeating it under their own.
+  const only = styles.length === 1 ? bodies[styles[0]!] : undefined;
+  if (only === undefined) {
+    log.add('prose-dropped', `${whose} arrived with bodies and no lede for them to share.`);
+    return undefined;
   }
-  return { lede, ...(body.length > 0 ? { body } : {}) };
+  log.add('prose-promoted', `${whose} arrived with a body and no lede.`);
+  return { lede: only };
+}
+
+/**
+ * A passage's bodies, each trimmed, under the styles the run asked for. A body
+ * under any other key, which the reader would never offer, fails the review
+ * rather than leaving it short of what the model wrote. A lone `body` where one
+ * style was asked for is that style's: the model reaching for the field name
+ * every other passage uses, leniency toward it rather than an older shape.
+ */
+function sanitizeBodies(
+  raw: Rec,
+  whose: string,
+  styles: readonly OverviewStyle[],
+  log: FindingLog,
+): Bodies | undefined {
+  const bodies: Bodies = {};
+  const sent = raw['bodies'];
+  if (isRecord(sent) && !Array.isArray(sent)) {
+    for (const [key, value] of Object.entries(sent)) {
+      const style = styles.find((name) => name === key);
+      if (style === undefined) {
+        log.add(
+          'body-style-dropped',
+          `${whose} has a body in "${key}", a style this review did not ask for; ${askedFor(styles)}.`,
+        );
+        continue;
+      }
+      const text = typeof value === 'string' ? value.trim() : '';
+      if (text.length === 0) {
+        log.add('prose-dropped', `${whose}'s ${style} body arrived with nothing readable in it.`);
+        continue;
+      }
+      bodies[style] = text;
+    }
+  } else if (arrived(sent)) {
+    log.add('prose-dropped', `${whose}'s bodies arrived as something other than one per style.`);
+  }
+  const lone = typeof raw['body'] === 'string' ? raw['body'].trim() : '';
+  if (lone.length > 0) {
+    const only = styles.length === 1 ? styles[0]! : undefined;
+    if (only !== undefined && bodies[only] === undefined) {
+      bodies[only] = lone;
+      log.add(
+        'prose-promoted',
+        `${whose} sent a "body" rather than "bodies", which became its ${only} body.`,
+      );
+    } else {
+      log.add(
+        'body-style-dropped',
+        `${whose} sent a "body" that no one style could claim; ${askedFor(styles)}.`,
+      );
+    }
+  }
+  return Object.keys(bodies).length > 0 ? bodies : undefined;
+}
+
+function askedFor(styles: readonly OverviewStyle[]): string {
+  return styles.length === 0
+    ? 'this review asks for no bodies'
+    : `write each under its key in "bodies": ${styles.join(', ')}`;
 }
 
 /**
@@ -774,6 +847,7 @@ type SanitizedChapter = Rec & {
   id: string;
   title: string;
   headline: string;
+  bodies?: Bodies;
   diffChunks: DiffChunk[];
 };
 
@@ -830,6 +904,7 @@ function sanitizeChapter(
   index: number,
   id: string,
   grounding: PromptGrounding | undefined,
+  styles: readonly OverviewStyle[],
   log: FindingLog,
   repairs: TierRepairs,
   excerptDrops: ExcerptDrop[],
@@ -852,12 +927,7 @@ function sanitizeChapter(
       { chapterId: id },
     );
   }
-  const body = typeof raw['body'] === 'string' ? raw['body'].trim() : '';
-  if (raw['body'] !== undefined && body.length === 0) {
-    log.add('prose-dropped', `Chapter ${id}'s body arrived with nothing readable in it.`, {
-      chapterId: id,
-    });
-  }
+  const bodies = sanitizeBodies(raw, `Chapter ${id}`, styles, log);
 
   const rawChunks: unknown[] = Array.isArray(raw['diffChunks']) ? raw['diffChunks'] : [];
   const diffChunks = mergeChunksByFile(
@@ -898,7 +968,7 @@ function sanitizeChapter(
     id,
     title,
     headline,
-    ...(body.length > 0 ? { body } : {}),
+    ...(bodies ? { bodies } : {}),
     insights: sanitizeInsights(
       raw['insights'],
       new Set(diffChunks.map((c) => c.filename)),
@@ -937,6 +1007,41 @@ function reportEmptyChapters(
       'chapter-no-hunks',
       `Chapter "${chapter.title}" (${chapter.id}) cites no hunk that resolved against the diff.`,
       { chapterId: chapter.id },
+    );
+    any = true;
+  }
+  return any;
+}
+
+/**
+ * A passage with a body in some of the styles asked for has one in all of
+ * them: a style left out of one chapter would show that chapter as its
+ * headline alone, and the comparison between styles would no longer be like
+ * for like. A passage with no body in any style has nothing to write.
+ */
+function reportMissingStyles(
+  overview: Prose,
+  chapters: readonly SanitizedChapter[],
+  styles: readonly OverviewStyle[],
+  log: FindingLog,
+): boolean {
+  const passages = [
+    { whose: 'The overview summary', bodies: overview.bodies, location: {} },
+    ...chapters.map((chapter) => ({
+      whose: `Chapter ${chapter.id}`,
+      bodies: chapter.bodies,
+      location: { chapterId: chapter.id },
+    })),
+  ];
+  let any = false;
+  for (const { whose, bodies, location } of passages) {
+    const written = styles.filter((style) => bodies?.[style] !== undefined);
+    const missing = styles.filter((style) => bodies?.[style] === undefined);
+    if (written.length === 0 || missing.length === 0) continue;
+    log.add(
+      'style-missing',
+      `${whose} has a body in ${written.join(', ')} but none in ${missing.join(', ')}, which this review also asked for.`,
+      location,
     );
     any = true;
   }
@@ -1136,7 +1241,14 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     return fail(log);
   }
 
-  const overviewSummary = sanitizeProse(parsed['overviewSummary'], 'The overview summary', log);
+  const overviewStyles = grounding?.styles ?? [DEFAULT_OVERVIEW_STYLE];
+  const styles = bodyStyles(overviewStyles);
+  const overviewSummary = sanitizeProse(
+    parsed['overviewSummary'],
+    'The overview summary',
+    styles,
+    log,
+  );
   if (!overviewSummary) {
     log.add('fields-missing', 'The narrative review has no overview summary.');
     return fail(log);
@@ -1155,6 +1267,7 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
       index,
       ids[index]!,
       grounding,
+      styles,
       log,
       repairs,
       excerptDrops,
@@ -1168,7 +1281,9 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
   // Both before failing, so one retry can name every chapter's defect.
   const empty = reportEmptyChapters(chapters, grounding, log);
   const headless = reportHeadlessChapters(chapters, log);
-  if (empty || headless) return fail(log);
+  const unstyled = reportMissingStyles(overviewSummary, chapters, styles, log);
+  const misfiled = log.findings.some((item) => item.code === 'body-style-dropped');
+  if (empty || headless || unstyled || misfiled) return fail(log);
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment'], log);
   const overviewDiagram = sanitizeDiagram(
@@ -1181,6 +1296,7 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
   const readingPlan = sanitizeReadingPlan(parsed['readingPlan'], chapters, log);
   const candidate = {
     prTitle: parsed['prTitle'],
+    overviewStyles,
     overviewSummary,
     ...(riskAssessment ? { riskAssessment } : {}),
     ...(overviewDiagram ? { overviewDiagram } : {}),

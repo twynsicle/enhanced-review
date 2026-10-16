@@ -1,7 +1,8 @@
 import { writeFile } from 'node:fs/promises';
 import { plural } from '../review/plural.ts';
 import { detectLanguage } from '../review/language-map.ts';
-import { provenSkim } from '../review/narrative.ts';
+import { provenSkim, type Bodies, type OverviewStyles } from '../review/narrative.ts';
+import { bodyStyles } from '../review/prompt/overview-styles.ts';
 import type { DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
 import type { RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
@@ -35,8 +36,12 @@ const STUB_RESULT = JSON.stringify({
  * faded lines can be seen without a model, and the reading plan is the first chapter for the brief and every chapter for
  * the standard read, so the plan's block can be too.
  */
-export async function writeStubRun(context: RunContext, run: RunFiles): Promise<number> {
-  const review = stubReview(context);
+export async function writeStubRun(
+  context: RunContext,
+  run: RunFiles,
+  styles: OverviewStyles,
+): Promise<number> {
+  const review = stubReview(context, styles);
   await writeFile(
     run.raw,
     `<narrative_review>\n${JSON.stringify(review, null, 2)}\n</narrative_review>\n`,
@@ -45,7 +50,21 @@ export async function writeStubRun(context: RunContext, run: RunFiles): Promise<
   return review.chapters.length;
 }
 
-export function stubReview({ meta, files, hunks }: RunContext) {
+/**
+ * A body in every style asked for, each saying which it is, so the reader's
+ * switch between styles can be seen without a model.
+ */
+function stubBodies(styles: OverviewStyles, text: string): { bodies?: Bodies } {
+  const written = bodyStyles(styles);
+  if (written.length === 0) return {};
+  return {
+    bodies: Object.fromEntries(
+      written.map((style) => [style, written.length === 1 ? text : `*${style}:* ${text}`]),
+    ),
+  };
+}
+
+export function stubReview({ meta, files, hunks }: RunContext, styles: OverviewStyles) {
   const byFile = new Map<string, DiffHunk[]>();
   for (const hunk of hunks) {
     byFile.set(hunk.filename, [...(byFile.get(hunk.filename) ?? []), hunk]);
@@ -58,6 +77,7 @@ export function stubReview({ meta, files, hunks }: RunContext) {
         id: `file-${String(index + 1)}`,
         title: file.filename.split('/').at(-1)!,
         headline: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${plural(fileHunks.length, 'hunk')}.`,
+        ...stubBodies(styles, 'The stub run wrote this; no model read the file.'),
         insights: [
           {
             type: 'context',
@@ -93,9 +113,11 @@ export function stubReview({ meta, files, hunks }: RunContext) {
     prTitle: meta.title,
     overviewSummary: {
       lede: 'A mechanical review: one chapter per changed file, citing every hunk.',
-      body:
+      ...stubBodies(
+        styles,
         'From `er review --stub`, so the report can be checked against a real change ' +
-        'without running a model.',
+          'without running a model.',
+      ),
     },
     chapters: reviewChapters,
     readingPlan: {

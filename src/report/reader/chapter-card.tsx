@@ -1,7 +1,13 @@
 import { Box, Group, Stack, Text, Title } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { plural } from '@/review/plural';
-import type { DiffChunk, Insight, JudgementCall, NarrativeChapter } from '@/review/narrative';
+import type {
+  DiffChunk,
+  Insight,
+  JudgementCall,
+  NarrativeChapter,
+  OverviewStyle,
+} from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
 import { isTestFile } from '@/review/test-file';
 import { Caption } from '@/report/chrome/caption';
@@ -93,6 +99,7 @@ export function SectionRule({ label, count }: { label: string; count: number }) 
 /** One chapter as an article: eyebrow, title, passage, insights grid, files. */
 export function ChapterCard({
   chapter,
+  bodyStyle,
   meta,
   chapterIndex,
   judgementCalls,
@@ -100,6 +107,8 @@ export function ChapterCard({
   footer,
 }: {
   chapter: NarrativeChapter;
+  /** Which of the chapter's bodies is read, and so timed. */
+  bodyStyle: OverviewStyle;
   /** Where the review came from, which the Ask button's prompt names. */
   meta: ReviewMeta;
   /** 1-based index for the eyebrow ("Chapter Two"). */
@@ -117,6 +126,7 @@ export function ChapterCard({
 }) {
   const fileCount = chapter.diffChunks.length;
   const insightCount = chapter.insights.length;
+  const body = chapter.bodies?.[bodyStyle];
   const excerpts = chapter.contextExcerpts ?? [];
   const { anchored, unanchored } = groupInsightsByFile(chapter.insights);
   const reviewFiles = useReviewFiles();
@@ -150,13 +160,13 @@ export function ChapterCard({
         </Title>
         <Text fz="sm" c="dimmed">
           {plural(fileCount, 'file')} touched · {plural(insightCount, 'insight')} ·{' '}
-          {formatMinutes(chapterMinutes(chapter))}
+          {formatMinutes(chapterMinutes(chapter, bodyStyle))}
         </Text>
       </Stack>
 
-      {chapter.body && (
+      {body && (
         <Box style={{ textWrap: 'pretty' }}>
-          <MarkdownText text={chapter.body} />
+          <MarkdownText text={body} />
         </Box>
       )}
 

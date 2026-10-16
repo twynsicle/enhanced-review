@@ -1,6 +1,6 @@
 import { Box, Collapse, Group, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { useState, type ReactNode } from 'react';
-import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/review/narrative';
+import { SUMMARY_SECTION_ID, type NarrativeReview, type OverviewStyle } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
 import { Caption } from '@/report/chrome/caption';
 import { changeTitle } from '@/report/chrome/change-label';
@@ -34,6 +34,7 @@ import { DISPLAY_SIZE } from '@/report/theme/tokens';
  */
 export function SummaryCard({
   review,
+  bodyStyle,
   meta,
   judgementCalls = [],
   onSelectFile,
@@ -41,6 +42,8 @@ export function SummaryCard({
   footer,
 }: {
   review: NarrativeReview;
+  /** Which of the overview's bodies is read, and so timed in the reading plan. */
+  bodyStyle: OverviewStyle;
   meta: ReviewMeta;
   /** The review's questions and the chapter each is drawn in. */
   judgementCalls?: readonly AnchoredJudgementCall[];
@@ -149,7 +152,7 @@ export function SummaryCard({
 
       <Stack component="section" gap={12}>
         <Caption component="h3">Review summary</Caption>
-        <ProsePassage prose={review.overviewSummary} />
+        <ProsePassage prose={review.overviewSummary} bodyStyle={bodyStyle} />
       </Stack>
 
       {/*
@@ -157,7 +160,9 @@ export function SummaryCard({
        * says what the change is, and the plan is the next decision a reader
        * short of time has to make, before a picture they may not need.
        */}
-      {review.readingPlan && <ReadingPlanBlock review={review} onSelectChapter={onSelectChapter} />}
+      {review.readingPlan && (
+        <ReadingPlanBlock review={review} bodyStyle={bodyStyle} onSelectChapter={onSelectChapter} />
+      )}
 
       {review.overviewDiagram && (
         <DiagramFigure
@@ -193,9 +198,11 @@ const PLAN_LEAD: Record<PlanRow['name'], { adding: string; nothing: string } | n
  */
 function ReadingPlanBlock({
   review,
+  bodyStyle,
   onSelectChapter,
 }: {
   review: NarrativeReview;
+  bodyStyle: OverviewStyle;
   onSelectChapter: (chapterId: string) => void;
 }) {
   // The sidebar's own numbers, so a plan's chapter can be found there by its
@@ -209,7 +216,7 @@ function ReadingPlanBlock({
     <Stack component="section" gap={12}>
       <Caption component="h3">Reading plan</Caption>
       <Stack component="ol" gap={12} m={0} pl={0} style={{ listStyle: 'none' }}>
-        {readingPlanRows(review).map((row) => {
+        {readingPlanRows(review, bodyStyle).map((row) => {
           const lead = PLAN_LEAD[row.name];
           return (
             <Stack component="li" key={row.name} gap={2}>

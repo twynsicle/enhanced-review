@@ -1,5 +1,5 @@
 import { Box, Text } from '@mantine/core';
-import type { Prose } from '@/review/narrative';
+import type { OverviewStyle, Prose } from '@/review/narrative';
 import { MarkdownText } from './markdown-text';
 
 /**
@@ -18,9 +18,16 @@ import { MarkdownText } from './markdown-text';
  * as a block would put a paragraph wrapper between the two halves of one
  * passage.
  */
-export function ProsePassage({ prose }: { prose: Prose | undefined }) {
+export function ProsePassage({
+  prose,
+  bodyStyle,
+}: {
+  prose: Prose | undefined;
+  /** Which of the passage's bodies is read; one the passage lacks shows the lede alone. */
+  bodyStyle: OverviewStyle;
+}) {
   const lede = prose?.lede.trim() ?? '';
-  const body = prose?.body?.trim() ?? '';
+  const body = prose?.bodies?.[bodyStyle]?.trim() ?? '';
 
   if (lede.length === 0 && body.length === 0) {
     return <Text c="dimmed">No overview was generated for this review.</Text>;

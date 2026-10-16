@@ -36,7 +36,9 @@ src/report/
                      changeLabel, the header's tag — `#<n>` for a PR, `staged`, or none for a branch, whose
                      name outweighed the title beside it — and title; documentTitle, led by the PR number alone; unrelated
                      to ask-prompt's changeName, which words the change for a prompt), display-menu (every display preference in one labelled
-                     dropdown: diffs, long lines, comments, file headers, skim hunks, hunk debug, layout, theme — comments
+                     dropdown: the overview style, first and only for a review written in several, a submenu
+                     of the review's own styles to pick from, `tldr` named "Headlines only"; then diffs,
+                     long lines, comments, file headers, skim hunks, hunk debug, layout, theme — comments
                      and skim hunks each with a fade slider beneath while they are dimmed or marked)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
@@ -73,7 +75,8 @@ src/report/
                      file-tree.ts (pure: ReviewFile[] → the directory tree, single-child chains collapsed into one
                      row), chapter-card (headed by the chapter's headline at display size, its title being the
                      label the sidebar, the reading plan and Next show;
-                     the body as Markdown beneath; groupInsightsByFile splits the chapter's insights: an anchored one goes
+                     the body in the style being read as Markdown beneath, the style handed down from
+                     chapter-reader's useOverviewStyle as `bodyStyle`, the summary card's too; groupInsightsByFile splits the chapter's insights: an anchored one goes
                      down to its diff card, the rest stay in the Insights section above them; the chapter's
                      judgement calls arrive keyed by file and go down the same way; the header's meta line ends
                      in the chapter's estimate, "~3 min"; the eyebrow shares its row with the Ask button; the
@@ -104,7 +107,8 @@ src/report/
                      is, theme and wrap following the diff's; the file comes through useFilePair, and a file
                      the bundle lacks is a line of text, never an empty editor),
                      reading-time.ts (pure, and the only place a reading speed is stated: prose at 200 words a
-                     minute — a chapter's headline, body and insight texts, the overview's lede and body — a `read`
+                     minute — a chapter's headline, body in the style being read and insight texts, the
+                     overview's lede and body in that style — a `read`
                      hunk at 25 changed lines a minute, `skim` at 100, a hunk's changedLines being what it adds
                      and removes, git's context left out; a diagram 30 seconds, an excerpt's lines at the skim
                      speed and its reason as prose; a chapter rounds up to whole minutes, at least one;
@@ -120,8 +124,8 @@ src/report/
                      then its uncited hunks under their own label, or why it has none), skipped-file.ts (the copy
                      for ReviewFile.skipped reasons), insight-callout (InsightCallout and JudgementCallout over one
                      marginalia treatment), article.module.css (the reading measure + the diff bleed lane),
-                     prose-passage (the overview's Prose: the lede one step up the scale, the body as Markdown
-                     beneath),
+                     prose-passage (the overview's Prose: the lede one step up the scale, the body in the style
+                     being read as Markdown beneath, the lede alone in a style with none),
                      markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                      file-source (EmbeddedFileSource: both sides of every file the bundle carries, and the review's
                      record of each changed file; useFilePair, useReviewFile, useReviewFiles — an excerpted file
@@ -215,7 +219,9 @@ src/report/
                      preview that paints without storing, which the display menu's slider uses mid-drag, file-headers.ts (`er-file-headers`, full ⇄ one-line:
                      a code card header's facts on rows of their own, or kept beside the path), hunk-debug.ts
                      (`er-hunk-debug`, off ⇄ on: every hunk labelled with its id, tier and split part, for
-                     judging the tiers), all twelve on
+                     judging the tiers), overview-style.ts (`er-overview-style`, the style last chosen, or none:
+                     kept across reviews so a comparison carries on into the next; shownStyle falls back to the
+                     review's first style when it was not written in the one chosen), all thirteen on
                      raw-preference.ts (one word
                      or one number, not JSON). progress.ts (`er-progress`) is the one record rather than a
                      preference, so it is JSON and not on raw-preference: `{ [repo|baseSha|headSha]: { read:

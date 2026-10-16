@@ -53,7 +53,12 @@ const bundle: ReviewBundle = {
     description: null,
     stats: null,
   },
-  review: { prTitle: 't', overviewSummary: { lede: '' }, chapters: [] },
+  review: {
+    prTitle: 't',
+    overviewStyles: ['narrative'],
+    overviewSummary: { lede: '' },
+    chapters: [],
+  },
   files: {
     'src/main.ts': {
       base: { kind: 'content', content: '// a\n' },

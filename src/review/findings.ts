@@ -45,6 +45,10 @@ const SEVERITY_BY_CODE = {
   'chapter-no-hunks': 'fatal',
   /** A chapter with no headline, the sentence its card is headed by. */
   'chapter-no-headline': 'fatal',
+  /** A passage has a body in some of the styles asked for but not in this one. */
+  'style-missing': 'fatal',
+  /** A body under a style the run did not ask for, or a lone `body` no one style could claim. */
+  'body-style-dropped': 'fatal',
   /** A hunk the prompt showed that no chapter cites. */
   'hunk-uncited': 'fatal',
   /** The run ended on anything but a clean success (max turns, an SDK error). */
@@ -98,9 +102,13 @@ const SEVERITY_BY_CODE = {
   'chapter-id-synthesised': 'note',
   /** A chapter arrived without a title, so one was synthesised. */
   'chapter-title-synthesised': 'note',
-  /** The overview arrived as a bare string, or as a body with no lede, and was promoted. */
+  /**
+   * The overview arrived as a bare string, or as its one style's body with no
+   * lede, or a passage sent a lone `body` where one style was asked for; each
+   * was promoted.
+   */
   'prose-promoted': 'note',
-  /** The overview's prose, or a chapter's body, arrived with nothing readable in it. */
+  /** The overview's prose, or a body, arrived with nothing readable in it, or bodies with no lede to share. */
   'prose-dropped': 'note',
   /** A chapter's headline ran past MAX_HEADLINE_WORDS; it is kept, as written. */
   'headline-long': 'note',

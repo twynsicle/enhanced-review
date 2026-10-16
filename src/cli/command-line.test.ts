@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OVERVIEW_STYLES } from '../review/prompt/overview-styles.ts';
+import { OVERVIEW_STYLES } from '../review/narrative.ts';
 import { type Command, parseCommand, USAGE, UsageError } from './command-line.ts';
 
 function reviewOptions(argv: string[]) {
@@ -13,20 +13,32 @@ describe('the command line', () => {
     const options = reviewOptions([]);
     expect(options.request).toEqual({ kind: 'branch', base: null });
     expect(options.cwd).toBe('C:/repos/widgets');
-    expect(options.overviewStyle).toBe('narrative');
+    expect(options.overviewStyles).toEqual(['narrative']);
   });
 
   it('takes each overview style by name', () => {
     for (const style of OVERVIEW_STYLES) {
-      expect(reviewOptions(['--overview-style', style]).overviewStyle).toBe(style);
+      expect(reviewOptions(['--overview-style', style]).overviewStyles).toEqual([style]);
     }
   });
 
-  it('refuses a style it does not know, naming the ones it does', () => {
+  it('takes several styles in the order named, each once, and all of them as all', () => {
+    expect(
+      reviewOptions(['--overview-style', 'simple, pros-cons,simple,narrative']).overviewStyles,
+    ).toEqual(['simple', 'pros-cons', 'narrative']);
+    expect(reviewOptions(['--overview-style', 'all']).overviewStyles).toEqual([...OVERVIEW_STYLES]);
+    expect(reviewOptions(['--overview-style', 'simple,all']).overviewStyles).toEqual([
+      'simple',
+      ...OVERVIEW_STYLES.filter((style) => style !== 'simple'),
+    ]);
+  });
+
+  it('refuses a style it does not know, naming it and the ones it does', () => {
     expect(() => reviewOptions(['--overview-style', 'haiku'])).toThrow(UsageError);
-    expect(() => reviewOptions(['--overview-style', 'haiku'])).toThrow(
-      '--overview-style takes one of: narrative, before-after, five-whys, plain, tldr',
+    expect(() => reviewOptions(['--overview-style', 'plain,haiku'])).toThrow(
+      '--overview-style takes all, or one or more of: narrative, before-after, five-whys, plain, simple, pros-cons, tldr; not "haiku"',
     );
+    expect(() => reviewOptions(['--overview-style', 'plain,'])).toThrow(/not ""$/);
   });
 
   it('refuses a style with a --from that writes no new prompt', () => {
@@ -37,12 +49,13 @@ describe('the command line', () => {
     }
     expect(reviewOptions(['--from', 'prompt', '--overview-style', 'tldr'])).toMatchObject({
       from: 'prompt',
-      overviewStyle: 'tldr',
+      overviewStyles: ['tldr'],
     });
   });
 
   it('lists every style in the usage', () => {
     expect(USAGE).toContain(`${OVERVIEW_STYLES.join(', ')} (default: narrative)`);
+    expect(USAGE).toContain('several, comma-separated, or all');
   });
 
   it('still refuses new instructions and a new split with a --from that cannot use them', () => {

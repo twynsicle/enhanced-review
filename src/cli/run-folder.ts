@@ -21,6 +21,8 @@ export interface RunFiles {
   pr: string;
   system: string;
   prompt: string;
+  /** The overview styles the prompt asked for, which the run and parse stages hold the answer to. */
+  styles: string;
   raw: string;
   /** One line per SDK message from a model run: tools used, how it ended. */
   events: string;
@@ -40,6 +42,7 @@ export function runFiles(folder: string): RunFiles {
     pr: path.join(folder, 'context', 'pr.md'),
     system: path.join(folder, 'system.md'),
     prompt: path.join(folder, 'prompt.md'),
+    styles: path.join(folder, 'styles.json'),
     raw: path.join(folder, 'raw.txt'),
     events: path.join(folder, 'events.jsonl'),
     review: path.join(folder, 'review.json'),

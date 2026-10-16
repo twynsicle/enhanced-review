@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fatalFindings } from '../findings.ts';
+import type { OverviewStyles } from '../narrative.ts';
 import { buildDiffHunkIndex, groundingFor } from './diff-hunk-catalog.ts';
 import { escapeStrayQuotes, parseNarrativeReview, type ParseResult } from './parse-narrative.ts';
 
@@ -93,6 +94,7 @@ describe('parseNarrativeReview', () => {
 
     expect(result.ok && result.data).toEqual({
       prTitle: 'Risk test',
+      overviewStyles: ['narrative'],
       overviewSummary: { lede: 'Summary' },
       riskAssessment: {
         score: 4,
@@ -387,7 +389,7 @@ const DQ = String.fromCharCode(34);
 
 const chapter = (fields: Payload) => ({
   prTitle: 't',
-  overviewSummary: { lede: 'A lede.', body: 'And a body.' },
+  overviewSummary: { lede: 'A lede.', bodies: { narrative: 'And a body.' } },
   chapters: [
     {
       id: 'c',
@@ -400,27 +402,155 @@ const chapter = (fields: Payload) => ({
 });
 
 describe('prose', () => {
-  const parse = (payload: Payload) =>
-    parseNarrativeReview(wrap(payload), groundingFor(buildDiffHunkIndex(DIFF).hunks));
+  const parse = (payload: Payload, styles: OverviewStyles = ['narrative']) =>
+    parseNarrativeReview(
+      wrap(payload),
+      groundingFor(buildDiffHunkIndex(DIFF).hunks, undefined, undefined, styles),
+    );
 
   it("keeps a chapter's headline and body apart, trimmed", () => {
-    const result = parse(chapter({ headline: ' The headline. ', body: '- a\n- b\n' }));
+    const result = parse(
+      chapter({ headline: ' The headline. ', bodies: { narrative: '- a\n- b\n' } }),
+    );
     expect(result.ok && result.data.chapters[0]).toMatchObject({
       headline: 'The headline.',
-      body: '- a\n- b',
+      bodies: { narrative: '- a\n- b' },
     });
     expect(result.ok && result.data.overviewSummary).toEqual({
       lede: 'A lede.',
-      body: 'And a body.',
+      bodies: { narrative: 'And a body.' },
     });
+    expect(result.ok && result.data.overviewStyles).toEqual(['narrative']);
   });
 
   it('leaves out a body with nothing in it, noting one that arrived unreadable', () => {
     for (const body of ['   ', 7, ['- a list'], undefined]) {
-      const result = parse(chapter({ headline: 'The headline.', body }));
-      expect(result.ok && result.data.chapters[0]?.body).toBeUndefined();
+      const result = parse(chapter({ headline: 'The headline.', bodies: { narrative: body } }));
+      expect(result.ok && result.data.chapters[0]?.bodies).toBeUndefined();
       expect(codes(result).includes('prose-dropped')).toBe(body !== undefined);
     }
+    for (const bodies of ['a string, with two styles asked for', ['a list']]) {
+      const result = parse(
+        { ...chapter({ headline: 'The headline.', bodies }), overviewSummary: { lede: 'A lede.' } },
+        ['plain', 'simple'],
+      );
+      expect(result.ok && result.data.chapters[0]?.bodies).toBeUndefined();
+      expect(codes(result)).toContain('prose-dropped');
+    }
+  });
+
+  it('keeps a body in every style asked for', () => {
+    const result = parse(
+      {
+        ...chapter({
+          headline: 'The headline.',
+          bodies: { simple: ' Short. ', 'pros-cons': '**Pros**' },
+        }),
+        overviewSummary: { lede: 'A lede.' },
+      },
+      ['simple', 'pros-cons'],
+    );
+    expect(result.ok && result.data.chapters[0]?.bodies).toEqual({
+      simple: 'Short.',
+      'pros-cons': '**Pros**',
+    });
+  });
+
+  it('fails the review on a body in a style it did not ask for, naming the ones it did', () => {
+    const result = parse(
+      {
+        ...chapter({
+          headline: 'The headline.',
+          bodies: { narrative: 'The system prompt’s key.' },
+        }),
+        overviewSummary: { lede: 'A lede.' },
+      },
+      ['simple'],
+    );
+    expect(result.ok).toBe(false);
+    expect(firstFatal(result)).toBe(
+      'Chapter c has a body in "narrative", a style this review did not ask for; write each under its key in "bodies": simple.',
+    );
+  });
+
+  it('carries the styles asked for, tldr too, though tldr is never a body', () => {
+    const result = parse(
+      {
+        ...chapter({ headline: 'The headline.', bodies: { plain: 'Plain words.' } }),
+        overviewSummary: { lede: 'A lede.' },
+      },
+      ['tldr', 'plain'],
+    );
+    expect(result.ok && result.data.overviewStyles).toEqual(['tldr', 'plain']);
+    expect(result.ok && result.data.chapters[0]?.bodies).toEqual({ plain: 'Plain words.' });
+    const alone = parse(
+      {
+        ...chapter({ headline: 'The headline.' }),
+        overviewSummary: { lede: 'A lede.', bodies: { tldr: 'No.' } },
+      },
+      ['tldr'],
+    );
+    expect(firstFatal(alone)).toBe(
+      'The overview summary has a body in "tldr", a style this review did not ask for; this review asks for no bodies.',
+    );
+  });
+
+  it('takes a lone body as the one style asked for, and as no style when several were', () => {
+    const one = parse(
+      {
+        ...chapter({ headline: 'The headline.', body: 'Forgot the key.' }),
+        overviewSummary: { lede: 'A lede.' },
+      },
+      ['plain'],
+    );
+    expect(one.ok && one.data.chapters[0]?.bodies).toEqual({ plain: 'Forgot the key.' });
+    expect(one.findings.find((f) => f.code === 'prose-promoted')?.message).toBe(
+      'Chapter c sent a "body" rather than "bodies", which became its plain body.',
+    );
+    const several = parse(
+      {
+        ...chapter({ headline: 'The headline.', body: 'Whose is this?' }),
+        overviewSummary: { lede: 'A lede.', bodies: { plain: 'Plain.', simple: 'Simple.' } },
+      },
+      ['plain', 'simple'],
+    );
+    expect(several.ok).toBe(false);
+    expect(firstFatal(several)).toBe(
+      'Chapter c sent a "body" that no one style could claim; write each under its key in "bodies": plain, simple.',
+    );
+  });
+
+  it('fails the review on each passage with a body in some styles asked for but not all', () => {
+    const result = parse(
+      {
+        ...chapter({ headline: 'The headline.', bodies: { simple: 'Short.' } }),
+        overviewSummary: {
+          lede: 'A lede.',
+          bodies: { narrative: 'Told.', simple: 'Short too.', 'pros-cons': '**Pros**' },
+        },
+      },
+      ['narrative', 'simple', 'pros-cons', 'tldr'],
+    );
+    expect(result.ok).toBe(false);
+    expect(
+      result.findings
+        .filter((f) => f.code === 'style-missing')
+        .map((f) => [f.chapterId, f.message]),
+    ).toEqual([
+      [
+        'c',
+        'Chapter c has a body in simple but none in narrative, pros-cons, which this review also asked for.',
+      ],
+    ]);
+  });
+
+  it('lets a review with no body in any style through, as a single-style one is', () => {
+    const result = parse(
+      { ...chapter({ headline: 'The headline.' }), overviewSummary: { lede: 'A lede.' } },
+      ['plain', 'simple'],
+    );
+    expect(result.ok).toBe(true);
+    expect(codes(result)).not.toContain('style-missing');
   });
 
   it('keeps a headline past the word limit as written, and notes it', () => {
@@ -437,7 +567,9 @@ describe('prose', () => {
 
   it('fails the review when a chapter has no headline to open on, whatever came instead', () => {
     for (const headline of [undefined, '   ', 7, { lede: 'in the wrong shape' }]) {
-      const result = parse(chapter({ headline, body: 'A body is not a headline.' }));
+      const result = parse(
+        chapter({ headline, bodies: { narrative: 'A body is not a headline.' } }),
+      );
       expect(result.ok).toBe(false);
       expect(firstFatal(result)).toBe(
         'Chapter "C" (c) has no headline, the one sentence its card opens on.',
@@ -450,13 +582,34 @@ describe('prose', () => {
     expect(result.ok && result.data.overviewSummary).toEqual({ lede: 'one flat string' });
   });
 
-  it('promotes an overview body that arrived without a lede', () => {
-    const result = parse({ ...chapter({}), overviewSummary: { body: 'only the detail' } });
-    expect(result.ok && result.data.overviewSummary).toEqual({ lede: 'only the detail' });
+  it('promotes the one style’s overview body to the lede when no lede came with it', () => {
+    const result = parse(
+      {
+        ...chapter({ headline: 'The headline.' }),
+        overviewSummary: { bodies: { plain: 'the plain one' } },
+      },
+      ['plain'],
+    );
+    expect(result.ok && result.data.overviewSummary).toEqual({ lede: 'the plain one' });
+  });
+
+  it('fails the review when bodies in several styles came with no lede for them to share', () => {
+    const result = parse(
+      {
+        ...chapter({ headline: 'The headline.' }),
+        overviewSummary: { bodies: { simple: 'the simple one', plain: 'the plain one' } },
+      },
+      ['plain', 'simple'],
+    );
+    expect(result.ok).toBe(false);
+    expect(firstFatal(result)).toBe('The narrative review has no overview summary.');
+    expect(result.findings.find((f) => f.code === 'prose-dropped')?.message).toBe(
+      'The overview summary arrived with bodies and no lede for them to share.',
+    );
   });
 
   it('fails the review when the overview has no prose at all', () => {
-    const result = parse({ prTitle: 't', overviewSummary: { body: '' }, chapters: [] });
+    const result = parse({ prTitle: 't', overviewSummary: { bodies: {} }, chapters: [] });
     expect(result.ok).toBe(false);
     expect(firstFatal(result)).toBe('The narrative review has no overview summary.');
   });
@@ -766,7 +919,11 @@ describe('what a repair records', () => {
       wrap({ prTitle: 't', overviewSummary: 'a bare string', chapters: cited }),
     );
     const bodyOnly = parseNarrativeReview(
-      wrap({ prTitle: 't', overviewSummary: { body: 'only the detail' }, chapters: cited }),
+      wrap({
+        prTitle: 't',
+        overviewSummary: { bodies: { narrative: 'only the detail' } },
+        chapters: cited,
+      }),
     );
     expect(codes(bare)).toEqual(['prose-promoted']);
     expect(codes(bodyOnly)).toEqual(['prose-promoted']);

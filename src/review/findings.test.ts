@@ -24,6 +24,8 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {
   'fields-missing': 'fatal',
   'chapter-no-hunks': 'fatal',
   'chapter-no-headline': 'fatal',
+  'style-missing': 'fatal',
+  'body-style-dropped': 'fatal',
   'hunk-uncited': 'fatal',
   'run-stopped-early': 'fatal',
   'risk-dropped': 'warning',

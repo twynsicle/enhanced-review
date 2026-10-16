@@ -67,7 +67,7 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   allowLarge: false,
   instructions: null,
   splitLines: 0,
-  overviewStyle: 'narrative',
+  overviewStyles: ['narrative'],
   ...overrides,
 });
 
@@ -174,7 +174,7 @@ describe('er review', () => {
   });
 
   it('writes a chosen overview style into the prompt, and says which', async () => {
-    await expect(review(options({ overviewStyle: 'five-whys' }), deps)).resolves.toBe(0);
+    await expect(review(options({ overviewStyles: ['five-whys'] }), deps)).resolves.toBe(0);
 
     const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
     expect(readFileSync(path.join(run, 'prompt.md'), 'utf8')).toContain(
@@ -187,6 +187,28 @@ describe('er review', () => {
       ),
       expect.any(Number),
     );
+  });
+
+  it('writes a body in each of several styles, and keeps them through to the report', async () => {
+    const styles = ['simple', 'pros-cons', 'tldr'] as const;
+    await expect(review(options({ overviewStyles: [...styles] }), deps)).resolves.toBe(0);
+
+    const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
+    expect(JSON.parse(readFileSync(path.join(run, 'styles.json'), 'utf8'))).toEqual(styles);
+    expect(readFileSync(path.join(run, 'prompt.md'), 'utf8')).toContain(
+      '## Overview Styles: simple, pros-cons\n',
+    );
+    expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
+      'prompt',
+      expect.stringMatching(/; simple, pros-cons, tldr overview styles$/),
+      expect.any(Number),
+    );
+    const written = JSON.parse(readFileSync(path.join(run, 'review.json'), 'utf8')) as {
+      overviewStyles: string[];
+      overviewSummary: { bodies: Record<string, string> };
+    };
+    expect(written.overviewStyles).toEqual(styles);
+    expect(Object.keys(written.overviewSummary.bodies)).toEqual(['simple', 'pros-cons']);
   });
 
   it('counts what the review covers, says nothing, and exits clean', async () => {

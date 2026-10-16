@@ -12,6 +12,7 @@ import { reviewCoverage } from '@/review/coverage';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
 import { ChapterCard } from '@/report/reader/chapter-card';
+import { useOverviewStyle } from '@/report/stores/overview-style';
 import { ChapterSidebar } from '@/report/reader/chapter-sidebar';
 import { FileView } from '@/report/reader/file-view';
 import { useHashParams } from '@/report/reader/hash-params';
@@ -315,6 +316,7 @@ function SectionCard({
   onSelect: (id: string) => void;
   footer: ReactNode;
 }) {
+  const bodyStyle = useOverviewStyle(review.overviewStyles);
   switch (section.kind) {
     case 'risk':
       return review.riskAssessment ? (
@@ -328,6 +330,7 @@ function SectionCard({
         <ChapterCard
           key={chapter.id}
           chapter={chapter}
+          bodyStyle={bodyStyle}
           meta={meta}
           chapterIndex={chapterIndex}
           judgementCalls={judgementCallsByFile(judgementCalls, chapter.id)}
@@ -340,6 +343,7 @@ function SectionCard({
       return (
         <SummaryCard
           review={review}
+          bodyStyle={bodyStyle}
           meta={meta}
           judgementCalls={judgementCalls}
           onSelectFile={onSelectFile}

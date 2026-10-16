@@ -11,7 +11,11 @@ import {
   FindingsSchema,
   type Finding,
 } from '../review/findings.ts';
-import { NarrativeReviewSchema, type NarrativeReview } from '../review/narrative.ts';
+import {
+  NarrativeReviewSchema,
+  type NarrativeReview,
+  type OverviewStyles,
+} from '../review/narrative.ts';
 import { groundingFor, type PromptGrounding } from '../review/prompt/diff-hunk-catalog.ts';
 import { validateReview } from '../review/validate-review.ts';
 import type { RunContext } from './context.ts';
@@ -42,6 +46,7 @@ export interface ParsedRun {
 export async function parseRun(
   context: RunContext,
   run: RunFiles,
+  styles: OverviewStyles,
   shell: Shell,
 ): Promise<ParsedRun> {
   let raw: string;
@@ -50,7 +55,7 @@ export async function parseRun(
   } catch {
     throw new Error(`no raw.txt in ${run.folder}; run from an earlier stage`);
   }
-  const validation = validateReview(raw, groundingForRun(context));
+  const validation = validateReview(raw, groundingForRun(context, styles));
   const findings = [...validation.findings, ...(await runFindings(run))];
 
   const fatal = fatalFindings(findings);
@@ -103,11 +108,12 @@ function reviewedFiles(context: RunContext): string[] {
 }
 
 /** The grounding the run stage holds the model's answer against. */
-export function groundingForRun(context: RunContext): PromptGrounding {
+export function groundingForRun(context: RunContext, styles: OverviewStyles): PromptGrounding {
   return groundingFor(
     context.hunks,
     reviewedFiles(context),
     context.files.map((file) => file.filename),
+    styles,
   );
 }
 

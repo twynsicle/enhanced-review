@@ -32,6 +32,7 @@ const staged: ReviewMeta = {
 
 const review = (prTitle: string): NarrativeReview => ({
   prTitle,
+  overviewStyles: ['narrative'],
   overviewSummary: { lede: 'x' },
   chapters: [],
 });

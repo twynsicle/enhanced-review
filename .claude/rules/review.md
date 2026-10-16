@@ -13,11 +13,13 @@ package is Zod.
 ```
 src/review/
   narrative.ts       NarrativeReview Zod schema + types; chapter.diagram? + overviewDiagram?;
-                     ProseSchema — overviewSummary is a `{ lede, body? }`, the lede one short sentence and the
+                     ProseSchema — overviewSummary is a `{ lede, bodies? }`, the lede one short sentence and the
                      body Markdown, because one free-text field is what produced the 50-word sentences this
                      replaced; a chapter is `title` (the label lists show), `headline` (required, the one
-                     sentence its card opens on) and `body?` (Markdown) — the headline its own field so that no
-                     overview style can restyle or drop it; Insight.filename? — the file an insight is about, drawn on
+                     sentence its card opens on) and `bodies?` (Markdown) — the headline its own field so that no
+                     overview style can restyle or drop it; OVERVIEW_STYLES / OverviewStyle(s) and BodiesSchema,
+                     one body per style keyed by its name (`tldr` never has one); overviewStyles, the styles the
+                     run asked for in the order named, which the reader offers to switch between; Insight.filename? — the file an insight is about, drawn on
                      that diff card rather than above all of them; three insight types, not four — a pointer to
                      related code or docs is `context` with a link, which is what `reference` was;
                      JudgementCall / judgementCalls? / MAX_JUDGEMENT_CALLS — the questions only a human can
@@ -132,11 +134,14 @@ src/review/
                      by and is cut by paragraphs; splitPart reads a header's part number back),
                      instructions.ts (NARRATIVE_SYSTEM_PROMPT, the review instructions and output schema, and
                      LOCAL_WORKING_TREE, the closing paragraph saying where the agent is standing),
-                     overview-styles (OVERVIEW_STYLES, the names --overview-style takes and er validates against,
-                     and OVERVIEW_STYLE_TEXT, each one's instruction for the overview's and the chapters' bodies —
-                     narrative, the default, has none; overviewStyleSection, the prompt.md section saying the
+                     overview-styles (OVERVIEW_STYLE_TEXT, each style's instruction for the overview's and the
+                     chapters' bodies — narrative, the default, has none; bodyStyles, the styles a body is
+                     written in: all asked for but tldr; overviewStyleSection, the prompt.md section saying the
                      body is restyled and nothing else is: the overview's lede and every chapter's headline stay
-                     one sentence, every chapter keeps its headline, the JSON is unchanged),
+                     one sentence, every chapter keeps its headline, the rest of the JSON is unchanged — for one
+                     style, its body under its own key in "bodies"; for several, one body per style under each
+                     key, each style's text under its own heading, tldr left out since it asks for no body
+                     beside others; tldr alone is still asked for, since it also reshapes the headlines),
                      parse-narrative (lenient sanitising, validated by NarrativeReviewSchema; every repair it makes
                      is recorded as a Finding, so leniency is not silence; it assumes no pairing of the
                      <narrative_review> tags — opening tags are tried last to first, and for each one every closing
@@ -163,12 +168,18 @@ src/review/
                      its judgementCallOwner's card (coverage.ts), so its hunk ids are narrowed to the ones that
                      card shows, and the reader picks the owner the same way; the cap is
                      applied here rather than by the schema, which could only refuse the whole review;
-                     sanitizeProse takes the overview's `{ lede, body? }` object or a bare string, which is
-                     promoted to the lede, as is a body that arrived without one; a chapter with no headline (absent,
+                     sanitizeProse takes the overview's `{ lede, bodies? }` object or a bare string, which is
+                     promoted to the lede, as is the body when no lede came with it and one style was asked
+                     for (several with no lede to share drop the overview, which fails the review); bodies are
+                     kept trimmed under the styles the grounding asked for (PromptGrounding.styles, the default
+                     style when there is no grounding), a blank one dropped in `prose-dropped`, and a lone
+                     `body` taken as the one style's when one was asked for (`prose-promoted`); a body under
+                     another key, or a lone `body` beside several styles, is a fatal `body-style-dropped` naming
+                     the keys asked for; a passage with a body in some styles asked for but not all is a fatal
+                     `style-missing`, one per passage, so a comparison between styles is like for like; a chapter with no headline (absent,
                      blank or not a string) is a fatal `chapter-no-headline`, every such chapter named before the
                      review fails, so one retry mends them all — never a heading made up from the title; a
-                     chapter's body is kept trimmed when it is a non-blank string and otherwise left out, a
-                     `prose-dropped` note when one arrived; a headline past MAX_HEADLINE_WORDS (the prompt's
+                     headline past MAX_HEADLINE_WORDS (the prompt's
                      limit, which the instructions and the style section interpolate) is kept as written, in a
                      `headline-long` note; a diffChunk's `hunks` entry may arrive as a bare
                      id string; a whitespace-only or imports-only hunk is skim whatever tier came with it (a `read` there is

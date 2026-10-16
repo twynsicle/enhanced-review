@@ -42,6 +42,7 @@ const excerpt = (filename: string, startLine: number, endLine: number): ContextE
 function review(...perChapter: ContextExcerpt[][]): NarrativeReview {
   return {
     prTitle: 't',
+    overviewStyles: ['narrative'],
     overviewSummary: { lede: 's' },
     chapters: perChapter.map((contextExcerpts, index) => ({
       id: `c${String(index + 1)}`,

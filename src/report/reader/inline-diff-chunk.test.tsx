@@ -55,7 +55,12 @@ function renderChunk(files: ReviewBundle['files'], insights?: Insight[]) {
       description: null,
       stats: null,
     },
-    review: { prTitle: 't', overviewSummary: { lede: '' }, chapters: [] },
+    review: {
+      prTitle: 't',
+      overviewStyles: ['narrative'],
+      overviewSummary: { lede: '' },
+      chapters: [],
+    },
     files,
   };
   return render(
@@ -190,7 +195,12 @@ describe('<InlineDiffChunk /> by attention tier', () => {
         description: null,
         stats: null,
       },
-      review: { prTitle: 't', overviewSummary: { lede: '' }, chapters: [] },
+      review: {
+        prTitle: 't',
+        overviewStyles: ['narrative'],
+        overviewSummary: { lede: '' },
+        chapters: [],
+      },
       files: { [chunk.filename]: { base: content(lines), head: content(lines) } },
     };
     return render(

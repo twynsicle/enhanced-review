@@ -2,12 +2,8 @@ import { parseArgs } from 'node:util';
 import { DEFAULT_MAX_TURNS, DEFAULT_MODEL, DEFAULT_TIMEOUT_MINUTES } from './claude-run.ts';
 import { reaches, RESUMABLE_STAGES, type ReviewOptions } from './review.ts';
 import { reviewerInstructions } from './reviewer-instructions.ts';
-import {
-  DEFAULT_OVERVIEW_STYLE,
-  isOverviewStyle,
-  OVERVIEW_STYLES,
-  type OverviewStyle,
-} from '../review/prompt/overview-styles.ts';
+import { OVERVIEW_STYLES, type OverviewStyle, type OverviewStyles } from '../review/narrative.ts';
+import { DEFAULT_OVERVIEW_STYLE, isOverviewStyle } from '../review/prompt/overview-styles.ts';
 import { DEFAULT_SPLIT_LINES } from '../review/prompt/split-hunks.ts';
 import type { TargetRequest } from './targets.ts';
 
@@ -26,9 +22,10 @@ Options:
                        add your own guidance to the prompt: what to focus on or explain
   --instructions-file <path>
                        the same, read from a file
-  --overview-style <name>
+  --overview-style <names>
                        write what follows the overview's lede and each chapter's headline as:
-                       ${OVERVIEW_STYLES.join(', ')} (default: ${DEFAULT_OVERVIEW_STYLE})
+                       ${OVERVIEW_STYLES.join(', ')} (default: ${DEFAULT_OVERVIEW_STYLE});
+                       several, comma-separated, or all, to switch between in the report
   --split-hunks <lines>
                        split a hunk of more changed lines than this into parts of about this
                        size, at declaration boundaries; 0 keeps git's hunks (default: ${String(DEFAULT_SPLIT_LINES)})
@@ -93,7 +90,7 @@ export function parseCommand(argv: string[], cwd: string): Command {
       `--from ${from} reuses the prompt already written, so it cannot take new instructions; use --from prompt`,
     );
   }
-  const overviewStyle = overviewStyleFlag(values['overview-style']);
+  const overviewStyles = overviewStylesFlag(values['overview-style']);
   if (values['overview-style'] !== undefined && !reaches(from, 'prompt')) {
     throw new UsageError(
       `--from ${from} reuses the prompt already written, so it cannot take a new overview style; use --from prompt`,
@@ -119,7 +116,7 @@ export function parseCommand(argv: string[], cwd: string): Command {
       allowLarge: values['allow-large'] ?? false,
       instructions,
       splitLines: lineCount(values['split-hunks'], '--split-hunks', DEFAULT_SPLIT_LINES),
-      overviewStyle,
+      overviewStyles,
     },
   };
 }
@@ -138,12 +135,24 @@ function targetRequest(args: string[], flags: { staged?: boolean; base?: string 
   return { kind: 'pr', number: Number(number), base };
 }
 
-function overviewStyleFlag(value: string | undefined): OverviewStyle {
-  if (value === undefined) return DEFAULT_OVERVIEW_STYLE;
-  if (!isOverviewStyle(value)) {
-    throw new UsageError(`--overview-style takes one of: ${OVERVIEW_STYLES.join(', ')}`);
+/** The styles named, in the order named, each once; `all` is every style. */
+function overviewStylesFlag(value: string | undefined): OverviewStyles {
+  if (value === undefined) return [DEFAULT_OVERVIEW_STYLE];
+  const styles: OverviewStyle[] = [];
+  for (const name of value.split(',').map((part) => part.trim())) {
+    // In a list, `all` is every style not already named, so the ones named first lead.
+    if (name === 'all') {
+      styles.push(...OVERVIEW_STYLES.filter((style) => !styles.includes(style)));
+      continue;
+    }
+    if (!isOverviewStyle(name)) {
+      throw new UsageError(
+        `--overview-style takes all, or one or more of: ${OVERVIEW_STYLES.join(', ')}; not "${name}"`,
+      );
+    }
+    if (!styles.includes(name)) styles.push(name);
   }
-  return value;
+  return [styles[0]!, ...styles.slice(1)];
 }
 
 /** A flag that must be a whole number of lines, zero included. */
