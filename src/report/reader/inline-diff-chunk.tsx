@@ -1056,27 +1056,36 @@ export function InlineDiffChunk({
                   </Text>
                 </Text>
               )}
-              {tags.map((tag) => (
-                <Text
-                  key={tag.label}
-                  component="a"
-                  href={fileHref(tag.filename)}
-                  fz="xs"
-                  c="dimmed"
-                  px={6}
-                  py={1}
-                  title={tag.detail}
-                  className={`${classes.fact} ${classes.moveTag}`}
-                  style={{
-                    borderRadius: 4,
-                    border: `1px solid ${token('border')}`,
-                    // Edged in the colour the move's region is drawn in.
-                    borderLeft: `3px solid ${token('before')}`,
-                  }}
-                >
-                  {tag.label} · {tag.lines}
-                </Text>
-              ))}
+              {tags.map((tag) => {
+                // A move within this file has no other end to open.
+                const elsewhere = tag.filename !== chunk.filename;
+                return (
+                  <Text
+                    key={tag.label}
+                    {...(elsewhere
+                      ? {
+                          component: 'a',
+                          href: fileHref(tag.filename),
+                          'aria-label': `${tag.label} · ${tag.lines}, opens ${tag.filename}`,
+                        }
+                      : { component: 'span' })}
+                    fz="xs"
+                    c="dimmed"
+                    px={6}
+                    py={1}
+                    title={tag.detail}
+                    className={elsewhere ? `${classes.fact} ${classes.moveTag}` : classes.fact}
+                    style={{
+                      borderRadius: 4,
+                      border: `1px solid ${token('border')}`,
+                      // Edged in the colour the move's region is drawn in.
+                      borderLeft: `3px solid ${token('before')}`,
+                    }}
+                  >
+                    {tag.label} · {tag.lines}
+                  </Text>
+                );
+              })}
             </>
           )
         }

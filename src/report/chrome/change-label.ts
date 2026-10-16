@@ -1,18 +1,14 @@
 import type { NarrativeReview } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
 
-/**
- * The few characters that tell one report from another when its title is cut
- * off. A branch has none: its name is often as long as the title and, cut to
- * fit beside it, outweighed the title it was there to support.
- */
-export interface ChangeTag {
-  text: string;
-  kind: 'number' | 'staged';
-}
-
 export interface ChangeLabel {
-  tag: ChangeTag | null;
+  /**
+   * The few characters that tell one report from another when its title is
+   * cut off: a PR's number, or `staged`. A branch has none: its name is often
+   * as long as the title and, cut to fit beside it, outweighed the title it
+   * was there to support.
+   */
+  tag: string | null;
   title: string;
 }
 
@@ -26,15 +22,17 @@ export function changeLabel(review: NarrativeReview, meta: ReviewMeta): ChangeLa
   return { tag: changeTag(meta), title: changeTitle(review, meta) };
 }
 
-function changeTag(meta: ReviewMeta): ChangeTag | null {
-  if (meta.prNumber !== null) return { text: `#${String(meta.prNumber)}`, kind: 'number' };
-  if (meta.kind === 'staged') return { text: 'staged', kind: 'staged' };
-  return null;
+function changeTag(meta: ReviewMeta): string | null {
+  if (meta.prNumber !== null) return prTag(meta.prNumber);
+  return meta.kind === 'staged' ? 'staged' : null;
+}
+
+function prTag(prNumber: number): string {
+  return `#${String(prNumber)}`;
 }
 
 /** The page's `<title>`, led by a PR number when there is one. */
 export function documentTitle(review: NarrativeReview, meta: ReviewMeta): string {
-  const { tag, title } = changeLabel(review, meta);
-  const lead = tag?.kind === 'number' ? `${tag.text} · ` : '';
-  return `${lead}${title} · enhanced-review`;
+  const lead = meta.prNumber === null ? '' : `${prTag(meta.prNumber)} · `;
+  return `${lead}${changeTitle(review, meta)} · enhanced-review`;
 }

@@ -137,7 +137,7 @@ src/report/
                      removed lines, and one measurement for all of it, so a labelled region is always the one
                      that fades; the file stays one editor the find widget reaches; each move is one tag
                      in the card's header over every line it holds for, the similarity in its hover, and a
-                     link (hash-params.ts's fileHref) to the file at its other end — whitespace and imports
+                     link (hash-params.ts's fileHref) to the file at its other end, plain text for a move within the file — whitespace and imports
                      only get none, since the diff labels those lines in place;
                      the full-file view keeps the chapter's hunks, so its marks stay; a file with nothing on one side
                      is stacked whatever the preference, a "New" or "Deleted" badge ahead of its path, the empty

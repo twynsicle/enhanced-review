@@ -40,11 +40,11 @@ describe('changeLabel', () => {
   const tagOf = (meta: ReviewMeta, title = 'A title') => changeLabel(review(title), meta).tag;
 
   it('tags a PR with its number', () => {
-    expect(tagOf(pr)).toEqual({ text: '#42', kind: 'number' });
+    expect(tagOf(pr)).toBe('#42');
   });
 
   it('tags a branch with an open PR with the PR number', () => {
-    expect(tagOf({ ...branch, prNumber: 7 })).toEqual({ text: '#7', kind: 'number' });
+    expect(tagOf({ ...branch, prNumber: 7 })).toBe('#7');
   });
 
   it('gives a branch with no PR no tag', () => {
@@ -52,7 +52,7 @@ describe('changeLabel', () => {
   });
 
   it('tags staged changes as staged', () => {
-    expect(tagOf(staged)).toEqual({ text: 'staged', kind: 'staged' });
+    expect(tagOf(staged)).toBe('staged');
   });
 
   it("uses the review's title, or the meta's when the review gave none", () => {

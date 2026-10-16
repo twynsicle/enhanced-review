@@ -219,7 +219,17 @@ describe('<InlineDiffChunk /> by attention tier', () => {
       '92% of these lines match the lines removed from src/old.ts',
     );
     expect(moved.getAttribute('href')).toBe('#/?file=src%2Fold.ts');
+    expect(within(header).getByRole('link', { name: /opens src\/old\.ts$/ })).toBe(moved);
     expect(within(header).queryByText(/Whitespace only/)).toBeNull();
+  });
+
+  it('tags a move within the file without linking it to itself', async () => {
+    tiered([{ movedFrom: { filename: 'src/main.ts', similarity: 100 } }]);
+    await screen.findAllByTestId('diff-editor');
+    const header = screen.getByText('main.ts').closest('div')!;
+    const moved = within(header).getByText('Moved unchanged from src/main.ts · L1-10');
+    expect(moved.tagName).toBe('SPAN');
+    expect(within(header).queryByRole('link')).toBeNull();
   });
 
   it('folds every file header onto one line from a chevron, and offers none with nothing to fold', async () => {

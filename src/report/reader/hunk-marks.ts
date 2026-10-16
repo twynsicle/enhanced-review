@@ -116,8 +116,8 @@ function joinedDetail(held: Held): string {
 /**
  * The card header's tags: one per move, not one per hunk, so a block split
  * into parts and moved whole is one tag over all of its lines. Only moves,
- * since only a move is about the file as a whole — it names another one — where
- * whitespace or imports only describe lines the diff already labels in place.
+ * since only a move reaches past its lines to another file; whitespace and
+ * imports only are said on the lines themselves, while skim marks are on.
  */
 export function moveTags(hunks: readonly CitedHunk[]): MoveTag[] {
   const byLabel = new Map<string, { filename: string; held: Held }>();
