@@ -22,7 +22,7 @@ import {
   type InlineDiffSnippet,
 } from '@/report/reader/inline-diff-snippets';
 import { fileHref } from '@/report/reader/hash-params';
-import { debugMarks, hunkMarks, moveTags, type HunkMark } from '@/report/reader/hunk-marks';
+import { debugMarks, factTags, hunkMarks, type HunkMark } from '@/report/reader/hunk-marks';
 import { detectLanguage } from '@/review/language-map';
 import type {
   CitedHunk,
@@ -1031,7 +1031,7 @@ export function InlineDiffChunk({
   }, [state, expanded, chunk.hunks, file?.hunks]);
 
   const language = state.kind === 'ok' ? state.data.language : chunk.language;
-  const tags = useMemo(() => moveTags(chunk.hunks), [chunk.hunks]);
+  const tags = useMemo(() => factTags(chunk.hunks, chunk.filename), [chunk.hunks, chunk.filename]);
 
   return (
     <CodeCard label={`Diff for ${chunk.filename}`} diffFile={chunk.filename}>
@@ -1056,36 +1056,34 @@ export function InlineDiffChunk({
                   </Text>
                 </Text>
               )}
-              {tags.map((tag) => {
-                // A move within this file has no other end to open.
-                const elsewhere = tag.filename !== chunk.filename;
-                return (
-                  <Text
-                    key={tag.label}
-                    {...(elsewhere
-                      ? {
-                          component: 'a',
-                          href: fileHref(tag.filename),
-                          'aria-label': `${tag.label} · ${tag.lines}, opens ${tag.filename}`,
-                        }
-                      : { component: 'span' })}
-                    fz="xs"
-                    c="dimmed"
-                    px={6}
-                    py={1}
-                    title={tag.detail}
-                    className={elsewhere ? `${classes.fact} ${classes.moveTag}` : classes.fact}
-                    style={{
-                      borderRadius: 4,
-                      border: `1px solid ${token('border')}`,
-                      // Edged in the colour the move's region is drawn in.
-                      borderLeft: `3px solid ${token('before')}`,
-                    }}
-                  >
-                    {tag.label} · {tag.lines}
-                  </Text>
-                );
-              })}
+              {tags.map((tag) => (
+                <Text
+                  key={tag.label}
+                  {...(tag.opens === null
+                    ? { component: 'span' }
+                    : {
+                        component: 'a',
+                        href: fileHref(tag.opens),
+                        'aria-label': `${tag.label} · ${tag.lines}, opens ${tag.opens}`,
+                      })}
+                  fz="xs"
+                  c="dimmed"
+                  px={6}
+                  py={1}
+                  title={tag.detail}
+                  className={
+                    tag.opens === null ? classes.fact : `${classes.fact} ${classes.moveTag}`
+                  }
+                  style={{
+                    borderRadius: 4,
+                    border: `1px solid ${token('border')}`,
+                    // A move's tag is edged in the colour its region is drawn in.
+                    borderLeft: `3px solid ${token(tag.tone === 'move' ? 'before' : 'border')}`,
+                  }}
+                >
+                  {tag.label} · {tag.lines}
+                </Text>
+              ))}
             </>
           )
         }

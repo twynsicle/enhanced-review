@@ -89,11 +89,14 @@ function moveOf(hunk: CitedHunk): { direction: 'from' | 'to'; move: HunkMove } |
   return null;
 }
 
-/** A move and the hunks it holds for, with their lines joined. */
-export interface MoveTag extends HunkNote {
-  /** The file at the move's other end, which the tag opens. */
-  filename: string;
+/** A proven fact and the hunks it holds for, with their lines joined. */
+export interface FactTag extends HunkNote {
   lines: string;
+  /**
+   * The file at a move's other end, which the tag opens; null for a fact about
+   * these lines alone, and for a move within the file, which has no other end.
+   */
+  opens: string | null;
 }
 
 /** Hunks that share a label, each with its own note. */
@@ -114,24 +117,29 @@ function joinedDetail(held: Held): string {
 }
 
 /**
- * The card header's tags: one per move, not one per hunk, so a block split
- * into parts and moved whole is one tag over all of its lines. Only moves,
- * since only a move reaches past its lines to another file; whitespace and
- * imports only are said on the lines themselves, while skim marks are on.
+ * The card header's tags for `filename`'s hunks: one per fact, not one per
+ * hunk, so a block split into parts and moved whole is one tag over all of its
+ * lines.
  */
-export function moveTags(hunks: readonly CitedHunk[]): MoveTag[] {
-  const byLabel = new Map<string, { filename: string; held: Held }>();
+export function factTags(hunks: readonly CitedHunk[], filename: string): FactTag[] {
+  const byLabel = new Map<string, { opens: string | null; held: Held }>();
   for (const hunk of hunks.toSorted((a, b) => a.fileOrder - b.fileOrder)) {
-    const move = moveOf(hunk);
-    if (!move) continue;
-    const note = moveNote(move.direction, move.move);
+    const note = provenNote(hunk);
+    if (!note) continue;
     const entry = byLabel.get(note.label);
-    if (entry) entry.held.push({ hunk, note });
-    else byLabel.set(note.label, { filename: move.move.filename, held: [{ hunk, note }] });
+    if (entry) {
+      entry.held.push({ hunk, note });
+      continue;
+    }
+    const other = moveOf(hunk)?.move.filename;
+    byLabel.set(note.label, {
+      opens: other !== undefined && other !== filename ? other : null,
+      held: [{ hunk, note }],
+    });
   }
-  return [...byLabel.values()].map(({ filename, held }) => ({
+  return [...byLabel.values()].map(({ opens, held }) => ({
     ...held[0]!.note,
-    filename,
+    opens,
     detail: joinedDetail(held),
     lines: formatSelectedHunkLabel(held.map(({ hunk }) => hunk)),
   }));

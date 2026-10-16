@@ -135,10 +135,10 @@ src/report/
                      which is the only one that defines it) at `--review-skim-fade`, half of it for a read move
                      — an overlay rather than decorations, since no decoration reaches the stacked view's
                      removed lines, and one measurement for all of it, so a labelled region is always the one
-                     that fades; the file stays one editor the find widget reaches; each move is one tag
-                     in the card's header over every line it holds for, the similarity in its hover, and a
-                     link (hash-params.ts's fileHref) to the file at its other end, plain text for a move within the file — whitespace and imports
-                     only get none, since the diff labels those lines in place;
+                     that fades; the file stays one editor the find widget reaches; each proven fact is one tag
+                     in the card's header over every line it holds for, a move's similarity in its hover, and a
+                     move a link (hash-params.ts's fileHref) to the file at its other end — whitespace only,
+                     imports only and a move within the file plain text;
                      the full-file view keeps the chapter's hunks, so its marks stay; a file with nothing on one side
                      is stacked whatever the preference, a "New" or "Deleted" badge ahead of its path, the empty
                      side's line numbers off and the blank row Monaco draws for that side cut off by the host;
@@ -163,8 +163,8 @@ src/report/
                      setTheme, so a flip never remounts; the offset gutter helpers, the relayout once the
                      reader's column settles, and the scroll kept on a click's focus, which both editors share),
                      hunk-marks.ts (pure: provenNote, a proven fact's few words and its hover — "Imports only" among them, a move said as
-                     unchanged or with edits, the percentage kept for the hover; moveTags, one header tag per
-                     move with its hunks' touching ranges joined and the other end's filename; hunkMarks, the regions a diff labels — every
+                     unchanged or with edits, the percentage kept for the hover; factTags, one header tag per
+                     fact with its hunks' touching ranges joined, and for a move to another file that file; hunkMarks, the regions a diff labels — every
                      skim hunk, as "Skim · <fact> · <the review's reason>" (the reason left out when it only repeats
                      the fact), and every hunk with a fact whatever
                      its tier — neighbours saying the same joined into one; hunks sharing a label but not a

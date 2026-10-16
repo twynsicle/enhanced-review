@@ -206,7 +206,7 @@ describe('<InlineDiffChunk /> by attention tier', () => {
     expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
   });
 
-  it('tags each move in the header once, over all its lines, as a link to the other file', async () => {
+  it('tags each fact in the header once, over all its lines, a move as a link to the other file', async () => {
     tiered([
       { movedFrom: { filename: 'src/old.ts', similarity: 92 } },
       { movedFrom: { filename: 'src/old.ts', similarity: 92 } },
@@ -220,7 +220,8 @@ describe('<InlineDiffChunk /> by attention tier', () => {
     );
     expect(moved.getAttribute('href')).toBe('#/?file=src%2Fold.ts');
     expect(within(header).getByRole('link', { name: /opens src\/old\.ts$/ })).toBe(moved);
-    expect(within(header).queryByText(/Whitespace only/)).toBeNull();
+    const whitespace = within(header).getByText('Whitespace only · L21-30');
+    expect(whitespace.tagName).toBe('SPAN');
   });
 
   it('tags a move within the file without linking it to itself', async () => {
