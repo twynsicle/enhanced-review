@@ -62,7 +62,11 @@ src/report/
                      its hunks cited) or ◐ (some) beside its stats with the reason in its title and hidden text,
                      and the file whose diff the reader has scrolled to carries a rail (use-reading-file.ts) that is
                      a quieter, separate mark from the wash on a file the file view shows;
-                     its Files header carries the flat ⇄ tree toggle for the changed-file list, one shared row
+                     its Files header carries the flat ⇄ tree toggle for the changed-file list and the
+                     all ⇄ this chapter's files toggle (aria-pressed, disabled with no chapter open), its +/−
+                     totals counting the files listed, then a text filter on the path, ignoring case, held in
+                     component state, that opens every directory while it holds text, with folds of its own that the clear drops, and says when
+                     nothing matches; one shared row
                      component under both views, the tree drawn as nested lists with aria-expanded on the
                      directory buttons — a disclosure list, not an ARIA tree, since there is no roving tabindex —
                      and the fold state in component state),
@@ -193,7 +197,8 @@ src/report/
   stores/            Zustand, persisted, each hydrating from localStorage as it loads: layout-width.ts (`er-layout`,
                      full ⇄ wide; followLayoutWidth keeps `--review-max-width` on `<html>`), diff-view.ts
                      (`er-diff-view`, split ⇄ unified), diff-wrap.ts (`er-diff-wrap`, off ⇄ on, spelled the way
-                     Monaco spells diffWordWrap), file-list-view.ts (`er-file-list`, flat ⇄ tree), sidebar-width.ts
+                     Monaco spells diffWordWrap), file-list-view.ts (`er-file-list`, flat ⇄ tree), file-list-scope.ts (`er-file-scope`, all ⇄
+                     chapter: every changed file, or only those the open chapter cites), sidebar-width.ts
                      (`er-sidebar`, the navigation column in pixels, clamped to SIDEBAR_WIDTHS rather than matched;
                      followSidebarWidth paints `--review-sidebar-width` on `<html>` — a drag writes the variable
                      directly and commits to the store once on release), dim-comments.ts (`er-dim-comments`,
@@ -207,7 +212,7 @@ src/report/
                      preview that paints without storing, which the display menu's slider uses mid-drag, file-headers.ts (`er-file-headers`, full ⇄ one-line:
                      a code card header's facts on rows of their own, or kept beside the path), hunk-debug.ts
                      (`er-hunk-debug`, off ⇄ on: every hunk labelled with its id, tier and split part, for
-                     judging the tiers), all eleven on
+                     judging the tiers), all twelve on
                      raw-preference.ts (one word
                      or one number, not JSON). progress.ts (`er-progress`) is the one record rather than a
                      preference, so it is JSON and not on raw-preference: `{ [repo|baseSha|headSha]: { read:
