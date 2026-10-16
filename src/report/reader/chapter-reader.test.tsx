@@ -101,7 +101,15 @@ describe('the sidebar resize handle', () => {
   it('resizes on the arrow keys without walking to the next section', () => {
     const withChapter: NarrativeReview = {
       ...review,
-      chapters: [{ id: 'ch1', title: 'The scheduler', insights: [], diffChunks: [] }],
+      chapters: [
+        {
+          id: 'ch1',
+          title: 'The scheduler',
+          headline: 'The scheduler runs reviews on a cadence.',
+          insights: [],
+          diffChunks: [],
+        },
+      ],
     };
     const handle = renderReader(withChapter);
 
@@ -113,9 +121,10 @@ describe('the sidebar resize handle', () => {
     expect(useSidebarWidth.getState().width).toBe(step);
     expect(handle).toHaveAttribute('aria-valuenow', String(step));
 
-    // Still on the summary. The chapter's title appears in the sidebar either
-    // way, so this asks for the heading, which only the open section renders.
-    expect(screen.queryByRole('heading', { name: 'The scheduler' })).toBeNull();
+    // Still on the summary: the chapter's heading is drawn only while it is open.
+    expect(
+      screen.queryByRole('heading', { name: 'The scheduler runs reviews on a cadence.' }),
+    ).toBeNull();
   });
 });
 
@@ -131,6 +140,7 @@ function chapter(id: string, title: string): NarrativeChapter {
   return {
     id,
     title,
+    headline: `What ${title} changes.`,
     insights: [],
     diffChunks: [
       {
@@ -188,7 +198,7 @@ describe('a chapter change', () => {
 
     await show('ch2');
 
-    expect(screen.getByRole('heading', { name: 'Second look' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'What Second look changes.' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Show full file' })).toBeDefined();
   });
 });

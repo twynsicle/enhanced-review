@@ -12,6 +12,7 @@ import {
   InsightTypeSchema,
   MAX_CONTEXT_EXCERPTS,
   MAX_EXCERPT_LINES,
+  MAX_HEADLINE_WORDS,
   MAX_JUDGEMENT_CALLS,
   MAX_SKIM_REASON,
   NarrativeReviewSchema,
@@ -296,42 +297,29 @@ function reportTierRepairs(
 }
 
 /**
- * A `{ lede, body }` passage. Nothing written is `undefined` rather than a
- * passage of empty strings, so the reader can tell "no prose" from "a lede
- * that is a space".
+ * The overview's `{ lede, body }` passage. Nothing written is `undefined`
+ * rather than a passage of empty strings, so the caller can tell "no prose"
+ * from "a lede that is a space".
  *
  * A body arriving without a lede is promoted to one, and so is a bare string,
  * the shape the model drops back to when it forgets the object. Both are
  * leniency toward a nondeterministic producer, not compatibility with an older
- * stored shape: a passage that is dropped for arriving in the wrong field
- * leaves a chapter with a title, diffs and no prose, and a review missing what
- * it was meant to say still looks finished to whoever reads it.
+ * stored shape: an overview dropped for arriving in the wrong field fails the
+ * review, over a sentence the model did write.
  */
-function sanitizeProse(
-  raw: unknown,
-  whose: string,
-  log: FindingLog,
-  location: { chapterId?: string } = {},
-): Prose | undefined {
+function sanitizeProse(raw: unknown, whose: string, log: FindingLog): Prose | undefined {
   // Nothing sent is not something lost, and the caller decides what a missing
-  // passage means. A passage that arrived and turned out to be unreadable is a
-  // loss, and one nobody would see from the page: the chapter keeps its title
-  // and its diffs and simply says nothing.
+  // passage means; a passage that arrived and was unreadable is recorded.
   const nothing = (): undefined => {
-    if (raw !== undefined) {
-      log.add('prose-dropped', `${whose} arrived with nothing readable in it.`, location);
-    }
+    if (raw !== undefined)
+      log.add('prose-dropped', `${whose} arrived with nothing readable in it.`);
     return undefined;
   };
 
   if (typeof raw === 'string') {
     const only = raw.trim();
     if (only.length === 0) return nothing();
-    log.add(
-      'prose-promoted',
-      `${whose} arrived as a bare string, which became its lede.`,
-      location,
-    );
+    log.add('prose-promoted', `${whose} arrived as a bare string, which became its lede.`);
     return { lede: only };
   }
   if (!isRecord(raw)) return nothing();
@@ -339,7 +327,7 @@ function sanitizeProse(
   const body = typeof raw['body'] === 'string' ? raw['body'].trim() : '';
   if (lede.length === 0) {
     if (body.length === 0) return nothing();
-    log.add('prose-promoted', `${whose} arrived with a body and no lede.`, location);
+    log.add('prose-promoted', `${whose} arrived with a body and no lede.`);
     return { lede: body };
   }
   return { lede, ...(body.length > 0 ? { body } : {}) };
@@ -782,7 +770,12 @@ function mergeChunksByFile(chunks: DiffChunk[], chapterId: string, log: FindingL
   return [...merged.values()];
 }
 
-type SanitizedChapter = Rec & { id: string; title: string; diffChunks: DiffChunk[] };
+type SanitizedChapter = Rec & {
+  id: string;
+  title: string;
+  headline: string;
+  diffChunks: DiffChunk[];
+};
 
 /** `chapter-<n>`, or the first `chapter-<n>-<k>` free when a model id already took it. */
 function freshChapterId(n: string, taken: ReadonlySet<string>): string {
@@ -849,9 +842,22 @@ function sanitizeChapter(
     title = `Chapter ${n}`;
     log.add('chapter-title-synthesised', `Chapter ${id} arrived with no title.`, { chapterId: id });
   }
-  const description = sanitizeProse(raw['description'], `Chapter ${id}'s description`, log, {
-    chapterId: id,
-  });
+  // A missing headline is reported with every other chapter's, once all are read.
+  const headline = typeof raw['headline'] === 'string' ? raw['headline'].trim() : '';
+  const words = headline.split(/\s+/).filter(Boolean).length;
+  if (words > MAX_HEADLINE_WORDS) {
+    log.add(
+      'headline-long',
+      `Chapter ${id}'s headline runs to ${String(words)} words, past the ${String(MAX_HEADLINE_WORDS)} asked for.`,
+      { chapterId: id },
+    );
+  }
+  const body = typeof raw['body'] === 'string' ? raw['body'].trim() : '';
+  if (raw['body'] !== undefined && body.length === 0) {
+    log.add('prose-dropped', `Chapter ${id}'s body arrived with nothing readable in it.`, {
+      chapterId: id,
+    });
+  }
 
   const rawChunks: unknown[] = Array.isArray(raw['diffChunks']) ? raw['diffChunks'] : [];
   const diffChunks = mergeChunksByFile(
@@ -891,7 +897,8 @@ function sanitizeChapter(
   return {
     id,
     title,
-    ...(description ? { description } : {}),
+    headline,
+    ...(body.length > 0 ? { body } : {}),
     insights: sanitizeInsights(
       raw['insights'],
       new Set(diffChunks.map((c) => c.filename)),
@@ -929,6 +936,26 @@ function reportEmptyChapters(
     log.add(
       'chapter-no-hunks',
       `Chapter "${chapter.title}" (${chapter.id}) cites no hunk that resolved against the diff.`,
+      { chapterId: chapter.id },
+    );
+    any = true;
+  }
+  return any;
+}
+
+/**
+ * A chapter's headline is what its card is headed by, and a chapter without
+ * one would open on nothing. It is the one sentence every overview style
+ * keeps, so its absence is a defect in the answer, and the model is asked
+ * again rather than given a heading made up from the title.
+ */
+function reportHeadlessChapters(chapters: SanitizedChapter[], log: FindingLog): boolean {
+  let any = false;
+  for (const chapter of chapters) {
+    if (chapter.headline.length > 0) continue;
+    log.add(
+      'chapter-no-headline',
+      `Chapter "${chapter.title}" (${chapter.id}) has no headline, the one sentence its card opens on.`,
       { chapterId: chapter.id },
     );
     any = true;
@@ -1138,7 +1165,10 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
     const dropped = excerptsDropped(excerptDrops);
     log.add(dropped.code, dropped.message);
   }
-  if (reportEmptyChapters(chapters, grounding, log)) return fail(log);
+  // Both before failing, so one retry can name every chapter's defect.
+  const empty = reportEmptyChapters(chapters, grounding, log);
+  const headless = reportHeadlessChapters(chapters, log);
+  if (empty || headless) return fail(log);
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment'], log);
   const overviewDiagram = sanitizeDiagram(

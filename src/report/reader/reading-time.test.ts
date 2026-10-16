@@ -30,6 +30,7 @@ function chapter(
   return {
     id,
     title: id,
+    headline: '',
     insights: [],
     diffChunks: [{ filename: `src/${id}.ts`, language: 'typescript', hunks }],
     ...extra,
@@ -53,7 +54,8 @@ describe('a hunk’s reading time', () => {
 describe('a chapter’s reading time', () => {
   it('adds its prose at 200 words a minute: lede, body and every insight’s text', () => {
     const prose = chapter('c', [], {
-      description: { lede: words(50), body: words(100) },
+      headline: words(50),
+      body: words(100),
       insights: [
         { type: 'context', title: 'not counted', text: words(30) },
         { type: 'highlight', text: words(20) },

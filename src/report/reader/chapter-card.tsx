@@ -1,4 +1,4 @@
-import { Group, Stack, Text, Title } from '@mantine/core';
+import { Box, Group, Stack, Text, Title } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { plural } from '@/review/plural';
 import type { DiffChunk, Insight, JudgementCall, NarrativeChapter } from '@/review/narrative';
@@ -12,7 +12,7 @@ import { useReviewFiles } from '@/report/reader/file-source';
 import { InlineDiffChunk } from '@/report/reader/inline-diff-chunk';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
 import { InsightCallout } from '@/report/reader/insight-callout';
-import { ProsePassage } from '@/report/reader/prose-passage';
+import { MarkdownText } from '@/report/reader/markdown-text';
 import { chapterMinutes, formatMinutes } from '@/report/reader/reading-time';
 import { sectionCardId, sectionHeadingId } from '@/report/reader/sections';
 import { DISPLAY_SIZE, token } from '@/report/theme/tokens';
@@ -144,6 +144,11 @@ export function ChapterCard({
           prompt={askPrompt(meta, chapter, reviewFiles)}
           label={<Caption tone="before">{chapterEyebrow(chapterIndex)}</Caption>}
         />
+        {/*
+         * Headed by its headline, not its title: the title is a label for the
+         * lists that point here, and on arriving the reader wants the sentence
+         * saying what the chapter's change does.
+         */}
         <Title
           order={1}
           id={sectionHeadingId(chapter.id)}
@@ -151,9 +156,9 @@ export function ChapterCard({
           fz={DISPLAY_SIZE}
           fw={600}
           lh={1.1}
-          style={{ letterSpacing: '-0.02em', outline: 'none' }}
+          style={{ letterSpacing: '-0.02em', outline: 'none', textWrap: 'pretty' }}
         >
-          {chapter.title}
+          {chapter.headline}
         </Title>
         <Text fz="sm" c="dimmed">
           {plural(fileCount, 'file')} touched · {plural(insightCount, 'insight')} ·{' '}
@@ -161,7 +166,11 @@ export function ChapterCard({
         </Text>
       </Stack>
 
-      {chapter.description && <ProsePassage prose={chapter.description} />}
+      {chapter.body && (
+        <Box style={{ textWrap: 'pretty' }}>
+          <MarkdownText text={chapter.body} />
+        </Box>
+      )}
 
       {/*
        * Orientation before detail: the diagram sits between the passage and

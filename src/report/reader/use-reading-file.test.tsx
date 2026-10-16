@@ -35,6 +35,7 @@ const review: NarrativeReview = {
     {
       id: 'ch1',
       title: 'Shape of the change',
+      headline: 'A headline.',
       insights: [],
       diffChunks: FILES.map((filename) => ({ filename, language: 'typescript', hunks: [] })),
     },

@@ -27,7 +27,7 @@ describe('<ProsePassage />', () => {
   });
 
   it('falls back when there is no prose at all', () => {
-    render(<ProsePassage prose={undefined} emptyFallback="Nothing was written." />);
-    expect(screen.getByText('Nothing was written.')).toBeDefined();
+    render(<ProsePassage prose={undefined} />);
+    expect(screen.getByText('No overview was generated for this review.')).toBeDefined();
   });
 });

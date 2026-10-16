@@ -54,7 +54,8 @@ function chapter(diffChunks: DiffChunk[], extra: Partial<NarrativeChapter> = {})
   return {
     id: 'ch1',
     title: 'Cadence becomes a table',
-    description: { lede: 'Due-date maths becomes a lookup table.', body: 'Not in the prompt.' },
+    headline: 'Due-date maths becomes a lookup table.',
+    body: 'Not in the prompt.',
     insights: [],
     diffChunks,
     ...extra,
@@ -191,18 +192,19 @@ describe('askPrompt', () => {
     ]);
   });
 
-  it('adds the unchanged code the chapter points to, and leaves out a missing lede', () => {
+  it('adds the unchanged code the chapter points to', () => {
     const text = askPrompt(
       prMeta,
       chapter([chunk('src/a.ts', [hunk(0, [1, 6], [1, 7])])], {
-        description: undefined,
         contextExcerpts: [
           { filename: 'src/runner.ts', startLine: 10, endLine: 24, reason: 'Caps runs a day.' },
         ],
       }),
       NO_FILES,
     );
-    expect(text).toContain('Chapter: Cadence becomes a table\n\nIt cites');
+    expect(text).toContain(
+      'Chapter: Cadence becomes a table\nDue-date maths becomes a lookup table.\n\nIt cites',
+    );
     expect(text).toContain('And this unchanged code it affects:\n- src/runner.ts: head 10-24\n');
     expect(text).not.toContain('Caps runs a day.');
   });

@@ -18,11 +18,14 @@ describe('overview styles', () => {
     ).toEqual([]);
   });
 
-  it('write a section for a chosen style that keeps the lede and the JSON as they are', () => {
+  it('write a section for a chosen style that keeps the lede, the headlines and the JSON as they are', () => {
     for (const style of OVERVIEW_STYLES.filter((name) => name !== DEFAULT_OVERVIEW_STYLE)) {
       const section = overviewStyleSection(style)!;
       expect(section).toMatch(new RegExp(`^## Overview Style: ${style}\n`));
-      expect(section).toContain('each "lede" is one sentence of at most 20 words');
+      expect(section).toContain(
+        'the overview’s "lede" and every chapter’s "headline" are each one sentence of at most 20 words',
+      );
+      expect(section).toContain('every chapter has a headline');
       expect(section).toContain('the JSON shape does not change');
       expect(section).toContain('does not support');
       expect(section.endsWith(OVERVIEW_STYLE_TEXT[style]!)).toBe(true);
@@ -30,14 +33,17 @@ describe('overview styles', () => {
     expect(overviewStyleSection('narrative')).toBeNull();
   });
 
-  it('ask a tldr review for no body at all, leaving the lede the whole of it', () => {
+  it('ask a tldr review for no body at all, leaving the lede and the headlines the whole of it', () => {
     expect(OVERVIEW_STYLE_TEXT.tldr).toContain('Leave out the "body" entirely');
-    expect(OVERVIEW_STYLE_TEXT.tldr).toContain('each lede is the whole of the prose');
+    expect(OVERVIEW_STYLE_TEXT.tldr).toContain(
+      'each chapter’s headline are the whole of the prose',
+    );
   });
 
   it('know a style by its name and nothing else', () => {
     expect(isOverviewStyle('five-whys')).toBe(true);
     expect(isOverviewStyle('Five-Whys')).toBe(false);
+    expect(isOverviewStyle('checklist')).toBe(false);
     expect(isOverviewStyle('toString')).toBe(false);
   });
 });

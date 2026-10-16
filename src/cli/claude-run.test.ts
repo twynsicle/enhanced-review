@@ -93,6 +93,7 @@ const answer = (hunkIds: string[]) =>
       {
         id: 'c1',
         title: 'The change',
+        headline: 'What the change does.',
         insights: [],
         diffChunks: [
           {

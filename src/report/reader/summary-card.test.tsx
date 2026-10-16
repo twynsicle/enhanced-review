@@ -169,6 +169,7 @@ const planHunk = (lines: number, tier: CitedHunk['tier']): CitedHunk => ({
 const planChapter = (id: string, title: string, cited: CitedHunk): NarrativeChapter => ({
   id,
   title,
+  headline: 'A headline.',
   insights: [],
   diffChunks: [{ filename: `src/${id}.ts`, language: 'typescript', hunks: [cited] }],
 });

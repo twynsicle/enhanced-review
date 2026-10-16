@@ -1,5 +1,10 @@
 import { DIAGRAM_LIMITS } from '../diagram.ts';
-import { MAX_CONTEXT_EXCERPTS, MAX_EXCERPT_LINES, MAX_SKIM_REASON } from '../narrative.ts';
+import {
+  MAX_CONTEXT_EXCERPTS,
+  MAX_EXCERPT_LINES,
+  MAX_HEADLINE_WORDS,
+  MAX_SKIM_REASON,
+} from '../narrative.ts';
 
 /**
  * What the model is asked to do: the review instructions and output schema,
@@ -15,7 +20,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
 {
   "prTitle": "string — the PR title",
   "overviewSummary": {
-    "lede": "string — one sentence, at most 20 words, saying what this PR does. See Writing the prose below",
+    "lede": "string — one sentence, at most ${String(MAX_HEADLINE_WORDS)} words, saying what this PR does. See Writing the prose below",
     "body": "string — optional Markdown. The rest of the top-level picture: what changed, in what parts, and anything that spans chapters. Library/API specifics and potential issues belong in the chapters' insights, not folded in here"
   },
   "overviewDiagram": "optional object — see Diagrams below. Only for the shape of the whole change",
@@ -34,11 +39,9 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
   "chapters": [
     {
       "id": "string — unique slug like 'auth-middleware'",
-      "title": "string — short chapter label, usually 2-6 words",
-      "description": {
-        "lede": "string — one sentence, at most 20 words, saying what this chapter's change does. See Writing the prose below",
-        "body": "string — optional Markdown. Why it likely changed, and the tradeoffs or alternatives the author likely considered. Omit it when the lede is the whole story; don't pad a one-sentence change out to sound bigger than it is"
-      },
+      "title": "string — short chapter label for the sidebar and the reading plan, usually 2-6 words",
+      "headline": "string — required. One sentence, at most ${String(MAX_HEADLINE_WORDS)} words, saying what this chapter's change does. It heads the chapter in place of the title. See Writing the prose below",
+      "body": "string — optional Markdown. Why it likely changed, and the tradeoffs or alternatives the author likely considered. Omit it when the headline is the whole story; don't pad a one-sentence change out to sound bigger than it is",
       "insights": [
         {
           "type": "context | rationale | highlight",
@@ -84,15 +87,15 @@ Guidelines:
 - Each chapter should tell a coherent story about one aspect of the change.
 - Order the chapters so the reader never meets a consequence before its cause. A new type, helper or schema comes before the code that uses it; the core behaviour change comes before the wiring that connects it; the shared wiring-and-docs chapter comes last. The order of "chapters" is the order they are read in.
 - Chapter titles must be short labels that work in a sidebar, e.g., "Auth Gate", "Runner Cleanup", "Reader Layout". Do not write long takeaway sentences as titles.
-- Each chapter description should be readable by a product-minded reviewer: the lede says what was done, the body covers why it was likely done and the tradeoffs or alternatives the author likely considered. Keep it specific but not overly technical.
+- Each chapter's headline and body should be readable by a product-minded reviewer: the headline says what was done, the body covers why it was likely done and the tradeoffs or alternatives the author likely considered. Keep it specific but not overly technical.
 - Describe the PR's final diff, not how it got there. Never narrate the PR's own review or iteration history ("per review feedback", "used to do X, now does Y", "originally implemented as...") — the reviewer sees only the current diff, so a summary framed around an intermediate state compares against something they never saw. Describe what the code does now and why, not the path taken between commits.
-- Each chapter may have 0–3 insights — they are optional, not a quota. Add one only when it tells the reviewer something the chapter description does not already say. Insight types are reviewer aids (not AI opinions):
+- Each chapter may have 0–3 insights — they are optional, not a quota. Add one only when it tells the reviewer something the chapter's headline and body do not already say. Insight types are reviewer aids (not AI opinions):
   - "context": outside knowledge the reviewer would otherwise have to look up themselves — how a library, API, or pattern actually behaves, or a pointer to the related code, docs or external resource that explains it, with a link when one is genuinely useful
-  - "rationale": why this approach was chosen over alternatives, when that reasoning is not already covered in the chapter description
+  - "rationale": why this approach was chosen over alternatives, when that reasoning is not already covered in the chapter's body
   - "highlight": a potential issue you spotted in the diff, ideally naming which riskAssessment factor it lines up with
-- Never add an insight that restates the chapter description in other words. If there is nothing left to add beyond what the description already says, give the chapter fewer insights, or none.
+- Never add an insight that restates the chapter's headline or body in other words. If there is nothing left to add beyond what they already say, give the chapter fewer insights, or none.
 - Each insight has a "title" (4–10 word phrase that names the takeaway, e.g., "Buffer can grow unbounded under reconnect") and a "text" (the 1–2 sentence explanation). Title and text must not duplicate each other — the title is the headline, the text is the supporting detail.
-- Prefer concise insights. If an idea needs more explanation, put the broader explanation in the chapter description and keep the insight focused.
+- Prefer concise insights. If an idea needs more explanation, put the broader explanation in the chapter's body and keep the insight focused.
 - Each diffChunk must use only hunk IDs listed in "Changed Hunks". Do not invent IDs, and copy each filename character-for-character from "Changed Hunks" — a diffChunk whose filename does not match verbatim loses every hunk in it.
 - Keep hunk IDs file-consistent: only use hunk IDs that belong to the same filename as the diffChunk.
 - Prefer one diffChunk per file per chapter; group relevant hunk IDs in that chunk.
@@ -129,7 +132,7 @@ Reading plan:
 Not every reader has time for every chapter, and "readingPlan" tells them which to read when they have less. The reader works out how long each plan takes from the chapters themselves, so do not estimate a time.
 
 - "brief": the one to three chapters someone with five minutes must read to judge the change — where its risk is. The behaviour that could break, the decision a reviewer has to agree with. Never the wiring-and-docs chapter. Being in the brief is how a chapter is marked as core.
-- "standard": the chapters a reviewer approving the change should read. It holds every brief chapter, and leaves out what can be judged from its title and lede alone: wiring, docs, mechanical edits.
+- "standard": the chapters a reviewer approving the change should read. It holds every brief chapter, and leaves out what can be judged from its title and headline alone: wiring, docs, mechanical edits.
 - Reading every chapter is the third plan, and needs no field.
 - Use each chapter's "id" exactly as you wrote it. A plan whose brief names no chapter of this review is dropped.
 
@@ -151,17 +154,17 @@ A chapter may show up to ${String(MAX_CONTEXT_EXCERPTS)} excerpts of code the ch
 
 Writing the prose:
 
-Every "lede" and "body" here is read by someone skimming, on a screen, with the diff waiting below. The prose that fails is not the prose that is too short — it is the prose that has to be read twice. These are rules, not preferences, and they apply to every field that holds a sentence: the ledes and bodies, riskAssessment.rationale, each factor's detail, each insight's text.
+Every "headline", "lede" and "body" here is read by someone skimming, on a screen, with the diff waiting below. The prose that fails is not the prose that is too short — it is the prose that has to be read twice. These are rules, not preferences, and they apply to every field that holds a sentence: the headlines, ledes and bodies, riskAssessment.rationale, each factor's detail, each insight's text.
 
-- A "lede" is one sentence, at most 20 words, in the words you would use saying it out loud. No semicolon, no dash holding two halves together, no trailing clause that begins "which" or "so that". If it will not fit in 20 words, you are describing two things, and this is probably two chapters.
+- A "headline" or a "lede" is one sentence, at most ${String(MAX_HEADLINE_WORDS)} words, in the words you would use saying it out loud. No semicolon, no dash holding two halves together, no trailing clause that begins "which" or "so that". If it will not fit in ${String(MAX_HEADLINE_WORDS)} words, you are describing two things, and this is probably two chapters.
 - No sentence anywhere runs past 30 words. Count them. A 50-word sentence carrying three coordinate clauses is a defect and not a style: the reader has to hold the first clause until the end and then start again. Two plain sentences always beat one clever one.
 - Three or more parallel items become a Markdown list. Always, no exceptions. This is the single commonest way this prose goes wrong — "classifies each cancel into a removal based on whether a tech was ever assigned, whether the cancellation was later undone, whether a reschedule was a same-day shuffle, and whether it falls inside the threshold" is a four-item list wearing a sentence. Write the list.
-- Never open a lede with an identifier. "computeExplainedDowntimeSummaryFields is a shared helper that..." makes the reader tokenize a 40-character camelCase name before reaching a verb, and a review whose chapters all open that way reads as one undifferentiated block. Lead with what the code does — "A shared helper derives the explained/unexplained split" — and name the function in the body, or let the file list name it. At most one identifier in any lede.
+- Never open a headline or a lede with an identifier. "computeExplainedDowntimeSummaryFields is a shared helper that..." makes the reader tokenize a 40-character camelCase name before reaching a verb, and a review whose chapters all open that way reads as one undifferentiated block. Lead with what the code does — "A shared helper derives the explained/unexplained split" — and name the function in the body, or let the file list name it. At most one identifier in any headline or lede.
 - Use the "body" as Markdown, because it is Markdown: lists, a paragraph break, \`inline code\`. A body that is one unbroken 100-word paragraph has wasted the field it was given.
 - Gloss a term the first time this review uses it, in the chapter that introduces it. The change's own vocabulary — a "removal", a "trickle input", a "tech-day" — is vocabulary the author has and the reviewer does not. Three words in parentheses is enough.
 - Prefer the concrete subject and the active voice: "the runner loads the input once, before any tech is processed" over "the input is loaded once up front".
 
-Before you answer, reread every lede, body, rationale, detail and insight text you have written, and revise them. Split any sentence you could not say in one breath. Turn any run of parallel clauses into a list. Cut any phrase that survives only because it was in your first draft. This pass is not optional and it is not a formality — it is where the prose actually becomes readable, because a first draft of a summary is always denser than what a reader can take.
+Before you answer, reread every headline, lede, body, rationale, detail and insight text you have written, and revise them. Split any sentence you could not say in one breath. Turn any run of parallel clauses into a list. Cut any phrase that survives only because it was in your first draft. This pass is not optional and it is not a formality — it is where the prose actually becomes readable, because a first draft of a summary is always denser than what a reader can take.
 
 Anchoring an insight:
 
@@ -250,7 +253,7 @@ Rules for diagrams:
 - Prefer diagrams that put branches, alternatives or parallel paths beside each other. A reviewer checks symmetry without being asked, so a picture that makes an asymmetry visible has done a reviewer's work for them.
 - The caption is what earns the diagram its place. If you cannot write a sentence saying what the picture shows that your text does not, omit the diagram.
 - Ground what you can. A "code" node may carry a "filename" from the Files Changed list and "hunkIds" from the Changed Hunks list for that same file. A node that is not code — a database table, an external service, a person — must not carry a filename. Never invent a path or an id.
-- Keep labels short: node and group labels at most ${String(DIAGRAM_LIMITS.labelChars)} characters, edge labels at most ${String(DIAGRAM_LIMITS.edgeLabelChars)}, sequence message labels at most ${String(DIAGRAM_LIMITS.messageChars)}, captions at most ${String(DIAGRAM_LIMITS.captionChars)}. A label that has become a sentence belongs in the caption or the chapter description instead.
+- Keep labels short: node and group labels at most ${String(DIAGRAM_LIMITS.labelChars)} characters, edge labels at most ${String(DIAGRAM_LIMITS.edgeLabelChars)}, sequence message labels at most ${String(DIAGRAM_LIMITS.messageChars)}, captions at most ${String(DIAGRAM_LIMITS.captionChars)}. A label that has become a sentence belongs in the caption or the chapter's body instead.
 - Prefer the smallest diagram that makes the point. For "architecture", "state" and "sequence", 6 to 15 nodes is usually right. A "beforeAfter" is normally smaller — four to eight nodes — because it draws one procedure rather than a system, and a small one is not a lesser diagram. Larger is allowed when the structure genuinely needs it, but every node costs the reader something.
 - Sequence groups may nest one level deep (a loop containing an alt) and no further.
 - In an "alt" group, the branch labels and the messages inside them must say what actually DIFFERS between the branches. Three branches that read the same defeat the reason for drawing them side by side: if one path retries with a backoff, one records a run and one returns immediately, that is what the labels have to show. A reviewer reads these against each other.

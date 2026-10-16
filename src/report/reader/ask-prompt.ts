@@ -67,7 +67,6 @@ export function askPrompt(
   const excerpts = (chapter.contextExcerpts ?? []).map(
     (e) => `- ${e.filename}: head ${lineRange(e.startLine, e.endLine - e.startLine + 1)}`,
   );
-  const lede = chapter.description?.lede.trim();
 
   return [
     `Help me check one chapter of a code review of ${changeName(meta)} in ${meta.repo}.`,
@@ -75,7 +74,7 @@ export function askPrompt(
     `The change is ${base}..${head}; \`git diff ${base} ${head}\` shows it.`,
     '',
     `Chapter: ${chapter.title}`,
-    ...(lede ? [lede] : []),
+    chapter.headline,
     '',
     `It cites these lines, "head" at ${head} and "base" at ${base}:`,
     ...spans,

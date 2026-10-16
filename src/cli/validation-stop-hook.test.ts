@@ -22,6 +22,7 @@ function answer(hunkIds: string[]): string {
       {
         id: 'c',
         title: 'C',
+        headline: 'What C changes.',
         insights: [],
         diffChunks: [
           {

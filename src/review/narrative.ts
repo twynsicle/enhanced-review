@@ -251,6 +251,13 @@ export const ReviewRiskAssessmentSchema = z.object({
 });
 export type ReviewRiskAssessment = z.infer<typeof ReviewRiskAssessmentSchema>;
 
+/**
+ * The words the prompt allows a chapter's headline or the overview's lede: one
+ * sentence a reader takes in at a glance, and a headline is set at the page's
+ * display size, where a longer one fills the screen.
+ */
+export const MAX_HEADLINE_WORDS = 20;
+
 /** At most two excerpts a chapter, each at most sixty lines. */
 export const MAX_CONTEXT_EXCERPTS = 2;
 export const MAX_EXCERPT_LINES = 60;
@@ -276,8 +283,17 @@ export type ContextExcerpt = z.infer<typeof ContextExcerptSchema>;
 
 export const NarrativeChapterSchema = z.object({
   id: z.string(),
+  /** A short label for lists: the sidebar, the reading plan, the footer's Next. */
   title: z.string(),
-  description: ProseSchema.optional(),
+  /**
+   * One sentence saying what the chapter's change does, which heads its card.
+   * A field of its own rather than the lede of a restylable passage, so that
+   * no `--overview-style` can reshape or drop it: whatever the body becomes,
+   * the chapter still opens on one plain sentence.
+   */
+  headline: z.string().min(1),
+  /** Markdown beneath the headline, written as the run's overview style asks. */
+  body: z.string().optional(),
   insights: z.array(InsightSchema),
   diffChunks: z.array(DiffChunkSchema),
   /** Absent and empty mean the same: nothing outside the diff needed showing. */

@@ -115,7 +115,7 @@ not.
 
 And the smaller things: chapters you mark read are remembered, each chapter
 copies a ready-made prompt to ask Claude Code about it, the overview can be
-written in six styles from prose to a checklist, `--instructions` tells the
+written in five styles from prose to a one-line tl;dr, `--instructions` tells the
 review what to look hardest at, and the report follows your light or dark
 theme.
 

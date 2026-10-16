@@ -37,7 +37,9 @@ describe('the report header', () => {
 
   it('takes a reader in a chapter back to the summary', async () => {
     const link = renderAt('#/?ch=cadence-table');
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Cadence becomes a table');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Due-date maths becomes a lookup table instead of a ternary.',
+    );
     fireEvent.click(link);
     expect(await screen.findByRole('heading', { level: 1, name: summaryTitle })).toBeDefined();
   });

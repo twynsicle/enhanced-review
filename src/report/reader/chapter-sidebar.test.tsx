@@ -18,10 +18,17 @@ const chapters: NarrativeChapter[] = [
   {
     id: 'ch1',
     title: 'Shape of the change',
+    headline: 'A headline.',
     insights: [],
     diffChunks: [{ filename: 'src/app/page.tsx', language: 'typescript', hunks: [] }],
   },
-  { id: 'ch2', title: 'Risks and follow-ups', insights: [], diffChunks: [] },
+  {
+    id: 'ch2',
+    title: 'Risks and follow-ups',
+    headline: 'A headline.',
+    insights: [],
+    diffChunks: [],
+  },
 ];
 
 const sections: ReaderSection[] = [
@@ -337,6 +344,7 @@ describe('<ChapterSidebar />', () => {
       {
         id: 'ch1',
         title: 'Shape of the change',
+        headline: 'A headline.',
         insights: [],
         diffChunks: [
           { filename: 'src/app/page.tsx', language: 'typescript', hunks: [hunk('H0001', 1)] },
@@ -627,6 +635,7 @@ describe('<ChapterSidebar /> finding a file', () => {
     {
       id: 'ch1',
       title: 'Shape of the change',
+      headline: 'A headline.',
       insights: [],
       diffChunks: [
         { filename: 'src/web/components/chapter-sidebar.tsx', language: 'typescript', hunks: [] },
@@ -636,6 +645,7 @@ describe('<ChapterSidebar /> finding a file', () => {
     {
       id: 'ch2',
       title: 'Risks and follow-ups',
+      headline: 'A headline.',
       insights: [],
       diffChunks: [
         { filename: 'src/web/components/file-tree.ts', language: 'typescript', hunks: [] },

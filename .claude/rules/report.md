@@ -71,7 +71,9 @@ src/report/
                      directory buttons — a disclosure list, not an ARIA tree, since there is no roving tabindex —
                      and the fold state in component state),
                      file-tree.ts (pure: ReviewFile[] → the directory tree, single-child chains collapsed into one
-                     row), chapter-card (groupInsightsByFile splits the chapter's insights: an anchored one goes
+                     row), chapter-card (headed by the chapter's headline at display size, its title being the
+                     label the sidebar, the reading plan and Next show;
+                     the body as Markdown beneath; groupInsightsByFile splits the chapter's insights: an anchored one goes
                      down to its diff card, the rest stay in the Insights section above them; the chapter's
                      judgement calls arrive keyed by file and go down the same way; the header's meta line ends
                      in the chapter's estimate, "~3 min"; the eyebrow shares its row with the Ask button; the
@@ -90,7 +92,7 @@ src/report/
                      region that would read the whole prompt out; no toast, no notifications package),
                      ask-prompt.ts (pure: askPrompt(meta, chapter, files), the copied text — the change by
                      meta.kind (PR number and title, the branch, or the staged changes), the range as
-                     12-character shas with its `git diff`, the chapter's title and lede, each cited hunk with
+                     12-character shas with its `git diff`, the chapter's title and headline, each cited hunk with
                      both its sides, `head 40-45, base 40-48` — a cited hunk carries git's context lines, so
                      neither side alone is the change — the base side under a renamed file's origin path, and
                      only the side that exists for a new or deleted file, marked `(new)` or `(gone at head)`;
@@ -102,7 +104,7 @@ src/report/
                      is, theme and wrap following the diff's; the file comes through useFilePair, and a file
                      the bundle lacks is a line of text, never an empty editor),
                      reading-time.ts (pure, and the only place a reading speed is stated: prose at 200 words a
-                     minute — a chapter's lede, body and insight texts, the overview's lede and body — a `read`
+                     minute — a chapter's headline, body and insight texts, the overview's lede and body — a `read`
                      hunk at 25 changed lines a minute, `skim` at 100, a hunk's changedLines being what it adds
                      and removes, git's context left out; a diagram 30 seconds, an excerpt's lines at the skim
                      speed and its reason as prose; a chapter rounds up to whole minutes, at least one;
@@ -118,7 +120,8 @@ src/report/
                      then its uncited hunks under their own label, or why it has none), skipped-file.ts (the copy
                      for ReviewFile.skipped reasons), insight-callout (InsightCallout and JudgementCallout over one
                      marginalia treatment), article.module.css (the reading measure + the diff bleed lane),
-                     prose-passage (a Prose: the lede one step up the scale, the body as Markdown beneath),
+                     prose-passage (the overview's Prose: the lede one step up the scale, the body as Markdown
+                     beneath),
                      markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
                      file-source (EmbeddedFileSource: both sides of every file the bundle carries, and the review's
                      record of each changed file; useFilePair, useReviewFile, useReviewFiles — an excerpted file

@@ -16,6 +16,7 @@ function chapter(id: string, files: (string | [string, string[]])[]): NarrativeC
   return {
     id,
     title: id.toUpperCase(),
+    headline: 'A headline.',
     insights: [],
     diffChunks: files.map((entry) => {
       const [filename, hunkIds] = typeof entry === 'string' ? [entry, ['H0001']] : entry;
