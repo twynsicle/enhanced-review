@@ -21,7 +21,6 @@ import { validateReview } from '../review/validate-review.ts';
 import type { RunContext } from './context.ts';
 import { checkExcerpts } from './excerpts.ts';
 import type { Shell } from './git.ts';
-import { readOverviewStyles } from './prompt.ts';
 import type { RunFiles } from './run-folder.ts';
 
 /**
@@ -47,6 +46,7 @@ export interface ParsedRun {
 export async function parseRun(
   context: RunContext,
   run: RunFiles,
+  styles: OverviewStyles,
   shell: Shell,
 ): Promise<ParsedRun> {
   let raw: string;
@@ -55,7 +55,7 @@ export async function parseRun(
   } catch {
     throw new Error(`no raw.txt in ${run.folder}; run from an earlier stage`);
   }
-  const validation = validateReview(raw, groundingForRun(context, await readOverviewStyles(run)));
+  const validation = validateReview(raw, groundingForRun(context, styles));
   const findings = [...validation.findings, ...(await runFindings(run))];
 
   const fatal = fatalFindings(findings);

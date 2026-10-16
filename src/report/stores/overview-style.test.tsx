@@ -4,7 +4,6 @@ import { DisplayMenu } from '@/report/chrome/display-menu';
 import { ProsePassage } from '@/report/reader/prose-passage';
 import { render, screen, userEvent } from '@/report/test/render';
 import {
-  nextStyle,
   OVERVIEW_STYLE_KEY,
   shownStyle,
   useOverviewStyle,
@@ -41,12 +40,6 @@ describe('the overview style preference', () => {
     expect(shownStyle(styles, 'simple')).toBe('simple');
     expect(shownStyle(styles, 'pros-cons')).toBe('plain');
   });
-
-  it('steps through the review’s own styles, back round to its first', () => {
-    const styles: OverviewStyles = ['narrative', 'simple', 'tldr'];
-    expect(nextStyle(styles, 'narrative')).toBe('simple');
-    expect(nextStyle(styles, 'tldr')).toBe('narrative');
-  });
 });
 
 const prose: Prose = {
@@ -65,7 +58,7 @@ async function styleRow(): Promise<HTMLElement> {
 }
 
 describe('the display menu’s overview style', () => {
-  it('switches the body read, through every style the review carries', async () => {
+  it('switches the body read to whichever of the review’s styles is picked', async () => {
     const styles: OverviewStyles = ['narrative', 'simple', 'tldr'];
     render(
       <>
@@ -76,15 +69,22 @@ describe('the display menu’s overview style', () => {
     expect(screen.getByText('The story.')).toBeDefined();
 
     const row = await styleRow();
-    expect(row.getAttribute('aria-label')).toMatch(/^Overview style: Narrative/);
+    expect(row.getAttribute('aria-label')).toBe('Overview style: Narrative');
     await userEvent.click(row);
-    expect(screen.getByText('Short words.')).toBeDefined();
-    expect(screen.queryByText('The story.')).toBeNull();
+    const offered = await screen.findAllByRole('menuitemradio');
+    expect(offered.map((item) => item.textContent)).toEqual([
+      'Narrative',
+      'Simple',
+      'Headlines only',
+    ]);
 
-    await userEvent.click(row);
-    expect(row.getAttribute('aria-label')).toMatch(/^Overview style: Headlines only/);
-    expect(screen.queryByText('Short words.')).toBeNull();
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Headlines only' }));
+    expect(screen.queryByText('The story.')).toBeNull();
     expect(screen.getByText('The lede.')).toBeDefined();
+    expect(row.getAttribute('aria-label')).toBe('Overview style: Headlines only');
+
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Simple' }));
+    expect(screen.getByText('Short words.')).toBeDefined();
   });
 
   it('is not offered for a review written in one style', async () => {

@@ -114,17 +114,21 @@ export async function review(
     const started = performance.now();
     const prompt = await writePrompt(context, run, options.instructions, options.overviewStyles);
     const yours = options.instructions === null ? '' : ' with yours';
-    const styles = options.overviewStyles;
+    const asked = options.overviewStyles;
     const style =
-      styles.length === 1 && styles[0] === DEFAULT_OVERVIEW_STYLE
+      asked.length === 1 && asked[0] === DEFAULT_OVERVIEW_STYLE
         ? ''
-        : `; ${styles.join(', ')} overview ${styles.length === 1 ? 'style' : 'styles'}`;
+        : `; ${asked.join(', ')} overview ${asked.length === 1 ? 'style' : 'styles'}`;
     stage(
       'prompt',
       `~${tokens(prompt)} tokens${yours}, plus the review instructions${style}`,
       performance.now() - started,
     );
   }
+
+  // Read back off the run folder rather than taken from the flag, so a resumed
+  // run is held to the styles its prompt asked for.
+  const styles = runs('parse') ? await readOverviewStyles(run) : null;
 
   if (runs('run')) {
     if (limits) {
@@ -147,7 +151,7 @@ export async function review(
     const where = worktree ? ', in a worktree of the PR' : '';
     try {
       if (options.stub) {
-        const chapters = await writeStubRun(context, run, await readOverviewStyles(run));
+        const chapters = await writeStubRun(context, run, styles!);
         stage(
           'run',
           `stub review, ${plural(chapters, 'chapter')}${where}`,
@@ -165,7 +169,7 @@ export async function review(
               model: options.model,
               maxTurns: options.maxTurns,
               timeoutMs: options.timeoutMs,
-              grounding: groundingForRun(context, await readOverviewStyles(run)),
+              grounding: groundingForRun(context, styles!),
             },
             {
               onActivity: progress.activity,
@@ -194,7 +198,7 @@ export async function review(
   let findings: Finding[];
   if (runs('parse')) {
     const started = performance.now();
-    const result = await parseRun(context, run, deps.shell.at(context.target.repoRoot));
+    const result = await parseRun(context, run, styles!, deps.shell.at(context.target.repoRoot));
     parsed = result.review;
     findings = result.findings;
     stage(

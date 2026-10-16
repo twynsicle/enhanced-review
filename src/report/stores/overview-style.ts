@@ -51,8 +51,3 @@ export function useOverviewStyle(styles: OverviewStyles): OverviewStyle {
     useOverviewStyleChoice((state) => state.chosen),
   );
 }
-
-/** The style after `current` in the review's own order, back round to its first. */
-export function nextStyle(styles: OverviewStyles, current: OverviewStyle): OverviewStyle {
-  return styles[(styles.indexOf(current) + 1) % styles.length]!;
-}

@@ -305,8 +305,8 @@ function reportTierRepairs(
  * from "a lede that is a space".
  *
  * A bare string is promoted to the lede, the shape the model drops back to
- * when it forgets the object, and so is the first body when no lede came with
- * it. Both are leniency toward a nondeterministic producer, not compatibility
+ * when it forgets the object, and so is the body when no lede came with it
+ * and only one style was asked for. Both are leniency toward a nondeterministic producer, not compatibility
  * with an older stored shape: an overview dropped for arriving in the wrong
  * field fails the review, over a sentence the model did write.
  */
@@ -334,22 +334,24 @@ function sanitizeProse(
   const lede = typeof raw['lede'] === 'string' ? raw['lede'].trim() : '';
   const bodies = sanitizeBodies(raw, whose, styles, log);
   if (lede.length > 0) return { lede, ...(bodies ? { bodies } : {}) };
-  const first = styles.find((style) => bodies?.[style] !== undefined);
-  if (!bodies || first === undefined) return nothing();
+  if (!bodies) return nothing();
+  // Beside other styles, one style's body as the lede would leave that style
+  // alone without a body and every other repeating it under their own.
+  const only = styles.length === 1 ? bodies[styles[0]!] : undefined;
+  if (only === undefined) {
+    log.add('prose-dropped', `${whose} arrived with bodies and no lede for them to share.`);
+    return undefined;
+  }
   log.add('prose-promoted', `${whose} arrived with a body and no lede.`);
-  const { [first]: promoted, ...rest } = bodies;
-  return {
-    lede: promoted!,
-    ...(Object.keys(rest).length > 0 ? { bodies: rest } : {}),
-  };
+  return { lede: only };
 }
 
 /**
  * A passage's bodies, each trimmed, under the styles the run asked for. A body
- * under any other key is dropped, since the reader offers only those styles.
- * A lone `body` where one style was asked for is that style's: the model
- * reaching for the field name every other passage uses, leniency toward it
- * rather than an older shape.
+ * under any other key, which the reader would never offer, fails the review
+ * rather than leaving it short of what the model wrote. A lone `body` where one
+ * style was asked for is that style's: the model reaching for the field name
+ * every other passage uses, leniency toward it rather than an older shape.
  */
 function sanitizeBodies(
   raw: Rec,
@@ -365,7 +367,7 @@ function sanitizeBodies(
       if (style === undefined) {
         log.add(
           'body-style-dropped',
-          `${whose} has a body in "${key}", a style this review did not ask for.`,
+          `${whose} has a body in "${key}", a style this review did not ask for; ${askedFor(styles)}.`,
         );
         continue;
       }
@@ -389,10 +391,19 @@ function sanitizeBodies(
         `${whose} sent a "body" rather than "bodies", which became its ${only} body.`,
       );
     } else {
-      log.add('prose-dropped', `${whose} sent a "body" that no one style could claim.`);
+      log.add(
+        'body-style-dropped',
+        `${whose} sent a "body" that no one style could claim; ${askedFor(styles)}.`,
+      );
     }
   }
   return Object.keys(bodies).length > 0 ? bodies : undefined;
+}
+
+function askedFor(styles: readonly OverviewStyle[]): string {
+  return styles.length === 0
+    ? 'this review asks for no bodies'
+    : `write each under its key in "bodies": ${styles.join(', ')}`;
 }
 
 /**
@@ -1003,17 +1014,10 @@ function reportEmptyChapters(
 }
 
 /**
- * A chapter's headline is what its card is headed by, and a chapter without
- * one would open on nothing. It is the one sentence every overview style
- * keeps, so its absence is a defect in the answer, and the model is asked
- * again rather than given a heading made up from the title.
- */
-/**
- * A style asked for beside others that has no body anywhere, while they have
- * some, is one the model forgot: every style may leave out a chapter's body,
- * but not the whole review's. Holding it to that is what keeps a comparison
- * between styles like for like. A review with no body in any style is left
- * alone, as a single-style review with none is.
+ * A passage with a body in some of the styles asked for has one in all of
+ * them: a style left out of one chapter would show that chapter as its
+ * headline alone, and the comparison between styles would no longer be like
+ * for like. A passage with no body in any style has nothing to write.
  */
 function reportMissingStyles(
   overview: Prose,
@@ -1021,21 +1025,35 @@ function reportMissingStyles(
   styles: readonly OverviewStyle[],
   log: FindingLog,
 ): boolean {
-  const passages = [overview.bodies, ...chapters.map((chapter) => chapter.bodies)];
-  const written = styles.filter((style) =>
-    passages.some((bodies) => bodies?.[style] !== undefined),
-  );
-  if (written.length === 0) return false;
-  const missing = styles.filter((style) => !written.includes(style));
-  for (const style of missing) {
+  const passages = [
+    { whose: 'The overview summary', bodies: overview.bodies, location: {} },
+    ...chapters.map((chapter) => ({
+      whose: `Chapter ${chapter.id}`,
+      bodies: chapter.bodies,
+      location: { chapterId: chapter.id },
+    })),
+  ];
+  let any = false;
+  for (const { whose, bodies, location } of passages) {
+    const written = styles.filter((style) => bodies?.[style] !== undefined);
+    const missing = styles.filter((style) => bodies?.[style] === undefined);
+    if (written.length === 0 || missing.length === 0) continue;
     log.add(
       'style-missing',
-      `No passage has a body in the ${style} style, which this review asked for beside ${written.join(', ')}.`,
+      `${whose} has a body in ${written.join(', ')} but none in ${missing.join(', ')}, which this review also asked for.`,
+      location,
     );
+    any = true;
   }
-  return missing.length > 0;
+  return any;
 }
 
+/**
+ * A chapter's headline is what its card is headed by, and a chapter without
+ * one would open on nothing. It is the one sentence every overview style
+ * keeps, so its absence is a defect in the answer, and the model is asked
+ * again rather than given a heading made up from the title.
+ */
 function reportHeadlessChapters(chapters: SanitizedChapter[], log: FindingLog): boolean {
   let any = false;
   for (const chapter of chapters) {
@@ -1264,7 +1282,8 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
   const empty = reportEmptyChapters(chapters, grounding, log);
   const headless = reportHeadlessChapters(chapters, log);
   const unstyled = reportMissingStyles(overviewSummary, chapters, styles, log);
-  if (empty || headless || unstyled) return fail(log);
+  const misfiled = log.findings.some((item) => item.code === 'body-style-dropped');
+  if (empty || headless || unstyled || misfiled) return fail(log);
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment'], log);
   const overviewDiagram = sanitizeDiagram(

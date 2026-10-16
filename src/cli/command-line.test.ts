@@ -27,6 +27,10 @@ describe('the command line', () => {
       reviewOptions(['--overview-style', 'simple, pros-cons,simple,narrative']).overviewStyles,
     ).toEqual(['simple', 'pros-cons', 'narrative']);
     expect(reviewOptions(['--overview-style', 'all']).overviewStyles).toEqual([...OVERVIEW_STYLES]);
+    expect(reviewOptions(['--overview-style', 'simple,all']).overviewStyles).toEqual([
+      'simple',
+      ...OVERVIEW_STYLES.filter((style) => style !== 'simple'),
+    ]);
   });
 
   it('refuses a style it does not know, naming it and the ones it does', () => {

@@ -138,9 +138,13 @@ function targetRequest(args: string[], flags: { staged?: boolean; base?: string 
 /** The styles named, in the order named, each once; `all` is every style. */
 function overviewStylesFlag(value: string | undefined): OverviewStyles {
   if (value === undefined) return [DEFAULT_OVERVIEW_STYLE];
-  if (value.trim() === 'all') return [...OVERVIEW_STYLES];
   const styles: OverviewStyle[] = [];
   for (const name of value.split(',').map((part) => part.trim())) {
+    // In a list, `all` is every style not already named, so the ones named first lead.
+    if (name === 'all') {
+      styles.push(...OVERVIEW_STYLES.filter((style) => !styles.includes(style)));
+      continue;
+    }
     if (!isOverviewStyle(name)) {
       throw new UsageError(
         `--overview-style takes all, or one or more of: ${OVERVIEW_STYLES.join(', ')}; not "${name}"`,

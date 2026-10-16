@@ -48,8 +48,13 @@ export async function readOverviewStyles(run: RunFiles): Promise<OverviewStyles>
   } catch {
     throw new Error(`no styles.json in ${run.folder}; run from the prompt stage`);
   }
-  const parsed = OverviewStylesSchema.safeParse(JSON.parse(text));
-  if (!parsed.success) throw new Error(`${run.styles} does not name the overview styles`);
+  let parsed;
+  try {
+    parsed = OverviewStylesSchema.safeParse(JSON.parse(text));
+  } catch {
+    parsed = null;
+  }
+  if (!parsed?.success) throw new Error(`${run.styles} does not name the overview styles`);
   return parsed.data;
 }
 

@@ -158,9 +158,15 @@ Name several, comma-separated, or `all`, to compare them on the same review:
 er review 42 --overview-style narrative,simple,pros-cons
 ```
 
+The report opens on the first style named, so `simple,all` is every style,
+opening on `simple`.
+
 The model then writes every body once per style, on the same chapters, and the
 report's display menu (the gear in the header) gains an **Overview style** row
-that steps between them; the choice is remembered for the next review. The
+that opens a list of them to pick from; the choice is remembered for the next
+review. A passage has a body in every style or in none: a chapter left out of
+one style, or a body under a style that was not asked for, fails the review
+rather than shipping a comparison that is not like for like. The
 headlines are shared, so `tldr` in a list asks the model for nothing and shows
 as **Headlines only**. Each extra style adds roughly a thousand output tokens,
 a few cents, but a longer answer the model must get right in one go, which is

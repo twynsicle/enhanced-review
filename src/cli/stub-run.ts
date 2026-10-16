@@ -77,10 +77,7 @@ export function stubReview({ meta, files, hunks }: RunContext, styles: OverviewS
         id: `file-${String(index + 1)}`,
         title: file.filename.split('/').at(-1)!,
         headline: `${file.filename} is ${file.status}: +${String(file.additions)} −${String(file.deletions)} across ${plural(fileHunks.length, 'hunk')}.`,
-        // Only to compare: a single-style stub has never written a chapter a body.
-        ...(bodyStyles(styles).length > 1
-          ? stubBodies(styles, 'The stub run wrote this; no model read the file.')
-          : {}),
+        ...stubBodies(styles, 'The stub run wrote this; no model read the file.'),
         insights: [
           {
             type: 'context',

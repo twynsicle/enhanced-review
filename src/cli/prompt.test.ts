@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -235,5 +235,14 @@ describe('the local prompt', () => {
     await expect(readOverviewStyles(runFiles(path.join(run.folder, 'elsewhere')))).rejects.toThrow(
       /no styles\.json in .*; run from the prompt stage/,
     );
+  });
+
+  it('names the file when what it holds is not a list of styles, JSON or not', async () => {
+    for (const text of ['["narrative"', '["haiku"]', '[]']) {
+      writeFileSync(run.styles, text);
+      await expect(readOverviewStyles(run)).rejects.toThrow(
+        `${run.styles} does not name the overview styles`,
+      );
+    }
   });
 });

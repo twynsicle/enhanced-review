@@ -100,8 +100,9 @@ export function overviewStyleSection(styles: readonly OverviewStyle[]): string |
     'The engineer who ran this review is comparing ways of writing a body, so write the body of ' +
     'overviewSummary and of each chapter once in each of these styles, each under its own key in ' +
     `"bodies": ${keys}. Each is the same passage told another way, from the same evidence: never ` +
-    'a body that refers to another style’s, or borrows its shape. Leave a key out only where its ' +
-    'style says a body may be left out. Everything else in your system prompt still holds: ' +
+    'a body that refers to another style’s, or borrows its shape. A passage has a body in every ' +
+    'one of these styles, or, where it has no body to write, in none: never in some and not ' +
+    'others. Everything else in your system prompt still holds: ' +
     `${UNCHANGED} The lede and the headlines are shared by every style, so no style reshapes them.\n\n` +
     written
       .map(

@@ -169,13 +169,14 @@ src/review/
                      card shows, and the reader picks the owner the same way; the cap is
                      applied here rather than by the schema, which could only refuse the whole review;
                      sanitizeProse takes the overview's `{ lede, bodies? }` object or a bare string, which is
-                     promoted to the lede, as is the first style's body when no lede came with it; bodies are
+                     promoted to the lede, as is the body when no lede came with it and one style was asked
+                     for (several with no lede to share drop the overview, which fails the review); bodies are
                      kept trimmed under the styles the grounding asked for (PromptGrounding.styles, the default
-                     style when there is no grounding), a body under another key dropped in a
-                     `body-style-dropped` note and a blank one in `prose-dropped`, and a lone `body` taken as
-                     the one style's when one was asked for (`prose-promoted`) or dropped when several were;
-                     a style asked for beside others with no body anywhere while they have some is a fatal
-                     `style-missing`, one per style, so a comparison between styles is like for like; a chapter with no headline (absent,
+                     style when there is no grounding), a blank one dropped in `prose-dropped`, and a lone
+                     `body` taken as the one style's when one was asked for (`prose-promoted`); a body under
+                     another key, or a lone `body` beside several styles, is a fatal `body-style-dropped` naming
+                     the keys asked for; a passage with a body in some styles asked for but not all is a fatal
+                     `style-missing`, one per passage, so a comparison between styles is like for like; a chapter with no headline (absent,
                      blank or not a string) is a fatal `chapter-no-headline`, every such chapter named before the
                      review fails, so one retry mends them all — never a heading made up from the title; a
                      headline past MAX_HEADLINE_WORDS (the prompt's

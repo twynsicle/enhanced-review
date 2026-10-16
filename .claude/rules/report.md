@@ -36,8 +36,8 @@ src/report/
                      changeLabel, the header's tag — `#<n>` for a PR, `staged`, or none for a branch, whose
                      name outweighed the title beside it — and title; documentTitle, led by the PR number alone; unrelated
                      to ask-prompt's changeName, which words the change for a prompt), display-menu (every display preference in one labelled
-                     dropdown: the overview style, first and only for a review written in several, stepping
-                     through the review's own styles on each click, `tldr` named "Headlines only"; then diffs,
+                     dropdown: the overview style, first and only for a review written in several, a submenu
+                     of the review's own styles to pick from, `tldr` named "Headlines only"; then diffs,
                      long lines, comments, file headers, skim hunks, hunk debug, layout, theme — comments
                      and skim hunks each with a fade slider beneath while they are dimmed or marked)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
@@ -221,7 +221,7 @@ src/report/
                      (`er-hunk-debug`, off ⇄ on: every hunk labelled with its id, tier and split part, for
                      judging the tiers), overview-style.ts (`er-overview-style`, the style last chosen, or none:
                      kept across reviews so a comparison carries on into the next; shownStyle falls back to the
-                     review's first style when it was not written in the one chosen; nextStyle), all thirteen on
+                     review's first style when it was not written in the one chosen), all thirteen on
                      raw-preference.ts (one word
                      or one number, not JSON). progress.ts (`er-progress`) is the one record rather than a
                      preference, so it is JSON and not on raw-preference: `{ [repo|baseSha|headSha]: { read:
