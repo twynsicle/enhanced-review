@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { plural } from '@/review/plural';
 import type { DiffChunk, Insight, JudgementCall, NarrativeChapter } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
+import { isTestFile } from '@/review/test-file';
 import { Caption } from '@/report/chrome/caption';
 import classes from '@/report/reader/article.module.css';
 import { AskClaudeCode } from '@/report/reader/ask-claude-code';
@@ -35,19 +36,6 @@ const ORDINALS = [
 
 function chapterEyebrow(index: number): string {
   return `Chapter ${ORDINALS[index] ?? `#${index}`}`;
-}
-
-const TEST_PATH_SEGMENT = /^(__tests__|tests?|specs?)$/i;
-
-function isTestFile(filename: string): boolean {
-  const segments = filename.split('/');
-  const base = segments[segments.length - 1] ?? filename;
-  return (
-    /\.(test|spec)\.[^./]+$/i.test(base) ||
-    /_test\.[^./]+$/i.test(base) ||
-    /^test_/i.test(base) ||
-    segments.some((segment) => TEST_PATH_SEGMENT.test(segment))
-  );
 }
 
 /**

@@ -132,7 +132,8 @@ nearby changes, so a new file is one hunk however many things it does, and a
 chapter that wants one function of it has to show all of it. `er` cuts any hunk
 of more than 10 changed lines (the default) into parts of about that size,
 between declarations, and the model can then tell each part in the chapter it
-belongs to. `0` keeps git's hunks. It cannot be given with `--from`, which
+belongs to. A TypeScript or JavaScript test file is cut between its test cases
+and hooks, and never inside one, however long. `0` keeps git's hunks. It cannot be given with `--from`, which
 reuses the hunks the last run numbered.
 
 ### Overview styles

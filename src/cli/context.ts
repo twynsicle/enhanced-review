@@ -89,7 +89,7 @@ export async function gather(
 
   const diffs = (
     await mapLimit(reviewed, PARALLEL_GIT, (file) => fileDiff(shell, target, file))
-  ).map((patch) => splitPatch(patch, splitLines));
+  ).map((patch, i) => splitPatch(patch, splitLines, reviewed[i]!.filename));
   // Read before the hunks are numbered: an imports-only hunk is proven
   // against the whole file on each side, not just its own lines.
   const contents = await embedContents(shell, target, reviewed);

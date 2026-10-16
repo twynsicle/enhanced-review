@@ -82,6 +82,8 @@ src/review/
                      readEmbeddedBundle
   language-map.ts    path → Monaco language id, which hunk-facts also reads for whether indentation is syntax
   plural.ts
+  test-file.ts       isTestFile: a path named or placed as a test by the common conventions, which the
+                     splitter cuts by its test blocks and the chapter card lists after the code it tests
   prompt/            ai-file-filter (builtInSkipReason over lockfiles, bundles and snapshots, binarySkipReason;
                      `src/cli/skip-reasons.ts` layers the repository's own marks between them),
                      diff-hunk-catalog (H0001… ids, each hunk's changedLines counted off its body;
@@ -121,8 +123,13 @@ src/review/
                      range, a block still over the target cut again one level in, never inside a run of changed
                      lines that both removes and adds, then packed greedily up to the target, a part of three or
                      fewer non-blank changed lines (a function's `return` and closing bracket, typically) joined
-                     to its neighbour past the target, since alone it is tiered by its bracket; splitPart reads a
-                     header's part number back),
+                     to its neighbour past the target, since alone it is tiered by its bracket; in a script's test
+                     file (isScriptFile and isTestFile) a part may also open at a suite, case or hook line
+                     (describe/it/test and the rest, modifiers included), never inside a case or hook — one over
+                     the target stays whole — nor straight after a suite's opening line, which goes with
+                     whatever follows it, its setup or its first case, so a `describe(` is never a part of its own; a block ends at the next line no deeper than its
+                     opener, measured on the opener's own side; a hunk that starts mid-case has no opener to go
+                     by and is cut by paragraphs; splitPart reads a header's part number back),
                      instructions.ts (NARRATIVE_SYSTEM_PROMPT, the review instructions and output schema, and
                      LOCAL_WORKING_TREE, the closing paragraph saying where the agent is standing),
                      overview-styles (OVERVIEW_STYLES, the names --overview-style takes and er validates against,
