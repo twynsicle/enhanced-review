@@ -11,25 +11,25 @@ function scopeAfterRehydrate(stored: string | null): string {
 describe('file list scope', () => {
   beforeEach(() => {
     window.localStorage.clear();
-    useFileListScope.setState({ scope: 'all' });
+    useFileListScope.setState(useFileListScope.getInitialState());
   });
 
-  it('lists every file when nothing is stored', () => {
-    expect(scopeAfterRehydrate(null)).toBe('all');
+  it("lists the chapter's files when nothing is stored", () => {
+    expect(scopeAfterRehydrate(null)).toBe('chapter');
   });
 
-  it("keeps a reader who chose the chapter's files on them", () => {
-    expect(scopeAfterRehydrate('chapter')).toBe('chapter');
+  it('keeps a reader who chose every file on them', () => {
+    expect(scopeAfterRehydrate('all')).toBe('all');
   });
 
   it('ignores a value it does not recognise', () => {
-    expect(scopeAfterRehydrate('section')).toBe('all');
+    expect(scopeAfterRehydrate('section')).toBe('chapter');
   });
 
   it('stores the raw word, the way the other reader preferences do', () => {
     useFileListScope.getState().toggle();
-    expect(window.localStorage.getItem(FILE_LIST_SCOPE_KEY)).toBe('chapter');
-    useFileListScope.getState().toggle();
     expect(window.localStorage.getItem(FILE_LIST_SCOPE_KEY)).toBe('all');
+    useFileListScope.getState().toggle();
+    expect(window.localStorage.getItem(FILE_LIST_SCOPE_KEY)).toBe('chapter');
   });
 });

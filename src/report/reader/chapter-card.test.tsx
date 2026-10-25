@@ -86,6 +86,7 @@ describe('<ChapterCard /> with a mix of insights', () => {
       <EmbeddedFileSource bundle={bundle}>
         <ChapterCard
           chapter={chapter}
+          styles={['narrative']}
           bodyStyle="narrative"
           meta={bundle.meta}
           chapterIndex={1}

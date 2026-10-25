@@ -1,11 +1,9 @@
-import { ActionIcon, Box, Group, Menu, Slider, Text, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, Box, Menu, Slider, Text, useMantineColorScheme } from '@mantine/core';
 import {
-  IconAlignLeft,
   IconBlur,
   IconBlurOff,
   IconBug,
   IconBugOff,
-  IconChevronLeft,
   IconFold,
   IconFoldDown,
   IconLayoutColumns,
@@ -21,8 +19,6 @@ import {
   IconViewportWide,
 } from '@tabler/icons-react';
 import { useState, type ReactNode } from 'react';
-import type { OverviewStyle, OverviewStyles } from '@/review/narrative';
-import { isOverviewStyle } from '@/review/prompt/overview-styles';
 import { selectSpaceLimited, useDiffView, useReaderColumn } from '@/report/stores/diff-view';
 import { useDiffWrap } from '@/report/stores/diff-wrap';
 import { COMMENT_FADES, previewCommentFade, useCommentFade } from '@/report/stores/comment-fade';
@@ -31,22 +27,10 @@ import type { FadeRange } from '@/report/stores/fade';
 import { useFileHeaders } from '@/report/stores/file-headers';
 import { useHunkDebug } from '@/report/stores/hunk-debug';
 import { useLayoutWidth } from '@/report/stores/layout-width';
-import { useOverviewStyle, useOverviewStyleChoice } from '@/report/stores/overview-style';
 import { previewSkimFade, SKIM_FADES, useSkimFade } from '@/report/stores/skim-fade';
 import { useSkimMarks } from '@/report/stores/skim-marks';
 
 const ICON = 16;
-
-/** What each overview style is called in the menu; `tldr` is what it shows rather than its flag. */
-const STYLE_NAMES: Record<OverviewStyle, string> = {
-  narrative: 'Narrative',
-  'before-after': 'Before and after',
-  'five-whys': 'Five whys',
-  plain: 'Plain',
-  simple: 'Simple',
-  'pros-cons': 'Pros and cons',
-  tldr: 'Headlines only',
-};
 
 /**
  * One display setting: what it is on the left, what it is currently set to on
@@ -149,55 +133,8 @@ function FadeSlider({
   );
 }
 
-/**
- * Which style the overview and chapter bodies are read in, for a review written
- * in several. A submenu of the review's own styles, so a reader comparing two
- * of up to seven goes straight to either rather than round the others.
- */
-function OverviewStyleItem({ styles }: { styles: OverviewStyles }) {
-  const shown = useOverviewStyle(styles);
-  const choose = useOverviewStyleChoice((s) => s.choose);
-  return (
-    // Leftward: the menu hangs from the header's right edge, so a submenu to its right is off the page.
-    <Menu.Sub position="left-start">
-      <Menu.Sub.Target>
-        <Menu.Sub.Item
-          leftSection={<IconAlignLeft size={ICON} />}
-          rightSection={
-            <Group component="span" gap={4} wrap="nowrap" ml="lg">
-              <Text component="span" fz="xs" c="dimmed">
-                {STYLE_NAMES[shown]}
-              </Text>
-              <IconChevronLeft size={ICON} />
-            </Group>
-          }
-          closeMenuOnClick={false}
-          aria-label={`Overview style: ${STYLE_NAMES[shown]}`}
-        >
-          Overview style
-        </Menu.Sub.Item>
-      </Menu.Sub.Target>
-      <Menu.Sub.Dropdown>
-        <Menu.RadioGroup
-          value={shown}
-          onChange={(value) => isOverviewStyle(value) && choose(value)}
-        >
-          {styles.map((style) => (
-            <Menu.RadioItem key={style} value={style}>
-              {STYLE_NAMES[style]}
-            </Menu.RadioItem>
-          ))}
-        </Menu.RadioGroup>
-      </Menu.Sub.Dropdown>
-    </Menu.Sub>
-  );
-}
-
-/**
- * Every display preference the report has, in one menu. `styles` are the
- * review's overview styles, offered only when there is more than one to choose.
- */
-export function DisplayMenu({ styles }: { styles?: OverviewStyles }) {
+/** Every display preference the report has, in one menu. */
+export function DisplayMenu() {
   const view = useDiffView((s) => s.view);
   const toggleView = useDiffView((s) => s.toggle);
   const wrap = useDiffWrap((s) => s.wrap);
@@ -233,7 +170,6 @@ export function DisplayMenu({ styles }: { styles?: OverviewStyles }) {
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>Display settings</Menu.Label>
-        {styles && styles.length > 1 && <OverviewStyleItem styles={styles} />}
         <SettingItem
           icon={split ? <IconLayoutColumns size={ICON} /> : <IconLayoutRows size={ICON} />}
           name="Diffs"

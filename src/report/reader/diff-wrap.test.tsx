@@ -41,6 +41,7 @@ vi.mock('@monaco-editor/react', async () => {
     getContentHeight: () => 120,
     onDidContentSizeChange: () => disposable,
     onDidLayoutChange: () => disposable,
+    onDidChangeCursorSelection: () => disposable,
     // No model is handed over, so there are no skim lines to fade.
     getModel: () => null,
     createDecorationsCollection: () => ({ clear: () => {} }),

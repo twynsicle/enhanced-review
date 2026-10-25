@@ -41,6 +41,7 @@ import {
   makeOffsetLineNumbers,
   MIN_EDITOR_HEIGHT,
   useEditorTheme,
+  followSelectionInWindow,
   useLayoutOnColumnSettle,
   useScrollKeptOnFocus,
 } from '@/report/reader/monaco-editors';
@@ -654,6 +655,8 @@ function SnippetEditor({
         modified.onDidContentSizeChange(measure),
         diffEditor.onDidUpdateDiff(measure),
         modified.onDidLayoutChange(measureMarks),
+        followSelectionInWindow(original),
+        followSelectionInWindow(modified),
       ];
       applyWordWrap(diffEditor, wrapRef.current);
       applySnippetLayout(diffEditor, snippet, expanded, emptySide);

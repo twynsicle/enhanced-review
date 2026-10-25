@@ -98,6 +98,7 @@ describe('<ChapterSidebar />', () => {
         activeId={SUMMARY_SECTION_ID}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
     expect(screen.getByText('Summary')).toBeDefined();
@@ -113,6 +114,7 @@ describe('<ChapterSidebar />', () => {
         activeId={SUMMARY_SECTION_ID}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
     expect(screen.getByText('Summary').closest('button')?.getAttribute('aria-current')).toBe(
@@ -129,6 +131,7 @@ describe('<ChapterSidebar />', () => {
         activeId="ch2"
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
     expect(
@@ -145,6 +148,7 @@ describe('<ChapterSidebar />', () => {
         activeId={SUMMARY_SECTION_ID}
         onSelect={onSelect}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
     fireEvent.click(screen.getByText('Risks and follow-ups'));
@@ -161,6 +165,7 @@ describe('<ChapterSidebar />', () => {
         riskAssessment={riskAssessment}
         onSelect={onSelect}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
 
@@ -183,6 +188,7 @@ describe('<ChapterSidebar />', () => {
         riskAssessment={riskAssessment}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
     expect(screen.getAllByText('Risk')).toHaveLength(1);
@@ -202,6 +208,7 @@ describe('<ChapterSidebar />', () => {
         activeId={SUMMARY_SECTION_ID}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
     const marks = screen.getAllByText('has a diagram');
@@ -219,6 +226,7 @@ describe('<ChapterSidebar />', () => {
         activeId={SUMMARY_SECTION_ID}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
     expect(screen.getByRole('button', { name: /Shape of the change core chapter/ })).toBeDefined();
@@ -237,6 +245,7 @@ describe('<ChapterSidebar />', () => {
         readIds={new Set(['ch2', SUMMARY_SECTION_ID, 'gone'])}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
     const read = screen.getByRole('button', { name: /Risks and follow-ups read/ });
@@ -259,6 +268,7 @@ describe('<ChapterSidebar />', () => {
         activeId={SUMMARY_SECTION_ID}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
     expect(screen.getByText('page.tsx')).toBeDefined();
@@ -277,6 +287,7 @@ describe('<ChapterSidebar />', () => {
         files={[{ filename: 'src/app/page.tsx', status: 'modified', additions: 12, deletions: 3 }]}
         onSelect={onSelect}
         onSelectFile={onSelectFile}
+        onRevealFile={noop}
       />,
     );
 
@@ -307,6 +318,7 @@ describe('<ChapterSidebar />', () => {
         ]}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
 
@@ -368,6 +380,7 @@ describe('<ChapterSidebar />', () => {
         activeId={SUMMARY_SECTION_ID}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
 
@@ -403,6 +416,7 @@ describe('<ChapterSidebar />', () => {
         ]}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
 
@@ -422,6 +436,7 @@ describe('<ChapterSidebar />', () => {
         files={[{ filename: 'src/app/page.tsx', status: 'modified', additions: 1, deletions: 0 }]}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
 
@@ -459,6 +474,7 @@ function renderFiles(activeFile: string | null = null) {
       files={treeFiles}
       onSelect={noop}
       onSelectFile={noop}
+      onRevealFile={noop}
     />,
   );
 }
@@ -506,6 +522,7 @@ describe('<ChapterSidebar /> file list view', () => {
         files={treeFiles}
         onSelect={noop}
         onSelectFile={onSelectFile}
+        onRevealFile={noop}
       />
     );
     render(view);
@@ -547,6 +564,7 @@ describe('<ChapterSidebar /> file list view', () => {
         files={treeFiles}
         onSelect={noop}
         onSelectFile={onSelectFile}
+        onRevealFile={noop}
       />,
     );
     fireEvent.click(screen.getByLabelText('Group files by directory'));
@@ -666,6 +684,7 @@ describe('<ChapterSidebar /> finding a file', () => {
         files={treeFiles}
         onSelect={noop}
         onSelectFile={noop}
+        onRevealFile={noop}
       />,
     );
   }
@@ -719,6 +738,26 @@ describe('<ChapterSidebar /> finding a file', () => {
     expect(toggle.getAttribute('aria-pressed')).toBe('true');
     expect(listed()).toEqual(['guide.md', 'chapter-sidebar.tsx']);
     expect(useFileListScope.getState().scope).toBe('chapter');
+  });
+
+  it("brings a file's diff into view, rather than leaving the chapter, while listing its files", () => {
+    useFileListScope.setState({ scope: 'chapter' });
+    const onSelectFile = vi.fn();
+    const onRevealFile = vi.fn();
+    render(
+      <ChapterSidebar
+        sections={sections}
+        chapters={scopedChapters}
+        activeId="ch1"
+        files={treeFiles}
+        onSelect={noop}
+        onSelectFile={onSelectFile}
+        onRevealFile={onRevealFile}
+      />,
+    );
+    fireEvent.click(screen.getByText('guide.md'));
+    expect(onRevealFile).toHaveBeenCalledWith('docs/guide.md');
+    expect(onSelectFile).not.toHaveBeenCalled();
   });
 
   it('lists every file, and disables the toggle, where no chapter is open', () => {

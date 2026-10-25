@@ -115,6 +115,7 @@ describe('a chapter with an excerpt', () => {
       <EmbeddedFileSource bundle={SAMPLE_BUNDLE}>
         <ChapterCard
           chapter={chapter}
+          styles={['narrative']}
           bodyStyle="narrative"
           meta={SAMPLE_BUNDLE.meta}
           chapterIndex={1}

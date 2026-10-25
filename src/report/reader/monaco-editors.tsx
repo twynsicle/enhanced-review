@@ -1,12 +1,13 @@
 import { Box, Text, useComputedColorScheme } from '@mantine/core';
 import type * as MonacoReact from '@monaco-editor/react';
 import type { DiffEditorProps, EditorProps } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
+import type { editor, IDisposable } from 'monaco-editor';
 import { lazy, useCallback, useEffect, useRef, type ComponentType, type RefObject } from 'react';
 import { MONACO_VS_URL } from '@/report/reader/monaco-cdn';
 import { defineEditorThemes, editorTheme } from '@/report/reader/monaco-themes';
 import { useReaderColumn } from '@/report/stores/diff-view';
 import { useDimComments } from '@/report/stores/dim-comments';
+import { TOPBAR_HEIGHT } from '@/report/theme/tokens';
 
 /**
  * The code viewer: the one place the reader imports Monaco, and what its two
@@ -171,6 +172,34 @@ export function useLayoutOnColumnSettle(editorRef: RefObject<{ layout: () => voi
       unsubscribe();
     };
   }, [editorRef]);
+}
+
+/**
+ * Room kept clear under the topbar for the code card's sticky header, which
+ * sits over the editor's top lines. A guess rather than a measurement: the
+ * header grows rows of facts, and a match a little under it is still found.
+ */
+const STICKY_HEADER_ALLOWANCE = 64;
+
+/**
+ * Scroll the window to an editor's selection when it moves off screen, as
+ * find-next (Enter, F3) and the arrow keys move it. Every editor here is sized
+ * to its content, so it never scrolls itself and Monaco's own reveal has
+ * nothing to move: without this the match is selected somewhere below the
+ * fold and the page stays put. A click's selection is already where the reader
+ * is looking, and is left alone.
+ */
+export function followSelectionInWindow(codeEditor: editor.ICodeEditor): IDisposable {
+  return codeEditor.onDidChangeCursorSelection((event) => {
+    if (event.source === 'mouse') return;
+    const position = codeEditor.getScrolledVisiblePosition(event.selection.getPosition());
+    const node = codeEditor.getDomNode();
+    if (!position || !node) return;
+    const top = node.getBoundingClientRect().top + position.top;
+    const bottom = top + position.height;
+    if (top >= TOPBAR_HEIGHT + STICKY_HEADER_ALLOWANCE && bottom <= window.innerHeight) return;
+    window.scrollTo({ top: window.scrollY + top - window.innerHeight / 2 });
+  });
 }
 
 /** How long a pointerdown's scroll offset stays good for the focus it expects. */

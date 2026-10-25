@@ -7,6 +7,7 @@ import type {
   JudgementCall,
   NarrativeChapter,
   OverviewStyle,
+  OverviewStyles,
 } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
 import { isTestFile } from '@/review/test-file';
@@ -20,6 +21,7 @@ import { InlineDiffChunk } from '@/report/reader/inline-diff-chunk';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
 import { InsightCallout } from '@/report/reader/insight-callout';
 import { MarkdownText } from '@/report/reader/markdown-text';
+import { OverviewStyleTabs } from '@/report/reader/overview-style-tabs';
 import { chapterMinutes, formatMinutes } from '@/report/reader/reading-time';
 import { sectionCardId, sectionHeadingId } from '@/report/reader/sections';
 import { DISPLAY_SIZE, token } from '@/report/theme/tokens';
@@ -99,6 +101,7 @@ export function SectionRule({ label, count }: { label: string; count: number }) 
 /** One chapter as an article: eyebrow, title, passage, insights grid, files. */
 export function ChapterCard({
   chapter,
+  styles,
   bodyStyle,
   meta,
   chapterIndex,
@@ -107,6 +110,8 @@ export function ChapterCard({
   footer,
 }: {
   chapter: NarrativeChapter;
+  /** The styles the review was written in, offered as tabs over the body. */
+  styles: OverviewStyles;
   /** Which of the chapter's bodies is read, and so timed. */
   bodyStyle: OverviewStyle;
   /** Where the review came from, which the Ask button's prompt names. */
@@ -127,6 +132,7 @@ export function ChapterCard({
   const fileCount = chapter.diffChunks.length;
   const insightCount = chapter.insights.length;
   const body = chapter.bodies?.[bodyStyle];
+  const hasBodies = Object.keys(chapter.bodies ?? {}).length > 0;
   const excerpts = chapter.contextExcerpts ?? [];
   const { anchored, unanchored } = groupInsightsByFile(chapter.insights);
   const reviewFiles = useReviewFiles();
@@ -136,7 +142,11 @@ export function ChapterCard({
       id={sectionCardId(chapter.id)}
       aria-labelledby={sectionHeadingId(chapter.id)}
     >
-      <Stack component="header" gap={12}>
+      {/*
+       * Bled past the measure: a headline is a sentence at display size, and
+       * held to the prose's width it wraps to three or four lines.
+       */}
+      <Stack component="header" gap={12} data-bleed>
         <AskClaudeCode
           key={chapter.id}
           prompt={askPrompt(meta, chapter, reviewFiles)}
@@ -164,10 +174,18 @@ export function ChapterCard({
         </Text>
       </Stack>
 
-      {body && (
-        <Box style={{ textWrap: 'pretty' }}>
-          <MarkdownText text={body} />
-        </Box>
+      {/*
+       * Tabs only over a chapter written with a body: a "Headlines only" tab
+       * over nothing in every style would offer a choice with no difference.
+       */}
+      {hasBodies && (
+        <OverviewStyleTabs styles={styles} shown={bodyStyle}>
+          {body && (
+            <Box style={{ textWrap: 'pretty' }}>
+              <MarkdownText text={body} />
+            </Box>
+          )}
+        </OverviewStyleTabs>
       )}
 
       {/*

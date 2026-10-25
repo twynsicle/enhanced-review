@@ -11,6 +11,7 @@ import {
   makeOffsetLineNumbers,
   MIN_EDITOR_HEIGHT,
   useEditorTheme,
+  followSelectionInWindow,
   useLayoutOnColumnSettle,
   useScrollKeptOnFocus,
 } from '@/report/reader/monaco-editors';
@@ -60,7 +61,10 @@ function ExcerptEditor({
           EDITOR_HEIGHT_PADDING,
       );
     };
-    disposables.current = [codeEditor.onDidContentSizeChange(measure)];
+    disposables.current = [
+      codeEditor.onDidContentSizeChange(measure),
+      followSelectionInWindow(codeEditor),
+    ];
     measure();
   }, []);
 

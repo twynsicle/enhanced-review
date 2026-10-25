@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { OverviewStyles, Prose } from '@/review/narrative';
-import { DisplayMenu } from '@/report/chrome/display-menu';
+import { OverviewStyleTabs } from '@/report/reader/overview-style-tabs';
 import { ProsePassage } from '@/report/reader/prose-passage';
 import { render, screen, userEvent } from '@/report/test/render';
 import {
@@ -47,50 +47,38 @@ const prose: Prose = {
   bodies: { narrative: 'The story.', simple: 'Short words.' },
 };
 
-/** What the reader does with the choice: the overview in the style shown. */
+/** What the reader does with the choice: the overview in the style shown, under its tabs. */
 function Overview({ styles }: { styles: OverviewStyles }) {
-  return <ProsePassage prose={prose} bodyStyle={useOverviewStyle(styles)} />;
+  const shown = useOverviewStyle(styles);
+  return (
+    <OverviewStyleTabs styles={styles} shown={shown}>
+      <ProsePassage prose={prose} bodyStyle={shown} />
+    </OverviewStyleTabs>
+  );
 }
 
-async function styleRow(): Promise<HTMLElement> {
-  await userEvent.click(screen.getByRole('button', { name: 'Display settings' }));
-  return screen.findByRole('menuitem', { name: /^Overview style:/ });
-}
-
-describe('the display menu’s overview style', () => {
-  it('switches the body read to whichever of the review’s styles is picked', async () => {
-    const styles: OverviewStyles = ['narrative', 'simple', 'tldr'];
-    render(
-      <>
-        <DisplayMenu styles={styles} />
-        <Overview styles={styles} />
-      </>,
-    );
+describe('the overview style tabs', () => {
+  it('switch the body read to whichever of the review’s styles is picked', async () => {
+    render(<Overview styles={['narrative', 'simple', 'tldr']} />);
     expect(screen.getByText('The story.')).toBeDefined();
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Narrative', 'Simple', 'Headlines only']);
+    expect(screen.getByRole('tab', { name: 'Narrative' }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
 
-    const row = await styleRow();
-    expect(row.getAttribute('aria-label')).toBe('Overview style: Narrative');
-    await userEvent.click(row);
-    const offered = await screen.findAllByRole('menuitemradio');
-    expect(offered.map((item) => item.textContent)).toEqual([
-      'Narrative',
-      'Simple',
-      'Headlines only',
-    ]);
-
-    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Headlines only' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Headlines only' }));
     expect(screen.queryByText('The story.')).toBeNull();
     expect(screen.getByText('The lede.')).toBeDefined();
-    expect(row.getAttribute('aria-label')).toBe('Overview style: Headlines only');
+    expect(useOverviewStyleChoice.getState().chosen).toBe('tldr');
 
-    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Simple' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Simple' }));
     expect(screen.getByText('Short words.')).toBeDefined();
   });
 
-  it('is not offered for a review written in one style', async () => {
-    render(<DisplayMenu styles={['simple']} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Display settings' }));
-    await screen.findByRole('menuitem', { name: /^Theme:/ });
-    expect(screen.queryByRole('menuitem', { name: /^Overview style:/ })).toBeNull();
+  it('are not drawn for a review written in one style', () => {
+    render(<Overview styles={['simple']} />);
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.getByText('Short words.')).toBeDefined();
   });
 });

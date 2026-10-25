@@ -36,9 +36,7 @@ src/report/
                      changeLabel, the header's tag — `#<n>` for a PR, `staged`, or none for a branch, whose
                      name outweighed the title beside it — and title; documentTitle, led by the PR number alone; unrelated
                      to ask-prompt's changeName, which words the change for a prompt), display-menu (every display preference in one labelled
-                     dropdown: the overview style, first and only for a review written in several, a submenu
-                     of the review's own styles to pick from, `tldr` named "Headlines only"; then diffs,
-                     long lines, comments, file headers, skim hunks, hunk debug, layout, theme — comments
+                     dropdown: diffs, long lines, comments, file headers, skim hunks, hunk debug, layout, theme — comments
                      and skim hunks each with a fade slider beneath while they are dimmed or marked)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
@@ -52,7 +50,8 @@ src/report/
                      section-footer (the last thing in every section card, bled to the full column so its rule
                      spans the diffs and Next sits bottom right: a chapter's Read checkbox and its
                      count, then a primary "Next: <title>" that marks the chapter read and moves on, focusing
-                     the next heading as the keyboard does — opening a chapter never marks it; the last chapter's
+                     the next heading as the keyboard does, whose → and Space mark a chapter moved on from read
+                     too — opening a chapter never marks it; the last chapter's
                      is "Back to summary", which marks it too; the summary and risk get Next alone, and a summary
                      with nothing after it no footer),
                      chapter-sidebar (+ .module.css; the risk card is the risk section's only entry, a row carrying
@@ -65,7 +64,9 @@ src/report/
                      and the file whose diff the reader has scrolled to carries a rail (use-reading-file.ts) that is
                      a quieter, separate mark from the wash on a file the file view shows;
                      its Files header carries the flat ⇄ tree toggle for the changed-file list and the
-                     all ⇄ this chapter's files toggle (aria-pressed, disabled with no chapter open), its +/−
+                     this chapter's files ⇄ all toggle (aria-pressed, disabled with no chapter open; while it
+                     narrows, a row scrolls the chapter to that file's diff card instead of opening the file
+                     view, so the reader never leaves the chapter), its +/−
                      totals counting the files listed, then a text filter on the path, ignoring case, held in
                      component state, that opens every directory while it holds text, with folds of its own that the clear drops, and says when
                      nothing matches; one shared row
@@ -73,9 +74,12 @@ src/report/
                      directory buttons — a disclosure list, not an ARIA tree, since there is no roving tabindex —
                      and the fold state in component state),
                      file-tree.ts (pure: ReviewFile[] → the directory tree, single-child chains collapsed into one
-                     row), chapter-card (headed by the chapter's headline at display size, its title being the
+                     row), chapter-card (headed by the chapter's headline at display size, the header bled past
+                     the measure so the headline does not wrap to a column of short lines, its title being the
                      label the sidebar, the reading plan and Next show;
-                     the body in the style being read as Markdown beneath, the style handed down from
+                     the body in the style being read as Markdown beneath, under overview-style-tabs (one tab per
+                     style for a review written in several, over the summary's overview and each chapter's body
+                     alike, and none for one style; `tldr` named "Headlines only"), the style handed down from
                      chapter-reader's useOverviewStyle as `bodyStyle`, the summary card's too; groupInsightsByFile splits the chapter's insights: an anchored one goes
                      down to its diff card, the rest stay in the Insights section above them; the chapter's
                      judgement calls arrive keyed by file and go down the same way; the header's meta line ends
@@ -172,7 +176,9 @@ src/report/
                      useEditorTheme, the theme both are handed — vs/vs-dark by the scheme, or its dimmed twin
                      when er-dim-comments says so — which the library applies to the live editor with
                      setTheme, so a flip never remounts; the offset gutter helpers, the relayout once the
-                     reader's column settles, and the scroll kept on a click's focus, which both editors share),
+                     reader's column settles, the scroll kept on a click's focus, and followSelectionInWindow — the
+                     window scrolled to a selection that find-next or the keyboard moved off screen, since an
+                     editor sized to its content never scrolls itself — which both editors share),
                      hunk-marks.ts (pure: provenNote, a proven fact's few words and its hover — "Imports only" among them, a move said as
                      unchanged or with edits, the percentage kept for the hover; factTags, one header tag per
                      fact with its hunks' touching ranges joined, and for a move to another file that file; hunkMarks, the regions a diff labels — every
@@ -204,8 +210,8 @@ src/report/
   stores/            Zustand, persisted, each hydrating from localStorage as it loads: layout-width.ts (`er-layout`,
                      full ⇄ wide; followLayoutWidth keeps `--review-max-width` on `<html>`), diff-view.ts
                      (`er-diff-view`, split ⇄ unified), diff-wrap.ts (`er-diff-wrap`, off ⇄ on, spelled the way
-                     Monaco spells diffWordWrap), file-list-view.ts (`er-file-list`, flat ⇄ tree), file-list-scope.ts (`er-file-scope`, all ⇄
-                     chapter: every changed file, or only those the open chapter cites), sidebar-width.ts
+                     Monaco spells diffWordWrap), file-list-view.ts (`er-file-list`, flat ⇄ tree), file-list-scope.ts (`er-file-scope`, chapter ⇄
+                     all, chapter by default: only the files the open chapter cites, or every changed file), sidebar-width.ts
                      (`er-sidebar`, the navigation column in pixels, clamped to SIDEBAR_WIDTHS rather than matched;
                      followSidebarWidth paints `--review-sidebar-width` on `<html>` — a drag writes the variable
                      directly and commits to the store once on release), dim-comments.ts (`er-dim-comments`,
