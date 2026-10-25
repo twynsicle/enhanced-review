@@ -90,6 +90,10 @@ const hunk = (id: string, fileOrder: number) => ({
 });
 
 describe('<ChapterSidebar />', () => {
+  beforeEach(() => {
+    useFileListView.setState({ view: 'flat' });
+  });
+
   it('renders summary plus each chapter title', () => {
     render(
       <ChapterSidebar

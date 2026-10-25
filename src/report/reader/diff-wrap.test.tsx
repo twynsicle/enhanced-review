@@ -176,21 +176,16 @@ describe('the wrap preference', () => {
     useDiffWrap.setState({ wrap: 'off' });
   });
 
-  /*
-   * Off is what the reader has today, and wrapping costs the one-row-per-line
-   * correspondence a diff is read by — so it is a state a reader asks for,
-   * never one they arrive at.
-   */
-  it('leaves long lines running off the edge when nothing is stored', () => {
-    expect(wrapAfterRehydrate(null)).toBe('off');
+  it('wraps long lines when nothing is stored', () => {
+    expect(wrapAfterRehydrate(null)).toBe('on');
   });
 
-  it('wraps for a reader who has asked for it', () => {
-    expect(wrapAfterRehydrate('on')).toBe('on');
+  it('leaves long lines unwrapped for a reader who has asked for it', () => {
+    expect(wrapAfterRehydrate('off')).toBe('off');
   });
 
   it('ignores a value it does not recognise', () => {
-    expect(wrapAfterRehydrate('sometimes')).toBe('off');
+    expect(wrapAfterRehydrate('sometimes')).toBe('on');
   });
 
   it('flips between the two stops', () => {

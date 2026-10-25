@@ -7,15 +7,12 @@ import { rawPreferenceStorage } from '@/report/stores/raw-preference';
  * basename first with its directory trailing behind it; `tree` groups them
  * under directory rows that fold.
  *
- * `flat` is the default because it is the shorter list at the sizes most
- * reviews are — a dozen files scattered around the tree read as a dozen rows,
- * where the tree spends half its rows on structure nobody asked about. The
- * tree earns its keep in the other direction, on the review that touches
- * fifteen files across four directories and repeats the same prefix down the
- * whole column. Which of those is in front of the reader is not something the
- * file count can decide — a flat list of forty siblings is fine and a tree of
- * six across five directories is not — so this is a choice, and the unchosen
- * state is the one readers already have.
+ * `tree` is the default. The list is narrowed to the open chapter's files
+ * unless the reader widens it, so the tree's directory rows are few, and they
+ * say where in the codebase a chapter lands, which a column of basenames does
+ * not. Single-child chains collapse into one row, so a deep path costs one.
+ * A flat list of forty siblings reads better than its tree, so this stays a
+ * choice.
  *
  * Persisted raw under `er-file-list`, as `er-diff-view` and `er-diff-wrap`
  * are. Expansion state is deliberately not part of this: which directories a
@@ -33,14 +30,14 @@ interface FileListViewState {
 }
 
 const rawStorage = rawPreferenceStorage<Pick<FileListViewState, 'view'>>(
-  (stored) => ({ view: stored === 'tree' ? 'tree' : 'flat' }),
+  (stored) => ({ view: stored === 'flat' ? 'flat' : 'tree' }),
   (state) => state.view,
 );
 
 export const useFileListView = create<FileListViewState>()(
   persist(
     (set) => ({
-      view: 'flat',
+      view: 'tree',
       toggle: () => set((state) => ({ view: state.view === 'tree' ? 'flat' : 'tree' })),
     }),
     {

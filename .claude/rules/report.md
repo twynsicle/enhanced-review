@@ -35,9 +35,10 @@ src/report/
                      change-label.ts (changeTitle, the one place the review's title falls back to the meta's;
                      changeLabel, the header's tag — `#<n>` for a PR, `staged`, or none for a branch, whose
                      name outweighed the title beside it — and title; documentTitle, led by the PR number alone; unrelated
-                     to ask-prompt's changeName, which words the change for a prompt), display-menu (every display preference in one labelled
-                     dropdown: diffs, long lines, comments, file headers, skim hunks, hunk debug, layout, theme — comments
-                     and skim hunks each with a fade slider beneath while they are dimmed or marked)
+                     to ask-prompt's changeName, which words the change for a prompt), display-menu (every display preference in one dropdown, in three
+                     labelled groups: Page (layout, theme), Code (diffs, long lines, file headers) and Experimental
+                     (comments, skim hunks, hunk debug) — comments and skim hunks each with a fade slider beneath
+                     while they are dimmed or marked)
   reader/            chapter-reader (+ .module.css grid, resizable sidebar, ?ch=/?file= state through
                      hash-params.ts — `#/?ch=…`, because the page is opened from file:// where the query string
                      belongs to the file; each change is a history entry; the review's read chapters from the
@@ -209,8 +210,8 @@ src/report/
                      caption), diagram-modal (full-screen viewBox pan/zoom), diagram.module.css
   stores/            Zustand, persisted, each hydrating from localStorage as it loads: layout-width.ts (`er-layout`,
                      full ⇄ wide; followLayoutWidth keeps `--review-max-width` on `<html>`), diff-view.ts
-                     (`er-diff-view`, split ⇄ unified), diff-wrap.ts (`er-diff-wrap`, off ⇄ on, spelled the way
-                     Monaco spells diffWordWrap), file-list-view.ts (`er-file-list`, flat ⇄ tree), file-list-scope.ts (`er-file-scope`, chapter ⇄
+                     (`er-diff-view`, split ⇄ unified), diff-wrap.ts (`er-diff-wrap`, off ⇄ on, on by default, spelled the way
+                     Monaco spells diffWordWrap), file-list-view.ts (`er-file-list`, flat ⇄ tree, tree by default), file-list-scope.ts (`er-file-scope`, chapter ⇄
                      all, chapter by default: only the files the open chapter cites, or every changed file), sidebar-width.ts
                      (`er-sidebar`, the navigation column in pixels, clamped to SIDEBAR_WIDTHS rather than matched;
                      followSidebarWidth paints `--review-sidebar-width` on `<html>` — a drag writes the variable
@@ -222,7 +223,7 @@ src/report/
                      hunks fade, clamped to SKIM_FADES; followSkimFade paints `--review-skim-fade`, which the
                      .wash class reads) — both made by fade.ts's createFadePreference, a percentage painted on
                      `<html>` as a fraction, so a change restyles every editor without re-rendering one, and a
-                     preview that paints without storing, which the display menu's slider uses mid-drag, file-headers.ts (`er-file-headers`, full ⇄ one-line:
+                     preview that paints without storing, which the display menu's slider uses mid-drag, file-headers.ts (`er-file-headers`, full ⇄ one-line, one-line by default:
                      a code card header's facts on rows of their own, or kept beside the path), hunk-debug.ts
                      (`er-hunk-debug`, off ⇄ on: every hunk labelled with its id, tier and split part, for
                      judging the tiers), overview-style.ts (`er-overview-style`, the style last chosen, or none:

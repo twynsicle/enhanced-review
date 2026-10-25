@@ -133,7 +133,10 @@ function FadeSlider({
   );
 }
 
-/** Every display preference the report has, in one menu. */
+/**
+ * Every display preference the report has, in one menu, grouped by what it
+ * changes: the page, the code cards, and the settings still on trial.
+ */
 export function DisplayMenu() {
   const view = useDiffView((s) => s.view);
   const toggleView = useDiffView((s) => s.toggle);
@@ -169,7 +172,23 @@ export function DisplayMenu() {
         </ActionIcon>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Label>Display settings</Menu.Label>
+        <Menu.Label>Page</Menu.Label>
+        <SettingItem
+          icon={
+            width === 'full' ? <IconViewportWide size={ICON} /> : <IconViewportNarrow size={ICON} />
+          }
+          name="Layout"
+          value={width === 'full' ? 'Full width' : 'Narrower'}
+          onClick={toggleWidth}
+        />
+        <SettingItem
+          icon={dark ? <IconMoon size={ICON} /> : <IconSun size={ICON} />}
+          name="Theme"
+          value={dark ? 'Dark' : 'Light'}
+          onClick={() => setColorScheme(dark ? 'light' : 'dark')}
+        />
+        <Menu.Divider />
+        <Menu.Label>Code</Menu.Label>
         <SettingItem
           icon={split ? <IconLayoutColumns size={ICON} /> : <IconLayoutRows size={ICON} />}
           name="Diffs"
@@ -189,6 +208,14 @@ export function DisplayMenu() {
           onClick={toggleWrap}
         />
         <SettingItem
+          icon={headers === 'one-line' ? <IconFold size={ICON} /> : <IconFoldDown size={ICON} />}
+          name="File headers"
+          value={headers === 'one-line' ? 'One line' : 'Every fact'}
+          onClick={toggleHeaders}
+        />
+        <Menu.Divider />
+        <Menu.Label>Experimental</Menu.Label>
+        <SettingItem
           icon={comments === 'dimmed' ? <IconBlur size={ICON} /> : <IconBlurOff size={ICON} />}
           name="Comments"
           value={comments === 'dimmed' ? 'Dimmed' : 'Normal'}
@@ -203,12 +230,6 @@ export function DisplayMenu() {
             onCommit={setCommentFade}
           />
         )}
-        <SettingItem
-          icon={headers === 'one-line' ? <IconFold size={ICON} /> : <IconFoldDown size={ICON} />}
-          name="File headers"
-          value={headers === 'one-line' ? 'One line' : 'Every fact'}
-          onClick={toggleHeaders}
-        />
         <SettingItem
           icon={marks === 'marked' ? <IconTag size={ICON} /> : <IconTagOff size={ICON} />}
           name="Skim hunks"
@@ -231,20 +252,6 @@ export function DisplayMenu() {
           value={debug === 'on' ? 'On' : 'Off'}
           hint="Labels every hunk with its id, tier and split part"
           onClick={toggleDebug}
-        />
-        <SettingItem
-          icon={
-            width === 'full' ? <IconViewportWide size={ICON} /> : <IconViewportNarrow size={ICON} />
-          }
-          name="Layout"
-          value={width === 'full' ? 'Full width' : 'Narrower'}
-          onClick={toggleWidth}
-        />
-        <SettingItem
-          icon={dark ? <IconMoon size={ICON} /> : <IconSun size={ICON} />}
-          name="Theme"
-          value={dark ? 'Dark' : 'Light'}
-          onClick={() => setColorScheme(dark ? 'light' : 'dark')}
         />
       </Menu.Dropdown>
     </Menu>
