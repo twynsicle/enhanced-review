@@ -115,6 +115,17 @@ export interface HunkLines {
   removedAt: number[];
   /** Each added line's number in the head file, in order. */
   addedAt: number[];
+  /**
+   * The changed lines as the body groups them: each run is a stretch of
+   * removed then added lines with no context line inside it, as counts into
+   * `removed` and `added` in order.
+   */
+  runs: HunkRun[];
+}
+
+export interface HunkRun {
+  removed: number;
+  added: number;
 }
 
 export interface HunkBody extends HunkLines {
@@ -130,6 +141,7 @@ export function hunkLines(diff: string): HunkLines[] {
   const hunks: HunkLines[] = [];
   let inFile = false;
   let current: HunkLines | null = null;
+  let run: HunkRun | null = null;
   let originalLine = 0;
   let modifiedLine = 0;
   for (const line of diff.split('\n')) {
@@ -140,25 +152,34 @@ export function hunkLines(diff: string): HunkLines[] {
     }
     const header = inFile ? HUNK_HEADER_RE.exec(line) : null;
     if (header) {
-      current = { removed: [], added: [], removedAt: [], addedAt: [] };
+      current = { removed: [], added: [], removedAt: [], addedAt: [], runs: [] };
+      run = null;
       originalLine = Number(header[1]);
       modifiedLine = Number(header[2]);
       hunks.push(current);
       continue;
     }
     if (!current) continue;
+    const changed = line.startsWith('+') || line.startsWith('-');
+    if (changed && !run) {
+      run = { removed: 0, added: 0 };
+      current.runs.push(run);
+    }
     if (line.startsWith('+')) {
       current.added.push(line.slice(1));
       current.addedAt.push(modifiedLine);
       modifiedLine += 1;
+      run!.added += 1;
     } else if (line.startsWith('-')) {
       current.removed.push(line.slice(1));
       current.removedAt.push(originalLine);
       originalLine += 1;
+      run!.removed += 1;
     } else if (!line.startsWith('\\')) {
       // Context, which git may write as an empty line.
       originalLine += 1;
       modifiedLine += 1;
+      run = null;
     }
   }
   return hunks;
@@ -258,18 +279,38 @@ function allWiring(
  * line must also keep its own indentation, so a dedent that takes a statement
  * out of its block is not whitespace; a rewrap there goes unproven.
  */
-function isWhitespaceOnly({ filename, removed, added }: HunkBody): boolean {
+/**
+ * Run by run, never the hunk's removed lines against its added lines whole:
+ * a line moved past a context line removes and adds the same text, which
+ * whole would pass as whitespace when what changed is the order it runs in.
+ */
+function isWhitespaceOnly({ filename, removed, added, runs }: HunkBody): boolean {
   if (removed.length + added.length === 0) return false;
-  if (!indentationMatters(filename)) {
-    return tokenText(removed.join('\n')) === tokenText(added.join('\n'));
+  const indented = indentationMatters(filename);
+  let removedFrom = 0;
+  let addedFrom = 0;
+  for (const run of runs) {
+    const before = removed.slice(removedFrom, removedFrom + run.removed);
+    const after = added.slice(addedFrom, addedFrom + run.added);
+    removedFrom += run.removed;
+    addedFrom += run.added;
+    if (!sameButWhitespace(before, after, indented)) return false;
   }
+  return true;
+}
+
+function sameButWhitespace(before: string[], after: string[], indented: boolean): boolean {
+  if (!indented) return tokenText(before.join('\n')) === tokenText(after.join('\n'));
   const shape = (lines: readonly string[]) =>
     lines
       .filter((line) => line.trim().length > 0)
       .map((line) => `${LEADING_WHITESPACE_RE.exec(line)![0]}${tokenText(line)}`);
-  const before = shape(removed);
-  const after = shape(added);
-  return before.length === after.length && before.every((line, index) => line === after[index]);
+  const shapedBefore = shape(before);
+  const shapedAfter = shape(after);
+  return (
+    shapedBefore.length === shapedAfter.length &&
+    shapedBefore.every((line, index) => line === shapedAfter[index])
+  );
 }
 
 function indentationMatters(filename: string): boolean {
