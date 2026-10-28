@@ -1,37 +1,37 @@
-{"id":"H0001","file":".claude/rules/review.md","header":"@@ -80,6 +80,8 @@ src/review/","tier":"skim","note":"file-map doc update"}
-{"id":"H0002","file":".claude/rules/review.md","header":"@@ -119,8 +121,13 @@ src/review/","tier":"skim","note":"file-map doc update"}
-{"id":"H0003","file":"docs/usage.md","header":"@@ -132,7 +132,8 @@ nearby changes, so a new file is one hunk however many things it does, and a","tier":"skim","note":"user-facing doc update"}
-{"id":"H0004","file":"src/cli/context.ts","header":"@@ -89,7 +89,7 @@ export async function gather(","tier":"read"}
+{"id":"H0001","file":".claude/rules/review.md","header":"@@ -80,6 +80,8 @@ src/review/","tier":"skim","category":"docs","note":"the file map"}
+{"id":"H0002","file":".claude/rules/review.md","header":"@@ -119,8 +121,13 @@ src/review/","tier":"skim","category":"docs","note":"the file map"}
+{"id":"H0003","file":"docs/usage.md","header":"@@ -132,7 +132,8 @@ nearby changes, so a new file is one hunk however many things it does, and a","tier":"skim","category":"docs"}
+{"id":"H0004","file":"src/cli/context.ts","header":"@@ -89,7 +89,7 @@ export async function gather(","tier":"either","category":"wiring","note":"the filename passed on, but looked up by index in a parallel array, which a careful reviewer checks"}
 {"id":"H0005","file":"src/report/reader/chapter-card.tsx","header":"@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';","tier":"proven"}
-{"id":"H0006","file":"src/report/reader/chapter-card.tsx","header":"@@ -37,19 +38,6 @@ function chapterEyebrow(index: number): string {","tier":"skim","note":"moved to shared module"}
-{"id":"H0007","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';","tier":"skim","note":"adds a shared filename constant"}
-{"id":"H0008","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -40,17 +42,17 @@ function hunksOf(patch: string) {","tier":"skim","note":"call sites of the signature change"}
-{"id":"H0009","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -67,7 +69,7 @@ describe('splitPatch', () => {","tier":"skim","note":"call sites of the signature change"}
-{"id":"H0010","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -82,7 +84,7 @@ describe('splitPatch', () => {","tier":"skim","note":"call sites of the signature change"}
-{"id":"H0011","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -96,7 +98,7 @@ describe('splitPatch', () => {","tier":"skim","note":"call sites of the signature change"}
-{"id":"H0012","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -124,7 +126,7 @@ describe('splitPatch', () => {","tier":"skim","note":"call sites of the signature change"}
-{"id":"H0013","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -154,7 +156,7 @@ describe('splitPatch', () => {","tier":"skim","note":"call sites of the signature change"}
-{"id":"H0014","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -186,14 +188,14 @@ describe('splitPatch', () => {","tier":"skim","note":"call sites of the signature change"}
-{"id":"H0015","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -201,7 +203,7 @@ describe('splitPatch', () => {","tier":"skim","note":"call sites of the signature change"}
-{"id":"H0016","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -231,7 +233,7 @@ describe('splitPatch', () => {","tier":"skim","note":"call sites of the signature change"}
-{"id":"H0017","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -242,13 +244,13 @@ describe('splitPatch', () => {","tier":"skim","note":"call sites of the signature change"}
-{"id":"H0018","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -256,7 +258,7 @@ describe('splitPatch', () => {","tier":"skim","note":"call sites of the signature change"}
-{"id":"H0019","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -275,10 +277,27 @@ (part 1 of 12) describe('splitPatch', () => {","tier":"skim","note":"shared test-case fixture builder"}
-{"id":"H0020","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +304,6 @@ (part 2 of 12)","tier":"skim","note":"shared part-opening helper"}
-{"id":"H0021","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +310,12 @@ (part 3 of 12)","tier":"skim","note":"shared fixture suite data"}
-{"id":"H0022","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +322,8 @@ (part 4 of 12)","tier":"read"}
-{"id":"H0023","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +330,21 @@ (part 5 of 12)","tier":"read"}
-{"id":"H0024","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +351,5 @@ (part 6 of 12)","tier":"read"}
-{"id":"H0025","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +356,8 @@ (part 7 of 12)","tier":"read"}
-{"id":"H0026","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +364,20 @@ (part 8 of 12)","tier":"read"}
-{"id":"H0027","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +384,19 @@ (part 9 of 12)","tier":"read"}
-{"id":"H0028","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +403,18 @@ (part 10 of 12)","tier":"read"}
-{"id":"H0029","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +421,17 @@ (part 11 of 12)","tier":"read"}
-{"id":"H0030","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +438,20 @@ (part 12 of 12)","tier":"read"}
-{"id":"H0031","file":"src/review/prompt/split-hunks.ts","header":"@@ -16,8 +16,19 @@","tier":"read"}
-{"id":"H0032","file":"src/review/prompt/split-hunks.ts","header":"@@ -45,12 +56,14 @@ interface Range {","tier":"read"}
-{"id":"H0033","file":"src/review/prompt/split-hunks.ts","header":"@@ -62,7 +75,8 @@ export function splitPatch(patch: string, target: number): string {","tier":"read"}
-{"id":"H0034","file":"src/review/prompt/split-hunks.ts","header":"@@ -101,14 +115,21 @@ function sideCount(countRaw: string | undefined): number {","tier":"read"}
-{"id":"H0035","file":"src/review/prompt/split-hunks.ts","header":"@@ -192,13 +213,86 @@ function indentOf(content: string): number {","tier":"read"}
-{"id":"H0036","file":"src/review/prompt/split-hunks.ts","header":"@@ -211,7 +305,7 @@ function blocksOf(body: readonly BodyLine[], range: Range, floor: number, target","tier":"read"}
-{"id":"H0037","file":"src/review/test-file.ts","header":"@@ -0,0 +1,13 @@","tier":"read"}
+{"id":"H0006","file":"src/report/reader/chapter-card.tsx","header":"@@ -37,19 +38,6 @@ function chapterEyebrow(index: number): string {","tier":"skim","category":"moved","note":"isTestFile leaves for src/review/test-file.ts unchanged"}
+{"id":"H0007","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';","tier":"skim","category":"test-scaffolding","note":"a shared constant for the new argument"}
+{"id":"H0008","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -40,17 +42,17 @@ function hunksOf(patch: string) {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0009","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -67,7 +69,7 @@ describe('splitPatch', () => {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0010","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -82,7 +84,7 @@ describe('splitPatch', () => {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0011","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -96,7 +98,7 @@ describe('splitPatch', () => {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0012","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -124,7 +126,7 @@ describe('splitPatch', () => {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0013","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -154,7 +156,7 @@ describe('splitPatch', () => {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0014","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -186,14 +188,14 @@ describe('splitPatch', () => {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0015","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -201,7 +203,7 @@ describe('splitPatch', () => {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0016","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -231,7 +233,7 @@ describe('splitPatch', () => {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0017","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -242,13 +244,13 @@ describe('splitPatch', () => {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0018","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -256,7 +258,7 @@ describe('splitPatch', () => {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0019","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -275,10 +277,27 @@ (part 1 of 12) describe('splitPatch', () => {","tier":"read","category":"test-scaffolding","note":"testCase builds a case with blank lines inside it, which is where a paragraph cut would fall: the shape is what the suite tests"}
+{"id":"H0020","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +304,6 @@ (part 2 of 12)","tier":"skim","category":"test-scaffolding","note":"partOpenings only reads the cuts back"}
+{"id":"H0021","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +310,12 @@ (part 3 of 12)","tier":"read","category":"test-scaffolding","note":"the suite the expected openings are read against"}
+{"id":"H0022","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +322,8 @@ (part 4 of 12)","tier":"read","category":"test-case"}
+{"id":"H0023","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +330,21 @@ (part 5 of 12)","tier":"read","category":"test-case"}
+{"id":"H0024","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +351,5 @@ (part 6 of 12)","tier":"read","category":"test-case"}
+{"id":"H0025","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +356,8 @@ (part 7 of 12)","tier":"read","category":"test-case"}
+{"id":"H0026","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +364,20 @@ (part 8 of 12)","tier":"read","category":"test-case"}
+{"id":"H0027","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +384,19 @@ (part 9 of 12)","tier":"read","category":"test-case"}
+{"id":"H0028","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +403,18 @@ (part 10 of 12)","tier":"read","category":"test-case"}
+{"id":"H0029","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +421,17 @@ (part 11 of 12)","tier":"read","category":"test-case"}
+{"id":"H0030","file":"src/review/prompt/split-hunks.test.ts","header":"@@ -284,0 +438,20 @@ (part 12 of 12)","tier":"read","category":"test-case"}
+{"id":"H0031","file":"src/review/prompt/split-hunks.ts","header":"@@ -16,8 +16,19 @@","tier":"skim","category":"docs","note":"the module comment and two imports"}
+{"id":"H0032","file":"src/review/prompt/split-hunks.ts","header":"@@ -45,12 +56,14 @@ interface Range {","tier":"read","category":"logic","note":"testAware: which files get the new cuts"}
+{"id":"H0033","file":"src/review/prompt/split-hunks.ts","header":"@@ -62,7 +75,8 @@ export function splitPatch(patch: string, target: number): string {","tier":"skim","category":"wiring","note":"testAware passed on"}
+{"id":"H0034","file":"src/review/prompt/split-hunks.ts","header":"@@ -101,14 +115,21 @@ function sideCount(countRaw: string | undefined): number {","tier":"read","category":"logic","note":"partStarts replaces opensParagraph as the source of cut points"}
+{"id":"H0035","file":"src/review/prompt/split-hunks.ts","header":"@@ -192,13 +213,86 @@ function indentOf(content: string): number {","tier":"read","category":"logic","note":"testBlocks and partStarts"}
+{"id":"H0036","file":"src/review/prompt/split-hunks.ts","header":"@@ -211,7 +305,7 @@ function blocksOf(body: readonly BodyLine[], range: Range, floor: number, target","tier":"skim","category":"wiring","note":"partStart passed on in the recursion"}
+{"id":"H0037","file":"src/review/test-file.ts","header":"@@ -0,0 +1,13 @@","tier":"skim","category":"moved","note":"isTestFile as it was in chapter-card.tsx, now exported"}
