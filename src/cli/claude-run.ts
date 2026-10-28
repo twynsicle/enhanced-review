@@ -33,7 +33,7 @@ import type { RunFiles } from './run-folder.ts';
  * refilling the context within a few turns of the previous compact aborts
  * the run outright.
  */
-export const DEFAULT_MODEL = 'claude-sonnet-5[1m]';
+export const DEFAULT_MODEL = 'claude-sonnet-5-5[1m]';
 /**
  * Measured: an 88-file, 138-hunk review took 32 turns and 7m 36s. The turn
  * limit is set well above that because the cost of hitting it is not "try
