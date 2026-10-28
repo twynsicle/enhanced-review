@@ -1,0 +1,637 @@
+{
+  "name": "pr-38",
+  "source": {
+    "folder": "er-reviews/pr-38/20261016-080937",
+    "repo": "twynsicle/enhanced-review",
+    "kind": "pr"
+  },
+  "title": "Split a test file's hunks between its cases, never inside one",
+  "description": "`er` cuts a long hunk into parts of about `--split-hunks` lines at paragraph starts. In a test file that cut cases in half, between their arrange, act and assert, so a chapter citing a case showed part of it.\n\nA TypeScript or JavaScript test file (`isTestFile` and `isScriptFile`) is now cut by its runner's blocks:\n\n- a part may begin at any `describe`/`it`/`test`/hook line, even with no blank line before it;\n- never inside a case or a hook, however long;\n- a suite's opening line goes with whatever follows it, setup or a case, so it never sits alone;\n- an `it.each` with a template-literal table is one block, its closing backtick line included;\n- a hunk that starts inside a case falls back to paragraph cuts.\n\n`isTestFile` moved from the report's chapter card to `src/review/test-file.ts`, so the splitter and the card share one definition.\n\nChecked with `er review --stub` on this branch: `split-hunks.test.ts` splits into parts that each open on an `it(` or a setup helper.\n\nFixes ER-60\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+  "commits": [
+    {
+      "sha": "ced8374d078ca83158d820443dcdd656389c2b94",
+      "subject": "Split a script's test file between its test blocks, never inside a case",
+      "body": "A hunk over --split-hunks (10 changed lines by default) was cut at the blank\nlines inside it, and nearly every test case runs longer than that. So a new\ntest file arrived with each case in two or three parts, each cited and\ntiered apart: a part that opened on `expect(d).toBe(1);`, another on\n`act(a);`. A `describe(` line could also end up in a part of its own, or\npacked with the imports above it, and get tiered as boilerplate.\n\nIn a TypeScript or JavaScript test file, a part may now also open at a suite,\ncase or hook line (modifiers such as .only and .each(...) included), even\nwith no blank line before it. It never opens inside a case or hook, so a case\nover the target stays whole, and never between a suite's opening line and\nits first child, so the line framing the cases travels with them. Every\nother file splits as before, and so does a hunk that starts inside a case,\nwhere there is no opening line to go by.\n\nisTestFile moves from chapter-card.tsx to src/review/test-file.ts so that the\nsplitter and the reader share one definition. splitPatch now takes the\nfile's name, which gather already has.\n\nTests cover cuts between cases with and without blank lines, a long case and\na hook kept whole, a nested describe.each, the fallback inside a case, and\nthe same source as a non-test file still being cut by paragraphs.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+    },
+    {
+      "sha": "0a27f0d8db1d2196f4a76b6db18b6d28636c52cf",
+      "subject": "Let a suite's opening line go with whatever follows it, not always its first case",
+      "body": "Checked on this branch's own test file under `er review --stub`: holding a\n`describe(` with its first case also held every helper between them, so the\nfirst part ran to 53 lines and the shared helpers would be tiered with a\ncase. The opening line now goes with the block straight after it: the setup\nwhen there is some, the first case when there is not. Every part opens on a\ncase or on setup again, and the setup can be tiered as setup. A test covers a\nsuite with setup before its cases.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+    },
+    {
+      "sha": "a4a5bea5aad09886d54652c46ef388de4e496e3d",
+      "subject": "Keep an it.each case with a template table whole, and say how test files are cut",
+      "body": "A table's closing line starts with a backtick at the case's own indent, so\nthe block was taken to end there and the case's body could be cut at its\nblank lines. That line now continues the block. Tests cover it and a\ndeleted test file, whose cases are measured on the base side. usage.md\nsays a test file is cut between cases, never inside one.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+    }
+  ],
+  "files": [
+    {
+      "filename": ".claude/rules/review.md",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 2
+    },
+    {
+      "filename": "docs/usage.md",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1
+    },
+    {
+      "filename": "src/cli/context.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/report/reader/chapter-card.tsx",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 13
+    },
+    {
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "status": "modified",
+      "additions": 189,
+      "deletions": 16
+    },
+    {
+      "filename": "src/review/prompt/split-hunks.ts",
+      "status": "modified",
+      "additions": 105,
+      "deletions": 11
+    },
+    {
+      "filename": "src/review/test-file.ts",
+      "status": "added",
+      "additions": 13,
+      "deletions": 0
+    }
+  ],
+  "hunks": [
+    {
+      "id": "H0001",
+      "filename": ".claude/rules/review.md",
+      "header": "@@ -80,6 +80,8 @@ src/review/",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 80,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 80,
+        "lineCount": 8
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0002",
+      "filename": ".claude/rules/review.md",
+      "header": "@@ -119,8 +121,13 @@ src/review/",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 119,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 121,
+        "lineCount": 13
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0003",
+      "filename": "docs/usage.md",
+      "header": "@@ -132,7 +132,8 @@ nearby changes, so a new file is one hunk however many things it does, and a",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 132,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 132,
+        "lineCount": 8
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0004",
+      "filename": "src/cli/context.ts",
+      "header": "@@ -89,7 +89,7 @@ export async function gather(",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 89,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 89,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "importsOnly": true,
+      "id": "H0005",
+      "filename": "src/report/reader/chapter-card.tsx",
+      "header": "@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 3,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 3,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "movedTo": {
+        "filename": "src/review/test-file.ts",
+        "similarity": 80
+      },
+      "id": "H0006",
+      "filename": "src/report/reader/chapter-card.tsx",
+      "header": "@@ -37,19 +38,6 @@ function chapterEyebrow(index: number): string {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 37,
+        "lineCount": 19
+      },
+      "modified": {
+        "startLine": 38,
+        "lineCount": 6
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0007",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 2,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 2,
+        "lineCount": 8
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0008",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -40,17 +42,17 @@ function hunksOf(patch: string) {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 40,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 42,
+        "lineCount": 17
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0009",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -67,7 +69,7 @@ describe('splitPatch', () => {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 67,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 69,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0010",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -82,7 +84,7 @@ describe('splitPatch', () => {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 82,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 84,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0011",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -96,7 +98,7 @@ describe('splitPatch', () => {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 96,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 98,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0012",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -124,7 +126,7 @@ describe('splitPatch', () => {",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 124,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 126,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0013",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -154,7 +156,7 @@ describe('splitPatch', () => {",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 154,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 156,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0014",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -186,14 +188,14 @@ describe('splitPatch', () => {",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 186,
+        "lineCount": 14
+      },
+      "modified": {
+        "startLine": 188,
+        "lineCount": 14
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0015",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -201,7 +203,7 @@ describe('splitPatch', () => {",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 201,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 203,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0016",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -231,7 +233,7 @@ describe('splitPatch', () => {",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 231,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 233,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0017",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -242,13 +244,13 @@ describe('splitPatch', () => {",
+      "fileOrder": 11,
+      "original": {
+        "startLine": 242,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 244,
+        "lineCount": 13
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0018",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -256,7 +258,7 @@ describe('splitPatch', () => {",
+      "fileOrder": 12,
+      "original": {
+        "startLine": 256,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 258,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0019",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -275,10 +277,27 @@ (part 1 of 12) describe('splitPatch', () => {",
+      "fileOrder": 13,
+      "original": {
+        "startLine": 275,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 277,
+        "lineCount": 27
+      },
+      "changedLines": 19
+    },
+    {
+      "id": "H0020",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -284,0 +304,6 @@ (part 2 of 12)",
+      "fileOrder": 14,
+      "original": {
+        "startLine": 284,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 304,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0021",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -284,0 +310,12 @@ (part 3 of 12)",
+      "fileOrder": 15,
+      "original": {
+        "startLine": 284,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 310,
+        "lineCount": 12
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0022",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -284,0 +322,8 @@ (part 4 of 12)",
+      "fileOrder": 16,
+      "original": {
+        "startLine": 284,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 322,
+        "lineCount": 8
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0023",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -284,0 +330,21 @@ (part 5 of 12)",
+      "fileOrder": 17,
+      "original": {
+        "startLine": 284,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 330,
+        "lineCount": 21
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0024",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -284,0 +351,5 @@ (part 6 of 12)",
+      "fileOrder": 18,
+      "original": {
+        "startLine": 284,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 351,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0025",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -284,0 +356,8 @@ (part 7 of 12)",
+      "fileOrder": 19,
+      "original": {
+        "startLine": 284,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 356,
+        "lineCount": 8
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0026",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -284,0 +364,20 @@ (part 8 of 12)",
+      "fileOrder": 20,
+      "original": {
+        "startLine": 284,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 364,
+        "lineCount": 20
+      },
+      "changedLines": 20
+    },
+    {
+      "id": "H0027",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -284,0 +384,19 @@ (part 9 of 12)",
+      "fileOrder": 21,
+      "original": {
+        "startLine": 284,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 384,
+        "lineCount": 19
+      },
+      "changedLines": 19
+    },
+    {
+      "id": "H0028",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -284,0 +403,18 @@ (part 10 of 12)",
+      "fileOrder": 22,
+      "original": {
+        "startLine": 284,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 403,
+        "lineCount": 18
+      },
+      "changedLines": 18
+    },
+    {
+      "id": "H0029",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -284,0 +421,17 @@ (part 11 of 12)",
+      "fileOrder": 23,
+      "original": {
+        "startLine": 284,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 421,
+        "lineCount": 17
+      },
+      "changedLines": 17
+    },
+    {
+      "id": "H0030",
+      "filename": "src/review/prompt/split-hunks.test.ts",
+      "header": "@@ -284,0 +438,20 @@ (part 12 of 12)",
+      "fileOrder": 24,
+      "original": {
+        "startLine": 284,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 438,
+        "lineCount": 20
+      },
+      "changedLines": 20
+    },
+    {
+      "id": "H0031",
+      "filename": "src/review/prompt/split-hunks.ts",
+      "header": "@@ -16,8 +16,19 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 16,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 16,
+        "lineCount": 19
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0032",
+      "filename": "src/review/prompt/split-hunks.ts",
+      "header": "@@ -45,12 +56,14 @@ interface Range {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 45,
+        "lineCount": 12
+      },
+      "modified": {
+        "startLine": 56,
+        "lineCount": 14
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0033",
+      "filename": "src/review/prompt/split-hunks.ts",
+      "header": "@@ -62,7 +75,8 @@ export function splitPatch(patch: string, target: number): string {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 62,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 75,
+        "lineCount": 8
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0034",
+      "filename": "src/review/prompt/split-hunks.ts",
+      "header": "@@ -101,14 +115,21 @@ function sideCount(countRaw: string | undefined): number {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 101,
+        "lineCount": 14
+      },
+      "modified": {
+        "startLine": 115,
+        "lineCount": 21
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0035",
+      "filename": "src/review/prompt/split-hunks.ts",
+      "header": "@@ -192,13 +213,86 @@ function indentOf(content: string): number {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 192,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 213,
+        "lineCount": 86
+      },
+      "changedLines": 79
+    },
+    {
+      "id": "H0036",
+      "filename": "src/review/prompt/split-hunks.ts",
+      "header": "@@ -211,7 +305,7 @@ function blocksOf(body: readonly BodyLine[], range: Range, floor: number, target",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 211,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 305,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "movedFrom": {
+        "filename": "src/report/reader/chapter-card.tsx",
+        "similarity": 80
+      },
+      "id": "H0037",
+      "filename": "src/review/test-file.ts",
+      "header": "@@ -0,0 +1,13 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 13
+      },
+      "changedLines": 13
+    }
+  ]
+}

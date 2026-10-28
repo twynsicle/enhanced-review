@@ -1,0 +1,365 @@
+{"id":"H0001","file":".claude/rules/cli.md","header":"@@ -11,15 +11,19 @@ review and writes one `review.html` — everything inlined but the Monaco editor","tier":"skim","note":"documentation update"}
+{"id":"H0002","file":".claude/rules/cli.md","header":"@@ -32,17 +36,32 @@ src/cli/","tier":"skim","note":"documentation update"}
+{"id":"H0003","file":".claude/rules/cli.md","header":"@@ -69,9 +88,16 @@ src/cli/","tier":"skim","note":"documentation update"}
+{"id":"H0004","file":".claude/rules/review-pipeline.md","header":"@@ -27,16 +27,26 @@ src/domain/","tier":"skim","note":"documentation update"}
+{"id":"H0005","file":".claude/rules/review-pipeline.md","header":"@@ -49,7 +59,9 @@ src/domain/","tier":"skim","note":"documentation update"}
+{"id":"H0006","file":".claude/rules/review-pipeline.md","header":"@@ -65,12 +77,20 @@ src/domain/","tier":"skim","note":"documentation update"}
+{"id":"H0007","file":".claude/rules/review-pipeline.md","header":"@@ -81,18 +101,26 @@ src/domain/","tier":"skim","note":"documentation update"}
+{"id":"H0008","file":".claude/rules/review-pipeline.md","header":"@@ -122,13 +150,26 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t","tier":"skim","note":"documentation update"}
+{"id":"H0009","file":".claude/rules/review-pipeline.md","header":"@@ -144,4 +185,5 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t","tier":"skim","note":"documentation update"}
+{"id":"H0010","file":".claude/rules/web.md","header":"@@ -41,17 +41,16 @@ src/web/","tier":"skim","note":"documentation update"}
+{"id":"H0011","file":".claude/rules/web.md","header":"@@ -62,7 +61,7 @@ src/web/","tier":"skim","note":"documentation update"}
+{"id":"H0012","file":".claude/rules/web.md","header":"@@ -117,7 +116,8 @@ src/web/","tier":"skim","note":"documentation update"}
+{"id":"H0013","file":"AGENTS.md","header":"@@ -44,7 +44,9 @@ server/index.ts        Express bootstrap: dev = Vite middleware, prod = build/;","tier":"skim","note":"documentation update"}
+{"id":"H0014","file":"README.md","header":"@@ -143,8 +143,14 @@ ignored by git automatically. The report is `review.html`, and it opens when","tier":"skim","note":"documentation update"}
+{"id":"H0015","file":"README.md","header":"@@ -152,8 +158,9 @@ It gets `Read`, `Glob` and `Grep`, and `Bash` for read-only history —","tier":"skim","note":"documentation update"}
+{"id":"H0016","file":"prisma/migrations/0004_review_findings/migration.sql","header":"@@ -0,0 +1,9 @@","tier":"read"}
+{"id":"H0017","file":"prisma/migrations/0005_drop_review_diff_truncated/migration.sql","header":"@@ -0,0 +1,7 @@","tier":"read"}
+{"id":"H0018","file":"prisma/schema.prisma","header":"@@ -100,7 +100,9 @@ model Review {","tier":"read"}
+{"id":"H0019","file":"src/cli/claude-run.test.ts","header":"@@ -1,8 +1,9 @@","tier":"proven"}
+{"id":"H0020","file":"src/cli/claude-run.test.ts","header":"@@ -51,7 +52,22 @@ function fakeQuery(messages: SDKMessage[]): QueryFn & { options: () => Options }","tier":"skim","note":"test fixture, new option"}
+{"id":"H0021","file":"src/cli/claude-run.test.ts","header":"@@ -59,3 +75,18 @@ (part 1 of 2) const events = () =>","tier":"skim","note":"shared test helper"}
+{"id":"H0022","file":"src/cli/claude-run.test.ts","header":"@@ -62,3 +93,32 @@ (part 2 of 2)","tier":"skim","note":"shared test harness"}
+{"id":"H0023","file":"src/cli/claude-run.test.ts","header":"@@ -69,7 +129,6 @@ describe('the model run', () => {","tier":"read"}
+{"id":"H0024","file":"src/cli/claude-run.test.ts","header":"@@ -153,7 +212,7 @@ describe('the model run', () => {","tier":"read"}
+{"id":"H0025","file":"src/cli/claude-run.test.ts","header":"@@ -221,3 +280,22 @@ (part 1 of 2) describe('the model run', () => {","tier":"read"}
+{"id":"H0026","file":"src/cli/claude-run.test.ts","header":"@@ -223,0 +302,11 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0027","file":"src/cli/claude-run.ts","header":"@@ -3,10 +3,16 @@ import { readFile } from 'node:fs/promises';","tier":"proven"}
+{"id":"H0028","file":"src/cli/claude-run.ts","header":"@@ -55,6 +61,8 @@ export interface ClaudeRunOptions {","tier":"read"}
+{"id":"H0029","file":"src/cli/claude-run.ts","header":"@@ -63,6 +71,10 @@ export interface ClaudeRunDeps {","tier":"read"}
+{"id":"H0030","file":"src/cli/claude-run.ts","header":"@@ -70,8 +82,6 @@ export interface ClaudeRunResult {","tier":"read"}
+{"id":"H0031","file":"src/cli/claude-run.ts","header":"@@ -103,9 +113,20 @@ (part 1 of 2) export async function runClaude(","tier":"read"}
+{"id":"H0032","file":"src/cli/claude-run.ts","header":"@@ -112,11 +133,20 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0033","file":"src/cli/claude-run.ts","header":"@@ -151,11 +181,10 @@ export async function runClaude(","tier":"read"}
+{"id":"H0034","file":"src/cli/claude-run.ts","header":"@@ -164,22 +193,19 @@ export async function runClaude(","tier":"read"}
+{"id":"H0035","file":"src/cli/claude-run.ts","header":"@@ -189,7 +215,7 @@ function sdkOptions(","tier":"read"}
+{"id":"H0036","file":"src/cli/claude-run.ts","header":"@@ -197,6 +223,19 @@ function sdkOptions(","tier":"read"}
+{"id":"H0037","file":"src/cli/context.test.ts","header":"@@ -10,7 +10,7 @@ import { createRunFolder } from './run-folder.ts';","tier":"skim","note":"test timeout config"}
+{"id":"H0038","file":"src/cli/parse.ts","header":"@@ -1,8 +1,19 @@ (part 1 of 3)","tier":"proven"}
+{"id":"H0039","file":"src/cli/parse.ts","header":"@@ -9,25 +20,55 @@ (part 2 of 3)","tier":"read"}
+{"id":"H0040","file":"src/cli/parse.ts","header":"@@ -34,9 +75,136 @@ (part 3 of 3)","tier":"read"}
+{"id":"H0041","file":"src/cli/review.test.ts","header":"@@ -1,24 +1,23 @@","tier":"skim","note":"test imports and config"}
+{"id":"H0042","file":"src/cli/review.test.ts","header":"@@ -83,6 +82,16 @@ const MODEL_REVIEW = `<narrative_review>","tier":"skim","note":"shared test helper"}
+{"id":"H0043","file":"src/cli/review.test.ts","header":"@@ -99,14 +108,3 @@ (part 1 of 2) function runFolders(): string[] {","tier":"skim","note":"removed obsolete helper"}
+{"id":"H0044","file":"src/cli/review.test.ts","header":"@@ -113,28 +111,3 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0045","file":"src/cli/review.test.ts","header":"@@ -146,7 +119,9 @@ describe('er review', () => {","tier":"read"}
+{"id":"H0046","file":"src/cli/review.test.ts","header":"@@ -173,46 +148,87 @@ describe('er review', () => {","tier":"read"}
+{"id":"H0047","file":"src/cli/review.test.ts","header":"@@ -233,3 +249,7 @@ (part 1 of 2) describe('er review', () => {","tier":"skim","note":"doc comment only"}
+{"id":"H0048","file":"src/cli/review.test.ts","header":"@@ -236,3 +256,16 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0049","file":"src/cli/review.ts","header":"@@ -2,18 +2,16 @@ import { rename } from 'node:fs/promises';","tier":"proven"}
+{"id":"H0050","file":"src/cli/review.ts","header":"@@ -21,7 +19,7 @@ import { HOST_RENDER_DEPS, renderRun, type RenderDeps } from './render.ts';","tier":"proven"}
+{"id":"H0051","file":"src/cli/review.ts","header":"@@ -35,12 +33,22 @@ import {","tier":"read"}
+{"id":"H0052","file":"src/cli/review.ts","header":"@@ -116,23 +124,20 @@ export async function review(","tier":"read"}
+{"id":"H0053","file":"src/cli/review.ts","header":"@@ -140,22 +145,29 @@ export async function review(","tier":"read"}
+{"id":"H0054","file":"src/cli/review.ts","header":"@@ -164,7 +176,27 @@ export async function review(","tier":"read"}
+{"id":"H0055","file":"src/cli/review.ts","header":"@@ -234,10 +266,15 @@ export function describeTarget(target: Target, meta: ReviewMeta): string {","tier":"read"}
+{"id":"H0056","file":"src/cli/review.ts","header":"@@ -254,10 +291,3 @@ (part 1 of 2) function describeUsage(usage: ClaudeRunResult['usage']): string {","tier":"read"}
+{"id":"H0057","file":"src/cli/review.ts","header":"@@ -264,12 +294,3 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0058","file":"src/cli/run-folder.test.ts","header":"@@ -12,7 +12,7 @@ import {","tier":"skim","note":"test timeout config"}
+{"id":"H0059","file":"src/cli/run-folder.ts","header":"@@ -25,6 +25,8 @@ export interface RunFiles {","tier":"read"}
+{"id":"H0060","file":"src/cli/run-folder.ts","header":"@@ -39,6 +41,7 @@ export function runFiles(folder: string): RunFiles {","tier":"read"}
+{"id":"H0061","file":"src/cli/stages.test.ts","header":"@@ -1,11 +1,11 @@","tier":"proven"}
+{"id":"H0062","file":"src/cli/stages.test.ts","header":"@@ -84,9 +84,12 @@ function context(overrides: Partial<RunContext> = {}): RunContext {","tier":"skim","note":"shared test context helper"}
+{"id":"H0063","file":"src/cli/stages.test.ts","header":"@@ -109,15 +112,16 @@ (part 1 of 10) describe('stub run → parse', () => {","tier":"read"}
+{"id":"H0064","file":"src/cli/stages.test.ts","header":"@@ -123,0 +128,15 @@ (part 2 of 10)","tier":"read"}
+{"id":"H0065","file":"src/cli/stages.test.ts","header":"@@ -123,0 +143,12 @@ (part 3 of 10)","tier":"read"}
+{"id":"H0066","file":"src/cli/stages.test.ts","header":"@@ -123,0 +155,23 @@ (part 4 of 10)","tier":"read"}
+{"id":"H0067","file":"src/cli/stages.test.ts","header":"@@ -123,0 +178,19 @@ (part 5 of 10)","tier":"read"}
+{"id":"H0068","file":"src/cli/stages.test.ts","header":"@@ -123,0 +197,8 @@ (part 6 of 10)","tier":"read"}
+{"id":"H0069","file":"src/cli/stages.test.ts","header":"@@ -124,3 +205,15 @@ (part 7 of 10)","tier":"read"}
+{"id":"H0070","file":"src/cli/stages.test.ts","header":"@@ -126,0 +220,10 @@ (part 8 of 10)","tier":"read"}
+{"id":"H0071","file":"src/cli/stages.test.ts","header":"@@ -126,0 +230,5 @@ (part 9 of 10)","tier":"read"}
+{"id":"H0072","file":"src/cli/stages.test.ts","header":"@@ -127,3 +235,15 @@ (part 10 of 10)","tier":"read"}
+{"id":"H0073","file":"src/cli/stages.test.ts","header":"@@ -132,7 +252,7 @@ describe('render', () => {","tier":"skim","note":"adapts to new return shape"}
+{"id":"H0074","file":"src/cli/stub-run.ts","header":"@@ -4,6 +4,26 @@ import { detectLanguage } from '../domain/review/language-map.ts';","tier":"read"}
+{"id":"H0075","file":"src/cli/stub-run.ts","header":"@@ -16,6 +36,7 @@ export async function writeStubRun(context: RunContext, run: RunFiles): Promise<","tier":"read"}
+{"id":"H0076","file":"src/cli/targets.test.ts","header":"@@ -8,7 +8,7 @@ import { Shell } from './git.ts';","tier":"skim","note":"test timeout config"}
+{"id":"H0077","file":"src/cli/worktree.test.ts","header":"@@ -13,7 +13,7 @@ import {","tier":"skim","note":"test timeout config"}
+{"id":"H0078","file":"src/db/review-jobs.integration.test.ts","header":"@@ -60,9 +60,12 @@ describeDb('review-jobs repository', () => {","tier":"read"}
+{"id":"H0079","file":"src/db/review-jobs.integration.test.ts","header":"@@ -71,13 +74,13 @@ describeDb('review-jobs repository', () => {","tier":"read"}
+{"id":"H0080","file":"src/db/review-jobs.integration.test.ts","header":"@@ -85,7 +88,7 @@ describeDb('review-jobs repository', () => {","tier":"read"}
+{"id":"H0081","file":"src/db/review-jobs.integration.test.ts","header":"@@ -119,7 +122,7 @@ describeDb('review-jobs repository', () => {","tier":"read"}
+{"id":"H0082","file":"src/db/review-jobs.integration.test.ts","header":"@@ -135,7 +138,7 @@ describeDb('review-jobs repository', () => {","tier":"read"}
+{"id":"H0083","file":"src/db/review-jobs.ts","header":"@@ -150,7 +150,8 @@ export async function markRunning(id: string, now = new Date()): Promise<boolean","tier":"read"}
+{"id":"H0084","file":"src/db/review-jobs.ts","header":"@@ -171,7 +172,11 @@ export async function finalizeDone(","tier":"read"}
+{"id":"H0085","file":"src/db/reviews.ts","header":"@@ -3,13 +3,14 @@ (part 1 of 2) import { prisma } from './client.ts';","tier":"read"}
+{"id":"H0086","file":"src/db/reviews.ts","header":"@@ -16,6 +17,12 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0087","file":"src/domain/jobs/jobs.server.test.ts","header":"@@ -47,11 +47,15 @@ describe('parseReview', () => {","tier":"read"}
+{"id":"H0088","file":"src/domain/jobs/jobs.server.test.ts","header":"@@ -60,9 +64,21 @@ describe('parseReview', () => {","tier":"read"}
+{"id":"H0089","file":"src/domain/jobs/jobs.server.ts","header":"@@ -1,6 +1,7 @@","tier":"proven"}
+{"id":"H0090","file":"src/domain/jobs/jobs.server.ts","header":"@@ -19,7 +20,7 @@ export interface ReviewJob extends Omit<reviewJobs.ReviewJobRecord, 'target'> {","tier":"read"}
+{"id":"H0091","file":"src/domain/jobs/jobs.server.ts","header":"@@ -36,10 +37,16 @@ export function parseReview(record: reviews.ReviewRecord): Review {","tier":"read"}
+{"id":"H0092","file":"src/domain/review/coverage.test.ts","header":"@@ -1,11 +1,5 @@","tier":"proven"}
+{"id":"H0093","file":"src/domain/review/coverage.test.ts","header":"@@ -84,18 +78,22 @@ (part 1 of 2) describe('withFileHunks', () => {","tier":"read"}
+{"id":"H0094","file":"src/domain/review/coverage.test.ts","header":"@@ -102,11 +100,10 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0095","file":"src/domain/review/coverage.test.ts","header":"@@ -114,7 +111,7 @@ describe('reviewCoverage', () => {","tier":"read"}
+{"id":"H0096","file":"src/domain/review/coverage.test.ts","header":"@@ -122,13 +119,14 @@ describe('reviewCoverage', () => {","tier":"read"}
+{"id":"H0097","file":"src/domain/review/coverage.test.ts","header":"@@ -232,23 +230,3 @@ describe('citedChunk', () => {","tier":"read"}
+{"id":"H0098","file":"src/domain/review/coverage.ts","header":"@@ -1,4 +1,3 @@","tier":"proven"}
+{"id":"H0099","file":"src/domain/review/coverage.ts","header":"@@ -10,12 +9,12 @@ import type {","tier":"skim","note":"doc comment update"}
+{"id":"H0100","file":"src/domain/review/coverage.ts","header":"@@ -35,19 +34,10 @@ export interface FileCoverage {","tier":"read"}
+{"id":"H0101","file":"src/domain/review/coverage.ts","header":"@@ -162,7 +152,6 @@ export function fileCoverage(file: ReviewFile, cited: ReadonlySet<string>): File","tier":"read"}
+{"id":"H0102","file":"src/domain/review/coverage.ts","header":"@@ -173,24 +162,7 @@ export function reviewCoverage(review: NarrativeReview): ReviewCoverage {","tier":"read"}
+{"id":"H0103","file":"src/domain/review/executor/claude-executor.server.test.ts","header":"@@ -1,3 +1,4 @@","tier":"proven"}
+{"id":"H0104","file":"src/domain/review/executor/claude-executor.server.test.ts","header":"@@ -77,7 +78,6 @@ describe('ClaudeExecutor', () => {","tier":"skim","note":"removed obsolete assertion"}
+{"id":"H0105","file":"src/domain/review/executor/claude-executor.server.test.ts","header":"@@ -123,7 +123,7 @@ describe('ClaudeExecutor', () => {","tier":"read"}
+{"id":"H0106","file":"src/domain/review/executor/claude-executor.server.test.ts","header":"@@ -197,13 +197,28 @@ describe('ClaudeExecutor', () => {","tier":"read"}
+{"id":"H0107","file":"src/domain/review/executor/claude-executor.server.test.ts","header":"@@ -217,3 +232,13 @@ (part 1 of 7) describe('ClaudeExecutor', () => {","tier":"skim","note":"shared diff fixture"}
+{"id":"H0108","file":"src/domain/review/executor/claude-executor.server.test.ts","header":"@@ -219,0 +245,16 @@ (part 2 of 7)","tier":"skim","note":"shared test helper"}
+{"id":"H0109","file":"src/domain/review/executor/claude-executor.server.test.ts","header":"@@ -219,0 +261,15 @@ (part 3 of 7)","tier":"skim","note":"shared test helper"}
+{"id":"H0110","file":"src/domain/review/executor/claude-executor.server.test.ts","header":"@@ -219,0 +276,32 @@ (part 4 of 7)","tier":"skim","note":"shared test harness"}
+{"id":"H0111","file":"src/domain/review/executor/claude-executor.server.test.ts","header":"@@ -219,0 +308,19 @@ (part 5 of 7)","tier":"read"}
+{"id":"H0112","file":"src/domain/review/executor/claude-executor.server.test.ts","header":"@@ -219,0 +327,16 @@ (part 6 of 7)","tier":"read"}
+{"id":"H0113","file":"src/domain/review/executor/claude-executor.server.test.ts","header":"@@ -219,0 +343,10 @@ (part 7 of 7)","tier":"read"}
+{"id":"H0114","file":"src/domain/review/executor/claude-executor.server.ts","header":"@@ -1,10 +1,18 @@","tier":"proven"}
+{"id":"H0115","file":"src/domain/review/executor/claude-executor.server.ts","header":"@@ -21,7 +29,15 @@ import {","tier":"read"}
+{"id":"H0116","file":"src/domain/review/executor/claude-executor.server.ts","header":"@@ -72,6 +88,16 @@ export class ClaudeExecutor implements ReviewExecutor {","tier":"read"}
+{"id":"H0117","file":"src/domain/review/executor/claude-executor.server.ts","header":"@@ -94,6 +120,22 @@ (part 1 of 2) export class ClaudeExecutor implements ReviewExecutor {","tier":"read"}
+{"id":"H0118","file":"src/domain/review/executor/claude-executor.server.ts","header":"@@ -100,9 +142,6 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0119","file":"src/domain/review/executor/claude-executor.server.ts","header":"@@ -118,13 +157,40 @@ export class ClaudeExecutor implements ReviewExecutor {","tier":"read"}
+{"id":"H0120","file":"src/domain/review/executor/sdk-loop.server.ts","header":"@@ -27,6 +27,25 @@ export interface SdkRunResult {","tier":"read"}
+{"id":"H0121","file":"src/domain/review/executor/stub-executor.server.test.ts","header":"@@ -56,8 +56,8 @@ describe('StubExecutor', () => {","tier":"skim","note":"adapts to new output shape"}
+{"id":"H0122","file":"src/domain/review/executor/stub-executor.server.ts","header":"@@ -129,7 +129,7 @@ export class StubExecutor implements ReviewExecutor {","tier":"skim","note":"adapts to new output shape"}
+{"id":"H0123","file":"src/domain/review/executor/types.ts","header":"@@ -1,3 +1,4 @@","tier":"proven"}
+{"id":"H0124","file":"src/domain/review/executor/types.ts","header":"@@ -19,7 +20,6 @@ export interface ReviewExecutorInput {","tier":"read"}
+{"id":"H0125","file":"src/domain/review/executor/types.ts","header":"@@ -27,6 +27,12 @@ export interface ReviewExecutorOutput {","tier":"read"}
+{"id":"H0126","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +1,5 @@ (part 1 of 14)","tier":"proven"}
+{"id":"H0127","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +6,11 @@ (part 2 of 14)","tier":"skim","note":"shared diff fixture"}
+{"id":"H0128","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +17,15 @@ (part 3 of 14)","tier":"skim","note":"shared test helper"}
+{"id":"H0129","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +32,8 @@ (part 4 of 14)","tier":"skim","note":"shared test fixture"}
+{"id":"H0130","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +40,21 @@ (part 5 of 14)","tier":"skim","note":"shared test harness"}
+{"id":"H0131","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +61,7 @@ (part 6 of 14)","tier":"read"}
+{"id":"H0132","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +68,9 @@ (part 7 of 14)","tier":"read"}
+{"id":"H0133","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +77,5 @@ (part 8 of 14)","tier":"skim","note":"explanatory comment"}
+{"id":"H0134","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +82,6 @@ (part 9 of 14)","tier":"read"}
+{"id":"H0135","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +88,12 @@ (part 10 of 14)","tier":"read"}
+{"id":"H0136","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +100,17 @@ (part 11 of 14)","tier":"read"}
+{"id":"H0137","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +117,7 @@ (part 12 of 14)","tier":"read"}
+{"id":"H0138","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +124,9 @@ (part 13 of 14)","tier":"read"}
+{"id":"H0139","file":"src/domain/review/executor/validation-stop-hook.server.test.ts","header":"@@ -0,0 +133,7 @@ (part 14 of 14)","tier":"read"}
+{"id":"H0140","file":"src/domain/review/executor/validation-stop-hook.server.ts","header":"@@ -0,0 +1,5 @@ (part 1 of 5)","tier":"proven"}
+{"id":"H0141","file":"src/domain/review/executor/validation-stop-hook.server.ts","header":"@@ -0,0 +6,45 @@ (part 2 of 5)","tier":"read"}
+{"id":"H0142","file":"src/domain/review/executor/validation-stop-hook.server.ts","header":"@@ -0,0 +51,11 @@ (part 3 of 5)","tier":"read"}
+{"id":"H0143","file":"src/domain/review/executor/validation-stop-hook.server.ts","header":"@@ -0,0 +62,10 @@ (part 4 of 5)","tier":"read"}
+{"id":"H0144","file":"src/domain/review/executor/validation-stop-hook.server.ts","header":"@@ -0,0 +72,19 @@ (part 5 of 5)","tier":"read"}
+{"id":"H0145","file":"src/domain/review/findings.test.ts","header":"@@ -0,0 +1,14 @@ (part 1 of 10)","tier":"proven"}
+{"id":"H0146","file":"src/domain/review/findings.test.ts","header":"@@ -0,0 +15,33 @@ (part 2 of 10)","tier":"read"}
+{"id":"H0147","file":"src/domain/review/findings.test.ts","header":"@@ -0,0 +48,5 @@ (part 3 of 10)","tier":"read"}
+{"id":"H0148","file":"src/domain/review/findings.test.ts","header":"@@ -0,0 +53,9 @@ (part 4 of 10)","tier":"read"}
+{"id":"H0149","file":"src/domain/review/findings.test.ts","header":"@@ -0,0 +62,6 @@ (part 5 of 10)","tier":"read"}
+{"id":"H0150","file":"src/domain/review/findings.test.ts","header":"@@ -0,0 +68,9 @@ (part 6 of 10)","tier":"read"}
+{"id":"H0151","file":"src/domain/review/findings.test.ts","header":"@@ -0,0 +77,9 @@ (part 7 of 10)","tier":"read"}
+{"id":"H0152","file":"src/domain/review/findings.test.ts","header":"@@ -0,0 +86,14 @@ (part 8 of 10)","tier":"read"}
+{"id":"H0153","file":"src/domain/review/findings.test.ts","header":"@@ -0,0 +100,13 @@ (part 9 of 10)","tier":"read"}
+{"id":"H0154","file":"src/domain/review/findings.test.ts","header":"@@ -0,0 +113,6 @@ (part 10 of 10)","tier":"read"}
+{"id":"H0155","file":"src/domain/review/findings.ts","header":"@@ -0,0 +1,33 @@ (part 1 of 12)","tier":"read"}
+{"id":"H0156","file":"src/domain/review/findings.ts","header":"@@ -0,0 +34,16 @@ (part 2 of 12)","tier":"read"}
+{"id":"H0157","file":"src/domain/review/findings.ts","header":"@@ -0,0 +50,13 @@ (part 3 of 12)","tier":"read"}
+{"id":"H0158","file":"src/domain/review/findings.ts","header":"@@ -0,0 +63,26 @@ (part 4 of 12)","tier":"read"}
+{"id":"H0159","file":"src/domain/review/findings.ts","header":"@@ -0,0 +89,9 @@ (part 5 of 12)","tier":"read"}
+{"id":"H0160","file":"src/domain/review/findings.ts","header":"@@ -0,0 +98,19 @@ (part 6 of 12)","tier":"read"}
+{"id":"H0161","file":"src/domain/review/findings.ts","header":"@@ -0,0 +117,8 @@ (part 7 of 12)","tier":"read"}
+{"id":"H0162","file":"src/domain/review/findings.ts","header":"@@ -0,0 +125,11 @@ (part 8 of 12)","tier":"read"}
+{"id":"H0163","file":"src/domain/review/findings.ts","header":"@@ -0,0 +136,16 @@ (part 9 of 12)","tier":"read"}
+{"id":"H0164","file":"src/domain/review/findings.ts","header":"@@ -0,0 +152,14 @@ (part 10 of 12)","tier":"read"}
+{"id":"H0165","file":"src/domain/review/findings.ts","header":"@@ -0,0 +166,7 @@ (part 11 of 12)","tier":"read"}
+{"id":"H0166","file":"src/domain/review/findings.ts","header":"@@ -0,0 +173,6 @@ (part 12 of 12)","tier":"skim","note":"simple severity tally"}
+{"id":"H0167","file":"src/domain/review/narrative.ts","header":"@@ -162,11 +162,9 @@ export const NarrativeReviewSchema = z.object({","tier":"read"}
+{"id":"H0168","file":"src/domain/review/partial-narrative-parse.test.ts","header":"@@ -135,3 +135,18 @@ (part 1 of 5) describe('extractChapterTitles', () => {","tier":"read"}
+{"id":"H0169","file":"src/domain/review/partial-narrative-parse.test.ts","header":"@@ -137,0 +153,11 @@ (part 2 of 5)","tier":"read"}
+{"id":"H0170","file":"src/domain/review/partial-narrative-parse.test.ts","header":"@@ -137,0 +164,5 @@ (part 3 of 5)","tier":"skim","note":"explanatory comment"}
+{"id":"H0171","file":"src/domain/review/partial-narrative-parse.test.ts","header":"@@ -137,0 +169,11 @@ (part 4 of 5)","tier":"read"}
+{"id":"H0172","file":"src/domain/review/partial-narrative-parse.test.ts","header":"@@ -137,0 +180,11 @@ (part 5 of 5)","tier":"read"}
+{"id":"H0173","file":"src/domain/review/partial-narrative-parse.ts","header":"@@ -35,7 +35,7 @@ const EMPTY: ChapterTitleSnapshot = { titles: [], inProgressTitle: null };","tier":"read"}
+{"id":"H0174","file":"src/domain/review/partial-narrative-parse.ts","header":"@@ -43,6 +43,33 @@ export function extractChapterTitles(buffer: string): ChapterTitleSnapshot {","tier":"read"}
+{"id":"H0175","file":"src/domain/review/prompt/narrative-prompt.test.ts","header":"@@ -270,6 +270,6 @@ describe('buildNarrativePrompt', () => {","tier":"read"}
+{"id":"H0176","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -1,6 +1,7 @@","tier":"proven"}
+{"id":"H0177","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -20,3 +21,12 @@ (part 1 of 2) diff --git a/src/b.ts b/src/b.ts","tier":"read"}
+{"id":"H0178","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -23,3 +33,10 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0179","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -37,22 +54,22 @@ function graph(overrides: Record<string, unknown> = {}): Record<string, unknown>","tier":"skim","note":"shared fixture"}
+{"id":"H0180","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -66,7 +83,7 @@ describe('sanitizeDiagram', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0181","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -82,7 +99,7 @@ describe('sanitizeDiagram', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0182","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -99,7 +116,7 @@ describe('sanitizeDiagram', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0183","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -120,7 +137,7 @@ describe('sanitizeDiagram', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0184","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -136,7 +153,7 @@ describe('sanitizeDiagram', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0185","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -151,7 +168,7 @@ describe('sanitizeDiagram', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0186","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -167,7 +184,7 @@ describe('sanitizeDiagram', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0187","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -182,7 +199,7 @@ describe('sanitizeDiagram', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0188","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -198,7 +215,7 @@ describe('sanitizeDiagram', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0189","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -213,7 +230,7 @@ describe('sanitizeDiagram', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0190","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -229,7 +246,7 @@ describe('sanitizeDiagram', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0191","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -252,7 +269,7 @@ function sequence(steps: unknown[]): Record<string, unknown> {","tier":"skim","note":"call sites of rename"}
+{"id":"H0192","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -264,7 +281,7 @@ describe('sanitizeDiagram (sequence)', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0193","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -309,7 +326,7 @@ describe('sanitizeDiagram (sequence)', () => {","tier":"skim","note":"call sites of rename"}
+{"id":"H0194","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -317,3 +334,11 @@ (part 1 of 17) describe('sanitizeDiagram (sequence)', () => {","tier":"read"}
+{"id":"H0195","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +345,7 @@ (part 2 of 17)","tier":"read"}
+{"id":"H0196","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +352,8 @@ (part 3 of 17)","tier":"read"}
+{"id":"H0197","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +360,13 @@ (part 4 of 17)","tier":"read"}
+{"id":"H0198","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +373,10 @@ (part 5 of 17)","tier":"read"}
+{"id":"H0199","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +383,8 @@ (part 6 of 17)","tier":"read"}
+{"id":"H0200","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +391,17 @@ (part 7 of 17)","tier":"read"}
+{"id":"H0201","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +408,30 @@ (part 8 of 17)","tier":"read"}
+{"id":"H0202","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +438,16 @@ (part 9 of 17)","tier":"read"}
+{"id":"H0203","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +454,22 @@ (part 10 of 17)","tier":"read"}
+{"id":"H0204","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +476,6 @@ (part 11 of 17)","tier":"read"}
+{"id":"H0205","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +482,11 @@ (part 12 of 17)","tier":"read"}
+{"id":"H0206","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +493,8 @@ (part 13 of 17)","tier":"read"}
+{"id":"H0207","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +501,23 @@ (part 14 of 17)","tier":"read"}
+{"id":"H0208","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +524,15 @@ (part 15 of 17)","tier":"read"}
+{"id":"H0209","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +539,16 @@ (part 16 of 17)","tier":"read"}
+{"id":"H0210","file":"src/domain/review/prompt/parse-diagram.test.ts","header":"@@ -319,0 +555,12 @@ (part 17 of 17)","tier":"read"}
+{"id":"H0211","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -1,3 +1,4 @@","tier":"proven"}
+{"id":"H0212","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -9,6 +10,7 @@ import {","tier":"proven"}
+{"id":"H0213","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -24,13 +26,21 @@ (part 1 of 5) import type { PromptGrounding } from './diff-hunk-catalog.ts';","tier":"read"}
+{"id":"H0214","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -36,0 +47,9 @@ (part 2 of 5)","tier":"read"}
+{"id":"H0215","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -37,8 +56,13 @@ (part 3 of 5)","tier":"read"}
+{"id":"H0216","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -45,5 +69,52 @@ (part 4 of 5)","tier":"read"}
+{"id":"H0217","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -50,6 +121,8 @@ (part 5 of 5)","tier":"read"}
+{"id":"H0218","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -68,24 +141,40 @@ (part 1 of 12) function resolveNodeGrounding(","tier":"read"}
+{"id":"H0219","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -92,11 +181,26 @@ (part 2 of 12)","tier":"read"}
+{"id":"H0220","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -103,10 +207,20 @@ (part 3 of 12)","tier":"read"}
+{"id":"H0221","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -113,6 +227,11 @@ (part 4 of 12)","tier":"read"}
+{"id":"H0222","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -119,17 +238,18 @@ (part 5 of 12)","tier":"read"}
+{"id":"H0223","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -136,15 +256,32 @@ (part 6 of 12)","tier":"read"}
+{"id":"H0224","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -151,4 +288,10 @@ (part 7 of 12)","tier":"read"}
+{"id":"H0225","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -155,7 +298,11 @@ (part 8 of 12)","tier":"read"}
+{"id":"H0226","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -162,17 +309,34 @@ (part 9 of 12)","tier":"read"}
+{"id":"H0227","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -179,11 +343,17 @@ (part 10 of 12)","tier":"read"}
+{"id":"H0228","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -190,19 +360,34 @@ (part 11 of 12)","tier":"read"}
+{"id":"H0229","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -209,28 +394,47 @@ (part 12 of 12)","tier":"read"}
+{"id":"H0230","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -245,6 +449,29 @@ (part 1 of 3) const FALLBACK_TITLES: Record<string, string> = {","tier":"read"}
+{"id":"H0231","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -251,6 +478,6 @@ (part 2 of 3)","tier":"read"}
+{"id":"H0232","file":"src/domain/review/prompt/parse-diagram.ts","header":"@@ -257,14 +484,17 @@ (part 3 of 3)","tier":"read"}
+{"id":"H0233","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -1,8 +1,14 @@ (part 1 of 3)","tier":"read"}
+{"id":"H0234","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -8,0 +15,6 @@ (part 2 of 3)","tier":"read"}
+{"id":"H0235","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -9,3 +21,9 @@ (part 3 of 3)","tier":"read"}
+{"id":"H0236","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -45,26 +63,23 @@ describe('parseNarrativeReview', () => {","tier":"read"}
+{"id":"H0237","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -163,10 +178,10 @@ describe('parseNarrativeReview', () => {","tier":"read"}
+{"id":"H0238","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -261,18 +276,12 @@ describe('parseNarrativeReview', () => {","tier":"read"}
+{"id":"H0239","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -394,10 +403,8 @@ describe('prose passages', () => {","tier":"read"}
+{"id":"H0240","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -501,6 +508,421 @@ describe('a quote the model forgot to escape', () => {","tier":"read"}
+{"id":"H0241","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -1,10 +1,11 @@","tier":"proven"}
+{"id":"H0242","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -25,8 +26,13 @@ import { sanitizeDiagram } from './parse-diagram.ts';","tier":"read"}
+{"id":"H0243","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -34,8 +40,17 @@ (part 1 of 6) function isRecord(value: unknown): value is Rec {","tier":"read"}
+{"id":"H0244","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -42,7 +57,13 @@ (part 2 of 6)","tier":"read"}
+{"id":"H0245","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -49,5 +70,10 @@ (part 3 of 6)","tier":"read"}
+{"id":"H0246","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -54,5 +80,18 @@ (part 4 of 6)","tier":"read"}
+{"id":"H0247","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -59,23 +98,42 @@ (part 5 of 6)","tier":"read"}
+{"id":"H0248","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -82,11 +140,38 @@ (part 6 of 6)","tier":"read"}
+{"id":"H0249","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -94,6 +179,13 @@ function resolveHunks(chunk: Rec, grounding: PromptGrounding | undefined): Resol","tier":"read"}
+{"id":"H0250","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -109,4 +201,20 @@ (part 1 of 2) function resolveHunks(chunk: Rec, grounding: PromptGrounding | undefined): Resol","tier":"read"}
+{"id":"H0251","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -113,11 +221,21 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0252","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -128,26 +246,60 @@ function sanitizeProse(raw: unknown): Prose | undefined {","tier":"read"}
+{"id":"H0253","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -156,7 +308,7 @@ function sanitizeInsights(raw: unknown, anchors: ReadonlySet<string>): Insight[]","tier":"read"}
+{"id":"H0254","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -164,6 +316,11 @@ function mergeChunksByFile(chunks: DiffChunk[]): DiffChunk[] {","tier":"read"}
+{"id":"H0255","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -171,14 +328,32 @@ (part 1 of 3) function mergeChunksByFile(chunks: DiffChunk[]): DiffChunk[] {","tier":"read"}
+{"id":"H0256","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -185,13 +360,27 @@ (part 2 of 3)","tier":"read"}
+{"id":"H0257","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -198,10 +387,15 @@ (part 3 of 3)","tier":"read"}
+{"id":"H0258","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -220,12 +414,23 @@ function sanitizeChapter(","tier":"read"}
+{"id":"H0259","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -285,13 +490,15 @@ (part 1 of 9) function endsString(json: string, from: number): boolean {","tier":"read"}
+{"id":"H0260","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -298,1 +505,6 @@ (part 2 of 9)","tier":"read"}
+{"id":"H0261","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -299,10 +511,68 @@ (part 3 of 9)","tier":"read"}
+{"id":"H0262","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -308,0 +579,8 @@ (part 4 of 9)","tier":"read"}
+{"id":"H0263","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -309,2 +587,13 @@ (part 5 of 9)","tier":"read"}
+{"id":"H0264","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -311,8 +600,9 @@ (part 6 of 9)","tier":"read"}
+{"id":"H0265","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -319,5 +609,6 @@ (part 7 of 9)","tier":"read"}
+{"id":"H0266","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -324,11 +615,5 @@ (part 8 of 9)","tier":"read"}
+{"id":"H0267","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -335,5 +620,10 @@ (part 9 of 9)","tier":"read"}
+{"id":"H0268","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -344,7 +634,8 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):","tier":"read"}
+{"id":"H0269","file":"src/domain/review/run.integration.test.ts","header":"@@ -160,7 +160,7 @@ describeDb('runJob (stub executor against a local git repository)', () => {","tier":"read"}
+{"id":"H0270","file":"src/domain/review/run.server.test.ts","header":"@@ -1,6 +1,7 @@","tier":"proven"}
+{"id":"H0271","file":"src/domain/review/run.server.test.ts","header":"@@ -121,7 +122,7 @@ function capturingExecutor(","tier":"skim","note":"adapts to new output shape"}
+{"id":"H0272","file":"src/domain/review/run.server.test.ts","header":"@@ -156,8 +157,8 @@ describe('runJob', () => {","tier":"read"}
+{"id":"H0273","file":"src/domain/review/run.server.test.ts","header":"@@ -166,6 +167,22 @@ describe('runJob', () => {","tier":"read"}
+{"id":"H0274","file":"src/domain/review/run.server.ts","header":"@@ -26,6 +26,7 @@ import {","tier":"proven"}
+{"id":"H0275","file":"src/domain/review/run.server.ts","header":"@@ -272,7 +273,7 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ","tier":"read"}
+{"id":"H0276","file":"src/domain/review/run.server.ts","header":"@@ -286,8 +287,7 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ","tier":"read"}
+{"id":"H0277","file":"src/domain/review/skip-reasons.server.test.ts","header":"@@ -5,7 +5,7 @@ import { runGit, runGitOrThrow } from './clone/git-runner.server.ts';","tier":"skim","note":"test timeout config"}
+{"id":"H0278","file":"src/domain/review/validate-review.test.ts","header":"@@ -0,0 +1,21 @@ (part 1 of 9)","tier":"skim","note":"shared diff fixture"}
+{"id":"H0279","file":"src/domain/review/validate-review.test.ts","header":"@@ -0,0 +22,15 @@ (part 2 of 9)","tier":"skim","note":"shared test builder"}
+{"id":"H0280","file":"src/domain/review/validate-review.test.ts","header":"@@ -0,0 +37,5 @@ (part 3 of 9)","tier":"skim","note":"shared test fixture"}
+{"id":"H0281","file":"src/domain/review/validate-review.test.ts","header":"@@ -0,0 +42,7 @@ (part 4 of 9)","tier":"read"}
+{"id":"H0282","file":"src/domain/review/validate-review.test.ts","header":"@@ -0,0 +49,18 @@ (part 5 of 9)","tier":"read"}
+{"id":"H0283","file":"src/domain/review/validate-review.test.ts","header":"@@ -0,0 +67,20 @@ (part 6 of 9)","tier":"read"}
+{"id":"H0284","file":"src/domain/review/validate-review.test.ts","header":"@@ -0,0 +87,9 @@ (part 7 of 9)","tier":"read"}
+{"id":"H0285","file":"src/domain/review/validate-review.test.ts","header":"@@ -0,0 +96,8 @@ (part 8 of 9)","tier":"read"}
+{"id":"H0286","file":"src/domain/review/validate-review.test.ts","header":"@@ -0,0 +104,10 @@ (part 9 of 9)","tier":"read"}
+{"id":"H0287","file":"src/domain/review/validate-review.ts","header":"@@ -0,0 +1,7 @@ (part 1 of 7)","tier":"proven"}
+{"id":"H0288","file":"src/domain/review/validate-review.ts","header":"@@ -0,0 +8,15 @@ (part 2 of 7)","tier":"read"}
+{"id":"H0289","file":"src/domain/review/validate-review.ts","header":"@@ -0,0 +23,11 @@ (part 3 of 7)","tier":"read"}
+{"id":"H0290","file":"src/domain/review/validate-review.ts","header":"@@ -0,0 +34,9 @@ (part 4 of 7)","tier":"read"}
+{"id":"H0291","file":"src/domain/review/validate-review.ts","header":"@@ -0,0 +43,21 @@ (part 5 of 7)","tier":"read"}
+{"id":"H0292","file":"src/domain/review/validate-review.ts","header":"@@ -0,0 +64,12 @@ (part 6 of 7)","tier":"read"}
+{"id":"H0293","file":"src/domain/review/validate-review.ts","header":"@@ -0,0 +76,9 @@ (part 7 of 7)","tier":"read"}
+{"id":"H0294","file":"src/guardrails/cli-imports.guard.test.ts","header":"@@ -32,6 +32,17 @@ const FORBIDDEN_PREFIXES: Record<string, string> = {","tier":"read"}
+{"id":"H0295","file":"src/guardrails/cli-imports.guard.test.ts","header":"@@ -39,3 +50,26 @@ (part 1 of 6) function resolveFile(target: string): string | null {","tier":"read"}
+{"id":"H0296","file":"src/guardrails/cli-imports.guard.test.ts","header":"@@ -41,0 +76,10 @@ (part 2 of 6)","tier":"skim","note":"extracted helper, same logic"}
+{"id":"H0297","file":"src/guardrails/cli-imports.guard.test.ts","header":"@@ -41,0 +86,15 @@ (part 3 of 6)","tier":"read"}
+{"id":"H0298","file":"src/guardrails/cli-imports.guard.test.ts","header":"@@ -42,41 +101,21 @@ (part 4 of 6)","tier":"skim","note":"refactor of existing test"}
+{"id":"H0299","file":"src/guardrails/cli-imports.guard.test.ts","header":"@@ -82,0 +122,13 @@ (part 5 of 6)","tier":"read"}
+{"id":"H0300","file":"src/guardrails/cli-imports.guard.test.ts","header":"@@ -83,1 +135,16 @@ (part 6 of 6)","tier":"read"}
+{"id":"H0301","file":"src/test/git-repo.ts","header":"@@ -14,6 +14,10 @@ import { hostEnv } from '../config/host-env.ts';","tier":"skim","note":"documentation comment"}
+{"id":"H0302","file":"src/web/components/jobs/review-banners.tsx","header":"@@ -1,28 +1,7 @@","tier":"read"}
+{"id":"H0303","file":"src/web/components/narrative/chapter-reader.test.tsx","header":"@@ -30,7 +30,12 @@ function renderReader(withReview: NarrativeReview = review) {","tier":"skim","note":"test wiring for new prop"}
+{"id":"H0304","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -9,7 +9,8 @@ import {","tier":"proven"}
+{"id":"H0305","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -22,7 +23,6 @@ import {","tier":"proven"}
+{"id":"H0306","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -88,8 +88,8 @@ export interface ChapterReaderProps {","tier":"read"}
+{"id":"H0307","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -104,7 +104,7 @@ export function ChapterReader({","tier":"read"}
+{"id":"H0308","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -113,7 +113,7 @@ export function ChapterReader({","tier":"read"}
+{"id":"H0309","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -262,8 +262,7 @@ export function ChapterReader({","tier":"read"}
+{"id":"H0310","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -277,17 +276,15 @@ export function ChapterReader({","tier":"read"}
+{"id":"H0311","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -295,8 +292,7 @@ function SectionCard({","tier":"read"}
+{"id":"H0312","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -304,14 +300,6 @@ function SectionCard({","tier":"read"}
+{"id":"H0313","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -320,7 +308,13 @@ function SectionCard({","tier":"read"}
+{"id":"H0314","file":"src/web/components/narrative/chapter-sidebar.test.tsx","header":"@@ -3,7 +3,6 @@ import { reviewCoverage } from '@/domain/review/coverage';","tier":"proven"}
+{"id":"H0315","file":"src/web/components/narrative/chapter-sidebar.test.tsx","header":"@@ -329,30 +328,6 @@ describe('<ChapterSidebar />', () => {","tier":"read"}
+{"id":"H0316","file":"src/web/components/narrative/findings-notice.test.tsx","header":"@@ -0,0 +1,5 @@ (part 1 of 4)","tier":"proven"}
+{"id":"H0317","file":"src/web/components/narrative/findings-notice.test.tsx","header":"@@ -0,0 +6,17 @@ (part 2 of 4)","tier":"read"}
+{"id":"H0318","file":"src/web/components/narrative/findings-notice.test.tsx","header":"@@ -0,0 +23,5 @@ (part 3 of 4)","tier":"read"}
+{"id":"H0319","file":"src/web/components/narrative/findings-notice.test.tsx","header":"@@ -0,0 +28,9 @@ (part 4 of 4)","tier":"read"}
+{"id":"H0320","file":"src/web/components/narrative/findings-notice.tsx","header":"@@ -0,0 +1,5 @@ (part 1 of 3)","tier":"proven"}
+{"id":"H0321","file":"src/web/components/narrative/findings-notice.tsx","header":"@@ -0,0 +6,15 @@ (part 2 of 3)","tier":"read"}
+{"id":"H0322","file":"src/web/components/narrative/findings-notice.tsx","header":"@@ -0,0 +21,20 @@ (part 3 of 3)","tier":"read"}
+{"id":"H0323","file":"src/web/components/narrative/sections.test.ts","header":"@@ -1,16 +1,13 @@","tier":"skim","note":"test helper update"}
+{"id":"H0324","file":"src/web/components/narrative/sections.test.ts","header":"@@ -56,49 +53,6 @@ describe('readerSections', () => {","tier":"read"}
+{"id":"H0325","file":"src/web/components/narrative/sections.ts","header":"@@ -1,8 +1,6 @@","tier":"proven"}
+{"id":"H0326","file":"src/web/components/narrative/sections.ts","header":"@@ -17,7 +15,7 @@ import {","tier":"read"}
+{"id":"H0327","file":"src/web/components/narrative/sections.ts","header":"@@ -30,7 +28,7 @@ export interface ReaderSection {","tier":"read"}
+{"id":"H0328","file":"src/web/components/narrative/sections.ts","header":"@@ -62,18 +60,6 @@ export function readerSections(review: NarrativeReview, coverage: ReviewCoverage","tier":"read"}
+{"id":"H0329","file":"src/web/components/narrative/sections.ts","header":"@@ -86,10 +72,10 @@ export function readerSections(review: NarrativeReview, coverage: ReviewCoverage","tier":"read"}
+{"id":"H0330","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -1,4 +1,5 @@","tier":"proven"}
+{"id":"H0331","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -26,8 +27,14 @@ function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {","tier":"skim","note":"test helper signature"}
+{"id":"H0332","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -93,3 +100,16 @@ (part 1 of 3) describe('<SummaryCard />', () => {","tier":"read"}
+{"id":"H0333","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -95,0 +116,5 @@ (part 2 of 3)","tier":"read"}
+{"id":"H0334","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -96,3 +121,11 @@ (part 3 of 3)","tier":"read"}
+{"id":"H0335","file":"src/web/components/narrative/summary-card.tsx","header":"@@ -1,10 +1,12 @@","tier":"proven"}
+{"id":"H0336","file":"src/web/components/narrative/summary-card.tsx","header":"@@ -28,11 +30,14 @@ import { DISPLAY_SIZE } from '@/web/theme/tokens';","tier":"read"}
+{"id":"H0337","file":"src/web/components/narrative/summary-card.tsx","header":"@@ -137,6 +142,8 @@ export function SummaryCard({","tier":"read"}
+{"id":"H0338","file":"src/web/components/narrative/undiscussed-card.test.tsx","header":"@@ -1,14 +0,0 @@ (part 1 of 10)","tier":"proven"}
+{"id":"H0339","file":"src/web/components/narrative/undiscussed-card.test.tsx","header":"@@ -15,7 +0,0 @@ (part 2 of 10)","tier":"skim","note":"deleted test mock"}
+{"id":"H0340","file":"src/web/components/narrative/undiscussed-card.test.tsx","header":"@@ -22,7 +0,0 @@ (part 3 of 10)","tier":"skim","note":"deleted test fixture"}
+{"id":"H0341","file":"src/web/components/narrative/undiscussed-card.test.tsx","header":"@@ -29,40 +0,0 @@ (part 4 of 10)","tier":"skim","note":"deleted test fixture"}
+{"id":"H0342","file":"src/web/components/narrative/undiscussed-card.test.tsx","header":"@@ -69,25 +0,0 @@ (part 5 of 10)","tier":"skim","note":"deleted test fixture"}
+{"id":"H0343","file":"src/web/components/narrative/undiscussed-card.test.tsx","header":"@@ -94,14 +0,0 @@ (part 6 of 10)","tier":"skim","note":"deleted test helper"}
+{"id":"H0344","file":"src/web/components/narrative/undiscussed-card.test.tsx","header":"@@ -108,13 +0,0 @@ (part 7 of 10)","tier":"read"}
+{"id":"H0345","file":"src/web/components/narrative/undiscussed-card.test.tsx","header":"@@ -121,20 +0,0 @@ (part 8 of 10)","tier":"read"}
+{"id":"H0346","file":"src/web/components/narrative/undiscussed-card.test.tsx","header":"@@ -141,10 +0,0 @@ (part 9 of 10)","tier":"read"}
+{"id":"H0347","file":"src/web/components/narrative/undiscussed-card.test.tsx","header":"@@ -151,35 +0,0 @@ (part 10 of 10)","tier":"read"}
+{"id":"H0348","file":"src/web/components/narrative/undiscussed-card.tsx","header":"@@ -1,12 +0,0 @@ (part 1 of 4)","tier":"proven"}
+{"id":"H0349","file":"src/web/components/narrative/undiscussed-card.tsx","header":"@@ -13,47 +0,0 @@ (part 2 of 4)","tier":"read"}
+{"id":"H0350","file":"src/web/components/narrative/undiscussed-card.tsx","header":"@@ -60,13 +0,0 @@ (part 3 of 4)","tier":"read"}
+{"id":"H0351","file":"src/web/components/narrative/undiscussed-card.tsx","header":"@@ -73,25 +0,0 @@ (part 4 of 4)","tier":"read"}
+{"id":"H0352","file":"src/web/components/narrative/use-narrative-keyboard.ts","header":"@@ -36,8 +36,8 @@ function ownsSpace(target: EventTarget | null): boolean {","tier":"skim","note":"doc comment update"}
+{"id":"H0353","file":"src/web/components/narrative/use-narrative-keyboard.ts","header":"@@ -45,9 +45,9 @@ function ownsSpace(target: EventTarget | null): boolean {","tier":"skim","note":"doc comment update"}
+{"id":"H0354","file":"src/web/routes/reviews.$id.test.ts","header":"@@ -41,7 +41,7 @@ const JOB = {","tier":"skim","note":"test fixture update"}
+{"id":"H0355","file":"src/web/routes/reviews.$id.test.ts","header":"@@ -100,7 +100,6 @@ describe('/reviews/:id loader', () => {","tier":"skim","note":"removed obsolete assertion"}
+{"id":"H0356","file":"src/web/routes/reviews.$id.test.ts","header":"@@ -114,6 +113,14 @@ describe('/reviews/:id loader', () => {","tier":"read"}
+{"id":"H0357","file":"src/web/routes/reviews.$id.tsx","header":"@@ -12,7 +12,7 @@ import { readGithubToken } from '@/web/auth/cookies.server';","tier":"proven"}
+{"id":"H0358","file":"src/web/routes/reviews.$id.tsx","header":"@@ -70,7 +70,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {","tier":"read"}
+{"id":"H0359","file":"src/web/routes/reviews.$id.tsx","header":"@@ -108,7 +108,6 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {","tier":"read"}
+{"id":"H0360","file":"src/web/routes/reviews.$id.tsx","header":"@@ -123,7 +122,7 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {","tier":"read"}
+{"id":"H0361","file":"src/web/theme/tokens.ts","header":"@@ -307,6 +307,20 @@ export const FONT_SIZES = {","tier":"read"}
+{"id":"H0362","file":"src/web/viewer/sample-bundle.test.ts","header":"@@ -4,10 +4,10 @@ import { reviewCoverage } from '@/domain/review/coverage';","tier":"skim","note":"comment and test imports"}
+{"id":"H0363","file":"src/web/viewer/sample-bundle.test.ts","header":"@@ -89,8 +89,12 @@ describe('the sample report bundle', () => {","tier":"read"}
+{"id":"H0364","file":"src/web/viewer/sample-bundle.ts","header":"@@ -198,8 +198,8 @@ export const SAMPLE_BUNDLE: ReviewBundle = {","tier":"skim","note":"comment update only"}
+{"id":"H0365","file":"src/web/viewer/viewer-page.tsx","header":"@@ -52,10 +52,16 @@ export function ViewerPage({ result }: { result: EmbeddedBundleResult }) {","tier":"read"}

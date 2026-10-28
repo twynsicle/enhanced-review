@@ -1,0 +1,37 @@
+{"id":"H0001","file":".claude/rules/cli.md","header":"@@ -36,7 +36,8 @@ src/cli/","tier":"skim","note":"doc table update"}
+{"id":"H0002","file":".claude/rules/cli.md","header":"@@ -57,8 +58,8 @@ src/cli/","tier":"skim","note":"doc table update"}
+{"id":"H0003","file":".claude/rules/cli.md","header":"@@ -69,8 +70,9 @@ src/cli/","tier":"skim","note":"doc table update"}
+{"id":"H0004","file":".claude/rules/cli.md","header":"@@ -152,8 +154,10 @@ not an accident to fix:","tier":"skim","note":"doc prose update"}
+{"id":"H0005","file":"AGENTS.md","header":"@@ -147,7 +147,8 @@ Skills in `.claude/skills/`, loaded when the task calls for them:","tier":"skim","note":"doc prose update"}
+{"id":"H0006","file":"src/cli/bash-gate.test.ts","header":"@@ -81,3 +81,21 @@ (part 1 of 5) describe('what the local agent may run', () => {","tier":"read"}
+{"id":"H0007","file":"src/cli/bash-gate.test.ts","header":"@@ -83,0 +102,10 @@ (part 2 of 5)","tier":"read"}
+{"id":"H0008","file":"src/cli/bash-gate.test.ts","header":"@@ -83,0 +112,7 @@ (part 3 of 5)","tier":"read"}
+{"id":"H0009","file":"src/cli/bash-gate.test.ts","header":"@@ -83,0 +119,12 @@ (part 4 of 5)","tier":"read"}
+{"id":"H0010","file":"src/cli/bash-gate.test.ts","header":"@@ -84,3 +131,14 @@ (part 5 of 5)","tier":"read"}
+{"id":"H0011","file":"src/cli/bash-gate.ts","header":"@@ -14,8 +14,15 @@ (part 1 of 3)","tier":"read"}
+{"id":"H0012","file":"src/cli/bash-gate.ts","header":"@@ -22,3 +29,6 @@ (part 2 of 3)","tier":"skim","note":"comment only"}
+{"id":"H0013","file":"src/cli/bash-gate.ts","header":"@@ -25,3 +35,10 @@ (part 3 of 3)","tier":"read"}
+{"id":"H0014","file":"src/cli/bash-gate.ts","header":"@@ -43,17 +60,24 @@ (part 1 of 3) const GIT_SUBCOMMANDS = new Set([","tier":"read"}
+{"id":"H0015","file":"src/cli/bash-gate.ts","header":"@@ -60,14 +84,14 @@ (part 2 of 3)","tier":"read"}
+{"id":"H0016","file":"src/cli/bash-gate.ts","header":"@@ -74,6 +98,5 @@ (part 3 of 3)","tier":"read"}
+{"id":"H0017","file":"src/cli/bash-gate.ts","header":"@@ -81,9 +104,10 @@ function reviewOne(command: string): BashDecision {","tier":"read"}
+{"id":"H0018","file":"src/cli/bash-gate.ts","header":"@@ -100,47 +124,88 @@ (part 1 of 3) function reviewOne(command: string): BashDecision {","tier":"read"}
+{"id":"H0019","file":"src/cli/bash-gate.ts","header":"@@ -147,9 +212,8 @@ (part 2 of 3)","tier":"read"}
+{"id":"H0020","file":"src/cli/bash-gate.ts","header":"@@ -156,9 +219,0 @@ (part 3 of 3)","tier":"skim","note":"removed superseded helper"}
+{"id":"H0021","file":"src/cli/claude-run.test.ts","header":"@@ -70,6 +70,7 @@ const hunk = (id: string) => ({","tier":"skim","note":"test fixture default added"}
+{"id":"H0022","file":"src/cli/claude-run.test.ts","header":"@@ -188,3 +189,17 @@ (part 1 of 2) describe('the model run', () => {","tier":"read"}
+{"id":"H0023","file":"src/cli/claude-run.test.ts","header":"@@ -191,3 +206,9 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0024","file":"src/cli/claude-run.ts","header":"@@ -6,6 +6,7 @@ import { howItEnded, runSdkLoop, type SdkQueryFn, type SdkUsage } from './sdk-lo","tier":"proven"}
+{"id":"H0025","file":"src/cli/claude-run.ts","header":"@@ -18,9 +19,11 @@ import type { RunFiles } from './run-folder.ts';","tier":"skim","note":"doc comment update"}
+{"id":"H0026","file":"src/cli/claude-run.ts","header":"@@ -52,6 +55,11 @@ export type QueryFn = SdkQueryFn;","tier":"read"}
+{"id":"H0027","file":"src/cli/claude-run.ts","header":"@@ -212,8 +220,8 @@ function sdkOptions(","tier":"read"}
+{"id":"H0028","file":"src/cli/host-env.test.ts","header":"@@ -1,5 +1,5 @@","tier":"proven"}
+{"id":"H0029","file":"src/cli/host-env.test.ts","header":"@@ -12,3 +12,10 @@ (part 1 of 3) describe('hostEnv', () => {","tier":"read"}
+{"id":"H0030","file":"src/cli/host-env.test.ts","header":"@@ -14,0 +22,9 @@ (part 2 of 3)","tier":"read"}
+{"id":"H0031","file":"src/cli/host-env.test.ts","header":"@@ -14,0 +31,12 @@ (part 3 of 3)","tier":"read"}
+{"id":"H0032","file":"src/cli/host-env.ts","header":"@@ -10,3 +10,21 @@ export type HostEnv = Record<string, string | undefined>;","tier":"read"}
+{"id":"H0033","file":"src/cli/review.test.ts","header":"@@ -132,8 +132,10 @@ describe('er review', () => {","tier":"read"}
+{"id":"H0034","file":"src/cli/review.test.ts","header":"@@ -144,6 +146,7 @@ describe('er review', () => {","tier":"read"}
+{"id":"H0035","file":"src/cli/review.test.ts","header":"@@ -418,3 +421,13 @@ (part 1 of 2) describe('er review', () => {","tier":"read"}
+{"id":"H0036","file":"src/cli/review.test.ts","header":"@@ -421,3 +434,14 @@ (part 2 of 2)","tier":"read"}
+{"id":"H0037","file":"src/cli/review.ts","header":"@@ -142,6 +142,7 @@ export async function review(","tier":"read"}

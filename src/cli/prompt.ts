@@ -8,7 +8,7 @@ import {
   type ReviewFile,
   type ReviewFileSkipReason,
 } from '../review/narrative.ts';
-import type { RunContext } from './context.ts';
+import type { Commit, RunContext } from './context.ts';
 import type { RunFiles } from './run-folder.ts';
 
 /**
@@ -80,7 +80,7 @@ export function buildPrompt(
       .filter((line) => line !== null)
       .join('\n'),
     description(context, run),
-    commits(context),
+    formatCommits(context.commits),
     workingDirectory(context, run),
     `## Files Changed (${String(reviewed.length)})\n${formatFileList(reviewed)}${renames(files)}`,
     formatSkippedSection(files),
@@ -135,7 +135,8 @@ function description({ meta, commits: list }: RunContext, run: RunFiles): string
   return `## Description\n${meta.description}\n\n${intent}`;
 }
 
-function commits({ commits: list }: RunContext): string | null {
+/** The commits under review, oldest first, each body indented under its subject. */
+export function formatCommits(list: readonly Commit[]): string | null {
   if (list.length === 0) return null;
   const lines = list.map((commit) => {
     const body =
@@ -200,7 +201,7 @@ const isSkipped = (file: ReviewFile): file is SkippedFile => file.skipped !== un
  * message, an import, a test name — so leaving them unmentioned invites it to
  * cite hunks that do not exist for them.
  */
-function formatSkippedSection(files: readonly ReviewFile[]): string | null {
+export function formatSkippedSection(files: readonly ReviewFile[]): string | null {
   const skipped = files.filter(isSkipped);
   if (skipped.length === 0) return null;
   return (
@@ -211,7 +212,7 @@ function formatSkippedSection(files: readonly ReviewFile[]): string | null {
 }
 
 /** The Files Changed list: status, counts, path. */
-function formatFileList(files: readonly ReviewFile[]): string {
+export function formatFileList(files: readonly ReviewFile[]): string {
   return files
     .map(
       (f) =>
@@ -221,7 +222,7 @@ function formatFileList(files: readonly ReviewFile[]): string {
 }
 
 /** The Changed Hunks list the model cites ids from, each hunk's proven facts after it. */
-function formatHunkCatalog(hunks: readonly DiffHunk[]): string {
+export function formatHunkCatalog(hunks: readonly DiffHunk[]): string {
   if (hunks.length === 0) return '  (No patch hunks were detected in the provided diff.)';
   return hunks
     .map(

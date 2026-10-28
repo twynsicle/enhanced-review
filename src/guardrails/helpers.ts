@@ -76,7 +76,7 @@ export function resolveProjectImport(spec: string, fromFile: string): string | n
   return target.replace(/\.[cm]?[jt]sx?$/, '');
 }
 
-const AREAS = ['cli', 'review', 'report', 'guardrails', 'test'] as const;
+const AREAS = ['cli', 'review', 'report', 'evals', 'guardrails', 'test'] as const;
 export type Area = (typeof AREAS)[number];
 
 export function areaOf(relPath: string): Area | null {

@@ -34,3 +34,6 @@ npm-debug.log*
 
 # this machine's JetBrains project config
 .idea/
+
+# skim eval runs: model answers and scores, regenerated from the cases
+/evals/skims/results/

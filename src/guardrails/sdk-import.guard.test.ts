@@ -8,8 +8,9 @@ import { isTestFile, listFiles, readSource, report } from './helpers.ts';
  * `claude-run.ts` therefore reaches it through `await import(...)` inside the
  * run stage, and everything else takes types only. A plain
  * `import { query } from …` slipped in anywhere undoes that and nothing would
- * ever say so. Only `src/cli` is scanned: layering keeps the SDK out of
- * `review` and `report` altogether.
+ * ever say so. The skim eval in `src/evals` runs the model the same way and
+ * is held to the same rule. Only those two areas are scanned: layering keeps
+ * the SDK out of `review` and `report` altogether.
  */
 const AGENT_SDK = '@anthropic-ai/claude-agent-sdk';
 
@@ -31,7 +32,9 @@ function staticLoads(source: string): { spec: string; typeOnly: boolean }[] {
 describe('guardrail: the Agent SDK loads lazily', () => {
   it('reaches the Agent SDK only through a type-only or a dynamic import', () => {
     const violations: string[] = [];
-    for (const file of listFiles(['src/cli/**/*.ts']).filter((f) => !isTestFile(f))) {
+    for (const file of listFiles(['src/cli/**/*.ts', 'src/evals/**/*.ts']).filter(
+      (f) => !isTestFile(f),
+    )) {
       for (const { spec, typeOnly } of staticLoads(readSource(file))) {
         if (spec !== AGENT_SDK && !spec.startsWith(`${AGENT_SDK}/`)) continue;
         if (!typeOnly) violations.push(`${file} loads ${spec} at import time`);
