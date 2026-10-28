@@ -1,0 +1,10 @@
+{
+  "branch": "feat/depot-filter",
+  "title": "Sync a single depot with DEPOT",
+  "description": "Two of the depots run their own instance of the service against the same feed, and today each instance reconciles every depot's rows and loads every depot's levels. With `DEPOT` set, feed rows for other depots are skipped (not reported as unknown), only that depot's levels are loaded from the warehouse, the report records which depot it covers and the status page says so. Unset, nothing changes.",
+  "commit": {
+    "subject": "Sync a single depot with DEPOT",
+    "body": "DEPOT threads from config through reconcile and the warehouse's levels()\nto the report and the status page."
+  },
+  "removed": []
+}

@@ -46,7 +46,7 @@ tier seeds `read`.
 ### Contrived cases
 
 A real pull request carries each kind of skim only as often as it happens to,
-so a rule about one kind — version bumps, say — is measured on a change made
+so a rule about one kind — moved code, say — is measured on a change made
 to show it. Those live under `evals/skims/contrived/`:
 
 ```
@@ -59,11 +59,14 @@ evals/skims/contrived/
 
 Each branch shows one kind several times over, beside ordinary read hunks and
 at least one trap: a hunk that looks like the kind and is not, such as a
-version bump that also raises the Node requirement, or a rename under which a
-condition changes. The case is built from it:
+moved block that changed a line on the way, or a rename under which a
+condition changes. Some traps are noise rather than disguise: a hunk that is
+wiring for all but its last line, where a behaviour change rides along,
+because hunks are cut by git and the splitter, not by meaning, and a rule has
+to hold on the hunks a real change arrives in. The case is built from it:
 
 ```bash
-npm run eval:skims -- contrive version-bump
+npm run eval:skims -- contrive moved
 npm run eval:skims -- contrive --all
 ```
 
@@ -118,17 +121,22 @@ across cases, so the per-category table means something:
 | `docs`             | prose, comments, documentation                                            |
 | `moved`            | a block lifted from or to another hunk                                    |
 
-The contrived cases add one category per kind they were written to show, on
-the hunks that are that kind, with `read` where the trap is:
+The contrived cases show one kind each, `moved` and `wiring` from the table
+above and these, on the hunks that are that kind, with `read` where the trap
+is:
 
-| category       | what the lines are                                                   |
-| -------------- | -------------------------------------------------------------------- |
-| `version-bump` | a version number, in a manifest, a constant or a lockfile            |
-| `changelog`    | a changelog or release-notes entry                                   |
-| `logging`      | log lines, trace ids, counters; the parameters that carry them       |
-| `dead-code`    | a removal of code, tests or flags nothing uses any more              |
-| `strings`      | user-facing text: locale tables, messages, labels                    |
-| `local-rename` | a local, a parameter or a private helper given a new name, unchanged |
+| category       | what the lines are                                                                      |
+| -------------- | --------------------------------------------------------------------------------------- |
+| `logging`      | log lines, trace ids, counters; the parameters that carry them                          |
+| `strings`      | translations: new keys for text the same change introduces, or a whole new locale       |
+| `local-rename` | a local, a parameter or a private helper given a new name, unchanged                    |
+| `changelog`    | a changelog or release-notes entry                                                      |
+| `version-bump` | a version number: read, since one is rare and can carry more with it, as its trap shows |
+
+A changed or removed string is `read`, since code may still show it. The
+`version-bump` case is kept as a control, an ordinary feature with a bump
+beside it, so a change to the rules is also measured on hunks that are no
+kind at all.
 
 A `note` on a row is for whoever reads the label next: why it is what it is.
 The import leaves the model's own skim reason there.

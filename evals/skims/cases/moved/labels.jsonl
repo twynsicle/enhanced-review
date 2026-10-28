@@ -1,0 +1,12 @@
+{"id":"H0001","file":"src/alerts.ts","header":"@@ -30,7 +30,7 @@ export function alertFor(locale: string, report: SyncReport, feedDownMinutes: nu","tier":"read","category":"logic","note":"the footer now counts as a line, so the alert is never null"}
+{"id":"H0002","file":"src/feed/cells.ts","header":"@@ -0,0 +1,7 @@ (part 1 of 2)","tier":"skim","category":"moved","note":"lines() lifted from parse.ts unchanged"}
+{"id":"H0003","file":"src/feed/cells.ts","header":"@@ -0,0 +8,9 @@ (part 2 of 2)","tier":"read","category":"logic","note":"quantityOf lands changed: Number() takes decimals, and an empty cell as 0"}
+{"id":"H0004","file":"src/feed/parse.test.ts","header":"@@ -1,6 +1,7 @@","tier":"proven"}
+{"id":"H0005","file":"src/feed/parse.ts","header":"@@ -1,3 +1,5 @@","tier":"proven"}
+{"id":"H0006","file":"src/feed/parse.ts","header":"@@ -38,11 +40,3 @@ (part 1 of 2) export function parseLegacyFeed(text: string): FeedRow[] {","tier":"skim","category":"moved","note":"lines() to cells.ts"}
+{"id":"H0007","file":"src/feed/parse.ts","header":"@@ -49,9 +42,0 @@ (part 2 of 2)","tier":"either","category":"moved","note":"the originals of a block that lands changed in cells.ts"}
+{"id":"H0008","file":"src/main.ts","header":"@@ -15,6 +15,11 @@ async function main(): Promise<void> {","tier":"skim","category":"moved","note":"the status server block, moved above the sync closure unchanged"}
+{"id":"H0009","file":"src/main.ts","header":"@@ -27,11 +32,6 @@ async function main(): Promise<void> {","tier":"skim","category":"moved","note":"the status server block, moved above the sync closure unchanged"}
+{"id":"H0010","file":"src/sync/reconcile.ts","header":"@@ -1,5 +1,9 @@","tier":"skim","category":"moved","note":"key() to the top of the file, unchanged"}
+{"id":"H0011","file":"src/sync/reconcile.ts","header":"@@ -35,13 +39,13 @@ export async function reconcile(","tier":"skim","category":"moved","note":"three declarations hoisted within the function; nothing between reads them"}
+{"id":"H0012","file":"src/sync/reconcile.ts","header":"@@ -59,9 +63,5 @@ export async function reconcile(","tier":"read","category":"logic","note":"key() leaves, and the return line now dedupes unknown"}

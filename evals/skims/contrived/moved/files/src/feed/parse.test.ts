@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { normaliseSku, parseFeed } from './parse.ts';
+import { normaliseSku } from './cells.ts';
+import { parseFeed, parseLegacyFeed } from './parse.ts';
 
 describe('parseFeed', () => {
   it('reads the five-column format', () => {
@@ -18,6 +19,17 @@ describe('parseFeed', () => {
 
   it('clamps a negative quantity to zero', () => {
     assert.equal(parseFeed('a1,-3,north,,\n')[0]!.quantity, 0);
+  });
+});
+
+describe('parseLegacyFeed', () => {
+  it('reads the three-column format', () => {
+    const rows = parseLegacyFeed('a1;north;4\n');
+    assert.deepEqual(rows, [{ sku: 'A1', quantity: 4, depot: 'north', updatedAt: null }]);
+  });
+
+  it('refuses a row with the wrong number of columns', () => {
+    assert.throws(() => parseLegacyFeed('a1;north\n'), /three columns/);
   });
 });
 

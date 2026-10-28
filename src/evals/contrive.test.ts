@@ -46,10 +46,10 @@ describe('layBranch', () => {
 
 describe('listContrived', () => {
   it('lists every branch and never the base', async () => {
-    for (const name of ['base', 'logging', 'dead-code']) {
+    for (const name of ['base', 'logging', 'wiring']) {
       mkdirSync(path.join(root, CONTRIVED_DIR, name), { recursive: true });
     }
-    expect(await listContrived(root)).toEqual(['dead-code', 'logging']);
+    expect(await listContrived(root)).toEqual(['logging', 'wiring']);
   });
 });
 

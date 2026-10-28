@@ -1,0 +1,255 @@
+{
+  "name": "moved",
+  "source": {
+    "folder": "evals/skims/contrived/moved",
+    "repo": "stockline",
+    "kind": "branch"
+  },
+  "title": "Tidy the feed helpers and the sync module",
+  "description": "Housekeeping ahead of the per-depot work. The cell helpers move out of `parse.ts` into `cells.ts`, so the depot parser can share them without importing the whole parser; `key()` moves to the top of reconcile beside the types it keys; main starts the status server beside the state it serves instead of after the sync closure; and a couple of function bodies are reordered so their declarations sit together. Should be behaviour-neutral.",
+  "commits": [
+    {
+      "sha": "096b82e9db963301ab09ffaec02d51fa993b3c4d",
+      "subject": "Tidy the feed helpers and the sync module",
+      "body": "cells.ts takes lines, normaliseSku and quantityOf; key() to the top of\nreconcile; the status server beside its state in main."
+    }
+  ],
+  "files": [
+    {
+      "filename": "src/alerts.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/feed/cells.ts",
+      "status": "added",
+      "additions": 16,
+      "deletions": 0
+    },
+    {
+      "filename": "src/feed/parse.test.ts",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1
+    },
+    {
+      "filename": "src/feed/parse.ts",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 17
+    },
+    {
+      "filename": "src/main.ts",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 5
+    },
+    {
+      "filename": "src/sync/reconcile.ts",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 8
+    }
+  ],
+  "hunks": [
+    {
+      "id": "H0001",
+      "filename": "src/alerts.ts",
+      "header": "@@ -30,7 +30,7 @@ export function alertFor(locale: string, report: SyncReport, feedDownMinutes: nu",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 30,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 30,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "movedFrom": {
+        "filename": "src/feed/parse.ts",
+        "similarity": 80
+      },
+      "id": "H0002",
+      "filename": "src/feed/cells.ts",
+      "header": "@@ -0,0 +1,7 @@ (part 1 of 2)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0003",
+      "filename": "src/feed/cells.ts",
+      "header": "@@ -0,0 +8,9 @@ (part 2 of 2)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 8,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "importsOnly": true,
+      "id": "H0004",
+      "filename": "src/feed/parse.test.ts",
+      "header": "@@ -1,6 +1,7 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 7
+      },
+      "changedLines": 3
+    },
+    {
+      "importsOnly": true,
+      "id": "H0005",
+      "filename": "src/feed/parse.ts",
+      "header": "@@ -1,3 +1,5 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "changedLines": 2
+    },
+    {
+      "movedTo": {
+        "filename": "src/feed/cells.ts",
+        "similarity": 80
+      },
+      "id": "H0006",
+      "filename": "src/feed/parse.ts",
+      "header": "@@ -38,11 +40,3 @@ (part 1 of 2) export function parseLegacyFeed(text: string): FeedRow[] {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 38,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 40,
+        "lineCount": 3
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0007",
+      "filename": "src/feed/parse.ts",
+      "header": "@@ -49,9 +42,0 @@ (part 2 of 2)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 49,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 42,
+        "lineCount": 0
+      },
+      "changedLines": 9
+    },
+    {
+      "movedFrom": {
+        "filename": "src/main.ts",
+        "similarity": 100
+      },
+      "id": "H0008",
+      "filename": "src/main.ts",
+      "header": "@@ -15,6 +15,11 @@ async function main(): Promise<void> {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 15,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 15,
+        "lineCount": 11
+      },
+      "changedLines": 5
+    },
+    {
+      "movedTo": {
+        "filename": "src/main.ts",
+        "similarity": 100
+      },
+      "id": "H0009",
+      "filename": "src/main.ts",
+      "header": "@@ -27,11 +32,6 @@ async function main(): Promise<void> {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 27,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 32,
+        "lineCount": 6
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0010",
+      "filename": "src/sync/reconcile.ts",
+      "header": "@@ -1,5 +1,9 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 9
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0011",
+      "filename": "src/sync/reconcile.ts",
+      "header": "@@ -35,13 +39,13 @@ export async function reconcile(",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 35,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 39,
+        "lineCount": 13
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0012",
+      "filename": "src/sync/reconcile.ts",
+      "header": "@@ -59,9 +63,5 @@ export async function reconcile(",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 59,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 63,
+        "lineCount": 5
+      },
+      "changedLines": 6
+    }
+  ]
+}

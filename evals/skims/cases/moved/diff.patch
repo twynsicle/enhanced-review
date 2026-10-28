@@ -1,0 +1,168 @@
+diff --git a/src/alerts.ts b/src/alerts.ts
+index f77ccc2..5e0ec21 100644
+--- a/src/alerts.ts
++++ b/src/alerts.ts
+# H0001
+@@ -30,7 +30,7 @@ export function alertFor(locale: string, report: SyncReport, feedDownMinutes: nu
+       t(locale, 'alert.largeAdjustmentHint'),
+     );
+   }
+-  if (lines.length === 0) return null;
+   lines.push(t(locale, 'alert.footer', { version: VERSION }));
++  if (lines.length === 0) return null;
+   return { subject: t(locale, 'alert.subject'), lines };
+ }
+
+diff --git a/src/feed/cells.ts b/src/feed/cells.ts
+new file mode 100644
+index 0000000..d707395
+--- /dev/null
++++ b/src/feed/cells.ts
+# H0002
+@@ -0,0 +1,7 @@ (part 1 of 2)
++export function lines(text: string): string[] {
++  return text
++    .split('\n')
++    .map((line) => line.trim())
++    .filter((line) => line !== '' && !line.startsWith('#'));
++}
++
+# H0003
+@@ -0,0 +8,9 @@ (part 2 of 2)
++export function normaliseSku(raw: string): string {
++  return raw.trim().toUpperCase().replace(/\s+/g, '');
++}
++
++export function quantityOf(raw: string): number {
++  const parsed = Number(raw.trim());
++  if (Number.isNaN(parsed)) throw new Error(`bad quantity: ${raw}`);
++  return Math.max(0, parsed);
++}
+
+diff --git a/src/feed/parse.test.ts b/src/feed/parse.test.ts
+index 384936c..58025bf 100644
+--- a/src/feed/parse.test.ts
++++ b/src/feed/parse.test.ts
+# H0004
+@@ -1,6 +1,7 @@
+ import assert from 'node:assert/strict';
+ import { describe, it } from 'node:test';
+-import { normaliseSku, parseFeed, parseLegacyFeed } from './parse.ts';
++import { normaliseSku } from './cells.ts';
++import { parseFeed, parseLegacyFeed } from './parse.ts';
+ 
+ describe('parseFeed', () => {
+   it('reads the five-column format', () => {
+
+diff --git a/src/feed/parse.ts b/src/feed/parse.ts
+index 64e569a..f35cfa3 100644
+--- a/src/feed/parse.ts
++++ b/src/feed/parse.ts
+# H0005
+@@ -1,3 +1,5 @@
++import { lines, normaliseSku, quantityOf } from './cells.ts';
++
+ export interface FeedRow {
+   sku: string;
+   quantity: number;
+# H0006
+@@ -38,11 +40,3 @@ (part 1 of 2) export function parseLegacyFeed(text: string): FeedRow[] {
+   }
+   return rows;
+ }
+-
+-function lines(text: string): string[] {
+-  return text
+-    .split('\n')
+-    .map((line) => line.trim())
+-    .filter((line) => line !== '' && !line.startsWith('#'));
+-}
+-
+# H0007
+@@ -49,9 +42,0 @@ (part 2 of 2)
+-export function normaliseSku(raw: string): string {
+-  return raw.trim().toUpperCase().replace(/\s+/g, '');
+-}
+-
+-function quantityOf(raw: string): number {
+-  const parsed = Number.parseInt(raw.trim(), 10);
+-  if (Number.isNaN(parsed)) throw new Error(`bad quantity: ${raw}`);
+-  return Math.max(0, parsed);
+-}
+
+diff --git a/src/main.ts b/src/main.ts
+index 30ab9b1..03fdf07 100644
+--- a/src/main.ts
++++ b/src/main.ts
+# H0008
+@@ -15,6 +15,11 @@ async function main(): Promise<void> {
+   let lastRun: Date | null = null;
+   let report: SyncReport | null = null;
+ 
++  createServer((_, response) => {
++    response.setHeader('content-type', 'text/html; charset=utf-8');
++    response.end(renderStatus({ locale: config.locale, lastRun, report }, new Date()));
++  }).listen(8080);
++
+   const run = async () => {
+     try {
+       const feed = await fetchFeed(config);
+# H0009
+@@ -27,11 +32,6 @@ async function main(): Promise<void> {
+     }
+   };
+ 
+-  createServer((_, response) => {
+-    response.setHeader('content-type', 'text/html; charset=utf-8');
+-    response.end(renderStatus({ locale: config.locale, lastRun, report }, new Date()));
+-  }).listen(8080);
+-
+   await run();
+   setInterval(() => void run(), INTERVAL_MS);
+ }
+
+diff --git a/src/sync/reconcile.ts b/src/sync/reconcile.ts
+index 1bae6ce..880bc61 100644
+--- a/src/sync/reconcile.ts
++++ b/src/sync/reconcile.ts
+# H0010
+@@ -1,5 +1,9 @@
+ import type { FeedRow } from '../feed/parse.ts';
+ 
++function key(sku: string, depot: string): string {
++  return `${depot}/${sku}`;
++}
++
+ export interface StockLevel {
+   sku: string;
+   depot: string;
+# H0011
+@@ -35,13 +39,13 @@ export async function reconcile(
+   warehouse: Warehouse,
+   batchSize: number,
+ ): Promise<ReconcileResult> {
++  const adjustments: Adjustment[] = [];
++  const unknown: string[] = [];
++  let unchanged = 0;
+   const current = await warehouse.levels();
+   const known = new Map<string, StockLevel>();
+   for (const level of current) known.set(key(level.sku, level.depot), level);
+ 
+-  const adjustments: Adjustment[] = [];
+-  const unknown: string[] = [];
+-  let unchanged = 0;
+   for (const row of feed) {
+     const level = known.get(key(row.sku, row.depot));
+     if (!level) {
+# H0012
+@@ -59,9 +63,5 @@ export async function reconcile(
+   for (let start = 0; start < adjustments.length; start += batchSize) {
+     await warehouse.apply(adjustments.slice(start, start + batchSize));
+   }
+-  return { adjustments, unchanged, unknown };
+-}
+-
+-function key(sku: string, depot: string): string {
+-  return `${depot}/${sku}`;
++  return { adjustments, unchanged, unknown: [...new Set(unknown)] };
+ }

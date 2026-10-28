@@ -3,8 +3,10 @@ export const VERSION = '1.4.2';
 export interface Config {
   feedUrl: string;
   feedTimeoutMs: number;
+  legacyFeed: boolean;
   locale: string;
   batchSize: number;
+  depot: string | null;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
@@ -12,9 +14,11 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   if (!feedUrl) throw new Error('FEED_URL is required');
   return {
     feedUrl,
-    feedTimeoutMs: integer(env.FEED_TIMEOUT_MS, 8000),
+    feedTimeoutMs: integer(env.FEED_TIMEOUT_MS, 5000),
+    legacyFeed: env.LEGACY_FEED === 'true',
     locale: env.LOCALE ?? 'en',
     batchSize: integer(env.BATCH_SIZE, 500),
+    depot: env.DEPOT ?? null,
   };
 }
 

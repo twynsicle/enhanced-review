@@ -19,5 +19,13 @@ Requires Node 18 or later.
 | Variable          | Default | Meaning                                        |
 | ----------------- | ------- | ---------------------------------------------- |
 | `FEED_URL`        | —       | Where the supplier feed is fetched from        |
-| `FEED_TIMEOUT_MS` | 8000    | How long one fetch of the feed may take        |
+| `FEED_TIMEOUT_MS` | 5000    | How long one fetch of the feed may take        |
+| `LEGACY_FEED`     | false   | Read the feed in the pre-2023 three-column format |
 | `LOCALE`          | en      | Language of the status page                    |
+| `DEPOT`           | —       | Sync this depot only; every depot when unset   |
+
+## The feed formats
+
+The supplier moved to the five-column format in 2023. The three-column
+format is still accepted behind `LEGACY_FEED` for the two depots that have
+not migrated.
