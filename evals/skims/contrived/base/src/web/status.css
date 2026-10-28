@@ -1,0 +1,30 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 2rem auto;
+  max-width: 40rem;
+  color: #1f2328;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.ok {
+  color: #1a7f37;
+}
+
+.stale {
+  color: #9a6700;
+  font-weight: 600;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content auto;
+  gap: 0.25rem 1rem;
+}
+
+ul {
+  padding-left: 1.25rem;
+}

@@ -1,0 +1,19 @@
+{"id":"H0001","file":"README.md","header":"@@ -22,6 +22,10 @@ Requires Node 18 or later.","tier":"skim","category":"docs"}
+{"id":"H0002","file":"src/config.ts","header":"@@ -1,3 +1,5 @@","tier":"proven"}
+{"id":"H0003","file":"src/config.ts","header":"@@ -6,8 +8,11 @@ export interface Config {","tier":"skim","category":"wiring","note":"logLevel field and the LEVELS list"}
+{"id":"H0004","file":"src/config.ts","header":"@@ -17,9 +22,18 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {","tier":"read","category":"logic","note":"LOG_LEVEL is validated and throws"}
+{"id":"H0005","file":"src/feed/client.ts","header":"@@ -1,5 +1,6 @@","tier":"proven"}
+{"id":"H0006","file":"src/feed/client.ts","header":"@@ -7,7 +8,8 @@ export interface FeedFetch {","tier":"skim","category":"logging","note":"trace parameter and a debug line"}
+{"id":"H0007","file":"src/feed/client.ts","header":"@@ -18,5 +20,6 @@ export async function fetchFeed(config: Config): Promise<FeedFetch> {","tier":"skim","category":"logging","note":"a debug line"}
+{"id":"H0008","file":"src/main.ts","header":"@@ -1,9 +1,10 @@","tier":"proven"}
+{"id":"H0009","file":"src/main.ts","header":"@@ -11,19 +12,22 @@ const INTERVAL_MS = 5 * 60 * 1000;","tier":"skim","category":"logging","note":"trace threaded through the run, log lines gain it"}
+{"id":"H0010","file":"src/sync/reconcile.test.ts","header":"@@ -21,17 +21,19 @@ const row = (sku: string, quantity: number, depot = 'north') => ({","tier":"skim","category":"call-sites","note":"TRACE passed to every call"}
+{"id":"H0011","file":"src/sync/reconcile.test.ts","header":"@@ -39,14 +41,21 @@ describe('reconcile', () => {","tier":"read","category":"test-case","note":"a new test for the negative-level skip among the TRACE call sites"}
+{"id":"H0012","file":"src/sync/reconcile.ts","header":"@@ -1,4 +1,6 @@","tier":"proven"}
+{"id":"H0013","file":"src/sync/reconcile.ts","header":"@@ -34,8 +36,11 @@ export async function reconcile(","tier":"skim","category":"logging","note":"trace parameter, counters, a debug line"}
+{"id":"H0014","file":"src/sync/reconcile.ts","header":"@@ -45,20 +50,30 @@ export async function reconcile(","tier":"read","category":"logic","note":"the negative-level skip is new behaviour among the log lines"}
+{"id":"H0015","file":"src/sync/trace.test.ts","header":"@@ -0,0 +1,12 @@ (part 1 of 2)","tier":"skim","category":"test-case","note":"a trivial helper’s test"}
+{"id":"H0016","file":"src/sync/trace.test.ts","header":"@@ -0,0 +13,9 @@ (part 2 of 2)","tier":"skim","category":"test-case","note":"a trivial helper’s test"}
+{"id":"H0017","file":"src/sync/trace.ts","header":"@@ -0,0 +1,7 @@ (part 1 of 3)","tier":"skim","category":"logging","note":"six random bytes as hex"}
+{"id":"H0018","file":"src/sync/trace.ts","header":"@@ -0,0 +8,8 @@ (part 2 of 3)","tier":"read","category":"logic","note":"new class"}
+{"id":"H0019","file":"src/sync/trace.ts","header":"@@ -0,0 +16,4 @@ (part 3 of 3)","tier":"read","category":"logic","note":"toSorted() on entry pairs"}

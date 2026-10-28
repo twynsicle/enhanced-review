@@ -5,6 +5,7 @@ import { parseArgs } from 'node:util';
 import { DEFAULT_MODEL } from '../cli/claude-run.ts';
 import { fail, line, note } from '../cli/terminal.ts';
 import { caseFiles, listCases, readCase } from './skim-case.ts';
+import { contriveCase, listContrived } from './contrive.ts';
 import { defaultCaseName, importCase } from './skim-import.ts';
 import { readSweep, requireApiKey, runSweep, sweepFiles } from './skim-run.ts';
 import { formatCaseScore, formatOverall, scoreCase, type CaseScore } from './skim-score.ts';
@@ -18,6 +19,8 @@ import { formatCaseScore, formatOverall, scoreCase, type CaseScore } from './ski
 export const USAGE = `usage:
   npm run eval:skims -- import <run-folder> [--name <case>]
       cut a case from an er run folder (its context.json, diff and review), labels seeded from the review
+  npm run eval:skims -- contrive <name>... | --all
+      build a case from a branch under evals/skims/contrived: a throwaway repository, a --stub review, an import
   npm run eval:skims -- run [--samples <n>] [--model <model>] [--parallel <n>] [--case <name>]...
       every case (or the ones named), <n> samples each, one SDK query per sample; needs ANTHROPIC_API_KEY
   npm run eval:skims -- score <results-folder>
@@ -31,6 +34,8 @@ async function main(argv: string[], root: string): Promise<number> {
   switch (command) {
     case 'import':
       return importCommand(rest, root);
+    case 'contrive':
+      return contriveCommand(rest, root);
     case 'run':
       return runCommand(rest, root);
     case 'score':
@@ -62,6 +67,23 @@ async function importCommand(argv: string[], root: string): Promise<number> {
     `edit ${path.relative(root, files.labels)}: on each row, correct the tier (read, skim or either) ` +
       'and add a category; a row without a category is not scored',
   );
+  return 0;
+}
+
+async function contriveCommand(argv: string[], root: string): Promise<number> {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    options: { all: { type: 'boolean' } },
+    allowPositionals: true,
+  });
+  const names = values.all ? await listContrived(root) : positionals;
+  if (names.length === 0) throw new Error('contrive needs a branch name, or --all');
+  for (const name of names) {
+    const files = await contriveCase(name, root);
+    const { labels } = await readCase(files);
+    line(`${files.folder}: ${String(labels.length)} hunks`);
+  }
+  note('every seeded tier is read, since no model ran; label each row by hand');
   return 0;
 }
 

@@ -1,0 +1,10 @@
+{
+  "branch": "feat/feed-retry",
+  "title": "Retry a failed feed fetch before giving up on the run",
+  "description": "The supplier's CDN drops a connection a few times a day, and each one has been costing us a whole five-minute cycle plus a page to the on-call. This retries the fetch, twice by default (`FEED_RETRIES`), with a short backoff, and only fails the run once every attempt has failed.\n\nThe fetch now takes its `request` function as a dependency so the retry can be tested without a server. Bumped to 1.5.0 since the retry changes what a transient outage looks like in the logs, and raised the Node floor to 20, which is what every depot runs now and what `undici`'s current release needs.",
+  "commit": {
+    "subject": "Retry a failed feed fetch before giving up on the run",
+    "body": "Two retries by default, FEED_RETRIES to change it. The fetch takes its\nrequest function as a dependency so the retry is testable. 1.5.0, Node 20."
+  },
+  "removed": []
+}

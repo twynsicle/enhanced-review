@@ -16,7 +16,7 @@ does (`cli → review` plumbing, the SDK loaded only by a real sweep), so the
 
 ```
 src/evals/
-  skims.ts         the bin, `npm run eval:skims -- <import|run|score>`, run from this repository's root
+  skims.ts         the bin, `npm run eval:skims -- <import|contrive|run|score>`, run from this repository's root
   skim-case.ts     SkimCase (case.json: title, description, commits, files, the hunk catalog, where it came
                    from), Label (labels.jsonl, one JSON object per line: id, file, header, tier, category?,
                    note?) and LabelTier (read | skim | either | proven); caseFiles / readCase / writeCase /
@@ -28,7 +28,14 @@ src/evals/
                    the seed needs — into a case; seedLabels: `proven` where provenSkim says so, else the
                    review's tier (read wins over skim across chapters, as the parser merges), else `read`,
                    the model's skim reason kept as the note; refuses to overwrite a case, since labels are
-                   hand work; defaultCaseName, the run folder's slug
+                   hand work; defaultCaseName, the run folder's slug; ImportOverrides, the title, description
+                   and source folder a contrived run has no pull request to supply
+  contrive.ts      contriveCase: a branch under evals/skims/contrived stood up as a throwaway repository (the
+                   base tree pushed to a bare origin with its HEAD set, since a branch review measures from
+                   origin's default branch; a fixed author, so a rebuild makes the same commits), the branch's
+                   files laid over it and its removals applied, `er review --stub --no-open` run there through
+                   this checkout's bin, and the run imported as the case; BranchSpecSchema (branch.json);
+                   listContrived, every branch but the base
   skim-prompt.ts   SKIM_SYSTEM_PROMPT: the role sentence, ATTENTION_TIERS verbatim from instructions.ts (the
                    one text, so the eval cannot drift from the review), and a <hunk_tiers> output schema
                    asking for tiers alone; buildSkimPrompt: the change as prompt.ts formats it (commits, file
@@ -52,7 +59,11 @@ src/evals/
                    formatCaseScore / formatOverall, the latter pooling the cases sample by sample so the
                    spread is still across runs of one prompt
 evals/skims/
-  cases/<name>/    case.json, diff.patch, labels.jsonl — committed, cut from merged pull requests
+  cases/<name>/    case.json, diff.patch, labels.jsonl — committed, cut from merged pull requests or built
+                   from a contrived branch
+  contrived/base/  the small service every contrived branch starts from
+  contrived/<name>/ branch.json (branch, title, description, commit, removed paths) and files/, the files the
+                   branch changes or adds, whole; one branch per kind of skim, with traps — see docs/skim-evals.md
   results/<stamp>/ one sweep's answers and summary.json — ignored by git
 ```
 

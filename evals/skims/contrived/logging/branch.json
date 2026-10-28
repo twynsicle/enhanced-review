@@ -1,0 +1,10 @@
+{
+  "branch": "feat/sync-tracing",
+  "title": "Trace each sync run through the logs",
+  "description": "When a run goes wrong we currently get one line, `sync failed`, and have to reconstruct the rest from the warehouse's audit table. This gives every run a trace id, carried on each log line the run writes, and adds debug lines at the points we keep wishing we could see: how many levels were loaded, which rows were unknown, how many batches were applied, and each fetch attempt.\n\n`LOG_LEVEL` picks the threshold (default `info`, so none of the new debug lines show unless asked for). While in there: a level the warehouse reports as negative is now skipped and warned about rather than adjusted, since the two we have seen were both audit-table corruption and adjusting them made it worse.",
+  "commit": {
+    "subject": "Trace each sync run through the logs",
+    "body": "A trace id per run on every line, debug lines at the points we keep\nneeding, LOG_LEVEL to turn them on. A negative warehouse level is skipped\nand warned about instead of adjusted."
+  },
+  "removed": []
+}

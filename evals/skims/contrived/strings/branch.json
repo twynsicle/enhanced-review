@@ -1,0 +1,10 @@
+{
+  "branch": "feat/status-page-depots",
+  "title": "Show per-depot counts and the largest adjustment on the status page",
+  "description": "The operations desk reads the status page per depot, not for the whole estate, so the page now lists each depot with how many of its items changed, and names the single largest adjustment of the run, which is the one they go and check. Counts are formatted for the locale.\n\nFrench added for the Lyon desk, who asked. The `status.stale` string is gone from the tables; the stale state is now shown by the class alone.",
+  "commit": {
+    "subject": "Show per-depot counts and the largest adjustment on the status page",
+    "body": "Per-depot changed counts and the run's largest adjustment, counts\nformatted for the locale. French strings for Lyon."
+  },
+  "removed": []
+}

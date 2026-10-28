@@ -1,0 +1,209 @@
+{
+  "name": "dead-code",
+  "source": {
+    "folder": "evals/skims/contrived/dead-code",
+    "repo": "stockline",
+    "kind": "branch"
+  },
+  "title": "Drop the three-column feed format",
+  "description": "Both depots that were still on the three-column feed moved to the five-column one in March, and `LEGACY_FEED` has been off everywhere since. This removes the legacy parser, its tests, the flag and the README section about it, so the client has one path again.\n\nAlso raised the default fetch timeout to eight seconds: the supplier's feed has grown past 40k rows and we have been seeing the five-second default trip on an ordinary morning.",
+  "commits": [
+    {
+      "sha": "ae1a02e1b6fd4f807ad6fe58c21b83efef1ba159",
+      "subject": "Drop the three-column feed format",
+      "body": "Nobody sends it any more. The parser, its tests, LEGACY_FEED and the\nREADME section go; the client has one path. Default fetch timeout up to\n8s for the larger feed."
+    }
+  ],
+  "files": [
+    {
+      "filename": "CHANGELOG.md",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 0
+    },
+    {
+      "filename": "README.md",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 8
+    },
+    {
+      "filename": "src/config.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 3
+    },
+    {
+      "filename": "src/feed/client.ts",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 3
+    },
+    {
+      "filename": "src/feed/parse.test.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 12
+    },
+    {
+      "filename": "src/feed/parse.ts",
+      "status": "modified",
+      "additions": 0,
+      "deletions": 17
+    }
+  ],
+  "hunks": [
+    {
+      "id": "H0001",
+      "filename": "CHANGELOG.md",
+      "header": "@@ -1,5 +1,10 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 10
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0002",
+      "filename": "README.md",
+      "header": "@@ -19,12 +19,5 @@ Requires Node 18 or later.",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 19,
+        "lineCount": 12
+      },
+      "modified": {
+        "startLine": 19,
+        "lineCount": 5
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0003",
+      "filename": "src/config.ts",
+      "header": "@@ -3,7 +3,6 @@ export const VERSION = '1.4.2';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 3,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 3,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0004",
+      "filename": "src/config.ts",
+      "header": "@@ -13,8 +12,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 13,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 12,
+        "lineCount": 7
+      },
+      "changedLines": 3
+    },
+    {
+      "importsOnly": true,
+      "id": "H0005",
+      "filename": "src/feed/client.ts",
+      "header": "@@ -1,6 +1,6 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0006",
+      "filename": "src/feed/client.ts",
+      "header": "@@ -17,6 +17,5 @@ export async function fetchFeed(config: Config): Promise<FeedFetch> {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 17,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 17,
+        "lineCount": 5
+      },
+      "changedLines": 3
+    },
+    {
+      "importsOnly": true,
+      "id": "H0007",
+      "filename": "src/feed/parse.test.ts",
+      "header": "@@ -1,6 +1,6 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0008",
+      "filename": "src/feed/parse.test.ts",
+      "header": "@@ -21,9 +21,3 @@ (part 1 of 2) describe('parseFeed', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 21,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 21,
+        "lineCount": 3
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0009",
+      "filename": "src/feed/parse.test.ts",
+      "header": "@@ -30,8 +24,3 @@ (part 2 of 2)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 30,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 24,
+        "lineCount": 3
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0010",
+      "filename": "src/feed/parse.ts",
+      "header": "@@ -22,23 +22,6 @@ export function parseFeed(text: string): FeedRow[] {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 22,
+        "lineCount": 23
+      },
+      "modified": {
+        "startLine": 22,
+        "lineCount": 6
+      },
+      "changedLines": 17
+    }
+  ]
+}

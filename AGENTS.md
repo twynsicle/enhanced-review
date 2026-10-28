@@ -53,7 +53,8 @@ src/
   evals/               the skim eval: how well the model tiers hunks, on labelled cases. `npm run eval:skims`;
                        runs the model as the CLI does, by hand, never in the gate
   test/                git-repo.ts (a throwaway repository with a bare origin, for tests that drive real git)
-evals/skims/           the skim eval's cases (committed) and results (ignored)
+evals/skims/           the skim eval's cases and the contrived branches some are built from (committed), and
+                       its results (ignored)
 docs/usage.md          running `er`: prerequisites, targets, every option, cost, where it writes
 docs/skim-evals.md     the skim eval: making a case, labelling it, running a sweep, reading the score
 .github/workflows/ci.yml  npm ci → npm run check

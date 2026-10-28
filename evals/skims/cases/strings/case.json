@@ -1,0 +1,311 @@
+{
+  "name": "strings",
+  "source": {
+    "folder": "evals/skims/contrived/strings",
+    "repo": "stockline",
+    "kind": "branch"
+  },
+  "title": "Show per-depot counts and the largest adjustment on the status page",
+  "description": "The operations desk reads the status page per depot, not for the whole estate, so the page now lists each depot with how many of its items changed, and names the single largest adjustment of the run, which is the one they go and check. Counts are formatted for the locale.\n\nFrench added for the Lyon desk, who asked. The `status.stale` string is gone from the tables; the stale state is now shown by the class alone.",
+  "commits": [
+    {
+      "sha": "54862f2fedc66cab187e60948a6c6d474ca13a3e",
+      "subject": "Show per-depot counts and the largest adjustment on the status page",
+      "body": "Per-depot changed counts and the run's largest adjustment, counts\nformatted for the locale. French strings for Lyon."
+    }
+  ],
+  "files": [
+    {
+      "filename": "README.md",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/i18n/de.json",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 1
+    },
+    {
+      "filename": "src/i18n/en.json",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 1
+    },
+    {
+      "filename": "src/i18n/fr.json",
+      "status": "added",
+      "additions": 24,
+      "deletions": 0
+    },
+    {
+      "filename": "src/i18n/index.ts",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 1
+    },
+    {
+      "filename": "src/sync/report.ts",
+      "status": "modified",
+      "additions": 7,
+      "deletions": 0
+    },
+    {
+      "filename": "src/web/status.test.ts",
+      "status": "added",
+      "additions": 40,
+      "deletions": 0
+    },
+    {
+      "filename": "src/web/status.ts",
+      "status": "modified",
+      "additions": 18,
+      "deletions": 4
+    }
+  ],
+  "hunks": [
+    {
+      "id": "H0001",
+      "filename": "README.md",
+      "header": "@@ -21,7 +21,7 @@ Requires Node 18 or later.",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 21,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 21,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0002",
+      "filename": "src/i18n/de.json",
+      "header": "@@ -6,6 +6,10 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 6,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 6,
+        "lineCount": 10
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0003",
+      "filename": "src/i18n/de.json",
+      "header": "@@ -14,7 +18,6 @@",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 14,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 18,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0004",
+      "filename": "src/i18n/en.json",
+      "header": "@@ -6,6 +6,10 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 6,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 6,
+        "lineCount": 10
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0005",
+      "filename": "src/i18n/en.json",
+      "header": "@@ -14,7 +18,6 @@",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 14,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 18,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0006",
+      "filename": "src/i18n/fr.json",
+      "header": "@@ -0,0 +1,24 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 24
+      },
+      "changedLines": 24
+    },
+    {
+      "id": "H0007",
+      "filename": "src/i18n/index.ts",
+      "header": "@@ -1,10 +1,17 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 17
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0008",
+      "filename": "src/sync/report.ts",
+      "header": "@@ -5,18 +5,25 @@ export interface SyncReport {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 5,
+        "lineCount": 18
+      },
+      "modified": {
+        "startLine": 5,
+        "lineCount": 25
+      },
+      "changedLines": 7
+    },
+    {
+      "importsOnly": true,
+      "id": "H0009",
+      "filename": "src/web/status.test.ts",
+      "header": "@@ -0,0 +1,5 @@ (part 1 of 5)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0010",
+      "filename": "src/web/status.test.ts",
+      "header": "@@ -0,0 +6,11 @@ (part 2 of 5)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 6,
+        "lineCount": 11
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0011",
+      "filename": "src/web/status.test.ts",
+      "header": "@@ -0,0 +17,10 @@ (part 3 of 5)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 17,
+        "lineCount": 10
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0012",
+      "filename": "src/web/status.test.ts",
+      "header": "@@ -0,0 +27,5 @@ (part 4 of 5)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 27,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0013",
+      "filename": "src/web/status.test.ts",
+      "header": "@@ -0,0 +32,9 @@ (part 5 of 5)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 32,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "importsOnly": true,
+      "id": "H0014",
+      "filename": "src/web/status.ts",
+      "header": "@@ -1,4 +1,4 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 4
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 4
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0015",
+      "filename": "src/web/status.ts",
+      "header": "@@ -12,6 +12,7 @@ const STALE_MS = 60 * 60 * 1000;",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 12,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 12,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0016",
+      "filename": "src/web/status.ts",
+      "header": "@@ -20,13 +21,26 @@ export function renderStatus(view: StatusView, now: Date): string {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 20,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 21,
+        "lineCount": 26
+      },
+      "changedLines": 19
+    }
+  ]
+}

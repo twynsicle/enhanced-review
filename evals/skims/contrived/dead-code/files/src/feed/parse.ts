@@ -1,0 +1,40 @@
+export interface FeedRow {
+  sku: string;
+  quantity: number;
+  depot: string;
+  updatedAt: string | null;
+}
+
+/** The five-column format the supplier has sent since 2023. */
+export function parseFeed(text: string): FeedRow[] {
+  const rows: FeedRow[] = [];
+  for (const line of lines(text)) {
+    const cells = line.split(',');
+    if (cells.length < 5) throw new Error(`expected five columns: ${line}`);
+    const [sku, quantity, depot, , updatedAt] = cells;
+    rows.push({
+      sku: normaliseSku(sku!),
+      quantity: quantityOf(quantity!),
+      depot: depot!.trim(),
+      updatedAt: updatedAt!.trim() || null,
+    });
+  }
+  return rows;
+}
+
+function lines(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#'));
+}
+
+export function normaliseSku(raw: string): string {
+  return raw.trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function quantityOf(raw: string): number {
+  const parsed = Number.parseInt(raw.trim(), 10);
+  if (Number.isNaN(parsed)) throw new Error(`bad quantity: ${raw}`);
+  return Math.max(0, parsed);
+}

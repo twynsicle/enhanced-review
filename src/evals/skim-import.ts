@@ -16,12 +16,21 @@ import { caseFiles, writeCase, type CaseFiles, type Label, type SkimCase } from 
  *
  * A `--stub` run seeds every hunk `read`, which is how a contrived change
  * becomes a case without paying for a model: write the branch, stub it,
- * import it, label it.
+ * import it, label it. A contrived run has no pull request, so its title and
+ * description, and the folder the case is kept as coming from, are given by
+ * the caller.
  */
+export interface ImportOverrides {
+  title?: string;
+  description?: string | null;
+  folder?: string;
+}
+
 export async function importCase(
   runFolder: string,
   name: string,
   root: string,
+  overrides: ImportOverrides = {},
 ): Promise<CaseFiles> {
   const files = caseFiles(root, name);
   if (await exists(files.labels)) {
@@ -33,18 +42,28 @@ export async function importCase(
   const context = await readContext(run);
   const diff = await readFile(run.diff, 'utf8');
   const review = await readReview(run.review);
-  const skimCase = trimCase(name, runFolder, context);
+  const skimCase = trimCase(name, runFolder, context, overrides);
   await writeCase(files, { case: skimCase, diff, labels: seedLabels(skimCase.hunks, review) });
   return files;
 }
 
 /** What the prompt shows of a run, without the embedded file contents. */
-export function trimCase(name: string, folder: string, context: RunContext): SkimCase {
+export function trimCase(
+  name: string,
+  folder: string,
+  context: RunContext,
+  overrides: ImportOverrides = {},
+): SkimCase {
   return {
     name,
-    source: { folder, repo: context.meta.repo, kind: context.target.kind },
-    title: context.meta.title,
-    description: context.meta.description,
+    source: {
+      folder: overrides.folder ?? folder,
+      repo: context.meta.repo,
+      kind: context.target.kind,
+    },
+    title: overrides.title ?? context.meta.title,
+    description:
+      overrides.description === undefined ? context.meta.description : overrides.description,
     commits: context.commits,
     files: context.files,
     hunks: context.hunks,

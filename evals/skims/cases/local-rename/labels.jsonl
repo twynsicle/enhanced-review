@@ -1,0 +1,6 @@
+{"id":"H0001","file":"src/sync/reconcile.test.ts","header":"@@ -23,17 +23,17 @@ (part 1 of 2) const row = (sku: string, quantity: number, depot = 'north') => ({","tier":"skim","category":"local-rename","note":"w → stock"}
+{"id":"H0002","file":"src/sync/reconcile.test.ts","header":"@@ -40,15 +40,15 @@ (part 2 of 2)","tier":"skim","category":"local-rename","note":"w → stock"}
+{"id":"H0003","file":"src/sync/reconcile.ts","header":"@@ -35,7 +35,7 @@ (part 1 of 2) export async function reconcile(","tier":"skim","category":"local-rename","note":"current, known, level → existing, heldByKey, held"}
+{"id":"H0004","file":"src/sync/reconcile.ts","header":"@@ -42,18 +42,18 @@ (part 2 of 2)","tier":"read","category":"logic","note":"delta === 0 becomes shortfall <= 0 under the rename"}
+{"id":"H0005","file":"src/sync/reconcile.ts","header":"@@ -62,6 +62,6 @@ export async function reconcile(","tier":"skim","category":"local-rename","note":"key → levelKey"}
+{"id":"H0006","file":"src/sync/report.ts","header":"@@ -9,9 +9,11 @@ export interface SyncReport {","tier":"skim","category":"local-rename","note":"adj, by → adjustment, magnitude"}

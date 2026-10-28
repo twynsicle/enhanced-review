@@ -1,0 +1,263 @@
+diff --git a/README.md b/README.md
+index 2eb605b..64029ff 100644
+--- a/README.md
++++ b/README.md
+# H0001
+@@ -21,7 +21,7 @@ Requires Node 18 or later.
+ | `FEED_URL`        | —       | Where the supplier feed is fetched from        |
+ | `FEED_TIMEOUT_MS` | 5000    | How long one fetch of the feed may take        |
+ | `LEGACY_FEED`     | false   | Read the feed in the pre-2023 three-column format |
+-| `LOCALE`          | en      | Language of the status page                    |
++| `LOCALE`          | en      | Language of the status page: `en`, `de` or `fr` |
+ 
+ ## The feed formats
+ 
+
+diff --git a/src/i18n/de.json b/src/i18n/de.json
+index 7edc09f..71fc104 100644
+--- a/src/i18n/de.json
++++ b/src/i18n/de.json
+# H0002
+@@ -6,6 +6,10 @@
+   "status.unchanged": "{count} Artikel unverändert",
+   "status.unknown": "{count} unbekannte Artikelnummern",
+   "status.ok": "Aktuell",
++  "status.byDepot": "Nach Lager",
++  "status.depotRow": "{depot}: {count} geändert",
++  "status.largest": "Größte Anpassung: {sku} in {depot}, um {by}",
++  "status.largestNone": "Keine Anpassungen in diesem Lauf",
+   "alert.subject": "Bestandsabgleich braucht Aufmerksamkeit",
+   "alert.feedDown": "Der Lieferanten-Feed konnte seit {minutes} Minuten nicht geladen werden",
+   "alert.feedDownHint": "FEED_URL und die Statusseite des Lieferanten prüfen",
+# H0003
+@@ -14,7 +18,6 @@
+   "alert.largeAdjustment": "{sku} in {depot} hat sich um {by} geändert",
+   "alert.largeAdjustmentHint": "Eine so große Änderung ist meist ein Fehler im Feed",
+   "alert.footer": "Gesendet von stockline {version}",
+-  "status.stale": "Der Feed ist älter als eine Stunde",
+   "status.depot": "Lager",
+   "status.items": "Artikel",
+   "status.footer": "stockline {version}"
+
+diff --git a/src/i18n/en.json b/src/i18n/en.json
+index 34a8184..eafe754 100644
+--- a/src/i18n/en.json
++++ b/src/i18n/en.json
+# H0004
+@@ -6,6 +6,10 @@
+   "status.unchanged": "{count} items unchanged",
+   "status.unknown": "{count} unknown SKUs",
+   "status.ok": "Up to date",
++  "status.byDepot": "By depot",
++  "status.depotRow": "{depot}: {count} changed",
++  "status.largest": "Largest adjustment: {sku} at {depot}, by {by}",
++  "status.largestNone": "No adjustments this run",
+   "alert.subject": "Stock sync needs attention",
+   "alert.feedDown": "The supplier feed could not be fetched for {minutes} minutes",
+   "alert.feedDownHint": "Check FEED_URL and the supplier's status page",
+# H0005
+@@ -14,7 +18,6 @@
+   "alert.largeAdjustment": "{sku} at {depot} moved by {by}",
+   "alert.largeAdjustmentHint": "A change this large is usually a feed error",
+   "alert.footer": "Sent by stockline {version}",
+-  "status.stale": "The feed is older than one hour",
+   "status.depot": "Depot",
+   "status.items": "Items",
+   "status.footer": "stockline {version}"
+
+diff --git a/src/i18n/fr.json b/src/i18n/fr.json
+new file mode 100644
+index 0000000..3980a05
+--- /dev/null
++++ b/src/i18n/fr.json
+# H0006
+@@ -0,0 +1,24 @@
++{
++  "status.title": "Synchronisation des stocks",
++  "status.lastRun": "Dernière exécution",
++  "status.never": "jamais",
++  "status.changed": "{count} articles modifiés",
++  "status.unchanged": "{count} articles inchangés",
++  "status.unknown": "{count} références inconnues",
++  "status.ok": "À jour",
++  "status.byDepot": "Par dépôt",
++  "status.depotRow": "{depot} : {count} modifiés",
++  "status.largest": "Plus grand ajustement : {sku} à {depot}, de {by}",
++  "status.largestNone": "Aucun ajustement lors de cette exécution",
++  "alert.subject": "La synchronisation des stocks demande votre attention",
++  "alert.feedDown": "Le flux fournisseur n'a pas pu être récupéré depuis {minutes} minutes",
++  "alert.feedDownHint": "Vérifiez FEED_URL et la page d'état du fournisseur",
++  "alert.unknownSkus": "{count} références du flux sont inconnues de l'entrepôt",
++  "alert.unknownSkusHint": "Elles ont été signalées, pas créées ; demandez au fournisseur de les retirer",
++  "alert.largeAdjustment": "{sku} à {depot} a varié de {by}",
++  "alert.largeAdjustmentHint": "Une variation aussi forte est généralement une erreur du flux",
++  "alert.footer": "Envoyé par stockline {version}",
++  "status.depot": "Dépôt",
++  "status.items": "Articles",
++  "status.footer": "stockline {version}"
++}
+
+diff --git a/src/i18n/index.ts b/src/i18n/index.ts
+index 6ac2cd3..eeb6baa 100644
+--- a/src/i18n/index.ts
++++ b/src/i18n/index.ts
+# H0007
+@@ -1,10 +1,17 @@
+ import de from './de.json' with { type: 'json' };
+ import en from './en.json' with { type: 'json' };
++import fr from './fr.json' with { type: 'json' };
+ 
+-const tables: Record<string, Record<string, string>> = { en, de };
++const tables: Record<string, Record<string, string>> = { en, de, fr };
+ 
+ export function t(locale: string, key: string, vars: Record<string, string | number> = {}): string {
+   const table = tables[locale] ?? tables.en!;
+   const text = table[key] ?? en[key as keyof typeof en] ?? key;
+   return text.replace(/\{(\w+)\}/g, (_, name: string) => String(vars[name] ?? `{${name}}`));
+ }
++
++/** A count in the locale's own digits and grouping: 12 345 in French, 12.345 in German. */
++export function formatCount(locale: string, count: number): string {
++  const tag = locale in tables ? locale : 'en';
++  return new Intl.NumberFormat(tag, { maximumFractionDigits: 0 }).format(count);
++}
+
+diff --git a/src/sync/report.ts b/src/sync/report.ts
+index 9d835d8..0dad8a4 100644
+--- a/src/sync/report.ts
++++ b/src/sync/report.ts
+# H0008
+@@ -5,18 +5,25 @@ export interface SyncReport {
+   unchanged: number;
+   unknown: number;
+   largest: { sku: string; depot: string; by: number } | null;
++  /** Items changed per depot, depots in name order. */
++  byDepot: { depot: string; changed: number }[];
+ }
+ 
+ export function summarise(result: ReconcileResult): SyncReport {
+   let largest: SyncReport['largest'] = null;
++  const perDepot = new Map<string, number>();
+   for (const adj of result.adjustments) {
+     const by = Math.abs(adj.to - adj.from);
+     if (!largest || by > largest.by) largest = { sku: adj.sku, depot: adj.depot, by };
++    perDepot.set(adj.depot, (perDepot.get(adj.depot) ?? 0) + 1);
+   }
+   return {
+     changed: result.adjustments.length,
+     unchanged: result.unchanged,
+     unknown: result.unknown.length,
+     largest,
++    byDepot: [...perDepot.entries()]
++      .toSorted(([a], [b]) => a.localeCompare(b))
++      .map(([depot, changed]) => ({ depot, changed })),
+   };
+ }
+
+diff --git a/src/web/status.test.ts b/src/web/status.test.ts
+new file mode 100644
+index 0000000..b1045ab
+--- /dev/null
++++ b/src/web/status.test.ts
+# H0009
+@@ -0,0 +1,5 @@ (part 1 of 5)
++import assert from 'node:assert/strict';
++import { describe, it } from 'node:test';
++import type { SyncReport } from '../sync/report.ts';
++import { renderStatus } from './status.ts';
++
+# H0010
+@@ -0,0 +6,11 @@ (part 2 of 5)
++const report: SyncReport = {
++  changed: 1234,
++  unchanged: 5,
++  unknown: 0,
++  largest: { sku: 'A1', depot: 'north', by: 1200 },
++  byDepot: [
++    { depot: 'north', changed: 1200 },
++    { depot: 'south', changed: 34 },
++  ],
++};
++
+# H0011
+@@ -0,0 +17,10 @@ (part 3 of 5)
++const now = new Date('2024-06-01T12:00:00Z');
++
++describe('renderStatus', () => {
++  it('lists each depot and names the largest adjustment', () => {
++    const html = renderStatus({ locale: 'en', lastRun: now, report }, now);
++    assert.match(html, /<h2>By depot<\/h2>/);
++    assert.match(html, /<li>north: 1,200 changed<\/li>/);
++    assert.match(html, /Largest adjustment: A1 at north, by 1,200/);
++  });
++
+# H0012
+@@ -0,0 +27,5 @@ (part 4 of 5)
++  it('formats counts for the locale', () => {
++    const html = renderStatus({ locale: 'de', lastRun: now, report }, now);
++    assert.match(html, /1\.234 Artikel geändert/);
++  });
++
+# H0013
+@@ -0,0 +32,9 @@ (part 5 of 5)
++  it('says so when a run made no adjustments', () => {
++    const html = renderStatus(
++      { locale: 'fr', lastRun: now, report: { ...report, largest: null, byDepot: [] } },
++      now,
++    );
++    assert.match(html, /Aucun ajustement/);
++    assert.doesNotMatch(html, /<h2>/);
++  });
++});
+
+diff --git a/src/web/status.ts b/src/web/status.ts
+index e524455..c5f1f56 100644
+--- a/src/web/status.ts
++++ b/src/web/status.ts
+# H0014
+@@ -1,4 +1,4 @@
+-import { t } from '../i18n/index.ts';
++import { formatCount, t } from '../i18n/index.ts';
+ import type { SyncReport } from '../sync/report.ts';
+ 
+ export interface StatusView {
+# H0015
+@@ -12,6 +12,7 @@ const STALE_MS = 60 * 60 * 1000;
+ export function renderStatus(view: StatusView, now: Date): string {
+   const { locale } = view;
+   const stale = view.lastRun === null || now.getTime() - view.lastRun.getTime() > STALE_MS;
++  const count = (n: number) => formatCount(locale, n);
+   const lines = [
+     `<h1>${t(locale, 'status.title')}</h1>`,
+     `<p class="${stale ? 'stale' : 'ok'}">${t(locale, stale ? 'status.stale' : 'status.ok')}</p>`,
+# H0016
+@@ -20,13 +21,26 @@ export function renderStatus(view: StatusView, now: Date): string {
+     }</dd></dl>`,
+   ];
+   if (view.report) {
++    const { report } = view;
+     lines.push(
+       '<ul>',
+-      `<li>${t(locale, 'status.changed', { count: view.report.changed })}</li>`,
+-      `<li>${t(locale, 'status.unchanged', { count: view.report.unchanged })}</li>`,
+-      `<li>${t(locale, 'status.unknown', { count: view.report.unknown })}</li>`,
++      `<li>${t(locale, 'status.changed', { count: count(report.changed) })}</li>`,
++      `<li>${t(locale, 'status.unchanged', { count: count(report.unchanged) })}</li>`,
++      `<li>${t(locale, 'status.unknown', { count: count(report.unknown) })}</li>`,
+       '</ul>',
++      `<p>${
++        report.largest
++          ? t(locale, 'status.largest', { ...report.largest, by: count(report.largest.by) })
++          : t(locale, 'status.largestNone')
++      }</p>`,
+     );
++    if (report.byDepot.length > 0) {
++      lines.push(`<h2>${t(locale, 'status.byDepot')}</h2>`, '<ul>');
++      for (const { depot, changed } of report.byDepot) {
++        lines.push(`<li>${t(locale, 'status.depotRow', { depot, count: count(changed) })}</li>`);
++      }
++      lines.push('</ul>');
++    }
+   }
+   return lines.join('\n');
+ }

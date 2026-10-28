@@ -1,0 +1,122 @@
+diff --git a/src/sync/reconcile.test.ts b/src/sync/reconcile.test.ts
+index ee4a567..f9caa1a 100644
+--- a/src/sync/reconcile.test.ts
++++ b/src/sync/reconcile.test.ts
+# H0001
+@@ -23,17 +23,17 @@ (part 1 of 2) const row = (sku: string, quantity: number, depot = 'north') => ({
+ 
+ describe('reconcile', () => {
+   it('adjusts a level the feed disagrees with', async () => {
+-    const w = warehouse([{ sku: 'A1', depot: 'north', quantity: 4 }]);
+-    const result = await reconcile([row('A1', 9)], w, 500);
++    const stock = warehouse([{ sku: 'A1', depot: 'north', quantity: 4 }]);
++    const result = await reconcile([row('A1', 9)], stock, 500);
+     assert.deepEqual(result.adjustments, [{ sku: 'A1', depot: 'north', from: 4, to: 9 }]);
+     assert.equal(result.unchanged, 0);
+   });
+ 
+   it('leaves a matching level alone and counts it', async () => {
+-    const w = warehouse([{ sku: 'A1', depot: 'north', quantity: 4 }]);
+-    const result = await reconcile([row('A1', 4)], w, 500);
++    const stock = warehouse([{ sku: 'A1', depot: 'north', quantity: 4 }]);
++    const result = await reconcile([row('A1', 4)], stock, 500);
+     assert.deepEqual(result.adjustments, []);
+     assert.equal(result.unchanged, 1);
+-    assert.deepEqual(w.applied, []);
++    assert.deepEqual(stock.applied, []);
+   });
+ 
+# H0002
+@@ -40,15 +40,15 @@ (part 2 of 2)
+   it('reports a SKU the warehouse does not know rather than creating it', async () => {
+-    const w = warehouse([]);
+-    const result = await reconcile([row('ZZ9', 1)], w, 500);
++    const stock = warehouse([]);
++    const result = await reconcile([row('ZZ9', 1)], stock, 500);
+     assert.deepEqual(result.unknown, ['ZZ9']);
+   });
+ 
+   it('applies adjustments in batches', async () => {
+     const levels = ['A', 'B', 'C'].map((sku) => ({ sku, depot: 'north', quantity: 0 }));
+-    const w = warehouse(levels);
+-    await reconcile(['A', 'B', 'C'].map((sku) => row(sku, 1)), w, 2);
++    const stock = warehouse(levels);
++    await reconcile(['A', 'B', 'C'].map((sku) => row(sku, 1)), stock, 2);
+     assert.deepEqual(
+-      w.applied.map((batch) => batch.length),
++      stock.applied.map((batch) => batch.length),
+       [2, 1],
+     );
+   });
+
+diff --git a/src/sync/reconcile.ts b/src/sync/reconcile.ts
+index 1bae6ce..0abc853 100644
+--- a/src/sync/reconcile.ts
++++ b/src/sync/reconcile.ts
+# H0003
+@@ -35,7 +35,7 @@ (part 1 of 2) export async function reconcile(
+   warehouse: Warehouse,
+   batchSize: number,
+ ): Promise<ReconcileResult> {
+-  const current = await warehouse.levels();
+-  const known = new Map<string, StockLevel>();
+-  for (const level of current) known.set(key(level.sku, level.depot), level);
++  const existing = await warehouse.levels();
++  const heldByKey = new Map<string, StockLevel>();
++  for (const held of existing) heldByKey.set(levelKey(held.sku, held.depot), held);
+ 
+# H0004
+@@ -42,18 +42,18 @@ (part 2 of 2)
+   const adjustments: Adjustment[] = [];
+   const unknown: string[] = [];
+   let unchanged = 0;
+   for (const row of feed) {
+-    const level = known.get(key(row.sku, row.depot));
+-    if (!level) {
++    const held = heldByKey.get(levelKey(row.sku, row.depot));
++    if (!held) {
+       unknown.push(row.sku);
+       continue;
+     }
+-    const delta = row.quantity - level.quantity;
+-    if (delta === 0) {
++    const shortfall = row.quantity - held.quantity;
++    if (shortfall <= 0) {
+       unchanged += 1;
+       continue;
+     }
+-    adjustments.push({ sku: row.sku, depot: row.depot, from: level.quantity, to: row.quantity });
++    adjustments.push({ sku: row.sku, depot: row.depot, from: held.quantity, to: row.quantity });
+   }
+ 
+   for (let start = 0; start < adjustments.length; start += batchSize) {
+# H0005
+@@ -62,6 +62,6 @@ export async function reconcile(
+   return { adjustments, unchanged, unknown };
+ }
+ 
+-function key(sku: string, depot: string): string {
++function levelKey(sku: string, depot: string): string {
+   return `${depot}/${sku}`;
+ }
+
+diff --git a/src/sync/report.ts b/src/sync/report.ts
+index 9d835d8..f01d3fc 100644
+--- a/src/sync/report.ts
++++ b/src/sync/report.ts
+# H0006
+@@ -9,9 +9,11 @@ export interface SyncReport {
+ 
+ export function summarise(result: ReconcileResult): SyncReport {
+   let largest: SyncReport['largest'] = null;
+-  for (const adj of result.adjustments) {
+-    const by = Math.abs(adj.to - adj.from);
+-    if (!largest || by > largest.by) largest = { sku: adj.sku, depot: adj.depot, by };
++  for (const adjustment of result.adjustments) {
++    const magnitude = Math.abs(adjustment.to - adjustment.from);
++    if (!largest || magnitude > largest.by) {
++      largest = { sku: adjustment.sku, depot: adjustment.depot, by: magnitude };
++    }
+   }
+   return {
+     changed: result.adjustments.length,

@@ -1,0 +1,10 @@
+{
+  "branch": "chore/drop-legacy-feed",
+  "title": "Drop the three-column feed format",
+  "description": "Both depots that were still on the three-column feed moved to the five-column one in March, and `LEGACY_FEED` has been off everywhere since. This removes the legacy parser, its tests, the flag and the README section about it, so the client has one path again.\n\nAlso raised the default fetch timeout to eight seconds: the supplier's feed has grown past 40k rows and we have been seeing the five-second default trip on an ordinary morning.",
+  "commit": {
+    "subject": "Drop the three-column feed format",
+    "body": "Nobody sends it any more. The parser, its tests, LEGACY_FEED and the\nREADME section go; the client has one path. Default fetch timeout up to\n8s for the larger feed."
+  },
+  "removed": []
+}

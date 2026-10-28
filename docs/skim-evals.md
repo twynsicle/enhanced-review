@@ -26,8 +26,9 @@ evals/skims/cases/<name>/
   labels.jsonl    one line per hunk; the only file a person edits
 ```
 
-Cases are committed. They are cut from merged pull requests, so no live review
-ever sees its own answer key in the checkout.
+Cases are committed. They are cut from merged pull requests, or built from a
+branch written for the eval, so no live review ever sees its own answer key in
+the checkout.
 
 ## Making a case
 
@@ -40,10 +41,43 @@ npm run eval:skims -- import er-reviews/pr-38/20261016-080937 --name pr-38
 It copies the run's hunk catalog and diff, and seeds each label's tier from
 the run's own `review.json`, since correcting the model's answer is far
 quicker than labelling from nothing. A `--stub` run has no review, so every
-tier seeds `read`; that is how a contrived change becomes a case for free:
-write the branch, `er review --stub`, import, label. Keep a contrived change
-free of any wording that says what it is for, because the model reads the
-diff.
+tier seeds `read`.
+
+### Contrived cases
+
+A real pull request carries each kind of skim only as often as it happens to,
+so a rule about one kind — version bumps, say — is measured on a change made
+to show it. Those live under `evals/skims/contrived/`:
+
+```
+evals/skims/contrived/
+  base/                 one small service, the tree every branch starts from
+  <name>/branch.json    the branch name, its title and description, the commit message, and
+                        any paths the branch deletes
+  <name>/files/         the files the branch changes or adds, whole, laid over the base
+```
+
+Each branch shows one kind several times over, beside ordinary read hunks and
+at least one trap: a hunk that looks like the kind and is not, such as a
+version bump that also raises the Node requirement, or a rename under which a
+condition changes. The case is built from it:
+
+```bash
+npm run eval:skims -- contrive version-bump
+npm run eval:skims -- contrive --all
+```
+
+That stands the base up as a throwaway repository with a bare origin, commits
+the branch over it, runs `er review --stub --no-open` there and imports the
+run as `evals/skims/cases/<name>`, with the title and description from
+`branch.json`. The repository is thrown away; the case is committed, and the
+branch is how it is made again. The import refuses to overwrite a labelled
+case, so delete the case folder first to rebuild one.
+
+The description goes to the model as a pull request's would, so it is written
+as the engineer would have written it, and nothing in the branch may say what
+it is for: no "fixture", "eval" or "skim" anywhere the model reads (a test
+holds the specs to that).
 
 ## Labelling
 
@@ -83,6 +117,18 @@ across cases, so the per-category table means something:
 | `wiring`           | registration, exports, config, plumbing                                   |
 | `docs`             | prose, comments, documentation                                            |
 | `moved`            | a block lifted from or to another hunk                                    |
+
+The contrived cases add one category per kind they were written to show, on
+the hunks that are that kind, with `read` where the trap is:
+
+| category       | what the lines are                                                   |
+| -------------- | -------------------------------------------------------------------- |
+| `version-bump` | a version number, in a manifest, a constant or a lockfile            |
+| `changelog`    | a changelog or release-notes entry                                   |
+| `logging`      | log lines, trace ids, counters; the parameters that carry them       |
+| `dead-code`    | a removal of code, tests or flags nothing uses any more              |
+| `strings`      | user-facing text: locale tables, messages, labels                    |
+| `local-rename` | a local, a parameter or a private helper given a new name, unchanged |
 
 A `note` on a row is for whoever reads the label next: why it is what it is.
 The import leaves the model's own skim reason there.
