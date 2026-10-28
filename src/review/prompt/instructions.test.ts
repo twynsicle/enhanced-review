@@ -19,9 +19,8 @@ describe('the review instructions', () => {
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('When unsure, choose "read"');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('A test case is read whole');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('no hunk is skim for its brackets');
-    expect(NARRATIVE_SYSTEM_PROMPT).toContain(
-      'type declarations, interfaces, schemas and signatures',
-    );
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('the declarations that set the shape of the design');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('only to carry a value on, which is wiring');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('[whitespace only]');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('is shown as skim whatever tier you give it');
   });

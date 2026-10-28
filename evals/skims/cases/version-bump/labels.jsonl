@@ -2,7 +2,7 @@
 {"id":"H0002","file":"README.md","header":"@@ -12,7 +12,7 @@ npm install","tier":"skim","category":"docs","note":"the Node line of the README"}
 {"id":"H0003","file":"README.md","header":"@@ -20,6 +20,7 @@ Requires Node 18 or later.","tier":"skim","category":"docs","note":"one row in the config table"}
 {"id":"H0004","file":"package.json","header":"@@ -1,8 +1,8 @@","tier":"read","category":"version-bump","note":"engines >=20 rides under the version bump"}
-{"id":"H0005","file":"src/config.ts","header":"@@ -1,8 +1,9 @@","tier":"skim","category":"types","note":"VERSION constant and one new Config field"}
+{"id":"H0005","file":"src/config.ts","header":"@@ -1,8 +1,9 @@","tier":"read","category":"version-bump","note":"the VERSION constant; the Config field beside it only carries a value"}
 {"id":"H0006","file":"src/config.ts","header":"@@ -14,17 +15,22 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {","tier":"read","category":"logic","note":"integer() grows allowZero"}
 {"id":"H0007","file":"src/feed/client.test.ts","header":"@@ -0,0 +1,5 @@ (part 1 of 7)","tier":"proven"}
 {"id":"H0008","file":"src/feed/client.test.ts","header":"@@ -0,0 +6,9 @@ (part 2 of 7)","tier":"skim","category":"test-scaffolding","note":"a Config literal"}
