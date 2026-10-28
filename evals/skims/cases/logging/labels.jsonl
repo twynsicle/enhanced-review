@@ -12,8 +12,8 @@
 {"id":"H0012","file":"src/sync/reconcile.ts","header":"@@ -1,4 +1,6 @@","tier":"proven"}
 {"id":"H0013","file":"src/sync/reconcile.ts","header":"@@ -34,8 +36,11 @@ export async function reconcile(","tier":"skim","category":"logging","note":"trace parameter, counters, a debug line"}
 {"id":"H0014","file":"src/sync/reconcile.ts","header":"@@ -45,20 +50,30 @@ export async function reconcile(","tier":"read","category":"logic","note":"the negative-level skip is new behaviour among the log lines"}
-{"id":"H0015","file":"src/sync/trace.test.ts","header":"@@ -0,0 +1,12 @@ (part 1 of 2)","tier":"skim","category":"test-case","note":"a trivial helper’s test"}
-{"id":"H0016","file":"src/sync/trace.test.ts","header":"@@ -0,0 +13,9 @@ (part 2 of 2)","tier":"skim","category":"test-case","note":"a trivial helper’s test"}
+{"id":"H0015","file":"src/sync/trace.test.ts","header":"@@ -0,0 +1,12 @@ (part 1 of 2)","tier":"either","category":"test-case","note":"the cases of a two-line helper that is itself either"}
+{"id":"H0016","file":"src/sync/trace.test.ts","header":"@@ -0,0 +13,9 @@ (part 2 of 2)","tier":"either","category":"test-case","note":"the cases of a two-line helper that is itself either"}
 {"id":"H0017","file":"src/sync/trace.ts","header":"@@ -0,0 +1,7 @@ (part 1 of 3)","tier":"either","category":"logging","note":"a new two-line helper: six random bytes as hex"}
 {"id":"H0018","file":"src/sync/trace.ts","header":"@@ -0,0 +8,8 @@ (part 2 of 3)","tier":"read","category":"logic","note":"new class"}
 {"id":"H0019","file":"src/sync/trace.ts","header":"@@ -0,0 +16,4 @@ (part 3 of 3)","tier":"read","category":"logic","note":"toSorted() on entry pairs"}
