@@ -1,7 +1,7 @@
 {
   "name": "pr-22",
   "source": {
-    "folder": "er-reviews/pr-22/20261014-031700",
+    "folder": "C:\\workspace\\diffy\\enhanced-review\\er-reviews\\pr-22\\20261028-222051",
     "repo": "twynsicle/enhanced-review",
     "kind": "pr"
   },
@@ -165,7 +165,7 @@
     {
       "id": "H0006",
       "filename": "src/cli/bash-gate.test.ts",
-      "header": "@@ -81,3 +81,21 @@ (part 1 of 5) describe('what the local agent may run', () => {",
+      "header": "@@ -81,3 +81,8 @@ (part 1 of 6) describe('what the local agent may run', () => {",
       "fileOrder": 1,
       "original": {
         "startLine": 81,
@@ -173,15 +173,30 @@
       },
       "modified": {
         "startLine": 81,
-        "lineCount": 21
+        "lineCount": 8
       },
-      "changedLines": 18
+      "changedLines": 5
     },
     {
       "id": "H0007",
       "filename": "src/cli/bash-gate.test.ts",
-      "header": "@@ -83,0 +102,10 @@ (part 2 of 5)",
+      "header": "@@ -83,0 +89,13 @@ (part 2 of 6)",
       "fileOrder": 2,
+      "original": {
+        "startLine": 83,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 89,
+        "lineCount": 13
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0008",
+      "filename": "src/cli/bash-gate.test.ts",
+      "header": "@@ -83,0 +102,10 @@ (part 3 of 6)",
+      "fileOrder": 3,
       "original": {
         "startLine": 83,
         "lineCount": 0
@@ -193,10 +208,10 @@
       "changedLines": 10
     },
     {
-      "id": "H0008",
+      "id": "H0009",
       "filename": "src/cli/bash-gate.test.ts",
-      "header": "@@ -83,0 +112,7 @@ (part 3 of 5)",
-      "fileOrder": 3,
+      "header": "@@ -83,0 +112,7 @@ (part 4 of 6)",
+      "fileOrder": 4,
       "original": {
         "startLine": 83,
         "lineCount": 0
@@ -208,10 +223,10 @@
       "changedLines": 7
     },
     {
-      "id": "H0009",
+      "id": "H0010",
       "filename": "src/cli/bash-gate.test.ts",
-      "header": "@@ -83,0 +119,12 @@ (part 4 of 5)",
-      "fileOrder": 4,
+      "header": "@@ -83,0 +119,12 @@ (part 5 of 6)",
+      "fileOrder": 5,
       "original": {
         "startLine": 83,
         "lineCount": 0
@@ -223,10 +238,10 @@
       "changedLines": 12
     },
     {
-      "id": "H0010",
+      "id": "H0011",
       "filename": "src/cli/bash-gate.test.ts",
-      "header": "@@ -84,3 +131,14 @@ (part 5 of 5)",
-      "fileOrder": 5,
+      "header": "@@ -84,3 +131,14 @@ (part 6 of 6)",
+      "fileOrder": 6,
       "original": {
         "startLine": 84,
         "lineCount": 3
@@ -238,7 +253,7 @@
       "changedLines": 11
     },
     {
-      "id": "H0011",
+      "id": "H0012",
       "filename": "src/cli/bash-gate.ts",
       "header": "@@ -14,8 +14,15 @@ (part 1 of 3)",
       "fileOrder": 1,
@@ -253,7 +268,7 @@
       "changedLines": 9
     },
     {
-      "id": "H0012",
+      "id": "H0013",
       "filename": "src/cli/bash-gate.ts",
       "header": "@@ -22,3 +29,6 @@ (part 2 of 3)",
       "fileOrder": 2,
@@ -268,7 +283,7 @@
       "changedLines": 5
     },
     {
-      "id": "H0013",
+      "id": "H0014",
       "filename": "src/cli/bash-gate.ts",
       "header": "@@ -25,3 +35,10 @@ (part 3 of 3)",
       "fileOrder": 3,
@@ -283,7 +298,7 @@
       "changedLines": 7
     },
     {
-      "id": "H0014",
+      "id": "H0015",
       "filename": "src/cli/bash-gate.ts",
       "header": "@@ -43,17 +60,24 @@ (part 1 of 3) const GIT_SUBCOMMANDS = new Set([",
       "fileOrder": 4,
@@ -298,7 +313,7 @@
       "changedLines": 19
     },
     {
-      "id": "H0015",
+      "id": "H0016",
       "filename": "src/cli/bash-gate.ts",
       "header": "@@ -60,14 +84,14 @@ (part 2 of 3)",
       "fileOrder": 5,
@@ -313,7 +328,7 @@
       "changedLines": 8
     },
     {
-      "id": "H0016",
+      "id": "H0017",
       "filename": "src/cli/bash-gate.ts",
       "header": "@@ -74,6 +98,5 @@ (part 3 of 3)",
       "fileOrder": 6,
@@ -328,7 +343,7 @@
       "changedLines": 5
     },
     {
-      "id": "H0017",
+      "id": "H0018",
       "filename": "src/cli/bash-gate.ts",
       "header": "@@ -81,9 +104,10 @@ function reviewOne(command: string): BashDecision {",
       "fileOrder": 7,
@@ -343,7 +358,7 @@
       "changedLines": 3
     },
     {
-      "id": "H0018",
+      "id": "H0019",
       "filename": "src/cli/bash-gate.ts",
       "header": "@@ -100,47 +124,88 @@ (part 1 of 3) function reviewOne(command: string): BashDecision {",
       "fileOrder": 8,
@@ -358,7 +373,7 @@
       "changedLines": 89
     },
     {
-      "id": "H0019",
+      "id": "H0020",
       "filename": "src/cli/bash-gate.ts",
       "header": "@@ -147,9 +212,8 @@ (part 2 of 3)",
       "fileOrder": 9,
@@ -373,7 +388,7 @@
       "changedLines": 5
     },
     {
-      "id": "H0020",
+      "id": "H0021",
       "filename": "src/cli/bash-gate.ts",
       "header": "@@ -156,9 +219,0 @@ (part 3 of 3)",
       "fileOrder": 10,
@@ -388,7 +403,7 @@
       "changedLines": 9
     },
     {
-      "id": "H0021",
+      "id": "H0022",
       "filename": "src/cli/claude-run.test.ts",
       "header": "@@ -70,6 +70,7 @@ const hunk = (id: string) => ({",
       "fileOrder": 1,
@@ -403,9 +418,9 @@
       "changedLines": 1
     },
     {
-      "id": "H0022",
+      "id": "H0023",
       "filename": "src/cli/claude-run.test.ts",
-      "header": "@@ -188,3 +189,17 @@ (part 1 of 2) describe('the model run', () => {",
+      "header": "@@ -188,3 +189,12 @@ (part 1 of 2) describe('the model run', () => {",
       "fileOrder": 2,
       "original": {
         "startLine": 188,
@@ -413,28 +428,28 @@
       },
       "modified": {
         "startLine": 189,
-        "lineCount": 17
+        "lineCount": 12
       },
-      "changedLines": 14
+      "changedLines": 9
     },
     {
-      "id": "H0023",
+      "id": "H0024",
       "filename": "src/cli/claude-run.test.ts",
-      "header": "@@ -191,3 +206,9 @@ (part 2 of 2)",
+      "header": "@@ -191,3 +201,14 @@ (part 2 of 2)",
       "fileOrder": 3,
       "original": {
         "startLine": 191,
         "lineCount": 3
       },
       "modified": {
-        "startLine": 206,
-        "lineCount": 9
+        "startLine": 201,
+        "lineCount": 14
       },
-      "changedLines": 6
+      "changedLines": 11
     },
     {
       "importsOnly": true,
-      "id": "H0024",
+      "id": "H0025",
       "filename": "src/cli/claude-run.ts",
       "header": "@@ -6,6 +6,7 @@ import { howItEnded, runSdkLoop, type SdkQueryFn, type SdkUsage } from './sdk-lo",
       "fileOrder": 1,
@@ -449,7 +464,7 @@
       "changedLines": 1
     },
     {
-      "id": "H0025",
+      "id": "H0026",
       "filename": "src/cli/claude-run.ts",
       "header": "@@ -18,9 +19,11 @@ import type { RunFiles } from './run-folder.ts';",
       "fileOrder": 2,
@@ -464,7 +479,7 @@
       "changedLines": 8
     },
     {
-      "id": "H0026",
+      "id": "H0027",
       "filename": "src/cli/claude-run.ts",
       "header": "@@ -52,6 +55,11 @@ export type QueryFn = SdkQueryFn;",
       "fileOrder": 3,
@@ -479,7 +494,7 @@
       "changedLines": 5
     },
     {
-      "id": "H0027",
+      "id": "H0028",
       "filename": "src/cli/claude-run.ts",
       "header": "@@ -212,8 +220,8 @@ function sdkOptions(",
       "fileOrder": 4,
@@ -495,7 +510,7 @@
     },
     {
       "importsOnly": true,
-      "id": "H0028",
+      "id": "H0029",
       "filename": "src/cli/host-env.test.ts",
       "header": "@@ -1,5 +1,5 @@",
       "fileOrder": 1,
@@ -510,7 +525,7 @@
       "changedLines": 2
     },
     {
-      "id": "H0029",
+      "id": "H0030",
       "filename": "src/cli/host-env.test.ts",
       "header": "@@ -12,3 +12,10 @@ (part 1 of 3) describe('hostEnv', () => {",
       "fileOrder": 2,
@@ -525,7 +540,7 @@
       "changedLines": 7
     },
     {
-      "id": "H0030",
+      "id": "H0031",
       "filename": "src/cli/host-env.test.ts",
       "header": "@@ -14,0 +22,9 @@ (part 2 of 3)",
       "fileOrder": 3,
@@ -540,7 +555,7 @@
       "changedLines": 9
     },
     {
-      "id": "H0031",
+      "id": "H0032",
       "filename": "src/cli/host-env.test.ts",
       "header": "@@ -14,0 +31,12 @@ (part 3 of 3)",
       "fileOrder": 4,
@@ -555,7 +570,7 @@
       "changedLines": 12
     },
     {
-      "id": "H0032",
+      "id": "H0033",
       "filename": "src/cli/host-env.ts",
       "header": "@@ -10,3 +10,21 @@ export type HostEnv = Record<string, string | undefined>;",
       "fileOrder": 1,
@@ -570,7 +585,7 @@
       "changedLines": 18
     },
     {
-      "id": "H0033",
+      "id": "H0034",
       "filename": "src/cli/review.test.ts",
       "header": "@@ -132,8 +132,10 @@ describe('er review', () => {",
       "fileOrder": 1,
@@ -585,7 +600,7 @@
       "changedLines": 2
     },
     {
-      "id": "H0034",
+      "id": "H0035",
       "filename": "src/cli/review.test.ts",
       "header": "@@ -144,6 +146,7 @@ describe('er review', () => {",
       "fileOrder": 2,
@@ -600,34 +615,19 @@
       "changedLines": 1
     },
     {
-      "id": "H0035",
+      "id": "H0036",
       "filename": "src/cli/review.test.ts",
-      "header": "@@ -418,3 +421,13 @@ (part 1 of 2) describe('er review', () => {",
+      "header": "@@ -418,6 +421,27 @@ describe('er review', () => {",
       "fileOrder": 3,
       "original": {
         "startLine": 418,
-        "lineCount": 3
+        "lineCount": 6
       },
       "modified": {
         "startLine": 421,
-        "lineCount": 13
+        "lineCount": 27
       },
-      "changedLines": 10
-    },
-    {
-      "id": "H0036",
-      "filename": "src/cli/review.test.ts",
-      "header": "@@ -421,3 +434,14 @@ (part 2 of 2)",
-      "fileOrder": 4,
-      "original": {
-        "startLine": 421,
-        "lineCount": 3
-      },
-      "modified": {
-        "startLine": 434,
-        "lineCount": 14
-      },
-      "changedLines": 11
+      "changedLines": 21
     },
     {
       "id": "H0037",

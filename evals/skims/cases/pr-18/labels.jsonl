@@ -1,96 +1,91 @@
-{"id":"H0001","file":".claude/rules/review-pipeline.md","header":"@@ -24,7 +24,12 @@ src/domain/","tier":"skim","category":"docs","note":"the file map"}
-{"id":"H0002","file":".claude/rules/review-pipeline.md","header":"@@ -41,7 +46,9 @@ src/domain/","tier":"skim","category":"docs","note":"the file map"}
-{"id":"H0003","file":".claude/rules/review-pipeline.md","header":"@@ -96,6 +103,12 @@ src/domain/","tier":"skim","category":"docs","note":"the file map"}
-{"id":"H0004","file":".claude/rules/web.md","header":"@@ -61,17 +61,26 @@ src/web/","tier":"skim","category":"docs","note":"the file map"}
-{"id":"H0005","file":"README.md","header":"@@ -1,8 +1,9 @@","tier":"skim","category":"docs"}
-{"id":"H0006","file":"src/domain/review/coverage.ts","header":"@@ -88,6 +88,25 @@ export function chaptersCiting(","tier":"read","category":"logic","note":"judgementCallOwner: which chapter draws a call"}
-{"id":"H0007","file":"src/domain/review/findings.test.ts","header":"@@ -28,6 +28,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {","tier":"either","category":"test-case","note":"rows of the expected severities, mirroring the table beside them"}
-{"id":"H0008","file":"src/domain/review/findings.test.ts","header":"@@ -40,6 +41,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {","tier":"either","category":"test-case","note":"rows of the expected severities, mirroring the table beside them"}
-{"id":"H0009","file":"src/domain/review/findings.ts","header":"@@ -53,6 +53,12 @@ const SEVERITY_BY_CODE = {","tier":"read","category":"logic","note":"two new finding codes and the severity each is given"}
-{"id":"H0010","file":"src/domain/review/findings.ts","header":"@@ -74,8 +80,10 @@ const SEVERITY_BY_CODE = {","tier":"read","category":"logic","note":"two new finding codes and the severity each is given"}
-{"id":"H0011","file":"src/domain/review/narrative.ts","header":"@@ -32,7 +32,7 @@ export const ProseSchema = z.object({","tier":"read","category":"types","note":"reference leaves the insight types"}
-{"id":"H0012","file":"src/domain/review/narrative.ts","header":"@@ -54,6 +54,37 @@ export const InsightSchema = z.object({","tier":"read","category":"types","note":"JudgementCallSchema and its cap"}
-{"id":"H0013","file":"src/domain/review/narrative.ts","header":"@@ -158,6 +189,12 @@ export const NarrativeReviewSchema = z.object({","tier":"read","category":"types","note":"the review gains a capped judgementCalls"}
-{"id":"H0014","file":"src/domain/review/prompt/__fixtures__/server-prompt.txt","header":"@@ -31,7 +31,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t","tier":"skim","category":"test-scaffolding","note":"the golden copy of the prompt, read in instructions.ts"}
-{"id":"H0015","file":"src/domain/review/prompt/__fixtures__/server-prompt.txt","header":"@@ -46,6 +46,14 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t","tier":"skim","category":"test-scaffolding","note":"the golden copy of the prompt, read in instructions.ts"}
-{"id":"H0016","file":"src/domain/review/prompt/__fixtures__/server-prompt.txt","header":"@@ -57,10 +65,9 @@ Guidelines:","tier":"skim","category":"test-scaffolding","note":"the golden copy of the prompt, read in instructions.ts"}
-{"id":"H0017","file":"src/domain/review/prompt/__fixtures__/server-prompt.txt","header":"@@ -104,3 +111,16 @@ (part 1 of 2) An insight may carry a \"filename\", and should whenever it is about one file in p","tier":"skim","category":"test-scaffolding","note":"the golden copy of the prompt, read in instructions.ts"}
-{"id":"H0018","file":"src/domain/review/prompt/__fixtures__/server-prompt.txt","header":"@@ -107,3 +127,14 @@ (part 2 of 2)","tier":"skim","category":"test-scaffolding","note":"the golden copy of the prompt, read in instructions.ts"}
-{"id":"H0019","file":"src/domain/review/prompt/instructions.ts","header":"@@ -46,7 +46,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t","tier":"read","category":"logic","note":"the prompt is the behaviour here"}
-{"id":"H0020","file":"src/domain/review/prompt/instructions.ts","header":"@@ -61,6 +61,14 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t","tier":"read","category":"logic","note":"the prompt is the behaviour here"}
-{"id":"H0021","file":"src/domain/review/prompt/instructions.ts","header":"@@ -72,10 +80,9 @@ Guidelines:","tier":"read","category":"logic","note":"the prompt is the behaviour here"}
-{"id":"H0022","file":"src/domain/review/prompt/instructions.ts","header":"@@ -119,3 +126,16 @@ (part 1 of 2) An insight may carry a \"filename\", and should whenever it is about one file in p","tier":"read","category":"logic","note":"the prompt is the behaviour here"}
-{"id":"H0023","file":"src/domain/review/prompt/instructions.ts","header":"@@ -122,3 +142,14 @@ (part 2 of 2)","tier":"read","category":"logic","note":"the prompt is the behaviour here"}
-{"id":"H0024","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -478,3 +478,11 @@ (part 1 of 10) describe('an insight anchored to a file', () => {","tier":"skim","category":"test-scaffolding","note":"the call factory: any values would do"}
-{"id":"H0025","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +489,15 @@ (part 2 of 10)","tier":"read","category":"test-scaffolding","note":"which chapter cites which file is what the drop cases prove"}
-{"id":"H0026","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +504,7 @@ (part 3 of 10)","tier":"read","category":"test-case"}
-{"id":"H0027","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +511,6 @@ (part 4 of 10)","tier":"read","category":"test-case"}
-{"id":"H0028","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +517,6 @@ (part 5 of 10)","tier":"read","category":"test-case"}
-{"id":"H0029","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +523,9 @@ (part 6 of 10)","tier":"read","category":"test-case"}
-{"id":"H0030","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +532,7 @@ (part 7 of 10)","tier":"read","category":"test-case"}
-{"id":"H0031","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +539,21 @@ (part 8 of 10)","tier":"read","category":"test-case"}
-{"id":"H0032","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +560,6 @@ (part 9 of 10)","tier":"read","category":"test-case"}
-{"id":"H0033","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -481,3 +566,19 @@ (part 10 of 10)","tier":"read","category":"test-case"}
-{"id":"H0034","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -1,11 +1,14 @@","tier":"proven"}
-{"id":"H0035","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -13,7 +16,7 @@ import {","tier":"proven"}
-{"id":"H0036","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -302,3 +305,28 @@ (part 1 of 3) function sanitizeInsights(","tier":"read","category":"logic","note":"sanitizeJudgementCalls"}
-{"id":"H0037","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -304,0 +333,108 @@ (part 2 of 3)","tier":"read","category":"logic","note":"sanitizeJudgementCalls"}
-{"id":"H0038","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -305,3 +441,11 @@ (part 3 of 3)","tier":"read","category":"logic","note":"sanitizeJudgementCalls"}
-{"id":"H0039","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -624,12 +768,14 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):","tier":"read","category":"logic","note":"judgementCalls left out, not empty, when none survive"}
-{"id":"H0040","file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -1,7 +1,12 @@","tier":"proven"}
-{"id":"H0041","file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -19,7 +24,7 @@ describe('groupInsightsByFile', () => {","tier":"skim","category":"test-scaffolding","note":"a fixture insight off the removed type"}
-{"id":"H0042","file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -57,7 +62,7 @@ describe('<ChapterCard /> with a mix of insights', () => {","tier":"skim","category":"wiring","note":"the test render helper carries the calls to the card"}
-{"id":"H0043","file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -79,7 +84,11 @@ describe('<ChapterCard /> with a mix of insights', () => {","tier":"skim","category":"wiring","note":"the test render helper carries the calls to the card"}
-{"id":"H0044","file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -116,3 +125,13 @@ (part 1 of 4) describe('<ChapterCard /> with a mix of insights', () => {","tier":"read","category":"test-case"}
-{"id":"H0045","file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -118,0 +138,5 @@ (part 2 of 4)","tier":"read","category":"test-case"}
-{"id":"H0046","file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -118,0 +143,9 @@ (part 3 of 4)","tier":"read","category":"test-case"}
-{"id":"H0047","file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -119,3 +152,7 @@ (part 4 of 4)","tier":"read","category":"test-case"}
-{"id":"H0048","file":"src/web/components/narrative/chapter-card.tsx","header":"@@ -1,6 +1,11 @@","tier":"proven"}
-{"id":"H0049","file":"src/web/components/narrative/chapter-card.tsx","header":"@@ -99,11 +104,18 @@ export function SectionRule({ label, count }: { label: string; count: number })","tier":"skim","category":"wiring","note":"the card takes the calls and passes its file share on"}
-{"id":"H0050","file":"src/web/components/narrative/chapter-card.tsx","header":"@@ -184,6 +196,7 @@ export function ChapterCard({","tier":"skim","category":"wiring","note":"the card takes the calls and passes its file share on"}
-{"id":"H0051","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -16,6 +16,11 @@ import type { ReviewMeta } from '@/domain/review/review-meta';","tier":"proven"}
-{"id":"H0052","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -114,6 +119,7 @@ export function ChapterReader({","tier":"skim","category":"wiring","note":"the anchored calls and onSelect carried down"}
-{"id":"H0053","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -263,9 +269,11 @@ export function ChapterReader({","tier":"skim","category":"wiring","note":"the anchored calls and onSelect carried down"}
-{"id":"H0054","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -285,17 +293,21 @@ function SectionCard({","tier":"skim","category":"wiring","note":"the anchored calls and onSelect carried down"}
-{"id":"H0055","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -303,7 +315,12 @@ function SectionCard({","tier":"either","category":"wiring","note":"passed on through judgementCallsByFile, which is read in its own file"}
-{"id":"H0056","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -312,8 +329,10 @@ function SectionCard({","tier":"skim","category":"wiring","note":"the anchored calls and onSelect carried down"}
-{"id":"H0057","file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -18,9 +18,9 @@ import {","tier":"proven"}
-{"id":"H0058","file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -550,7 +550,12 @@ function SnippetEditor({","tier":"skim","category":"docs"}
-{"id":"H0059","file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -562,7 +567,13 @@ function SnippetEditor({","tier":"skim","category":"wiring","note":"AnchoredInsights renamed and taking the calls to carry"}
-{"id":"H0060","file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -571,8 +582,11 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {","tier":"read","category":"logic","note":"the calls drawn ahead of the insights"}
-{"id":"H0061","file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -585,16 +599,20 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {","tier":"skim","category":"wiring","note":"the diff chunk takes the calls, with its doc comment"}
-{"id":"H0062","file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -694,7 +712,9 @@ export function InlineDiffChunk({","tier":"read","category":"logic","note":"the asides now drawn when either list has something"}
-{"id":"H0063","file":"src/web/components/narrative/insight-callout.test.tsx","header":"@@ -1,6 +1,6 @@","tier":"proven"}
-{"id":"H0064","file":"src/web/components/narrative/insight-callout.test.tsx","header":"@@ -14,7 +14,6 @@ describe('<InsightCallout />', () => {","tier":"either","category":"test-case","note":"a row of the type table removed with the type"}
-{"id":"H0065","file":"src/web/components/narrative/insight-callout.test.tsx","header":"@@ -35,3 +34,23 @@ describe('<InsightCallout />', () => {","tier":"read","category":"test-case"}
-{"id":"H0066","file":"src/web/components/narrative/insight-callout.tsx","header":"@@ -1,18 +1,24 @@ (part 1 of 2)","tier":"either","category":"logic","note":"the reference tone removed with the type, and the doc comment on the new colour"}
-{"id":"H0067","file":"src/web/components/narrative/insight-callout.tsx","header":"@@ -19,6 +25,17 @@ (part 2 of 2)","tier":"either","category":"moved","note":"Marginalia lifted out of InsightCallout, its title now a parameter"}
-{"id":"H0068","file":"src/web/components/narrative/insight-callout.tsx","header":"@@ -30,6 +47,11 @@ (part 1 of 2) export function InsightCallout({ insight }: { insight: Insight }) {","tier":"either","category":"moved","note":"Marginalia lifted out of InsightCallout, its title now a parameter"}
-{"id":"H0069","file":"src/web/components/narrative/insight-callout.tsx","header":"@@ -36,6 +58,25 @@ (part 2 of 2)","tier":"read","category":"logic","note":"InsightCallout over Marginalia, and the new JudgementCallout"}
-{"id":"H0070","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +1,11 @@ (part 1 of 11)","tier":"skim","category":"test-scaffolding","note":"imports and a hunk factory"}
-{"id":"H0071","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +12,13 @@ (part 2 of 11)","tier":"skim","category":"test-scaffolding","note":"chapter, call and review builders"}
-{"id":"H0072","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +25,12 @@ (part 3 of 11)","tier":"skim","category":"test-scaffolding","note":"chapter, call and review builders"}
-{"id":"H0073","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +37,14 @@ (part 4 of 11)","tier":"read","category":"test-case"}
-{"id":"H0074","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +51,10 @@ (part 5 of 11)","tier":"read","category":"test-case"}
-{"id":"H0075","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +61,10 @@ (part 6 of 11)","tier":"read","category":"test-case"}
-{"id":"H0076","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +71,7 @@ (part 7 of 11)","tier":"read","category":"test-case"}
-{"id":"H0077","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +78,7 @@ (part 8 of 11)","tier":"read","category":"test-case"}
-{"id":"H0078","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +85,8 @@ (part 9 of 11)","tier":"read","category":"test-scaffolding","note":"the anchored set the three cases below assert on"}
-{"id":"H0079","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +93,10 @@ (part 10 of 11)","tier":"read","category":"test-case"}
-{"id":"H0080","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +103,4 @@ (part 11 of 11)","tier":"read","category":"test-case"}
-{"id":"H0081","file":"src/web/components/narrative/judgement-calls.ts","header":"@@ -0,0 +1,15 @@ (part 1 of 3)","tier":"read","category":"types","note":"AnchoredJudgementCall"}
-{"id":"H0082","file":"src/web/components/narrative/judgement-calls.ts","header":"@@ -0,0 +16,21 @@ (part 2 of 3)","tier":"read","category":"logic"}
-{"id":"H0083","file":"src/web/components/narrative/judgement-calls.ts","header":"@@ -0,0 +37,14 @@ (part 3 of 3)","tier":"read","category":"logic"}
-{"id":"H0084","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -4,6 +4,7 @@ import type { NarrativeReview } from '@/domain/review/narrative';","tier":"proven"}
-{"id":"H0085","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -132,3 +133,17 @@ (part 1 of 6) describe('<SummaryCard />', () => {","tier":"read","category":"test-scaffolding","note":"the anchored call whose title, file and chapter the cases assert on"}
-{"id":"H0086","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +150,12 @@ (part 2 of 6)","tier":"skim","category":"test-scaffolding","note":"a render helper passing the props on"}
-{"id":"H0087","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +162,7 @@ (part 3 of 6)","tier":"read","category":"test-case"}
-{"id":"H0088","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +169,5 @@ (part 4 of 6)","tier":"read","category":"test-case"}
-{"id":"H0089","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +174,7 @@ (part 5 of 6)","tier":"read","category":"test-case"}
-{"id":"H0090","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +181,5 @@ (part 6 of 6)","tier":"read","category":"test-case"}
-{"id":"H0091","file":"src/web/components/narrative/summary-card.tsx","header":"@@ -7,6 +7,7 @@ import { Caption } from '@/web/components/caption';","tier":"proven"}
-{"id":"H0092","file":"src/web/components/narrative/summary-card.tsx","header":"@@ -31,17 +32,23 @@ export function SummaryCard({","tier":"skim","category":"wiring","note":"the summary card takes the calls and the chapter link"}
-{"id":"H0093","file":"src/web/components/narrative/summary-card.tsx","header":"@@ -156,11 +163,62 @@ export function SummaryCard({","tier":"read","category":"logic","note":"the judgement-call index"}
-{"id":"H0094","file":"src/web/theme/tokens.ts","header":"@@ -3,9 +3,9 @@","tier":"skim","category":"docs"}
-{"id":"H0095","file":"src/web/viewer/sample-bundle.ts","header":"@@ -337,7 +337,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {","tier":"skim","category":"test-scaffolding","note":"the viewer's sample report"}
-{"id":"H0096","file":"src/web/viewer/sample-bundle.ts","header":"@@ -443,6 +443,20 @@ export const SAMPLE_BUNDLE: ReviewBundle = {","tier":"skim","category":"test-scaffolding","note":"the viewer's sample report"}
+{"file":".claude/rules/review-pipeline.md","header":"@@ -24,7 +24,12 @@ src/domain/","tier":"skim","category":"docs","note":"the file map","id":"H0001"}
+{"file":".claude/rules/review-pipeline.md","header":"@@ -41,7 +46,9 @@ src/domain/","tier":"skim","category":"docs","note":"the file map","id":"H0002"}
+{"file":".claude/rules/review-pipeline.md","header":"@@ -96,6 +103,12 @@ src/domain/","tier":"skim","category":"docs","note":"the file map","id":"H0003"}
+{"file":".claude/rules/web.md","header":"@@ -61,17 +61,26 @@ src/web/","tier":"skim","category":"docs","note":"the file map","id":"H0004"}
+{"file":"README.md","header":"@@ -1,8 +1,9 @@","tier":"skim","category":"docs","id":"H0005"}
+{"file":"src/domain/review/coverage.ts","header":"@@ -88,6 +88,25 @@ export function chaptersCiting(","tier":"read","category":"logic","note":"judgementCallOwner: which chapter draws a call","id":"H0006"}
+{"file":"src/domain/review/findings.test.ts","header":"@@ -28,6 +28,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {","tier":"either","category":"test-case","note":"rows of the expected severities, mirroring the table beside them","id":"H0007"}
+{"file":"src/domain/review/findings.test.ts","header":"@@ -40,6 +41,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {","tier":"either","category":"test-case","note":"rows of the expected severities, mirroring the table beside them","id":"H0008"}
+{"file":"src/domain/review/findings.ts","header":"@@ -53,6 +53,12 @@ const SEVERITY_BY_CODE = {","tier":"read","category":"logic","note":"two new finding codes and the severity each is given","id":"H0009"}
+{"file":"src/domain/review/findings.ts","header":"@@ -74,8 +80,10 @@ const SEVERITY_BY_CODE = {","tier":"read","category":"logic","note":"two new finding codes and the severity each is given","id":"H0010"}
+{"file":"src/domain/review/narrative.ts","header":"@@ -32,7 +32,7 @@ export const ProseSchema = z.object({","tier":"read","category":"types","note":"reference leaves the insight types","id":"H0011"}
+{"file":"src/domain/review/narrative.ts","header":"@@ -54,6 +54,37 @@ export const InsightSchema = z.object({","tier":"read","category":"types","note":"JudgementCallSchema and its cap","id":"H0012"}
+{"file":"src/domain/review/narrative.ts","header":"@@ -158,6 +189,12 @@ export const NarrativeReviewSchema = z.object({","tier":"read","category":"types","note":"the review gains a capped judgementCalls","id":"H0013"}
+{"file":"src/domain/review/prompt/__fixtures__/server-prompt.txt","header":"@@ -31,7 +31,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t","tier":"skim","category":"test-scaffolding","note":"the golden copy of the prompt, read in instructions.ts","id":"H0014"}
+{"file":"src/domain/review/prompt/__fixtures__/server-prompt.txt","header":"@@ -46,6 +46,14 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t","tier":"skim","category":"test-scaffolding","note":"the golden copy of the prompt, read in instructions.ts","id":"H0015"}
+{"file":"src/domain/review/prompt/__fixtures__/server-prompt.txt","header":"@@ -57,10 +65,9 @@ Guidelines:","tier":"skim","category":"test-scaffolding","note":"the golden copy of the prompt, read in instructions.ts","id":"H0016"}
+{"file":"src/domain/review/prompt/__fixtures__/server-prompt.txt","header":"@@ -104,3 +111,16 @@ (part 1 of 2) An insight may carry a \"filename\", and should whenever it is about one file in p","tier":"skim","category":"test-scaffolding","note":"the golden copy of the prompt, read in instructions.ts","id":"H0017"}
+{"file":"src/domain/review/prompt/__fixtures__/server-prompt.txt","header":"@@ -107,3 +127,14 @@ (part 2 of 2)","tier":"skim","category":"test-scaffolding","note":"the golden copy of the prompt, read in instructions.ts","id":"H0018"}
+{"file":"src/domain/review/prompt/instructions.ts","header":"@@ -46,7 +46,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t","tier":"read","category":"logic","note":"the prompt is the behaviour here","id":"H0019"}
+{"file":"src/domain/review/prompt/instructions.ts","header":"@@ -61,6 +61,14 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t","tier":"read","category":"logic","note":"the prompt is the behaviour here","id":"H0020"}
+{"file":"src/domain/review/prompt/instructions.ts","header":"@@ -72,10 +80,9 @@ Guidelines:","tier":"read","category":"logic","note":"the prompt is the behaviour here","id":"H0021"}
+{"file":"src/domain/review/prompt/instructions.ts","header":"@@ -119,3 +126,16 @@ (part 1 of 2) An insight may carry a \"filename\", and should whenever it is about one file in p","tier":"read","category":"logic","note":"the prompt is the behaviour here","id":"H0022"}
+{"file":"src/domain/review/prompt/instructions.ts","header":"@@ -122,3 +142,14 @@ (part 2 of 2)","tier":"read","category":"logic","note":"the prompt is the behaviour here","id":"H0023"}
+{"file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -478,3 +478,11 @@ (part 1 of 9) describe('an insight anchored to a file', () => {","tier":"skim","category":"test-scaffolding","note":"the call factory: any values would do","id":"H0024"}
+{"id":"H0025","file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +489,22 @@ (part 2 of 9)","tier":"read","category":"test-case","note":"the suite, its parse helper and its first case, now one part"}
+{"file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +511,6 @@ (part 3 of 9)","tier":"read","category":"test-case","id":"H0026"}
+{"file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +517,6 @@ (part 4 of 9)","tier":"read","category":"test-case","id":"H0027"}
+{"file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +523,9 @@ (part 5 of 9)","tier":"read","category":"test-case","id":"H0028"}
+{"file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +532,7 @@ (part 6 of 9)","tier":"read","category":"test-case","id":"H0029"}
+{"file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +539,21 @@ (part 7 of 9)","tier":"read","category":"test-case","id":"H0030"}
+{"file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -480,0 +560,6 @@ (part 8 of 9)","tier":"read","category":"test-case","id":"H0031"}
+{"file":"src/domain/review/prompt/parse-narrative.test.ts","header":"@@ -481,3 +566,19 @@ (part 9 of 9)","tier":"read","category":"test-case","id":"H0032"}
+{"id":"H0033","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -1,11 +1,14 @@","tier":"proven"}
+{"id":"H0034","file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -13,7 +16,7 @@ import {","tier":"proven"}
+{"file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -302,3 +305,28 @@ (part 1 of 3) function sanitizeInsights(","tier":"read","category":"logic","note":"sanitizeJudgementCalls","id":"H0035"}
+{"file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -304,0 +333,108 @@ (part 2 of 3)","tier":"read","category":"logic","note":"sanitizeJudgementCalls","id":"H0036"}
+{"file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -305,3 +441,11 @@ (part 3 of 3)","tier":"read","category":"logic","note":"sanitizeJudgementCalls","id":"H0037"}
+{"file":"src/domain/review/prompt/parse-narrative.ts","header":"@@ -624,12 +768,14 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):","tier":"read","category":"logic","note":"judgementCalls left out, not empty, when none survive","id":"H0038"}
+{"id":"H0039","file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -1,7 +1,12 @@","tier":"proven"}
+{"file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -19,7 +24,7 @@ describe('groupInsightsByFile', () => {","tier":"skim","category":"test-scaffolding","note":"a fixture insight off the removed type","id":"H0040"}
+{"file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -57,7 +62,7 @@ describe('<ChapterCard /> with a mix of insights', () => {","tier":"skim","category":"wiring","note":"the test render helper carries the calls to the card","id":"H0041"}
+{"file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -79,7 +84,11 @@ describe('<ChapterCard /> with a mix of insights', () => {","tier":"skim","category":"wiring","note":"the test render helper carries the calls to the card","id":"H0042"}
+{"id":"H0043","file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -116,3 +125,27 @@ (part 1 of 2) describe('<ChapterCard /> with a mix of insights', () => {","tier":"read","category":"test-case","note":"one case, now whole"}
+{"file":"src/web/components/narrative/chapter-card.test.tsx","header":"@@ -119,3 +152,7 @@ (part 2 of 2)","tier":"read","category":"test-case","id":"H0044"}
+{"id":"H0045","file":"src/web/components/narrative/chapter-card.tsx","header":"@@ -1,6 +1,11 @@","tier":"proven"}
+{"file":"src/web/components/narrative/chapter-card.tsx","header":"@@ -99,11 +104,18 @@ export function SectionRule({ label, count }: { label: string; count: number })","tier":"skim","category":"wiring","note":"the card takes the calls and passes its file share on","id":"H0046"}
+{"file":"src/web/components/narrative/chapter-card.tsx","header":"@@ -184,6 +196,7 @@ export function ChapterCard({","tier":"skim","category":"wiring","note":"the card takes the calls and passes its file share on","id":"H0047"}
+{"id":"H0048","file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -16,6 +16,11 @@ import type { ReviewMeta } from '@/domain/review/review-meta';","tier":"proven"}
+{"file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -114,6 +119,7 @@ export function ChapterReader({","tier":"skim","category":"wiring","note":"the anchored calls and onSelect carried down","id":"H0049"}
+{"file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -263,9 +269,11 @@ export function ChapterReader({","tier":"skim","category":"wiring","note":"the anchored calls and onSelect carried down","id":"H0050"}
+{"file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -285,17 +293,21 @@ function SectionCard({","tier":"skim","category":"wiring","note":"the anchored calls and onSelect carried down","id":"H0051"}
+{"file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -303,7 +315,12 @@ function SectionCard({","tier":"either","category":"wiring","note":"passed on through judgementCallsByFile, which is read in its own file","id":"H0052"}
+{"file":"src/web/components/narrative/chapter-reader.tsx","header":"@@ -312,8 +329,10 @@ function SectionCard({","tier":"skim","category":"wiring","note":"the anchored calls and onSelect carried down","id":"H0053"}
+{"id":"H0054","file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -18,9 +18,9 @@ import {","tier":"proven"}
+{"file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -550,7 +550,12 @@ function SnippetEditor({","tier":"skim","category":"docs","id":"H0055"}
+{"file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -562,7 +567,13 @@ function SnippetEditor({","tier":"skim","category":"wiring","note":"AnchoredInsights renamed and taking the calls to carry","id":"H0056"}
+{"file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -571,8 +582,11 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {","tier":"read","category":"logic","note":"the calls drawn ahead of the insights","id":"H0057"}
+{"file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -585,16 +599,20 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {","tier":"skim","category":"wiring","note":"the diff chunk takes the calls, with its doc comment","id":"H0058"}
+{"file":"src/web/components/narrative/inline-diff-chunk.tsx","header":"@@ -694,7 +712,9 @@ export function InlineDiffChunk({","tier":"read","category":"logic","note":"the asides now drawn when either list has something","id":"H0059"}
+{"id":"H0060","file":"src/web/components/narrative/insight-callout.test.tsx","header":"@@ -1,6 +1,6 @@","tier":"proven"}
+{"file":"src/web/components/narrative/insight-callout.test.tsx","header":"@@ -14,7 +14,6 @@ describe('<InsightCallout />', () => {","tier":"either","category":"test-case","note":"a row of the type table removed with the type","id":"H0061"}
+{"file":"src/web/components/narrative/insight-callout.test.tsx","header":"@@ -35,3 +34,23 @@ describe('<InsightCallout />', () => {","tier":"read","category":"test-case","id":"H0062"}
+{"file":"src/web/components/narrative/insight-callout.tsx","header":"@@ -1,18 +1,24 @@ (part 1 of 2)","tier":"either","category":"logic","note":"the reference tone removed with the type, and the doc comment on the new colour","id":"H0063"}
+{"file":"src/web/components/narrative/insight-callout.tsx","header":"@@ -19,6 +25,17 @@ (part 2 of 2)","tier":"either","category":"moved","note":"Marginalia lifted out of InsightCallout, its title now a parameter","id":"H0064"}
+{"file":"src/web/components/narrative/insight-callout.tsx","header":"@@ -30,6 +47,11 @@ (part 1 of 2) export function InsightCallout({ insight }: { insight: Insight }) {","tier":"either","category":"moved","note":"Marginalia lifted out of InsightCallout, its title now a parameter","id":"H0065"}
+{"file":"src/web/components/narrative/insight-callout.tsx","header":"@@ -36,6 +58,25 @@ (part 2 of 2)","tier":"read","category":"logic","note":"InsightCallout over Marginalia, and the new JudgementCallout","id":"H0066"}
+{"file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +1,11 @@ (part 1 of 10)","tier":"skim","category":"test-scaffolding","note":"imports and a hunk factory","id":"H0067"}
+{"file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +12,13 @@ (part 2 of 10)","tier":"skim","category":"test-scaffolding","note":"chapter, call and review builders","id":"H0068"}
+{"file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +25,12 @@ (part 3 of 10)","tier":"skim","category":"test-scaffolding","note":"chapter, call and review builders","id":"H0069"}
+{"file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +37,14 @@ (part 4 of 10)","tier":"read","category":"test-case","id":"H0070"}
+{"file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +51,10 @@ (part 5 of 10)","tier":"read","category":"test-case","id":"H0071"}
+{"file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +61,10 @@ (part 6 of 10)","tier":"read","category":"test-case","id":"H0072"}
+{"file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +71,7 @@ (part 7 of 10)","tier":"read","category":"test-case","id":"H0073"}
+{"file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +78,7 @@ (part 8 of 10)","tier":"read","category":"test-case","id":"H0074"}
+{"id":"H0075","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +85,14 @@ (part 9 of 10)","tier":"read","category":"test-case","note":"the anchored set and the first case asserting on it, now one part"}
+{"id":"H0076","file":"src/web/components/narrative/judgement-calls.test.ts","header":"@@ -0,0 +99,8 @@ (part 10 of 10)","tier":"read","category":"test-case"}
+{"file":"src/web/components/narrative/judgement-calls.ts","header":"@@ -0,0 +1,15 @@ (part 1 of 3)","tier":"read","category":"types","note":"AnchoredJudgementCall","id":"H0077"}
+{"file":"src/web/components/narrative/judgement-calls.ts","header":"@@ -0,0 +16,21 @@ (part 2 of 3)","tier":"read","category":"logic","id":"H0078"}
+{"file":"src/web/components/narrative/judgement-calls.ts","header":"@@ -0,0 +37,14 @@ (part 3 of 3)","tier":"read","category":"logic","id":"H0079"}
+{"id":"H0080","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -4,6 +4,7 @@ import type { NarrativeReview } from '@/domain/review/narrative';","tier":"proven"}
+{"id":"H0081","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -132,3 +133,29 @@ (part 1 of 5) describe('<SummaryCard />', () => {","tier":"read","category":"test-scaffolding","note":"the anchored call the cases assert on, with a render helper"}
+{"file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +162,7 @@ (part 2 of 5)","tier":"read","category":"test-case","id":"H0082"}
+{"file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +169,5 @@ (part 3 of 5)","tier":"read","category":"test-case","id":"H0083"}
+{"file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +174,7 @@ (part 4 of 5)","tier":"read","category":"test-case","id":"H0084"}
+{"file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +181,5 @@ (part 5 of 5)","tier":"read","category":"test-case","id":"H0085"}
+{"id":"H0086","file":"src/web/components/narrative/summary-card.tsx","header":"@@ -7,6 +7,7 @@ import { Caption } from '@/web/components/caption';","tier":"proven"}
+{"file":"src/web/components/narrative/summary-card.tsx","header":"@@ -31,17 +32,23 @@ export function SummaryCard({","tier":"skim","category":"wiring","note":"the summary card takes the calls and the chapter link","id":"H0087"}
+{"file":"src/web/components/narrative/summary-card.tsx","header":"@@ -156,11 +163,62 @@ export function SummaryCard({","tier":"read","category":"logic","note":"the judgement-call index","id":"H0088"}
+{"file":"src/web/theme/tokens.ts","header":"@@ -3,9 +3,9 @@","tier":"skim","category":"docs","id":"H0089"}
+{"file":"src/web/viewer/sample-bundle.ts","header":"@@ -337,7 +337,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {","tier":"skim","category":"test-scaffolding","note":"the viewer's sample report","id":"H0090"}
+{"file":"src/web/viewer/sample-bundle.ts","header":"@@ -443,6 +443,20 @@ export const SAMPLE_BUNDLE: ReviewBundle = {","tier":"skim","category":"test-scaffolding","note":"the viewer's sample report","id":"H0091"}

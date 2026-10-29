@@ -415,7 +415,7 @@ index 9445b87..846f253 100644
 --- a/src/domain/review/prompt/parse-narrative.test.ts
 +++ b/src/domain/review/prompt/parse-narrative.test.ts
 # H0024
-@@ -478,3 +478,11 @@ (part 1 of 10) describe('an insight anchored to a file', () => {
+@@ -478,3 +478,11 @@ (part 1 of 9) describe('an insight anchored to a file', () => {
    });
  });
  
@@ -428,7 +428,7 @@ index 9445b87..846f253 100644
 +});
 +
 # H0025
-@@ -480,0 +489,15 @@ (part 2 of 10)
+@@ -480,0 +489,22 @@ (part 2 of 9)
 +describe('a judgement call', () => {
 +  const parse = (judgementCalls: unknown) =>
 +    parseNarrativeReview(
@@ -444,8 +444,6 @@ index 9445b87..846f253 100644
 +      groundingFor(buildDiffHunkIndex(DIFF).hunks),
 +    );
 +
-# H0026
-@@ -480,0 +504,7 @@ (part 3 of 10)
 +  it('survives with the hunks it named, in file order', () => {
 +    const result = parse([call({ hunkIds: ['H0002', 'H0001'] })]);
 +    expect(result.ok && result.data.judgementCalls).toEqual([
@@ -453,24 +451,24 @@ index 9445b87..846f253 100644
 +    ]);
 +  });
 +
-# H0027
-@@ -480,0 +511,6 @@ (part 4 of 10)
+# H0026
+@@ -480,0 +511,6 @@ (part 3 of 9)
 +  it('is absent, not empty, when the model asked nothing', () => {
 +    const result = parse(undefined);
 +    expect(result.ok && 'judgementCalls' in result.data).toBe(false);
 +    expect(codes(result)).not.toContain('judgement-call-dropped');
 +  });
 +
-# H0028
-@@ -480,0 +517,6 @@ (part 5 of 10)
+# H0027
+@@ -480,0 +517,6 @@ (part 4 of 9)
 +  it('is dropped in full when no chapter cites its file, since it has no card to sit on', () => {
 +    const result = parse([call({ filename: 'src/c.ts', hunkIds: ['H0001'] })]);
 +    expect(result.ok && result.data.judgementCalls).toBeUndefined();
 +    expect(codes(result)).toContain('judgement-call-dropped');
 +  });
 +
-# H0029
-@@ -480,0 +523,9 @@ (part 6 of 10)
+# H0028
+@@ -480,0 +523,9 @@ (part 5 of 9)
 +  it('is dropped when every hunk it cites belongs to another file', () => {
 +    // src/a.ts is cited by a chapter, so the anchor stands; H0003 is src/b.ts,
 +    // so the question points at lines this card does not show.
@@ -480,8 +478,8 @@ index 9445b87..846f253 100644
 +    expect(codes(result)).toContain('judgement-call-dropped');
 +  });
 +
-# H0030
-@@ -480,0 +532,7 @@ (part 7 of 10)
+# H0029
+@@ -480,0 +532,7 @@ (part 6 of 9)
 +  it('keeps the hunks that resolved and records the one that did not', () => {
 +    const result = parse([call({ hunkIds: ['H0001', 'H9999'] })]);
 +    expect(result.ok && result.data.judgementCalls).toEqual([call({ hunkIds: ['H0001'] })]);
@@ -489,8 +487,8 @@ index 9445b87..846f253 100644
 +    expect(codes(result)).not.toContain('judgement-call-dropped');
 +  });
 +
-# H0031
-@@ -480,0 +539,21 @@ (part 8 of 10)
+# H0030
+@@ -480,0 +539,21 @@ (part 7 of 9)
 +  it('keeps only the hunks of the chapter that draws it, when two chapters split its file', () => {
 +    const result = parseNarrativeReview(
 +      wrap({
@@ -512,16 +510,16 @@ index 9445b87..846f253 100644
 +    expect(codes(result)).not.toContain('judgement-call-dropped');
 +  });
 +
-# H0032
-@@ -480,0 +560,6 @@ (part 9 of 10)
+# H0031
+@@ -480,0 +560,6 @@ (part 8 of 9)
 +  it('is dropped without a title or without text, either of which leaves no question', () => {
 +    expect(parse([call({ title: '  ' })]).ok).toBe(true);
 +    expect(codes(parse([call({ title: '  ' })]))).toContain('judgement-call-dropped');
 +    expect(codes(parse([call({ text: undefined })]))).toContain('judgement-call-dropped');
 +  });
 +
-# H0033
-@@ -481,3 +566,19 @@ (part 10 of 10)
+# H0032
+@@ -481,3 +566,19 @@ (part 9 of 9)
 +  it('is capped at three, however many the model asked', () => {
 +    const result = parse([
 +      call({ title: 'one' }),
@@ -546,7 +544,7 @@ diff --git a/src/domain/review/prompt/parse-narrative.ts b/src/domain/review/pro
 index 6c5565e..7380713 100644
 --- a/src/domain/review/prompt/parse-narrative.ts
 +++ b/src/domain/review/prompt/parse-narrative.ts
-# H0034
+# H0033
 @@ -1,11 +1,14 @@
  import { plural } from '../../../common/plural.ts';
 +import { judgementCallOwner } from '../coverage.ts';
@@ -562,7 +560,7 @@ index 6c5565e..7380713 100644
    type NarrativeReview,
    type Prose,
    type ResolvedDiffHunk,
-# H0035
+# H0034
 @@ -13,7 +16,7 @@ import {
    type ReviewRiskFactorImpact,
    type ReviewRiskScore,
@@ -572,7 +570,7 @@ index 6c5565e..7380713 100644
  import { sanitizeDiagram } from './parse-diagram.ts';
  
  /**
-# H0036
+# H0035
 @@ -302,3 +305,28 @@ (part 1 of 3) function sanitizeInsights(
    });
  }
@@ -602,7 +600,7 @@ index 6c5565e..7380713 100644
 +  return [...deduped.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
 +}
 +
-# H0037
+# H0036
 @@ -304,0 +333,108 @@ (part 2 of 3)
 +/**
 + * The review's judgement calls, each held to the one place it can be drawn.
@@ -712,7 +710,7 @@ index 6c5565e..7380713 100644
 +    ];
 +  });
 +
-# H0038
+# H0037
 @@ -305,3 +441,11 @@ (part 3 of 3)
 +  if (kept.length <= MAX_JUDGEMENT_CALLS) return kept;
 +  log.add(
@@ -725,7 +723,7 @@ index 6c5565e..7380713 100644
  /**
   * One chunk per file in a chapter. The reader keys a file's insights and its
   * file count on the filename, so a chapter the model split across two chunks
-# H0039
+# H0038
 @@ -624,12 +768,14 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
      grounding,
      log,
@@ -746,7 +744,7 @@ diff --git a/src/web/components/narrative/chapter-card.test.tsx b/src/web/compon
 index 7f7b08e..2c89b96 100644
 --- a/src/web/components/narrative/chapter-card.test.tsx
 +++ b/src/web/components/narrative/chapter-card.test.tsx
-# H0040
+# H0039
 @@ -1,7 +1,12 @@
  import { createRoutesStub } from 'react-router';
  import { describe, expect, it, vi } from 'vitest';
@@ -761,7 +759,7 @@ index 7f7b08e..2c89b96 100644
  import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
  import { render, screen, within } from '@/web/test/render';
  import { ChapterCard, groupInsightsByFile, orderChunksTestsLast } from './chapter-card';
-# H0041
+# H0040
 @@ -19,7 +24,7 @@ describe('groupInsightsByFile', () => {
    const orient: Insight = { type: 'context', text: 'read this first' };
    const onA: Insight = { type: 'highlight', text: 'about a', filename: 'src/a.ts' };
@@ -771,7 +769,7 @@ index 7f7b08e..2c89b96 100644
  
    it('sends an anchored insight to its file and leaves the rest above the diffs', () => {
      const { anchored, unanchored } = groupInsightsByFile([orient, onA, onB]);
-# H0042
+# H0041
 @@ -57,7 +62,7 @@ describe('<ChapterCard /> with a mix of insights', () => {
      diffChunks: [chunk('src/pipeline.ts'), chunk('src/constants.ts')],
    };
@@ -781,7 +779,7 @@ index 7f7b08e..2c89b96 100644
      const bundle: ReviewBundle = {
        schemaVersion: BUNDLE_SCHEMA_VERSION,
        generatedAt: '2026-09-11T10:00:00.000Z',
-# H0043
+# H0042
 @@ -79,7 +84,11 @@ describe('<ChapterCard /> with a mix of insights', () => {
          path: '/',
          Component: () => (
@@ -795,8 +793,8 @@ index 7f7b08e..2c89b96 100644
            </EmbeddedFileSource>
          ),
        },
-# H0044
-@@ -116,3 +125,13 @@ (part 1 of 4) describe('<ChapterCard /> with a mix of insights', () => {
+# H0043
+@@ -116,3 +125,27 @@ (part 1 of 2) describe('<ChapterCard /> with a mix of insights', () => {
      expect(screen.getByText('Late cancellations stop counting against a tech.')).toBeDefined();
      expect(container.querySelectorAll('li')).toHaveLength(2);
    });
@@ -810,15 +808,11 @@ index 7f7b08e..2c89b96 100644
 +    };
 +    renderCard(new Map([['src/constants.ts', [call]]]));
 +
-# H0045
-@@ -118,0 +138,5 @@ (part 2 of 4)
 +    const constants = screen.getByRole('figure', { name: 'Diff for src/constants.ts' });
 +    const pipeline = screen.getByRole('figure', { name: 'Diff for src/pipeline.ts' });
 +    expect(within(constants).getByText(/Judgement call/)).toBeDefined();
 +    expect(within(pipeline).queryByText(/Judgement call/)).toBeNull();
 +
-# H0046
-@@ -118,0 +143,9 @@ (part 3 of 4)
 +    // Ahead of the insight anchored to the same file: the question is the only
 +    // thing on the page addressed to the reader.
 +    const question = within(constants).getByText(call.title);
@@ -828,8 +822,8 @@ index 7f7b08e..2c89b96 100644
 +    ).toBeTruthy();
 +  });
 +
-# H0047
-@@ -119,3 +152,7 @@ (part 4 of 4)
+# H0044
+@@ -119,3 +152,7 @@ (part 2 of 2)
 +  it('draws no judgement calls when the chapter owns none', () => {
 +    renderCard();
 +    expect(screen.queryByText(/Judgement call/)).toBeNull();
@@ -842,7 +836,7 @@ diff --git a/src/web/components/narrative/chapter-card.tsx b/src/web/components/
 index 32d7f78..f4d40c5 100644
 --- a/src/web/components/narrative/chapter-card.tsx
 +++ b/src/web/components/narrative/chapter-card.tsx
-# H0048
+# H0045
 @@ -1,6 +1,11 @@
  import { Group, Stack, Text, Title } from '@mantine/core';
  import { plural } from '@/common/plural';
@@ -856,7 +850,7 @@ index 32d7f78..f4d40c5 100644
  import { Caption } from '@/web/components/caption';
  import classes from '@/web/components/narrative/article.module.css';
  import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
-# H0049
+# H0046
 @@ -99,11 +104,18 @@ export function SectionRule({ label, count }: { label: string; count: number })
  export function ChapterCard({
    chapter,
@@ -876,7 +870,7 @@ index 32d7f78..f4d40c5 100644
    /** Threaded down so a grounded diagram node can open its file. */
    onSelectFile?: (filename: string) => void;
  }) {
-# H0050
+# H0047
 @@ -184,6 +196,7 @@ export function ChapterCard({
                key={`${chunk.filename}-${i}`}
                chunk={chunk}
@@ -890,7 +884,7 @@ diff --git a/src/web/components/narrative/chapter-reader.tsx b/src/web/component
 index 49787f7..dfbe10b 100644
 --- a/src/web/components/narrative/chapter-reader.tsx
 +++ b/src/web/components/narrative/chapter-reader.tsx
-# H0051
+# H0048
 @@ -16,6 +16,11 @@ import type { ReviewMeta } from '@/domain/review/review-meta';
  import { ChapterCard } from '@/web/components/narrative/chapter-card';
  import { ChapterSidebar } from '@/web/components/narrative/chapter-sidebar';
@@ -903,7 +897,7 @@ index 49787f7..dfbe10b 100644
  import { RiskCard } from '@/web/components/narrative/risk-card';
  import {
    findSection,
-# H0052
+# H0049
 @@ -114,6 +119,7 @@ export function ChapterReader({
    useReportedColumnWidth(mainRef);
    const coverage = useMemo(() => reviewCoverage(review), [review]);
@@ -912,7 +906,7 @@ index 49787f7..dfbe10b 100644
    const urlActive = searchParams.get('ch');
    const urlFile = searchParams.get('file');
    const activeFile = urlFile && fileExists(urlFile, review) ? urlFile : null;
-# H0053
+# H0050
 @@ -263,9 +269,11 @@ export function ChapterReader({
              review={review}
              meta={meta}
@@ -925,7 +919,7 @@ index 49787f7..dfbe10b 100644
            />
          )}
        </section>
-# H0054
+# H0051
 @@ -285,17 +293,21 @@ function SectionCard({
    review,
    meta,
@@ -948,7 +942,7 @@ index 49787f7..dfbe10b 100644
  }) {
    switch (section.kind) {
      case 'risk':
-# H0055
+# H0052
 @@ -303,7 +315,12 @@ function SectionCard({
      case 'chapter': {
        const chapter = review.chapters.find((ch) => ch.id === section.id);
@@ -963,7 +957,7 @@ index 49787f7..dfbe10b 100644
        ) : null;
      }
      case 'summary':
-# H0056
+# H0053
 @@ -312,8 +329,10 @@ function SectionCard({
            review={review}
            meta={meta}
@@ -980,7 +974,7 @@ diff --git a/src/web/components/narrative/inline-diff-chunk.tsx b/src/web/compon
 index 2bc8919..8728c7f 100644
 --- a/src/web/components/narrative/inline-diff-chunk.tsx
 +++ b/src/web/components/narrative/inline-diff-chunk.tsx
-# H0057
+# H0054
 @@ -18,9 +18,9 @@ import {
    type InlineDiffSnippet,
  } from '@/domain/review/inline-diff-snippets';
@@ -993,7 +987,7 @@ index 2bc8919..8728c7f 100644
  import { MONACO_VS_URL } from '@/web/components/narrative/monaco-cdn';
  import { useHydrated } from '@/web/lib/use-hydrated';
  import {
-# H0058
+# H0055
 @@ -550,7 +550,12 @@ function SnippetEditor({
  }
  
@@ -1008,7 +1002,7 @@ index 2bc8919..8728c7f 100644
   *
   * Capped at the reading measure even though the card itself bleeds to the full
   * column. The diff is what earns the extra width; a sentence set across 1700px
-# H0059
+# H0056
 @@ -562,7 +567,13 @@ function SnippetEditor({
   * is the whole reason a diff is a diff. This is close enough to be an answer
   * and far enough to leave the code alone.
@@ -1024,7 +1018,7 @@ index 2bc8919..8728c7f 100644
    return (
      <Box
        px={12}
-# H0060
+# H0057
 @@ -571,8 +582,11 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {
        style={{ borderBottom: `1px solid ${token('border')}` }}
      >
@@ -1038,7 +1032,7 @@ index 2bc8919..8728c7f 100644
          ))}
        </Box>
      </Box>
-# H0061
+# H0058
 @@ -585,16 +599,20 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {
   * each hunk group (`buildInlineDiffSnippets`) and shown in one Monaco
   * `DiffEditor` per group; "Show full file" swaps in the whole pair.
@@ -1063,7 +1057,7 @@ index 2bc8919..8728c7f 100644
  }) {
    const pair = useFilePair(chunk.filename);
    const stored = useDiffView((s) => s.view);
-# H0062
+# H0059
 @@ -694,7 +712,9 @@ export function InlineDiffChunk({
          )}
        </Group>
@@ -1080,7 +1074,7 @@ diff --git a/src/web/components/narrative/insight-callout.test.tsx b/src/web/com
 index d8aa1af..84ca5a7 100644
 --- a/src/web/components/narrative/insight-callout.test.tsx
 +++ b/src/web/components/narrative/insight-callout.test.tsx
-# H0063
+# H0060
 @@ -1,6 +1,6 @@
  import { describe, expect, it } from 'vitest';
  import { render, screen } from '@/web/test/render';
@@ -1089,7 +1083,7 @@ index d8aa1af..84ca5a7 100644
  
  describe('<InsightCallout />', () => {
    it('renders the editorial label and the insight text', () => {
-# H0064
+# H0061
 @@ -14,7 +14,6 @@ describe('<InsightCallout />', () => {
        { type: 'context', label: /Context/ },
        { type: 'rationale', label: /Reasoning/ },
@@ -1098,7 +1092,7 @@ index d8aa1af..84ca5a7 100644
      ] as const;
  
      for (const { type, label } of cases) {
-# H0065
+# H0062
 @@ -35,3 +34,23 @@ describe('<InsightCallout />', () => {
      expect(screen.getByText('Long story…')).toBeDefined();
    });
@@ -1128,7 +1122,7 @@ diff --git a/src/web/components/narrative/insight-callout.tsx b/src/web/componen
 index eea4cd1..15352a3 100644
 --- a/src/web/components/narrative/insight-callout.tsx
 +++ b/src/web/components/narrative/insight-callout.tsx
-# H0066
+# H0063
 @@ -1,18 +1,24 @@ (part 1 of 2)
  import { Stack, Text, Title } from '@mantine/core';
 -import type { Insight, InsightType } from '@/domain/review/narrative';
@@ -1159,7 +1153,7 @@ index eea4cd1..15352a3 100644
 -  reference: { label: 'Suggestion', tone: 'suggestion' },
  };
  
-# H0067
+# H0064
 @@ -19,6 +25,17 @@ (part 2 of 2)
 -export function InsightCallout({ insight }: { insight: Insight }) {
 -  const { label, tone } = TYPE_TONE[insight.type] ?? TYPE_TONE.context;
@@ -1181,7 +1175,7 @@ index eea4cd1..15352a3 100644
    return (
      <Stack
        component="aside"
-# H0068
+# H0065
 @@ -30,6 +47,11 @@ (part 1 of 2) export function InsightCallout({ insight }: { insight: Insight }) {
        <Caption tone={tone}>{label}</Caption>
        {hasTitle && (
@@ -1195,7 +1189,7 @@ index eea4cd1..15352a3 100644
 +  );
 +}
 +
-# H0069
+# H0066
 @@ -36,6 +58,25 @@ (part 2 of 2)
 +export function InsightCallout({ insight }: { insight: Insight }) {
 +  const { label, tone } = TYPE_TONE[insight.type] ?? TYPE_TONE.context;
@@ -1229,8 +1223,8 @@ new file mode 100644
 index 0000000..3dc1b8d
 --- /dev/null
 +++ b/src/web/components/narrative/judgement-calls.test.ts
-# H0070
-@@ -0,0 +1,11 @@ (part 1 of 11)
+# H0067
+@@ -0,0 +1,11 @@ (part 1 of 10)
 +import { describe, expect, it } from 'vitest';
 +import type { JudgementCall, NarrativeChapter, NarrativeReview } from '@/domain/review/narrative';
 +import { anchorJudgementCalls, judgementCallsByFile } from './judgement-calls';
@@ -1242,8 +1236,8 @@ index 0000000..3dc1b8d
 +  modified: { startLine: 1, lineCount: 1 },
 +});
 +
-# H0071
-@@ -0,0 +12,13 @@ (part 2 of 11)
+# H0068
+@@ -0,0 +12,13 @@ (part 2 of 10)
 +/** A chapter showing each file for H0001 unless the entry names its hunks. */
 +function chapter(id: string, files: (string | [string, string[]])[]): NarrativeChapter {
 +  return {
@@ -1257,8 +1251,8 @@ index 0000000..3dc1b8d
 +  };
 +}
 +
-# H0072
-@@ -0,0 +25,12 @@ (part 3 of 11)
+# H0069
+@@ -0,0 +25,12 @@ (part 3 of 10)
 +function call(
 +  filename: string,
 +  title: string,
@@ -1271,8 +1265,8 @@ index 0000000..3dc1b8d
 +  return { prTitle: 't', overviewSummary: { lede: 's' }, chapters, judgementCalls };
 +}
 +
-# H0073
-@@ -0,0 +37,14 @@ (part 4 of 11)
+# H0070
+@@ -0,0 +37,14 @@ (part 4 of 10)
 +describe('anchorJudgementCalls', () => {
 +  it('gives each call the chapter that cites its file', () => {
 +    const anchored = anchorJudgementCalls(
@@ -1287,8 +1281,8 @@ index 0000000..3dc1b8d
 +    ]);
 +  });
 +
-# H0074
-@@ -0,0 +51,10 @@ (part 5 of 11)
+# H0071
+@@ -0,0 +51,10 @@ (part 5 of 10)
 +  it('gives a file two chapters both cite to the first of them, so it is asked once', () => {
 +    const anchored = anchorJudgementCalls(
 +      review(
@@ -1299,8 +1293,8 @@ index 0000000..3dc1b8d
 +    expect(anchored.map((entry) => entry.chapterId)).toEqual(['one']);
 +  });
 +
-# H0075
-@@ -0,0 +61,10 @@ (part 6 of 11)
+# H0072
+@@ -0,0 +61,10 @@ (part 6 of 10)
 +  it('gives a file two chapters show different hunks of to the one showing its lines', () => {
 +    const anchored = anchorJudgementCalls(
 +      review(
@@ -1311,8 +1305,8 @@ index 0000000..3dc1b8d
 +    expect(anchored.map((entry) => entry.chapterId)).toEqual(['two']);
 +  });
 +
-# H0076
-@@ -0,0 +71,7 @@ (part 7 of 11)
+# H0073
+@@ -0,0 +71,7 @@ (part 7 of 10)
 +  it('leaves out a call whose file no chapter shows, having nowhere to draw it', () => {
 +    const anchored = anchorJudgementCalls(
 +      review([chapter('one', ['src/a.ts'])], [call('src/gone.ts', 'about gone')]),
@@ -1320,8 +1314,8 @@ index 0000000..3dc1b8d
 +    expect(anchored).toEqual([]);
 +  });
 +
-# H0077
-@@ -0,0 +78,7 @@ (part 8 of 11)
+# H0074
+@@ -0,0 +78,7 @@ (part 8 of 10)
 +  it('is empty for a review that asked nothing', () => {
 +    const base = review([chapter('one', ['src/a.ts'])], []);
 +    expect(anchorJudgementCalls(base)).toEqual([]);
@@ -1329,8 +1323,8 @@ index 0000000..3dc1b8d
 +  });
 +});
 +
-# H0078
-@@ -0,0 +85,8 @@ (part 9 of 11)
+# H0075
+@@ -0,0 +85,14 @@ (part 9 of 10)
 +describe('judgementCallsByFile', () => {
 +  const anchored = anchorJudgementCalls(
 +    review(
@@ -1339,20 +1333,18 @@ index 0000000..3dc1b8d
 +    ),
 +  );
 +
-# H0079
-@@ -0,0 +93,10 @@ (part 10 of 11)
 +  it('collects the calls of one chapter under the file each sits on', () => {
 +    const byFile = judgementCallsByFile(anchored, 'one');
 +    expect(byFile.get('src/a.ts')?.map((c) => c.title)).toEqual(['first on a', 'second on a']);
 +    expect(byFile.has('src/c.ts')).toBe(false);
 +  });
 +
+# H0076
+@@ -0,0 +99,8 @@ (part 10 of 10)
 +  it('gives another chapter only its own', () => {
 +    expect([...judgementCallsByFile(anchored, 'two').keys()]).toEqual(['src/c.ts']);
 +  });
 +
-# H0080
-@@ -0,0 +103,4 @@ (part 11 of 11)
 +  it('is empty for a chapter that draws none', () => {
 +    expect(judgementCallsByFile(anchored, 'three').size).toBe(0);
 +  });
@@ -1363,7 +1355,7 @@ new file mode 100644
 index 0000000..1125ae7
 --- /dev/null
 +++ b/src/web/components/narrative/judgement-calls.ts
-# H0081
+# H0077
 @@ -0,0 +1,15 @@ (part 1 of 3)
 +import { judgementCallOwner } from '@/domain/review/coverage';
 +import type { JudgementCall, NarrativeReview } from '@/domain/review/narrative';
@@ -1380,7 +1372,7 @@ index 0000000..1125ae7
 +  chapterId: string;
 +}
 +
-# H0082
+# H0078
 @@ -0,0 +16,21 @@ (part 2 of 3)
 +/**
 + * Each judgement call paired with the one chapter that draws it: the first
@@ -1403,7 +1395,7 @@ index 0000000..1125ae7
 +  });
 +}
 +
-# H0083
+# H0079
 @@ -0,0 +37,14 @@ (part 3 of 3)
 +/** One chapter's judgement calls, keyed by the file each sits on. */
 +export function judgementCallsByFile(
@@ -1424,7 +1416,7 @@ diff --git a/src/web/components/narrative/summary-card.test.tsx b/src/web/compon
 index 13250d3..8501c4d 100644
 --- a/src/web/components/narrative/summary-card.test.tsx
 +++ b/src/web/components/narrative/summary-card.test.tsx
-# H0084
+# H0080
 @@ -4,6 +4,7 @@ import type { NarrativeReview } from '@/domain/review/narrative';
  import type { ReviewMeta } from '@/domain/review/review-meta';
  import { REAL_ARCHITECTURE } from '@/web/test/diagram-fixtures';
@@ -1433,8 +1425,8 @@ index 13250d3..8501c4d 100644
  import { SummaryCard } from './summary-card';
  
  const baseMeta: ReviewMeta = {
-# H0085
-@@ -132,3 +133,17 @@ (part 1 of 6) describe('<SummaryCard />', () => {
+# H0081
+@@ -132,3 +133,29 @@ (part 1 of 5) describe('<SummaryCard />', () => {
      expect(screen.getByText('+40')).toBeDefined();
    });
  });
@@ -1452,8 +1444,6 @@ index 13250d3..8501c4d 100644
 +    },
 +  ];
 +
-# H0086
-@@ -134,0 +150,12 @@ (part 2 of 6)
 +  function renderIndex(onSelectChapter: (chapterId: string) => void) {
 +    return render(
 +      <SummaryCard
@@ -1466,8 +1456,8 @@ index 13250d3..8501c4d 100644
 +    );
 +  }
 +
-# H0087
-@@ -134,0 +162,7 @@ (part 3 of 6)
+# H0082
+@@ -134,0 +162,7 @@ (part 2 of 5)
 +  it('lists each title with the file it sits on', () => {
 +    renderIndex(() => {});
 +    expect(screen.getByText('Judgement calls')).toBeDefined();
@@ -1475,15 +1465,15 @@ index 13250d3..8501c4d 100644
 +    expect(screen.getByText('src/scheduler/cadence.ts')).toBeDefined();
 +  });
 +
-# H0088
-@@ -134,0 +169,5 @@ (part 4 of 6)
+# H0083
+@@ -134,0 +169,5 @@ (part 3 of 5)
 +  it('lists the title only, leaving the question itself beside its code', () => {
 +    renderIndex(() => {});
 +    expect(screen.queryByText('Cheap if few choose it, 24x the work if most do.')).toBeNull();
 +  });
 +
-# H0089
-@@ -134,0 +174,7 @@ (part 5 of 6)
+# H0084
+@@ -134,0 +174,7 @@ (part 4 of 5)
 +  it('sends the reader to the chapter that draws the question', () => {
 +    const selected: string[] = [];
 +    renderIndex((chapterId) => selected.push(chapterId));
@@ -1491,8 +1481,8 @@ index 13250d3..8501c4d 100644
 +    expect(selected).toEqual(['cadence-table']);
 +  });
 +
-# H0090
-@@ -134,0 +181,5 @@ (part 6 of 6)
+# H0085
+@@ -134,0 +181,5 @@ (part 5 of 5)
 +  it('draws nothing at all for a review that asked nothing', () => {
 +    renderCard();
 +    expect(screen.queryByText('Judgement calls')).toBeNull();
@@ -1503,7 +1493,7 @@ diff --git a/src/web/components/narrative/summary-card.tsx b/src/web/components/
 index fb2134d..993470c 100644
 --- a/src/web/components/narrative/summary-card.tsx
 +++ b/src/web/components/narrative/summary-card.tsx
-# H0091
+# H0086
 @@ -7,6 +7,7 @@ import { Caption } from '@/web/components/caption';
  import classes from '@/web/components/narrative/article.module.css';
  import { DiagramFigure } from '@/web/components/narrative/diagram/diagram-figure';
@@ -1512,7 +1502,7 @@ index fb2134d..993470c 100644
  import { MarkdownText } from '@/web/components/narrative/markdown-text';
  import { ProsePassage } from '@/web/components/narrative/prose-passage';
  import { sectionCardId, sectionHeadingId } from '@/web/components/narrative/sections';
-# H0092
+# H0087
 @@ -31,17 +32,23 @@ export function SummaryCard({
    review,
    meta,
@@ -1537,7 +1527,7 @@ index fb2134d..993470c 100644
  }) {
    const { baseRefName: baseRef, headRefName: headRef, authorLogin: author, prNumber } = meta;
    const title = review.prTitle || meta.title;
-# H0093
+# H0088
 @@ -156,11 +163,62 @@ export function SummaryCard({
          />
        )}
@@ -1606,7 +1596,7 @@ diff --git a/src/web/theme/tokens.ts b/src/web/theme/tokens.ts
 index fc43d20..8cafb77 100644
 --- a/src/web/theme/tokens.ts
 +++ b/src/web/theme/tokens.ts
-# H0094
+# H0089
 @@ -3,9 +3,9 @@
   *
   * Cobalt (hue 240/245) is the "before / current state" accent and the primary
@@ -1625,7 +1615,7 @@ diff --git a/src/web/viewer/sample-bundle.ts b/src/web/viewer/sample-bundle.ts
 index 7dc2153..b34530a 100644
 --- a/src/web/viewer/sample-bundle.ts
 +++ b/src/web/viewer/sample-bundle.ts
-# H0095
+# H0090
 @@ -337,7 +337,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
              text: 'isDue returns early for a paused schedule, so the clock is never read for it.',
            },
@@ -1635,7 +1625,7 @@ index 7dc2153..b34530a 100644
              title: 'Never-run schedules sort first',
              text: 'A repo with no last run counts as having run at time zero.',
              filename: 'src/scheduler/queue.ts',
-# H0096
+# H0091
 @@ -443,6 +443,20 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
          ],
        },

@@ -1,7 +1,7 @@
 {
   "name": "pr-18",
   "source": {
-    "folder": "er-reviews/pr-18/20261014-031014",
+    "folder": "C:\\workspace\\diffy\\enhanced-review\\er-reviews\\pr-18\\20261028-222828",
     "repo": "twynsicle/enhanced-review",
     "kind": "pr"
   },
@@ -508,7 +508,7 @@
     {
       "id": "H0024",
       "filename": "src/domain/review/prompt/parse-narrative.test.ts",
-      "header": "@@ -478,3 +478,11 @@ (part 1 of 10) describe('an insight anchored to a file', () => {",
+      "header": "@@ -478,3 +478,11 @@ (part 1 of 9) describe('an insight anchored to a file', () => {",
       "fileOrder": 1,
       "original": {
         "startLine": 478,
@@ -523,7 +523,7 @@
     {
       "id": "H0025",
       "filename": "src/domain/review/prompt/parse-narrative.test.ts",
-      "header": "@@ -480,0 +489,15 @@ (part 2 of 10)",
+      "header": "@@ -480,0 +489,22 @@ (part 2 of 9)",
       "fileOrder": 2,
       "original": {
         "startLine": 480,
@@ -531,30 +531,15 @@
       },
       "modified": {
         "startLine": 489,
-        "lineCount": 15
+        "lineCount": 22
       },
-      "changedLines": 15
+      "changedLines": 22
     },
     {
       "id": "H0026",
       "filename": "src/domain/review/prompt/parse-narrative.test.ts",
-      "header": "@@ -480,0 +504,7 @@ (part 3 of 10)",
+      "header": "@@ -480,0 +511,6 @@ (part 3 of 9)",
       "fileOrder": 3,
-      "original": {
-        "startLine": 480,
-        "lineCount": 0
-      },
-      "modified": {
-        "startLine": 504,
-        "lineCount": 7
-      },
-      "changedLines": 7
-    },
-    {
-      "id": "H0027",
-      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
-      "header": "@@ -480,0 +511,6 @@ (part 4 of 10)",
-      "fileOrder": 4,
       "original": {
         "startLine": 480,
         "lineCount": 0
@@ -566,10 +551,10 @@
       "changedLines": 6
     },
     {
-      "id": "H0028",
+      "id": "H0027",
       "filename": "src/domain/review/prompt/parse-narrative.test.ts",
-      "header": "@@ -480,0 +517,6 @@ (part 5 of 10)",
-      "fileOrder": 5,
+      "header": "@@ -480,0 +517,6 @@ (part 4 of 9)",
+      "fileOrder": 4,
       "original": {
         "startLine": 480,
         "lineCount": 0
@@ -581,10 +566,10 @@
       "changedLines": 6
     },
     {
-      "id": "H0029",
+      "id": "H0028",
       "filename": "src/domain/review/prompt/parse-narrative.test.ts",
-      "header": "@@ -480,0 +523,9 @@ (part 6 of 10)",
-      "fileOrder": 6,
+      "header": "@@ -480,0 +523,9 @@ (part 5 of 9)",
+      "fileOrder": 5,
       "original": {
         "startLine": 480,
         "lineCount": 0
@@ -596,10 +581,10 @@
       "changedLines": 9
     },
     {
-      "id": "H0030",
+      "id": "H0029",
       "filename": "src/domain/review/prompt/parse-narrative.test.ts",
-      "header": "@@ -480,0 +532,7 @@ (part 7 of 10)",
-      "fileOrder": 7,
+      "header": "@@ -480,0 +532,7 @@ (part 6 of 9)",
+      "fileOrder": 6,
       "original": {
         "startLine": 480,
         "lineCount": 0
@@ -611,10 +596,10 @@
       "changedLines": 7
     },
     {
-      "id": "H0031",
+      "id": "H0030",
       "filename": "src/domain/review/prompt/parse-narrative.test.ts",
-      "header": "@@ -480,0 +539,21 @@ (part 8 of 10)",
-      "fileOrder": 8,
+      "header": "@@ -480,0 +539,21 @@ (part 7 of 9)",
+      "fileOrder": 7,
       "original": {
         "startLine": 480,
         "lineCount": 0
@@ -626,10 +611,10 @@
       "changedLines": 21
     },
     {
-      "id": "H0032",
+      "id": "H0031",
       "filename": "src/domain/review/prompt/parse-narrative.test.ts",
-      "header": "@@ -480,0 +560,6 @@ (part 9 of 10)",
-      "fileOrder": 9,
+      "header": "@@ -480,0 +560,6 @@ (part 8 of 9)",
+      "fileOrder": 8,
       "original": {
         "startLine": 480,
         "lineCount": 0
@@ -641,10 +626,10 @@
       "changedLines": 6
     },
     {
-      "id": "H0033",
+      "id": "H0032",
       "filename": "src/domain/review/prompt/parse-narrative.test.ts",
-      "header": "@@ -481,3 +566,19 @@ (part 10 of 10)",
-      "fileOrder": 10,
+      "header": "@@ -481,3 +566,19 @@ (part 9 of 9)",
+      "fileOrder": 9,
       "original": {
         "startLine": 481,
         "lineCount": 3
@@ -657,7 +642,7 @@
     },
     {
       "importsOnly": true,
-      "id": "H0034",
+      "id": "H0033",
       "filename": "src/domain/review/prompt/parse-narrative.ts",
       "header": "@@ -1,11 +1,14 @@",
       "fileOrder": 1,
@@ -673,7 +658,7 @@
     },
     {
       "importsOnly": true,
-      "id": "H0035",
+      "id": "H0034",
       "filename": "src/domain/review/prompt/parse-narrative.ts",
       "header": "@@ -13,7 +16,7 @@ import {",
       "fileOrder": 2,
@@ -688,7 +673,7 @@
       "changedLines": 2
     },
     {
-      "id": "H0036",
+      "id": "H0035",
       "filename": "src/domain/review/prompt/parse-narrative.ts",
       "header": "@@ -302,3 +305,28 @@ (part 1 of 3) function sanitizeInsights(",
       "fileOrder": 3,
@@ -703,7 +688,7 @@
       "changedLines": 25
     },
     {
-      "id": "H0037",
+      "id": "H0036",
       "filename": "src/domain/review/prompt/parse-narrative.ts",
       "header": "@@ -304,0 +333,108 @@ (part 2 of 3)",
       "fileOrder": 4,
@@ -718,7 +703,7 @@
       "changedLines": 108
     },
     {
-      "id": "H0038",
+      "id": "H0037",
       "filename": "src/domain/review/prompt/parse-narrative.ts",
       "header": "@@ -305,3 +441,11 @@ (part 3 of 3)",
       "fileOrder": 5,
@@ -733,7 +718,7 @@
       "changedLines": 8
     },
     {
-      "id": "H0039",
+      "id": "H0038",
       "filename": "src/domain/review/prompt/parse-narrative.ts",
       "header": "@@ -624,12 +768,14 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):",
       "fileOrder": 6,
@@ -749,7 +734,7 @@
     },
     {
       "importsOnly": true,
-      "id": "H0040",
+      "id": "H0039",
       "filename": "src/web/components/narrative/chapter-card.test.tsx",
       "header": "@@ -1,7 +1,12 @@",
       "fileOrder": 1,
@@ -764,7 +749,7 @@
       "changedLines": 7
     },
     {
-      "id": "H0041",
+      "id": "H0040",
       "filename": "src/web/components/narrative/chapter-card.test.tsx",
       "header": "@@ -19,7 +24,7 @@ describe('groupInsightsByFile', () => {",
       "fileOrder": 2,
@@ -779,7 +764,7 @@
       "changedLines": 2
     },
     {
-      "id": "H0042",
+      "id": "H0041",
       "filename": "src/web/components/narrative/chapter-card.test.tsx",
       "header": "@@ -57,7 +62,7 @@ describe('<ChapterCard /> with a mix of insights', () => {",
       "fileOrder": 3,
@@ -794,7 +779,7 @@
       "changedLines": 2
     },
     {
-      "id": "H0043",
+      "id": "H0042",
       "filename": "src/web/components/narrative/chapter-card.test.tsx",
       "header": "@@ -79,7 +84,11 @@ describe('<ChapterCard /> with a mix of insights', () => {",
       "fileOrder": 4,
@@ -809,9 +794,9 @@
       "changedLines": 6
     },
     {
-      "id": "H0044",
+      "id": "H0043",
       "filename": "src/web/components/narrative/chapter-card.test.tsx",
-      "header": "@@ -116,3 +125,13 @@ (part 1 of 4) describe('<ChapterCard /> with a mix of insights', () => {",
+      "header": "@@ -116,3 +125,27 @@ (part 1 of 2) describe('<ChapterCard /> with a mix of insights', () => {",
       "fileOrder": 5,
       "original": {
         "startLine": 116,
@@ -819,45 +804,15 @@
       },
       "modified": {
         "startLine": 125,
-        "lineCount": 13
+        "lineCount": 27
       },
-      "changedLines": 10
+      "changedLines": 24
     },
     {
-      "id": "H0045",
+      "id": "H0044",
       "filename": "src/web/components/narrative/chapter-card.test.tsx",
-      "header": "@@ -118,0 +138,5 @@ (part 2 of 4)",
+      "header": "@@ -119,3 +152,7 @@ (part 2 of 2)",
       "fileOrder": 6,
-      "original": {
-        "startLine": 118,
-        "lineCount": 0
-      },
-      "modified": {
-        "startLine": 138,
-        "lineCount": 5
-      },
-      "changedLines": 5
-    },
-    {
-      "id": "H0046",
-      "filename": "src/web/components/narrative/chapter-card.test.tsx",
-      "header": "@@ -118,0 +143,9 @@ (part 3 of 4)",
-      "fileOrder": 7,
-      "original": {
-        "startLine": 118,
-        "lineCount": 0
-      },
-      "modified": {
-        "startLine": 143,
-        "lineCount": 9
-      },
-      "changedLines": 9
-    },
-    {
-      "id": "H0047",
-      "filename": "src/web/components/narrative/chapter-card.test.tsx",
-      "header": "@@ -119,3 +152,7 @@ (part 4 of 4)",
-      "fileOrder": 8,
       "original": {
         "startLine": 119,
         "lineCount": 3
@@ -870,7 +825,7 @@
     },
     {
       "importsOnly": true,
-      "id": "H0048",
+      "id": "H0045",
       "filename": "src/web/components/narrative/chapter-card.tsx",
       "header": "@@ -1,6 +1,11 @@",
       "fileOrder": 1,
@@ -885,7 +840,7 @@
       "changedLines": 7
     },
     {
-      "id": "H0049",
+      "id": "H0046",
       "filename": "src/web/components/narrative/chapter-card.tsx",
       "header": "@@ -99,11 +104,18 @@ export function SectionRule({ label, count }: { label: string; count: number })",
       "fileOrder": 2,
@@ -900,7 +855,7 @@
       "changedLines": 7
     },
     {
-      "id": "H0050",
+      "id": "H0047",
       "filename": "src/web/components/narrative/chapter-card.tsx",
       "header": "@@ -184,6 +196,7 @@ export function ChapterCard({",
       "fileOrder": 3,
@@ -916,7 +871,7 @@
     },
     {
       "importsOnly": true,
-      "id": "H0051",
+      "id": "H0048",
       "filename": "src/web/components/narrative/chapter-reader.tsx",
       "header": "@@ -16,6 +16,11 @@ import type { ReviewMeta } from '@/domain/review/review-meta';",
       "fileOrder": 1,
@@ -931,7 +886,7 @@
       "changedLines": 5
     },
     {
-      "id": "H0052",
+      "id": "H0049",
       "filename": "src/web/components/narrative/chapter-reader.tsx",
       "header": "@@ -114,6 +119,7 @@ export function ChapterReader({",
       "fileOrder": 2,
@@ -946,7 +901,7 @@
       "changedLines": 1
     },
     {
-      "id": "H0053",
+      "id": "H0050",
       "filename": "src/web/components/narrative/chapter-reader.tsx",
       "header": "@@ -263,9 +269,11 @@ export function ChapterReader({",
       "fileOrder": 3,
@@ -961,7 +916,7 @@
       "changedLines": 2
     },
     {
-      "id": "H0054",
+      "id": "H0051",
       "filename": "src/web/components/narrative/chapter-reader.tsx",
       "header": "@@ -285,17 +293,21 @@ function SectionCard({",
       "fileOrder": 4,
@@ -976,7 +931,7 @@
       "changedLines": 4
     },
     {
-      "id": "H0055",
+      "id": "H0052",
       "filename": "src/web/components/narrative/chapter-reader.tsx",
       "header": "@@ -303,7 +315,12 @@ function SectionCard({",
       "fileOrder": 5,
@@ -991,7 +946,7 @@
       "changedLines": 7
     },
     {
-      "id": "H0056",
+      "id": "H0053",
       "filename": "src/web/components/narrative/chapter-reader.tsx",
       "header": "@@ -312,8 +329,10 @@ function SectionCard({",
       "fileOrder": 6,
@@ -1007,7 +962,7 @@
     },
     {
       "importsOnly": true,
-      "id": "H0057",
+      "id": "H0054",
       "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
       "header": "@@ -18,9 +18,9 @@ import {",
       "fileOrder": 1,
@@ -1022,7 +977,7 @@
       "changedLines": 4
     },
     {
-      "id": "H0058",
+      "id": "H0055",
       "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
       "header": "@@ -550,7 +550,12 @@ function SnippetEditor({",
       "fileOrder": 2,
@@ -1037,7 +992,7 @@
       "changedLines": 7
     },
     {
-      "id": "H0059",
+      "id": "H0056",
       "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
       "header": "@@ -562,7 +567,13 @@ function SnippetEditor({",
       "fileOrder": 3,
@@ -1052,7 +1007,7 @@
       "changedLines": 8
     },
     {
-      "id": "H0060",
+      "id": "H0057",
       "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
       "header": "@@ -571,8 +582,11 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {",
       "fileOrder": 4,
@@ -1067,7 +1022,7 @@
       "changedLines": 5
     },
     {
-      "id": "H0061",
+      "id": "H0058",
       "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
       "header": "@@ -585,16 +599,20 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {",
       "fileOrder": 5,
@@ -1082,7 +1037,7 @@
       "changedLines": 10
     },
     {
-      "id": "H0062",
+      "id": "H0059",
       "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
       "header": "@@ -694,7 +712,9 @@ export function InlineDiffChunk({",
       "fileOrder": 6,
@@ -1098,7 +1053,7 @@
     },
     {
       "importsOnly": true,
-      "id": "H0063",
+      "id": "H0060",
       "filename": "src/web/components/narrative/insight-callout.test.tsx",
       "header": "@@ -1,6 +1,6 @@",
       "fileOrder": 1,
@@ -1113,7 +1068,7 @@
       "changedLines": 2
     },
     {
-      "id": "H0064",
+      "id": "H0061",
       "filename": "src/web/components/narrative/insight-callout.test.tsx",
       "header": "@@ -14,7 +14,6 @@ describe('<InsightCallout />', () => {",
       "fileOrder": 2,
@@ -1128,7 +1083,7 @@
       "changedLines": 1
     },
     {
-      "id": "H0065",
+      "id": "H0062",
       "filename": "src/web/components/narrative/insight-callout.test.tsx",
       "header": "@@ -35,3 +34,23 @@ describe('<InsightCallout />', () => {",
       "fileOrder": 3,
@@ -1143,7 +1098,7 @@
       "changedLines": 20
     },
     {
-      "id": "H0066",
+      "id": "H0063",
       "filename": "src/web/components/narrative/insight-callout.tsx",
       "header": "@@ -1,18 +1,24 @@ (part 1 of 2)",
       "fileOrder": 1,
@@ -1158,7 +1113,7 @@
       "changedLines": 16
     },
     {
-      "id": "H0067",
+      "id": "H0064",
       "filename": "src/web/components/narrative/insight-callout.tsx",
       "header": "@@ -19,6 +25,17 @@ (part 2 of 2)",
       "fileOrder": 2,
@@ -1173,7 +1128,7 @@
       "changedLines": 17
     },
     {
-      "id": "H0068",
+      "id": "H0065",
       "filename": "src/web/components/narrative/insight-callout.tsx",
       "header": "@@ -30,6 +47,11 @@ (part 1 of 2) export function InsightCallout({ insight }: { insight: Insight }) {",
       "fileOrder": 3,
@@ -1188,7 +1143,7 @@
       "changedLines": 7
     },
     {
-      "id": "H0069",
+      "id": "H0066",
       "filename": "src/web/components/narrative/insight-callout.tsx",
       "header": "@@ -36,6 +58,25 @@ (part 2 of 2)",
       "fileOrder": 4,
@@ -1203,9 +1158,9 @@
       "changedLines": 21
     },
     {
-      "id": "H0070",
+      "id": "H0067",
       "filename": "src/web/components/narrative/judgement-calls.test.ts",
-      "header": "@@ -0,0 +1,11 @@ (part 1 of 11)",
+      "header": "@@ -0,0 +1,11 @@ (part 1 of 10)",
       "fileOrder": 1,
       "original": {
         "startLine": 0,
@@ -1218,9 +1173,9 @@
       "changedLines": 11
     },
     {
-      "id": "H0071",
+      "id": "H0068",
       "filename": "src/web/components/narrative/judgement-calls.test.ts",
-      "header": "@@ -0,0 +12,13 @@ (part 2 of 11)",
+      "header": "@@ -0,0 +12,13 @@ (part 2 of 10)",
       "fileOrder": 2,
       "original": {
         "startLine": 0,
@@ -1233,9 +1188,9 @@
       "changedLines": 13
     },
     {
-      "id": "H0072",
+      "id": "H0069",
       "filename": "src/web/components/narrative/judgement-calls.test.ts",
-      "header": "@@ -0,0 +25,12 @@ (part 3 of 11)",
+      "header": "@@ -0,0 +25,12 @@ (part 3 of 10)",
       "fileOrder": 3,
       "original": {
         "startLine": 0,
@@ -1248,9 +1203,9 @@
       "changedLines": 12
     },
     {
-      "id": "H0073",
+      "id": "H0070",
       "filename": "src/web/components/narrative/judgement-calls.test.ts",
-      "header": "@@ -0,0 +37,14 @@ (part 4 of 11)",
+      "header": "@@ -0,0 +37,14 @@ (part 4 of 10)",
       "fileOrder": 4,
       "original": {
         "startLine": 0,
@@ -1263,9 +1218,9 @@
       "changedLines": 14
     },
     {
-      "id": "H0074",
+      "id": "H0071",
       "filename": "src/web/components/narrative/judgement-calls.test.ts",
-      "header": "@@ -0,0 +51,10 @@ (part 5 of 11)",
+      "header": "@@ -0,0 +51,10 @@ (part 5 of 10)",
       "fileOrder": 5,
       "original": {
         "startLine": 0,
@@ -1278,9 +1233,9 @@
       "changedLines": 10
     },
     {
-      "id": "H0075",
+      "id": "H0072",
       "filename": "src/web/components/narrative/judgement-calls.test.ts",
-      "header": "@@ -0,0 +61,10 @@ (part 6 of 11)",
+      "header": "@@ -0,0 +61,10 @@ (part 6 of 10)",
       "fileOrder": 6,
       "original": {
         "startLine": 0,
@@ -1293,9 +1248,9 @@
       "changedLines": 10
     },
     {
-      "id": "H0076",
+      "id": "H0073",
       "filename": "src/web/components/narrative/judgement-calls.test.ts",
-      "header": "@@ -0,0 +71,7 @@ (part 7 of 11)",
+      "header": "@@ -0,0 +71,7 @@ (part 7 of 10)",
       "fileOrder": 7,
       "original": {
         "startLine": 0,
@@ -1308,9 +1263,9 @@
       "changedLines": 7
     },
     {
-      "id": "H0077",
+      "id": "H0074",
       "filename": "src/web/components/narrative/judgement-calls.test.ts",
-      "header": "@@ -0,0 +78,7 @@ (part 8 of 11)",
+      "header": "@@ -0,0 +78,7 @@ (part 8 of 10)",
       "fileOrder": 8,
       "original": {
         "startLine": 0,
@@ -1323,9 +1278,9 @@
       "changedLines": 7
     },
     {
-      "id": "H0078",
+      "id": "H0075",
       "filename": "src/web/components/narrative/judgement-calls.test.ts",
-      "header": "@@ -0,0 +85,8 @@ (part 9 of 11)",
+      "header": "@@ -0,0 +85,14 @@ (part 9 of 10)",
       "fileOrder": 9,
       "original": {
         "startLine": 0,
@@ -1333,42 +1288,27 @@
       },
       "modified": {
         "startLine": 85,
-        "lineCount": 8
+        "lineCount": 14
       },
-      "changedLines": 8
+      "changedLines": 14
     },
     {
-      "id": "H0079",
+      "id": "H0076",
       "filename": "src/web/components/narrative/judgement-calls.test.ts",
-      "header": "@@ -0,0 +93,10 @@ (part 10 of 11)",
+      "header": "@@ -0,0 +99,8 @@ (part 10 of 10)",
       "fileOrder": 10,
       "original": {
         "startLine": 0,
         "lineCount": 0
       },
       "modified": {
-        "startLine": 93,
-        "lineCount": 10
+        "startLine": 99,
+        "lineCount": 8
       },
-      "changedLines": 10
+      "changedLines": 8
     },
     {
-      "id": "H0080",
-      "filename": "src/web/components/narrative/judgement-calls.test.ts",
-      "header": "@@ -0,0 +103,4 @@ (part 11 of 11)",
-      "fileOrder": 11,
-      "original": {
-        "startLine": 0,
-        "lineCount": 0
-      },
-      "modified": {
-        "startLine": 103,
-        "lineCount": 4
-      },
-      "changedLines": 4
-    },
-    {
-      "id": "H0081",
+      "id": "H0077",
       "filename": "src/web/components/narrative/judgement-calls.ts",
       "header": "@@ -0,0 +1,15 @@ (part 1 of 3)",
       "fileOrder": 1,
@@ -1383,7 +1323,7 @@
       "changedLines": 15
     },
     {
-      "id": "H0082",
+      "id": "H0078",
       "filename": "src/web/components/narrative/judgement-calls.ts",
       "header": "@@ -0,0 +16,21 @@ (part 2 of 3)",
       "fileOrder": 2,
@@ -1398,7 +1338,7 @@
       "changedLines": 21
     },
     {
-      "id": "H0083",
+      "id": "H0079",
       "filename": "src/web/components/narrative/judgement-calls.ts",
       "header": "@@ -0,0 +37,14 @@ (part 3 of 3)",
       "fileOrder": 3,
@@ -1414,7 +1354,7 @@
     },
     {
       "importsOnly": true,
-      "id": "H0084",
+      "id": "H0080",
       "filename": "src/web/components/narrative/summary-card.test.tsx",
       "header": "@@ -4,6 +4,7 @@ import type { NarrativeReview } from '@/domain/review/narrative';",
       "fileOrder": 1,
@@ -1429,9 +1369,9 @@
       "changedLines": 1
     },
     {
-      "id": "H0085",
+      "id": "H0081",
       "filename": "src/web/components/narrative/summary-card.test.tsx",
-      "header": "@@ -132,3 +133,17 @@ (part 1 of 6) describe('<SummaryCard />', () => {",
+      "header": "@@ -132,3 +133,29 @@ (part 1 of 5) describe('<SummaryCard />', () => {",
       "fileOrder": 2,
       "original": {
         "startLine": 132,
@@ -1439,30 +1379,15 @@
       },
       "modified": {
         "startLine": 133,
-        "lineCount": 17
+        "lineCount": 29
       },
-      "changedLines": 14
+      "changedLines": 26
     },
     {
-      "id": "H0086",
+      "id": "H0082",
       "filename": "src/web/components/narrative/summary-card.test.tsx",
-      "header": "@@ -134,0 +150,12 @@ (part 2 of 6)",
+      "header": "@@ -134,0 +162,7 @@ (part 2 of 5)",
       "fileOrder": 3,
-      "original": {
-        "startLine": 134,
-        "lineCount": 0
-      },
-      "modified": {
-        "startLine": 150,
-        "lineCount": 12
-      },
-      "changedLines": 12
-    },
-    {
-      "id": "H0087",
-      "filename": "src/web/components/narrative/summary-card.test.tsx",
-      "header": "@@ -134,0 +162,7 @@ (part 3 of 6)",
-      "fileOrder": 4,
       "original": {
         "startLine": 134,
         "lineCount": 0
@@ -1474,10 +1399,10 @@
       "changedLines": 7
     },
     {
-      "id": "H0088",
+      "id": "H0083",
       "filename": "src/web/components/narrative/summary-card.test.tsx",
-      "header": "@@ -134,0 +169,5 @@ (part 4 of 6)",
-      "fileOrder": 5,
+      "header": "@@ -134,0 +169,5 @@ (part 3 of 5)",
+      "fileOrder": 4,
       "original": {
         "startLine": 134,
         "lineCount": 0
@@ -1489,10 +1414,10 @@
       "changedLines": 5
     },
     {
-      "id": "H0089",
+      "id": "H0084",
       "filename": "src/web/components/narrative/summary-card.test.tsx",
-      "header": "@@ -134,0 +174,7 @@ (part 5 of 6)",
-      "fileOrder": 6,
+      "header": "@@ -134,0 +174,7 @@ (part 4 of 5)",
+      "fileOrder": 5,
       "original": {
         "startLine": 134,
         "lineCount": 0
@@ -1504,10 +1429,10 @@
       "changedLines": 7
     },
     {
-      "id": "H0090",
+      "id": "H0085",
       "filename": "src/web/components/narrative/summary-card.test.tsx",
-      "header": "@@ -134,0 +181,5 @@ (part 6 of 6)",
-      "fileOrder": 7,
+      "header": "@@ -134,0 +181,5 @@ (part 5 of 5)",
+      "fileOrder": 6,
       "original": {
         "startLine": 134,
         "lineCount": 0
@@ -1520,7 +1445,7 @@
     },
     {
       "importsOnly": true,
-      "id": "H0091",
+      "id": "H0086",
       "filename": "src/web/components/narrative/summary-card.tsx",
       "header": "@@ -7,6 +7,7 @@ import { Caption } from '@/web/components/caption';",
       "fileOrder": 1,
@@ -1535,7 +1460,7 @@
       "changedLines": 1
     },
     {
-      "id": "H0092",
+      "id": "H0087",
       "filename": "src/web/components/narrative/summary-card.tsx",
       "header": "@@ -31,17 +32,23 @@ export function SummaryCard({",
       "fileOrder": 2,
@@ -1550,7 +1475,7 @@
       "changedLines": 6
     },
     {
-      "id": "H0093",
+      "id": "H0088",
       "filename": "src/web/components/narrative/summary-card.tsx",
       "header": "@@ -156,11 +163,62 @@ export function SummaryCard({",
       "fileOrder": 3,
@@ -1565,7 +1490,7 @@
       "changedLines": 51
     },
     {
-      "id": "H0094",
+      "id": "H0089",
       "filename": "src/web/theme/tokens.ts",
       "header": "@@ -3,9 +3,9 @@",
       "fileOrder": 1,
@@ -1580,7 +1505,7 @@
       "changedLines": 6
     },
     {
-      "id": "H0095",
+      "id": "H0090",
       "filename": "src/web/viewer/sample-bundle.ts",
       "header": "@@ -337,7 +337,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {",
       "fileOrder": 1,
@@ -1595,7 +1520,7 @@
       "changedLines": 2
     },
     {
-      "id": "H0096",
+      "id": "H0091",
       "filename": "src/web/viewer/sample-bundle.ts",
       "header": "@@ -443,6 +443,20 @@ export const SAMPLE_BUNDLE: ReviewBundle = {",
       "fileOrder": 2,
