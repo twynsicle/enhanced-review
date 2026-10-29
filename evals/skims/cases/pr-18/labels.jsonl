@@ -7,7 +7,7 @@
 {"file":"src/domain/review/findings.test.ts","header":"@@ -28,6 +28,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {","tier":"either","category":"test-case","note":"rows of the expected severities, mirroring the table beside them","id":"H0007"}
 {"file":"src/domain/review/findings.test.ts","header":"@@ -40,6 +41,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {","tier":"either","category":"test-case","note":"rows of the expected severities, mirroring the table beside them","id":"H0008"}
 {"file":"src/domain/review/findings.ts","header":"@@ -53,6 +53,12 @@ const SEVERITY_BY_CODE = {","tier":"read","category":"logic","note":"two new finding codes and the severity each is given","id":"H0009"}
-{"file":"src/domain/review/findings.ts","header":"@@ -74,8 +80,10 @@ const SEVERITY_BY_CODE = {","tier":"read","category":"logic","note":"two new finding codes and the severity each is given","id":"H0010"}
+{"file":"src/domain/review/findings.ts","header":"@@ -74,8 +80,10 @@ const SEVERITY_BY_CODE = {","tier":"read","category":"logic","note":"a new finding code and the severity it is given","id":"H0010"}
 {"file":"src/domain/review/narrative.ts","header":"@@ -32,7 +32,7 @@ export const ProseSchema = z.object({","tier":"read","category":"types","note":"reference leaves the insight types","id":"H0011"}
 {"file":"src/domain/review/narrative.ts","header":"@@ -54,6 +54,37 @@ export const InsightSchema = z.object({","tier":"read","category":"types","note":"JudgementCallSchema and its cap","id":"H0012"}
 {"file":"src/domain/review/narrative.ts","header":"@@ -158,6 +189,12 @@ export const NarrativeReviewSchema = z.object({","tier":"read","category":"types","note":"the review gains a capped judgementCalls","id":"H0013"}

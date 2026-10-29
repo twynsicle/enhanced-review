@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { writeFile } from 'node:fs/promises';
+import { stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { DEFAULT_MODEL } from '../cli/claude-run.ts';
@@ -67,6 +67,7 @@ async function importCommand(argv: string[], root: string): Promise<number> {
   });
   const [runFolder] = positionals;
   if (!runFolder) throw new Error('import needs a run folder');
+  await runFolderAt(root, runFolder);
   const name = values.name ?? defaultCaseName(runFolder);
   const files = await importCase(runFolder, name, root);
   const { labels } = await readCase(files);
@@ -82,11 +83,23 @@ async function importCommand(argv: string[], root: string): Promise<number> {
 async function recutCommand(argv: string[], root: string): Promise<number> {
   const [name, runFolder] = argv;
   if (!name || !runFolder) throw new Error('recut needs a case and an er run folder');
-  const { files, toLabel } = await recutCase(path.resolve(root, runFolder), name, root);
+  const { files, toLabel } = await recutCase(await runFolderAt(root, runFolder), name, root);
   const { labels } = await readCase(files);
   line(`${files.folder}: ${String(labels.length)} hunks, ${String(toLabel.length)} to label`);
   for (const label of toLabel) line(`  ${label.id}  ${label.file}  ${label.header}`);
   return 0;
+}
+
+/**
+ * A run folder argument, resolved, refused when it is not a directory: past
+ * here a wrong path surfaces as the CLI's missing context.json, whose advice
+ * is about resuming a review.
+ */
+async function runFolderAt(root: string, folder: string): Promise<string> {
+  const resolved = path.resolve(root, folder);
+  const found = await stat(resolved).catch(() => null);
+  if (!found?.isDirectory()) throw new Error(`no run folder at ${resolved}`);
+  return resolved;
 }
 
 async function contriveCommand(argv: string[], root: string): Promise<number> {
@@ -177,7 +190,7 @@ async function scoreRunsCommand(argv: string[], root: string): Promise<number> {
   const { case: skimCase, labels } = await readCase(caseFiles(root, name));
   const answers = [];
   for (const folder of folders)
-    answers.push(await readRunAnswer(path.resolve(root, folder), skimCase));
+    answers.push(await readRunAnswer(await runFolderAt(root, folder), skimCase));
   line();
   for (const text of formatCaseScore(scoreCase(skimCase, labels, answers))) line(text);
   return 0;
