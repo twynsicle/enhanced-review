@@ -8,6 +8,7 @@ import classes from '@/report/reader/article.module.css';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
 import type { AnchoredJudgementCall } from '@/report/reader/judgement-calls';
 import { MarkdownText } from '@/report/reader/markdown-text';
+import { OverviewStyleTabs } from '@/report/reader/overview-style-tabs';
 import { ProsePassage } from '@/report/reader/prose-passage';
 import { formatMinutes, readingPlanRows, type PlanRow } from '@/report/reader/reading-time';
 import {
@@ -152,7 +153,9 @@ export function SummaryCard({
 
       <Stack component="section" gap={12}>
         <Caption component="h3">Review summary</Caption>
-        <ProsePassage prose={review.overviewSummary} bodyStyle={bodyStyle} />
+        <OverviewStyleTabs styles={review.overviewStyles} shown={bodyStyle}>
+          <ProsePassage prose={review.overviewSummary} bodyStyle={bodyStyle} />
+        </OverviewStyleTabs>
       </Stack>
 
       {/*

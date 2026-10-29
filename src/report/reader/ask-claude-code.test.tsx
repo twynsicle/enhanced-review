@@ -23,7 +23,13 @@ const firstPrompt = askPrompt(meta, first, reviewFiles);
 function renderChapter(chapter: NarrativeChapter) {
   const ui = (ch: NarrativeChapter) => (
     <EmbeddedFileSource bundle={SAMPLE_BUNDLE}>
-      <ChapterCard chapter={ch} bodyStyle="narrative" meta={meta} chapterIndex={1} />
+      <ChapterCard
+        chapter={ch}
+        styles={['narrative']}
+        bodyStyle="narrative"
+        meta={meta}
+        chapterIndex={1}
+      />
     </EmbeddedFileSource>
   );
   const result = render(ui(chapter));

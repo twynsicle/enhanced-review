@@ -41,7 +41,8 @@ function ownsSpace(target: EventTarget | null): boolean {
  * assessment, then the summary, then the chapters — in the order the sidebar
  * lists them:
  *
- *   - `→` / Space     → next section
+ *   - `→` / Space     → next section, marking a chapter moved on from read,
+ *                       as the footer's Next does
  *   - `←` / Shift+Spc → previous section
  *   - `Home`          → the summary, the section the reader opens on
  *   - `End`           → last section
@@ -62,10 +63,12 @@ export function useNarrativeKeyboard({
   sections,
   activeId,
   onSelect,
+  onMarkRead,
 }: {
   sections: readonly ReaderSection[];
   activeId: string;
   onSelect: (id: string) => void;
+  onMarkRead: (chapterId: string) => void;
 }): void {
   useEffect(() => {
     const activeIndex = sections.findIndex((section) => section.id === activeId);
@@ -101,8 +104,10 @@ export function useNarrativeKeyboard({
       if (e.key === 'ArrowRight' || (e.key === ' ' && !e.shiftKey)) {
         // Both ends are walls, and still claim the key so Space and the
         // arrows do not fall through to scrolling the page.
-        if (activeIndex >= 0 && activeIndex < sections.length - 1) goTo(e, activeIndex + 1);
-        else e.preventDefault();
+        if (activeIndex >= 0 && activeIndex < sections.length - 1) {
+          if (sections[activeIndex]?.kind === 'chapter') onMarkRead(activeId);
+          goTo(e, activeIndex + 1);
+        } else e.preventDefault();
         return;
       }
 
@@ -136,5 +141,5 @@ export function useNarrativeKeyboard({
     return () => {
       document.removeEventListener('keydown', handler);
     };
-  }, [sections, activeId, onSelect]);
+  }, [sections, activeId, onSelect, onMarkRead]);
 }

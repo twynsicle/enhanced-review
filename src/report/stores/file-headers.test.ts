@@ -11,25 +11,25 @@ function headersAfterRehydrate(stored: string | null): string {
 describe('file headers', () => {
   beforeEach(() => {
     window.localStorage.clear();
-    useFileHeaders.setState({ headers: 'full' });
+    useFileHeaders.setState(useFileHeaders.getInitialState());
   });
 
-  it('shows every fact when nothing is stored', () => {
-    expect(headersAfterRehydrate(null)).toBe('full');
+  it('keeps to one line when nothing is stored', () => {
+    expect(headersAfterRehydrate(null)).toBe('one-line');
   });
 
-  it('keeps a reader who chose one line', () => {
-    expect(headersAfterRehydrate('one-line')).toBe('one-line');
+  it('keeps a reader who chose every fact', () => {
+    expect(headersAfterRehydrate('full')).toBe('full');
   });
 
   it('ignores a value it does not recognise', () => {
-    expect(headersAfterRehydrate('folded')).toBe('full');
+    expect(headersAfterRehydrate('folded')).toBe('one-line');
   });
 
   it('stores the raw word, the way the other reader preferences do', () => {
     useFileHeaders.getState().toggle();
-    expect(window.localStorage.getItem(FILE_HEADERS_KEY)).toBe('one-line');
-    useFileHeaders.getState().toggle();
     expect(window.localStorage.getItem(FILE_HEADERS_KEY)).toBe('full');
+    useFileHeaders.getState().toggle();
+    expect(window.localStorage.getItem(FILE_HEADERS_KEY)).toBe('one-line');
   });
 });

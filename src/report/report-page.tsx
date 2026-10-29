@@ -19,7 +19,7 @@ function ReportTopbar({ bundle }: { bundle?: ReviewBundle }) {
           {bundle && <TopbarChange {...changeLabel(bundle.review, bundle.meta)} />}
         </>
       }
-      end={<DisplayMenu {...(bundle ? { styles: bundle.review.overviewStyles } : {})} />}
+      end={<DisplayMenu />}
     />
   );
 }

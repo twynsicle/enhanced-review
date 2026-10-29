@@ -1,11 +1,9 @@
-import { ActionIcon, Box, Group, Menu, Slider, Text, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, Box, Menu, Slider, Text, useMantineColorScheme } from '@mantine/core';
 import {
-  IconAlignLeft,
   IconBlur,
   IconBlurOff,
   IconBug,
   IconBugOff,
-  IconChevronLeft,
   IconFold,
   IconFoldDown,
   IconLayoutColumns,
@@ -21,8 +19,6 @@ import {
   IconViewportWide,
 } from '@tabler/icons-react';
 import { useState, type ReactNode } from 'react';
-import type { OverviewStyle, OverviewStyles } from '@/review/narrative';
-import { isOverviewStyle } from '@/review/prompt/overview-styles';
 import { selectSpaceLimited, useDiffView, useReaderColumn } from '@/report/stores/diff-view';
 import { useDiffWrap } from '@/report/stores/diff-wrap';
 import { COMMENT_FADES, previewCommentFade, useCommentFade } from '@/report/stores/comment-fade';
@@ -31,22 +27,10 @@ import type { FadeRange } from '@/report/stores/fade';
 import { useFileHeaders } from '@/report/stores/file-headers';
 import { useHunkDebug } from '@/report/stores/hunk-debug';
 import { useLayoutWidth } from '@/report/stores/layout-width';
-import { useOverviewStyle, useOverviewStyleChoice } from '@/report/stores/overview-style';
 import { previewSkimFade, SKIM_FADES, useSkimFade } from '@/report/stores/skim-fade';
 import { useSkimMarks } from '@/report/stores/skim-marks';
 
 const ICON = 16;
-
-/** What each overview style is called in the menu; `tldr` is what it shows rather than its flag. */
-const STYLE_NAMES: Record<OverviewStyle, string> = {
-  narrative: 'Narrative',
-  'before-after': 'Before and after',
-  'five-whys': 'Five whys',
-  plain: 'Plain',
-  simple: 'Simple',
-  'pros-cons': 'Pros and cons',
-  tldr: 'Headlines only',
-};
 
 /**
  * One display setting: what it is on the left, what it is currently set to on
@@ -150,54 +134,10 @@ function FadeSlider({
 }
 
 /**
- * Which style the overview and chapter bodies are read in, for a review written
- * in several. A submenu of the review's own styles, so a reader comparing two
- * of up to seven goes straight to either rather than round the others.
+ * Every display preference the report has, in one menu, grouped by what it
+ * changes: the page, the code cards, and the settings still on trial.
  */
-function OverviewStyleItem({ styles }: { styles: OverviewStyles }) {
-  const shown = useOverviewStyle(styles);
-  const choose = useOverviewStyleChoice((s) => s.choose);
-  return (
-    // Leftward: the menu hangs from the header's right edge, so a submenu to its right is off the page.
-    <Menu.Sub position="left-start">
-      <Menu.Sub.Target>
-        <Menu.Sub.Item
-          leftSection={<IconAlignLeft size={ICON} />}
-          rightSection={
-            <Group component="span" gap={4} wrap="nowrap" ml="lg">
-              <Text component="span" fz="xs" c="dimmed">
-                {STYLE_NAMES[shown]}
-              </Text>
-              <IconChevronLeft size={ICON} />
-            </Group>
-          }
-          closeMenuOnClick={false}
-          aria-label={`Overview style: ${STYLE_NAMES[shown]}`}
-        >
-          Overview style
-        </Menu.Sub.Item>
-      </Menu.Sub.Target>
-      <Menu.Sub.Dropdown>
-        <Menu.RadioGroup
-          value={shown}
-          onChange={(value) => isOverviewStyle(value) && choose(value)}
-        >
-          {styles.map((style) => (
-            <Menu.RadioItem key={style} value={style}>
-              {STYLE_NAMES[style]}
-            </Menu.RadioItem>
-          ))}
-        </Menu.RadioGroup>
-      </Menu.Sub.Dropdown>
-    </Menu.Sub>
-  );
-}
-
-/**
- * Every display preference the report has, in one menu. `styles` are the
- * review's overview styles, offered only when there is more than one to choose.
- */
-export function DisplayMenu({ styles }: { styles?: OverviewStyles }) {
+export function DisplayMenu() {
   const view = useDiffView((s) => s.view);
   const toggleView = useDiffView((s) => s.toggle);
   const wrap = useDiffWrap((s) => s.wrap);
@@ -232,8 +172,23 @@ export function DisplayMenu({ styles }: { styles?: OverviewStyles }) {
         </ActionIcon>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Label>Display settings</Menu.Label>
-        {styles && styles.length > 1 && <OverviewStyleItem styles={styles} />}
+        <Menu.Label>Page</Menu.Label>
+        <SettingItem
+          icon={
+            width === 'full' ? <IconViewportWide size={ICON} /> : <IconViewportNarrow size={ICON} />
+          }
+          name="Layout"
+          value={width === 'full' ? 'Full width' : 'Narrower'}
+          onClick={toggleWidth}
+        />
+        <SettingItem
+          icon={dark ? <IconMoon size={ICON} /> : <IconSun size={ICON} />}
+          name="Theme"
+          value={dark ? 'Dark' : 'Light'}
+          onClick={() => setColorScheme(dark ? 'light' : 'dark')}
+        />
+        <Menu.Divider />
+        <Menu.Label>Code</Menu.Label>
         <SettingItem
           icon={split ? <IconLayoutColumns size={ICON} /> : <IconLayoutRows size={ICON} />}
           name="Diffs"
@@ -253,6 +208,14 @@ export function DisplayMenu({ styles }: { styles?: OverviewStyles }) {
           onClick={toggleWrap}
         />
         <SettingItem
+          icon={headers === 'one-line' ? <IconFold size={ICON} /> : <IconFoldDown size={ICON} />}
+          name="File headers"
+          value={headers === 'one-line' ? 'One line' : 'Every fact'}
+          onClick={toggleHeaders}
+        />
+        <Menu.Divider />
+        <Menu.Label>Experimental</Menu.Label>
+        <SettingItem
           icon={comments === 'dimmed' ? <IconBlur size={ICON} /> : <IconBlurOff size={ICON} />}
           name="Comments"
           value={comments === 'dimmed' ? 'Dimmed' : 'Normal'}
@@ -267,12 +230,6 @@ export function DisplayMenu({ styles }: { styles?: OverviewStyles }) {
             onCommit={setCommentFade}
           />
         )}
-        <SettingItem
-          icon={headers === 'one-line' ? <IconFold size={ICON} /> : <IconFoldDown size={ICON} />}
-          name="File headers"
-          value={headers === 'one-line' ? 'One line' : 'Every fact'}
-          onClick={toggleHeaders}
-        />
         <SettingItem
           icon={marks === 'marked' ? <IconTag size={ICON} /> : <IconTagOff size={ICON} />}
           name="Skim hunks"
@@ -295,20 +252,6 @@ export function DisplayMenu({ styles }: { styles?: OverviewStyles }) {
           value={debug === 'on' ? 'On' : 'Off'}
           hint="Labels every hunk with its id, tier and split part"
           onClick={toggleDebug}
-        />
-        <SettingItem
-          icon={
-            width === 'full' ? <IconViewportWide size={ICON} /> : <IconViewportNarrow size={ICON} />
-          }
-          name="Layout"
-          value={width === 'full' ? 'Full width' : 'Narrower'}
-          onClick={toggleWidth}
-        />
-        <SettingItem
-          icon={dark ? <IconMoon size={ICON} /> : <IconSun size={ICON} />}
-          name="Theme"
-          value={dark ? 'Dark' : 'Light'}
-          onClick={() => setColorScheme(dark ? 'light' : 'dark')}
         />
       </Menu.Dropdown>
     </Menu>

@@ -65,6 +65,12 @@ interface ChapterSidebarProps {
   /** Sidebar entries are buttons, not links: the URL strategy lives a layer up. */
   onSelect: (id: string) => void;
   onSelectFile: (filename: string) => void;
+  /**
+   * Bring a file's diff in the open chapter into view. What a row does while
+   * the list is narrowed to that chapter: every file listed then has its diff
+   * on the page, and opening the file view instead would leave the chapter.
+   */
+  onRevealFile: (filename: string) => void;
   files?: readonly ReviewFile[];
   /** Which files the chapters left out, wholly or in part; see `coverage.ts`. */
   coverage?: ReviewCoverage;
@@ -89,6 +95,7 @@ export function ChapterSidebar({
   readingFile = null,
   onSelect,
   onSelectFile,
+  onRevealFile,
   files,
   coverage,
   riskAssessment,
@@ -100,11 +107,12 @@ export function ChapterSidebar({
   const [query, setQuery] = useState('');
   const scope = useFileListScope((s) => s.scope);
   const openChapter = chapters.find((chapter) => chapter.id === activeId) ?? null;
+  const narrowed = scope === 'chapter' && openChapter !== null;
   const needle = query.trim().toLowerCase();
   // Memoised for the same reason as reviewFiles: the tree is built off this array.
   const listedFiles = useMemo(() => {
     const cited =
-      scope === 'chapter' && openChapter
+      narrowed && openChapter
         ? new Set(openChapter.diffChunks.map((chunk) => chunk.filename))
         : null;
     return reviewFiles.filter(
@@ -112,7 +120,7 @@ export function ChapterSidebar({
         (cited === null || cited.has(file.filename)) &&
         file.filename.toLowerCase().includes(needle),
     );
-  }, [reviewFiles, scope, openChapter, needle]);
+  }, [reviewFiles, narrowed, openChapter, needle]);
   const rows = sections.filter((section) => section.kind !== 'risk');
   const chapterRows = rows.filter((section) => section.kind === 'chapter');
   const readCount = chapterRows.filter((section) => readIds.has(section.id)).length;
@@ -173,7 +181,7 @@ export function ChapterSidebar({
               activeFile={activeFile}
               readingFile={readingFile}
               filtering={needle.length > 0}
-              onSelectFile={onSelectFile}
+              onSelectFile={narrowed ? onRevealFile : onSelectFile}
             />
           ) : (
             <Text fz="sm" c="dimmed" px={6}>

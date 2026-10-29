@@ -9,6 +9,10 @@ import { rawPreferenceStorage } from '@/report/stores/raw-preference';
  * line it takes is a line of code the reader does not see; a file moved in
  * many parts can carry enough tags to take several.
  *
+ * `one-line` is the default: a clipped fact is still in the header's hover
+ * and one chevron away, while a line of code under a tall header is simply
+ * gone.
+ *
  * One setting for every card rather than one per card: the cost is the same
  * on every file, and a reader who wants the room back wants it everywhere.
  *
@@ -24,14 +28,14 @@ interface FileHeadersState {
 }
 
 const rawStorage = rawPreferenceStorage<Pick<FileHeadersState, 'headers'>>(
-  (stored) => ({ headers: stored === 'one-line' ? 'one-line' : 'full' }),
+  (stored) => ({ headers: stored === 'full' ? 'full' : 'one-line' }),
   (state) => state.headers,
 );
 
 export const useFileHeaders = create<FileHeadersState>()(
   persist(
     (set) => ({
-      headers: 'full',
+      headers: 'one-line',
       toggle: () =>
         set((state) => ({ headers: state.headers === 'one-line' ? 'full' : 'one-line' })),
     }),

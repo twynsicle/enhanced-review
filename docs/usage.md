@@ -162,9 +162,9 @@ The report opens on the first style named, so `simple,all` is every style,
 opening on `simple`.
 
 The model then writes every body once per style, on the same chapters, and the
-report's display menu (the gear in the header) gains an **Overview style** row
-that opens a list of them to pick from; the choice is remembered for the next
-review. A passage has a body in every style or in none: a chapter left out of
+report puts a row of tabs, one per style, above the summary's overview and
+above each chapter's body; a tab picked in one place is the style everywhere,
+and the choice is remembered for the next review. A passage has a body in every style or in none: a chapter left out of
 one style, or a body under a style that was not asked for, fails the review
 rather than shipping a comparison that is not like for like. The
 headlines are shared, so `tldr` in a list asks the model for nothing and shows

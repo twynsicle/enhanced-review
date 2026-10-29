@@ -32,7 +32,9 @@ code block opts out, with `data-bleed`, and spans the rest of the column: those
 are the only things here that read better wide, and they are what the width
 toggle is for. The section footer bleeds too, though it is not wide content:
 it closes everything above it, diffs included, and its Next button belongs at
-the column's bottom right rather than mid-page under them. Do not give a prose block its own `max-width` — that
+the column's bottom right rather than mid-page under them. A chapter's header
+bleeds as well: its headline is a whole sentence at display size, and held to
+the measure it wraps into a column of three or four short lines. Do not give a prose block its own `max-width` — that
 is what had text wrapping near the middle of a much wider card, lined up with
 nothing.
 

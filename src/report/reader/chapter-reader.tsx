@@ -34,7 +34,7 @@ import {
   clampSidebarWidth,
   useSidebarWidth,
 } from '@/report/stores/sidebar-width';
-import { SIDEBAR_WIDTHS } from '@/report/theme/tokens';
+import { SIDEBAR_WIDTHS, TOPBAR_HEIGHT } from '@/report/theme/tokens';
 import classes from './chapter-reader.module.css';
 
 /** Pixels per arrow press on the resize handle. Exported for the test that counts them. */
@@ -94,8 +94,7 @@ export interface ChapterReaderProps {
 /**
  * Two-column editorial reader: chapters + files on the left, the active
  * section on the right. Owns the keyboard bindings, the resizable sidebar
- * and the `?ch=` / `?file=` URL state (`?file=` wins when both are set; the
- * chapter is what comes back when the file view is closed). Inline diffs read
+ * and the `?ch=` / `?file=` URL state (`?file=` wins when both are set). Inline diffs read
  * their files from the `EmbeddedFileSource` the caller wraps it in.
  */
 export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderProps) {
@@ -168,7 +167,21 @@ export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderPr
     [searchParams, setSearchParams],
   );
 
-  useNarrativeKeyboard({ sections, activeId, onSelect });
+  /*
+   * Puts the card's top a pixel above the topbar's lower edge, the line
+   * useReadingFile reads, so the sidebar's rail lands on the row just clicked
+   * rather than on the card above it.
+   */
+  const onRevealFile = useCallback((filename: string) => {
+    const card = [
+      ...(mainRef.current?.querySelectorAll<HTMLElement>('[data-diff-file]') ?? []),
+    ].find((element) => element.dataset.diffFile === filename);
+    if (!card) return;
+    window.scrollTo({ top: card.getBoundingClientRect().top + window.scrollY - TOPBAR_HEIGHT + 1 });
+  }, []);
+
+  const onMarkRead = useCallback((chapterId: string) => onSetRead(chapterId, true), [onSetRead]);
+  useNarrativeKeyboard({ sections, activeId, onSelect, onMarkRead });
 
   const onResizePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -240,6 +253,7 @@ export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderPr
           riskAssessment={review.riskAssessment}
           onSelect={onSelect}
           onSelectFile={onSelectFile}
+          onRevealFile={onRevealFile}
         />
         <button
           type="button"
@@ -330,6 +344,7 @@ function SectionCard({
         <ChapterCard
           key={chapter.id}
           chapter={chapter}
+          styles={review.overviewStyles}
           bodyStyle={bodyStyle}
           meta={meta}
           chapterIndex={chapterIndex}

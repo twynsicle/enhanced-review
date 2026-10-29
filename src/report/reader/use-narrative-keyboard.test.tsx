@@ -43,14 +43,16 @@ function Harness({
   onSelect: (id: string) => void;
   list?: readonly ReaderSection[];
 }) {
-  useNarrativeKeyboard({ sections: list, activeId, onSelect });
+  useNarrativeKeyboard({ sections: list, activeId, onSelect, onMarkRead });
   return null;
 }
 
 let onSelect: ReturnType<typeof vi.fn<(id: string) => void>>;
+let onMarkRead: ReturnType<typeof vi.fn<(chapterId: string) => void>>;
 
 beforeEach(() => {
   onSelect = vi.fn<(id: string) => void>();
+  onMarkRead = vi.fn<(chapterId: string) => void>();
 });
 
 describe('useNarrativeKeyboard', () => {
@@ -58,6 +60,25 @@ describe('useNarrativeKeyboard', () => {
     render(<Harness activeId="ch1" onSelect={onSelect} />);
     fireEvent.keyDown(document, { key: 'ArrowRight' });
     expect(onSelect).toHaveBeenCalledWith('ch2');
+  });
+
+  it('marks a chapter read when ArrowRight or Space moves on from it, as Next does', () => {
+    const { rerender } = render(<Harness activeId="ch1" onSelect={onSelect} />);
+    fireEvent.keyDown(document, { key: 'ArrowRight' });
+    expect(onMarkRead).toHaveBeenCalledWith('ch1');
+    rerender(<Harness activeId="ch2" onSelect={onSelect} />);
+    fireEvent.keyDown(document, { key: ' ' });
+    expect(onMarkRead).toHaveBeenLastCalledWith('ch2');
+  });
+
+  it('marks nothing read going back, from the summary, or against the last wall', () => {
+    const { rerender } = render(<Harness activeId="ch2" onSelect={onSelect} />);
+    fireEvent.keyDown(document, { key: 'ArrowLeft' });
+    rerender(<Harness activeId={SUMMARY_SECTION_ID} onSelect={onSelect} />);
+    fireEvent.keyDown(document, { key: 'ArrowRight' });
+    rerender(<Harness activeId="ch3" onSelect={onSelect} />);
+    fireEvent.keyDown(document, { key: 'ArrowRight' });
+    expect(onMarkRead).not.toHaveBeenCalled();
   });
 
   it('leaves a key a control has already claimed alone', () => {
