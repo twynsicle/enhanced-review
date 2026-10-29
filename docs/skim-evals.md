@@ -168,6 +168,22 @@ new sweep:
 npm run eval:skims -- score evals/skims/results/20261027-223015
 ```
 
+A sweep asks for tiers alone. A review decides them while it also plans and
+writes its chapters, so once a sweep says a rule helps, confirm it on whole
+runs of a real case's change:
+
+```bash
+er review 22
+npm run eval:skims -- score-runs pr-22 er-reviews/pr-22/<stamp> er-reviews/pr-22/<stamp>
+```
+
+Each run folder is one sample, scored against the case's labels and read in
+the same table. A run is refused unless it numbered the same hunks as the
+case, since an id names a hunk only within one catalog: run `er` with the
+default `--split-hunks` on the same change the case was cut from. A run costs
+what a review costs, a dollar or more on a change of this size, so two or
+three per case is plenty.
+
 ## Reading the score
 
 ```

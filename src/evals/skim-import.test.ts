@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
-import { defaultCaseName, seedLabels, type SeedReview } from './skim-import.ts';
+import { defaultCaseName, seedLabels } from './skim-import.ts';
+import type { ReviewTiers } from './skim-review.ts';
 
 const hunk = (id: string, facts: Partial<DiffHunk> = {}): DiffHunk => ({
   id,
@@ -13,7 +14,7 @@ const hunk = (id: string, facts: Partial<DiffHunk> = {}): DiffHunk => ({
   ...facts,
 });
 
-const review: SeedReview = {
+const review: ReviewTiers = {
   chapters: [
     {
       diffChunks: [

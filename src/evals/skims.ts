@@ -7,6 +7,7 @@ import { fail, line, note } from '../cli/terminal.ts';
 import { caseFiles, listCases, readCase } from './skim-case.ts';
 import { contriveCase, listContrived } from './contrive.ts';
 import { defaultCaseName, importCase } from './skim-import.ts';
+import { readRunAnswer } from './skim-review.ts';
 import { readSweep, requireApiKey, runSweep, sweepFiles } from './skim-run.ts';
 import { formatCaseScore, formatOverall, scoreCase, type CaseScore } from './skim-score.ts';
 
@@ -24,7 +25,9 @@ export const USAGE = `usage:
   npm run eval:skims -- run [--samples <n>] [--model <model>] [--parallel <n>] [--case <name>]...
       every case (or the ones named), <n> samples each, one SDK query per sample; needs ANTHROPIC_API_KEY
   npm run eval:skims -- score <results-folder>
-      score a sweep again, against the labels as they are now`;
+      score a sweep again, against the labels as they are now
+  npm run eval:skims -- score-runs <case> <run-folder>...
+      score whole er review runs of the case's change, one sample each, against its labels`;
 
 const DEFAULT_SAMPLES = 3;
 const DEFAULT_PARALLEL = 3;
@@ -40,6 +43,8 @@ async function main(argv: string[], root: string): Promise<number> {
       return runCommand(rest, root);
     case 'score':
       return scoreCommand(rest, root);
+    case 'score-runs':
+      return scoreRunsCommand(rest, root);
     case undefined:
     case '--help':
     case '-h':
@@ -142,6 +147,20 @@ async function scoreSweep(folder: string, root: string): Promise<number> {
   const cost = record.costUsd === null ? 'cost unknown' : `$${record.costUsd.toFixed(2)}`;
   line(`${record.model}  ·  ${cost}  ·  ${path.relative(root, sweep.folder)}`);
   await writeFile(path.join(sweep.folder, 'summary.json'), `${JSON.stringify(scores, null, 2)}\n`);
+  return 0;
+}
+
+async function scoreRunsCommand(argv: string[], root: string): Promise<number> {
+  const [name, ...folders] = argv;
+  if (!name || folders.length === 0) {
+    throw new Error('score-runs needs a case and at least one er run folder');
+  }
+  const { case: skimCase, labels } = await readCase(caseFiles(root, name));
+  const answers = [];
+  for (const folder of folders)
+    answers.push(await readRunAnswer(path.resolve(root, folder), skimCase));
+  line();
+  for (const text of formatCaseScore(scoreCase(skimCase, labels, answers))) line(text);
   return 0;
 }
 
