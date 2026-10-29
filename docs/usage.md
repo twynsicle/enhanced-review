@@ -260,7 +260,10 @@ Refusals are recorded in `events.jsonl` and reported as one warning when the
 review finishes; a review is never failed by one.
 
 `--model`, `--max-turns` and `--timeout` override the defaults it runs with —
-see [Every option](#every-option).
+see [Every option](#every-option). The run also sets
+`CLAUDE_CODE_MAX_OUTPUT_TOKENS` to 128,000 unless your environment already
+sets it: the review arrives as one response, and Claude Code's 32,000 default
+is too small for a large change or for several overview styles at once.
 
 ## Diagrams
 

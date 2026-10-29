@@ -52,7 +52,10 @@ src/cli/
                    a stage runs at once
   host-env.ts      the only process.env reader: hostEnv(), what a spawned git, gh or SDK
                    subprocess inherits; agentEnv(), the SDK's, adds safe.bareRepository=explicit so a
-                   bare repository committed inside a reviewed tree is never used by the agent's git
+                   bare repository committed inside a reviewed tree is never used by the agent's git, and
+                   CLAUDE_CODE_MAX_OUTPUT_TOKENS at MAX_OUTPUT_TOKENS (128k, which Claude Code caps at the
+                   model's own limit) unless the engineer set one, since the answer is one response and
+                   Claude Code's 32k default is too small for a large change or several overview styles
   diff-files.ts    listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over `-z` output,
                    each rename's origin (old path + git's similarity) and the binary flag; a removed and an added
                    path the branch's own commits record as a move (chained across commits in topological

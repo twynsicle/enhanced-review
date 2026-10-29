@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { agentEnv, hostEnv } from './host-env.ts';
+import { agentEnv, hostEnv, MAX_OUTPUT_TOKENS } from './host-env.ts';
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -17,6 +17,21 @@ describe('agentEnv', () => {
   it('passes the host environment on', () => {
     vi.stubEnv('ER_TEST_HOST_ENV', 'one');
     expect(agentEnv()['ER_TEST_HOST_ENV']).toBe('one');
+  });
+
+  it('gives the answer room past Claude Code’s 32k default', () => {
+    vi.stubEnv('CLAUDE_CODE_MAX_OUTPUT_TOKENS', undefined);
+    expect(agentEnv()['CLAUDE_CODE_MAX_OUTPUT_TOKENS']).toBe(String(MAX_OUTPUT_TOKENS));
+  });
+
+  it('treats an empty output cap as unset, as Claude Code does', () => {
+    vi.stubEnv('CLAUDE_CODE_MAX_OUTPUT_TOKENS', '');
+    expect(agentEnv()['CLAUDE_CODE_MAX_OUTPUT_TOKENS']).toBe(String(MAX_OUTPUT_TOKENS));
+  });
+
+  it('keeps an output cap the engineer set themselves', () => {
+    vi.stubEnv('CLAUDE_CODE_MAX_OUTPUT_TOKENS', '48000');
+    expect(agentEnv()['CLAUDE_CODE_MAX_OUTPUT_TOKENS']).toBe('48000');
   });
 
   it('tells git to use no bare repository it was not pointed at', () => {
