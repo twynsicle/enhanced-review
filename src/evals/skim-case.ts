@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
@@ -113,6 +114,16 @@ export async function writeCase(files: CaseFiles, loaded: LoadedCase): Promise<v
 }
 
 /** Every case folder under the root, by name. */
+/**
+ * A short fingerprint of the hunks a case names. An answer names hunks by id,
+ * and a recut renumbers them, so whatever stores answers stores this beside
+ * them and is scored only against the catalog it was given.
+ */
+export function catalogDigest(skimCase: SkimCase): string {
+  const lines = skimCase.hunks.map((hunk) => `${hunk.id} ${hunk.filename} ${hunk.header}`);
+  return createHash('sha256').update(lines.join('\n')).digest('hex').slice(0, 16);
+}
+
 export async function listCases(root: string): Promise<string[]> {
   let entries;
   try {

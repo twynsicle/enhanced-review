@@ -7,7 +7,7 @@ import { agentEnv, hostEnv } from '../cli/host-env.ts';
 import { runStamp } from '../cli/run-folder.ts';
 import { howItEnded, runSdkLoop, type SdkQueryFn, type SdkUsage } from '../cli/sdk-loop.ts';
 import { parseTierAnswer, type ParsedAnswer } from './skim-answer.ts';
-import { caseFiles, readCase, RESULTS_DIR, type LoadedCase } from './skim-case.ts';
+import { caseFiles, catalogDigest, readCase, RESULTS_DIR, type LoadedCase } from './skim-case.ts';
 import { buildSkimPrompt, SKIM_SYSTEM_PROMPT } from './skim-prompt.ts';
 
 /**
@@ -25,6 +25,8 @@ export const SweepSchema = z.object({
   model: z.string(),
   samples: z.number().int().positive(),
   cases: z.array(z.string()),
+  /** Each case's catalogDigest when it was swept, so a recut case is not scored against old answers. */
+  catalogs: z.record(z.string(), z.string()),
   startedAt: z.string(),
   finishedAt: z.string().nullable(),
   costUsd: z.number().nullable(),
@@ -106,6 +108,9 @@ export async function runSweep(options: SweepOptions, deps: SweepDeps = {}): Pro
     model: options.model,
     samples: options.samples,
     cases: options.cases,
+    catalogs: Object.fromEntries(
+      options.cases.map((name) => [name, catalogDigest(loaded.get(name)!.case)]),
+    ),
     startedAt: new Date().toISOString(),
     finishedAt: null,
     costUsd: null,

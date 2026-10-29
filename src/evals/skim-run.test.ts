@@ -102,6 +102,7 @@ describe('runSweep', () => {
     const { record, answers } = await readSweep(sweep);
     expect(record).toMatchObject({ model: 'a-model', samples: 2, cases: ['c'], costUsd: 0.75 });
     expect(record.finishedAt).not.toBeNull();
+    expect(Object.keys(record.catalogs)).toEqual(['c']);
     const [first, second] = answers.get('c')!;
     expect(first!.tiers.get('H0001')?.tier).toBe('read');
     expect(second!.problems).toEqual(['no <hunk_tiers> block in the answer']);

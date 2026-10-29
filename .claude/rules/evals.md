@@ -16,18 +16,23 @@ does (`cli → review` plumbing, the SDK loaded only by a real sweep), so the
 
 ```
 src/evals/
-  skims.ts         the bin, `npm run eval:skims -- <import|contrive|run|score|score-runs>`, run from this repository's root
+  skims.ts         the bin, `npm run eval:skims -- <import|recut|contrive|run|score|score-runs>`, run from this repository's root
   skim-case.ts     SkimCase (case.json: title, description, commits, files, the hunk catalog, where it came
                    from), Label (labels.jsonl, one JSON object per line: id, file, header, tier, category?,
                    note?) and LabelTier (read | skim | either | proven); caseFiles / readCase / writeCase /
                    listCases, readCase refusing labels that do not name the catalog's hunks once each; a row
-                   is a label only once it carries a category, since the import seeds the tier from the model
+                   is a label only once it carries a category, since the import seeds the tier from the model;
+                   catalogDigest, a fingerprint of the hunks a case names, which a sweep stores beside its answers
   skim-import.ts   importCase: a run folder's context.json (through the CLI's RunContextSchema, so an older
                    run that no longer fits it is refused, not patched), its diff.patch, and its review's
                    tiers into a case; seedLabels: `proven` where provenSkim says so, else the review's
                    tier, else `read`, the model's skim reason kept as the note; refuses to overwrite a case,
                    since labels are hand work; defaultCaseName, the run folder's slug; ImportOverrides, the
-                   title, description and source folder a contrived run has no pull request to supply
+                   title, description and source folder a contrived run has no pull request to supply;
+                   recutCase: a real case cut again from a newer run of its change, since a splitter change
+                   leaves older cases naming hunks the tool no longer cuts; carryLabels keeps each judgement on
+                   the new hunk with the same file and lines (hunkBodies, each hunk's text off its marker line,
+                   its part tag left out so a renumbered part still matches) and leaves the rest seeded
   contrive.ts      contriveCase: a branch under evals/skims/contrived stood up as a throwaway repository (the
                    base tree pushed to a bare origin with its HEAD set, since a branch review measures from
                    origin's default branch; a fixed author, so a rebuild makes the same commits), the branch's
@@ -50,7 +55,8 @@ src/evals/
   skim-run.ts      runSweep: every case × samples through runSdkLoop with no tools, one turn, no setting
                    sources and the SKIM_SYSTEM_PROMPT, `parallel` queries at once (mapLimit), each answer
                    written to results/<stamp>/<case>/sample-<n>.txt with its cost and ending beside it, and
-                   run.json for the sweep; requireApiKey, which refuses a sweep without ANTHROPIC_API_KEY so
+                   run.json for the sweep, each case's catalogDigest in it so `score` refuses a case recut
+                   since; requireApiKey, which refuses a sweep without ANTHROPIC_API_KEY so
                    it spends API credit and never a plan sign-in; readSweep, the record and every answer
                    parsed back for scoring; an SDK error fails the sweep rather than scoring a silence
   skim-score.ts    scoreSample / scoreCase over judged labels (tier read or skim, with a category): agreed,

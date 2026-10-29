@@ -4,9 +4,9 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { DEFAULT_MODEL } from '../cli/claude-run.ts';
 import { fail, line, note } from '../cli/terminal.ts';
-import { caseFiles, listCases, readCase } from './skim-case.ts';
+import { caseFiles, catalogDigest, listCases, readCase } from './skim-case.ts';
 import { contriveCase, listContrived } from './contrive.ts';
-import { defaultCaseName, importCase } from './skim-import.ts';
+import { defaultCaseName, importCase, recutCase } from './skim-import.ts';
 import { readRunAnswer } from './skim-review.ts';
 import { readSweep, requireApiKey, runSweep, sweepFiles } from './skim-run.ts';
 import { formatCaseScore, formatOverall, scoreCase, type CaseScore } from './skim-score.ts';
@@ -20,6 +20,8 @@ import { formatCaseScore, formatOverall, scoreCase, type CaseScore } from './ski
 export const USAGE = `usage:
   npm run eval:skims -- import <run-folder> [--name <case>]
       cut a case from an er run folder (its context.json, diff and review), labels seeded from the review
+  npm run eval:skims -- recut <case> <run-folder>
+      cut a real case again from a newer er run of its change, labels carried to the hunks with the same lines
   npm run eval:skims -- contrive <name>... | --all
       build a case from a branch under evals/skims/contrived: a throwaway repository, a --stub review, an import
   npm run eval:skims -- run [--samples <n>] [--model <model>] [--parallel <n>] [--case <name>]...
@@ -37,6 +39,8 @@ async function main(argv: string[], root: string): Promise<number> {
   switch (command) {
     case 'import':
       return importCommand(rest, root);
+    case 'recut':
+      return recutCommand(rest, root);
     case 'contrive':
       return contriveCommand(rest, root);
     case 'run':
@@ -72,6 +76,16 @@ async function importCommand(argv: string[], root: string): Promise<number> {
     `edit ${path.relative(root, files.labels)}: on each row, correct the tier (read, skim or either) ` +
       'and add a category; a row without a category is not scored',
   );
+  return 0;
+}
+
+async function recutCommand(argv: string[], root: string): Promise<number> {
+  const [name, runFolder] = argv;
+  if (!name || !runFolder) throw new Error('recut needs a case and an er run folder');
+  const { files, toLabel } = await recutCase(path.resolve(root, runFolder), name, root);
+  const { labels } = await readCase(files);
+  line(`${files.folder}: ${String(labels.length)} hunks, ${String(toLabel.length)} to label`);
+  for (const label of toLabel) line(`  ${label.id}  ${label.file}  ${label.header}`);
   return 0;
 }
 
@@ -136,6 +150,11 @@ async function scoreSweep(folder: string, root: string): Promise<number> {
   const scores: CaseScore[] = [];
   for (const name of record.cases) {
     const { case: skimCase, labels } = await readCase(caseFiles(root, name));
+    if (record.catalogs[name] !== catalogDigest(skimCase)) {
+      throw new Error(
+        `${name} has been recut since this sweep, so its answers name other hunks; sweep it again`,
+      );
+    }
     scores.push(scoreCase(skimCase, labels, answers.get(name)!));
   }
   line();

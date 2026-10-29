@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   caseFiles,
+  catalogDigest,
   formatLabels,
   listCases,
   parseLabels,
@@ -84,5 +85,15 @@ describe('a case folder', () => {
     await expect(readCase(files)).rejects.toThrow(
       "H0001 is labelled twice; H0009 is not in the case's hunks; H0002 has no label",
     );
+  });
+});
+
+describe('catalogDigest', () => {
+  it('is stable for one catalog and changes when a hunk is renumbered or recut', () => {
+    const digest = catalogDigest(loaded.case);
+    expect(catalogDigest(structuredClone(loaded.case))).toBe(digest);
+    const recut = structuredClone(loaded.case);
+    recut.hunks[1]!.header = '@@ -5 +5 @@ (part 1 of 2)';
+    expect(catalogDigest(recut)).not.toBe(digest);
   });
 });

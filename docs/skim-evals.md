@@ -184,6 +184,20 @@ default `--split-hunks` on the same change the case was cut from. A run costs
 what a review costs, a dollar or more on a change of this size, so two or
 three per case is plenty.
 
+A real case keeps the hunks `er` cut when it was made. When the splitter
+changes, a current run cuts some files differently and is refused. Cut the
+case again from that run, and the labels carry over to every hunk whose lines
+are unchanged:
+
+```bash
+npm run eval:skims -- recut pr-22 er-reviews/pr-22/<stamp>
+```
+
+It lists the hunks that are new or cut differently, seeded from the run, for
+labelling by hand. A `--stub` run is enough to recut from, since only the
+cut matters. A sweep records which hunks each case had, so one made before a
+recut is refused by `score` rather than scored against renumbered labels.
+
 ## Reading the score
 
 ```

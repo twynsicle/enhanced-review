@@ -100,7 +100,10 @@ export function runAnswer(
 ): ParsedAnswer {
   const mismatch = catalogMismatch(skimCase, hunks);
   if (mismatch) {
-    throw new Error(`${runFolder} did not number the hunks ${skimCase.name} labels: ${mismatch}`);
+    throw new Error(
+      `${runFolder} did not number the hunks ${skimCase.name} labels: ${mismatch}. ` +
+        'If the splitter changed since the case was cut, recut the case from a current run',
+    );
   }
   return { tiers: citedTiers(review), problems: [] };
 }
