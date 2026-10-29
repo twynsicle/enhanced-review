@@ -78,7 +78,7 @@
 {"file":"src/web/components/narrative/judgement-calls.ts","header":"@@ -0,0 +16,21 @@ (part 2 of 3)","tier":"read","category":"logic","id":"H0078"}
 {"file":"src/web/components/narrative/judgement-calls.ts","header":"@@ -0,0 +37,14 @@ (part 3 of 3)","tier":"read","category":"logic","id":"H0079"}
 {"id":"H0080","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -4,6 +4,7 @@ import type { NarrativeReview } from '@/domain/review/narrative';","tier":"proven"}
-{"id":"H0081","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -132,3 +133,29 @@ (part 1 of 5) describe('<SummaryCard />', () => {","tier":"read","category":"test-scaffolding","note":"the anchored call the cases assert on, with a render helper"}
+{"id":"H0081","file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -132,3 +133,29 @@ (part 1 of 5) describe('<SummaryCard />', () => {","tier":"either","category":"test-scaffolding","note":"the call the cases render; each value they check is restated in the case"}
 {"file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +162,7 @@ (part 2 of 5)","tier":"read","category":"test-case","id":"H0082"}
 {"file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +169,5 @@ (part 3 of 5)","tier":"read","category":"test-case","id":"H0083"}
 {"file":"src/web/components/narrative/summary-card.test.tsx","header":"@@ -134,0 +174,7 @@ (part 4 of 5)","tier":"read","category":"test-case","id":"H0084"}
