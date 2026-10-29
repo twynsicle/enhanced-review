@@ -7,7 +7,7 @@
 {"id":"H0007","file":"src/i18n/index.ts","header":"@@ -1,10 +1,17 @@","tier":"read","category":"logic","note":"formatCount is new"}
 {"id":"H0008","file":"src/sync/report.ts","header":"@@ -5,18 +5,25 @@ export interface SyncReport {","tier":"read","category":"logic","note":"byDepot is new"}
 {"id":"H0009","file":"src/web/status.test.ts","header":"@@ -0,0 +1,5 @@ (part 1 of 5)","tier":"proven"}
-{"id":"H0010","file":"src/web/status.test.ts","header":"@@ -0,0 +6,11 @@ (part 2 of 5)","tier":"skim","category":"test-scaffolding","note":"a SyncReport literal"}
+{"id":"H0010","file":"src/web/status.test.ts","header":"@@ -0,0 +6,11 @@ (part 2 of 5)","tier":"read","category":"test-scaffolding","note":"the SyncReport literal whose numbers and depots the assertions match on"}
 {"id":"H0011","file":"src/web/status.test.ts","header":"@@ -0,0 +17,10 @@ (part 3 of 5)","tier":"read","category":"test-case"}
 {"id":"H0012","file":"src/web/status.test.ts","header":"@@ -0,0 +27,5 @@ (part 4 of 5)","tier":"read","category":"test-case"}
 {"id":"H0013","file":"src/web/status.test.ts","header":"@@ -0,0 +32,9 @@ (part 5 of 5)","tier":"read","category":"test-case"}
