@@ -1,0 +1,10 @@
+{
+  "branch": "refactor/reconcile-naming",
+  "title": "Name things in reconcile for what they are",
+  "description": "`current`, `known`, `level` and `delta` read fine when reconcile was twenty lines; now that it has batches and the unknown list, half the locals need a second look to remember which side of the sync they belong to. This renames them for the warehouse side they come from (`existing`, `heldByKey`, `held`) and what the difference means (`shortfall`), and gives the key helper a name that says what it keys. Same treatment for the summary's loop. No tests needed changing beyond the name of the fake warehouse.",
+  "commit": {
+    "subject": "Name things in reconcile for what they are",
+    "body": "existing, heldByKey, held, shortfall, levelKey; the summary's loop to\nmatch; the test's fake warehouse is `stock`."
+  },
+  "removed": []
+}

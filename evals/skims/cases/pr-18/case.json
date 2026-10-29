@@ -1,0 +1,1538 @@
+{
+  "name": "pr-18",
+  "source": {
+    "folder": "C:\\workspace\\diffy\\enhanced-review\\er-reviews\\pr-18\\20261028-222828",
+    "repo": "twynsicle/enhanced-review",
+    "kind": "pr"
+  },
+  "title": "Judgement calls: questions a review puts back to the reader",
+  "description": "Some decisions in a change can't be judged from the code: expected volume, what's coming next, who depends on the current behaviour, a product call. Until now a review could only guess at these and present the guess as an insight. This PR lets the review ask instead. A **judgement call** is a question for the reader, drawn beside the lines that raised it. A review asks at most three, and most should ask none.\n\nFixes ER-34\n\n## What changed\n\n**Schema** (`narrative.ts`). There is a new review-wide `judgementCalls` array, capped at `MAX_JUDGEMENT_CALLS = 3`. Each call has a `title`, `text`, `filename` and non-empty `hunkIds`. A call is not an `Insight`, for two reasons:\n- Insights are budgeted per chapter, so a long review can carry thirty of them, while questions need a cap across the whole review.\n- An insight tells the reader something; a judgement call asks them something.\n\n**Prompt** (`instructions.ts`, pinned by `server-prompt.txt`). A new \"Judgement calls\" section makes the model look for the deciding fact before asking:\n- If the fact is in the repository, the answer is an insight, not a question.\n- If the fact is in the model's own technical knowledge, the answer is a `highlight`.\n\nA call is kept only if it passes all five tests:\n- two concrete branches\n- a choice visible in the diff\n- the legwork done and cited\n- an answer that changes what the reviewer does\n- every citation re-read\n\n**Insight types.** The prompt now defines three insight types instead of four: `reference` is folded into `context`.\n\n**Parser** (`parse-narrative.ts`, `sanitizeJudgementCalls`). A call must be anchored to a file some chapter shows and to hunks of that file. It is drawn in exactly one place: the first chapter whose card shows one of its hunks, found by `judgementCallOwner` in `coverage.ts`. The parser trims the call's hunk ids to the ones that card shows. The parser and the reader both use `judgementCallOwner`, so they always agree on which card a call is drawn on.\n\nWhat the parser drops:\n- a call with no title or no text\n- a call anchored to a file no chapter shows\n- a call none of whose hunks resolve\n- calls past the third\n\nTwo new findings record these drops: `judgement-call-dropped` (warning) and `judgement-hunk-id-dropped` (note). The cap is applied in the parser rather than in the schema, because the schema could only reject the whole review. A model that asks five good questions hasn't produced an invalid answer.\n\n**Reader:**\n- `JudgementCallout` draws each call on its file's diff card, ahead of that file's insights. It uses the same marginalia style as insights, with an amber rail. Amber rather than cobalt, because cobalt is also the chapter eyebrow colour.\n- The summary card lists the call titles as an index. Each links to the chapter that draws it, so a question in chapter seven is visible from the top.\n\n## For reviewers\n\n- The branch holds two commits. `38e1d90` is the feature. `1881990` fixes a bug the code review found: the owning chapter was chosen by filename alone. When two chapters showed different hunks of the same file, a call could be drawn on a card that didn't show its lines, while the chapter that did show them asked nothing.\n- A review with no judgement calls renders exactly as before, because the field is left out rather than set to an empty list.\n- The sample report (`sample-bundle.ts`) now carries two calls, for the viewer.\n\n## Testing\n\n`npm run check` passes on the branch head: typecheck, build, viewer build, 883 unit/web/guardrail tests, lint and format. What the new tests cover:\n- the parser's rules for anchoring, trimming hunk ids, dropping calls and the cap\n- the reader choosing the owning chapter, including a file split across two chapters\n- the callout on a diff card\n- the summary index linking to the chapter that draws each call\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+  "commits": [
+    {
+      "sha": "38e1d908da4855f95b4a532b5bca160d3963148f",
+      "subject": "Add judgement call cards to review",
+      "body": ""
+    },
+    {
+      "sha": "18819907382e024fd4a4ae878698c52ffc63e305",
+      "subject": "Draw a judgement call in the chapter that shows its lines",
+      "body": "A judgement call was drawn in the first chapter citing its file, and the\nparser only checked the filename. When two chapters each show different\nhunks of one file, a call citing the second chapter's hunk was drawn on the\nfirst chapter's card, beside code it was not about, and the chapter that\ndid show its lines asked nothing.\n\n`judgementCallOwner` (coverage.ts) picks the first chapter whose card for\nthe file shows one of the call's hunks, and both sides use it: the reader\nto place the call, the parser to narrow its hunk ids to the ones that card\nshows, recording each id it drops as `judgement-hunk-id-dropped`. A call\nwhose hunks no chapter shows is dropped as `judgement-call-dropped`.\n\nNew tests in judgement-calls.test.ts and parse-narrative.test.ts split one\nfile across two chapters; both fail against the previous code.\n\nPart of ER-34\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+    }
+  ],
+  "files": [
+    {
+      "filename": ".claude/rules/review-pipeline.md",
+      "status": "modified",
+      "additions": 15,
+      "deletions": 2
+    },
+    {
+      "filename": ".claude/rules/web.md",
+      "status": "modified",
+      "additions": 13,
+      "deletions": 4
+    },
+    {
+      "filename": "README.md",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 2
+    },
+    {
+      "filename": "src/domain/review/coverage.ts",
+      "status": "modified",
+      "additions": 19,
+      "deletions": 0
+    },
+    {
+      "filename": "src/domain/review/findings.test.ts",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 0
+    },
+    {
+      "filename": "src/domain/review/findings.ts",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 1
+    },
+    {
+      "filename": "src/domain/review/narrative.ts",
+      "status": "modified",
+      "additions": 38,
+      "deletions": 1
+    },
+    {
+      "filename": "src/domain/review/prompt/__fixtures__/server-prompt.txt",
+      "status": "modified",
+      "additions": 34,
+      "deletions": 3
+    },
+    {
+      "filename": "src/domain/review/prompt/instructions.ts",
+      "status": "modified",
+      "additions": 34,
+      "deletions": 3
+    },
+    {
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "status": "modified",
+      "additions": 101,
+      "deletions": 0
+    },
+    {
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "status": "modified",
+      "additions": 147,
+      "deletions": 1
+    },
+    {
+      "filename": "src/web/components/narrative/chapter-card.test.tsx",
+      "status": "modified",
+      "additions": 41,
+      "deletions": 4
+    },
+    {
+      "filename": "src/web/components/narrative/chapter-card.tsx",
+      "status": "modified",
+      "additions": 14,
+      "deletions": 1
+    },
+    {
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "status": "modified",
+      "additions": 20,
+      "deletions": 1
+    },
+    {
+      "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
+      "status": "modified",
+      "additions": 29,
+      "deletions": 9
+    },
+    {
+      "filename": "src/web/components/narrative/insight-callout.test.tsx",
+      "status": "modified",
+      "additions": 21,
+      "deletions": 2
+    },
+    {
+      "filename": "src/web/components/narrative/insight-callout.tsx",
+      "status": "modified",
+      "additions": 51,
+      "deletions": 10
+    },
+    {
+      "filename": "src/web/components/narrative/judgement-calls.test.ts",
+      "status": "added",
+      "additions": 106,
+      "deletions": 0
+    },
+    {
+      "filename": "src/web/components/narrative/judgement-calls.ts",
+      "status": "added",
+      "additions": 50,
+      "deletions": 0
+    },
+    {
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "status": "modified",
+      "additions": 51,
+      "deletions": 0
+    },
+    {
+      "filename": "src/web/components/narrative/summary-card.tsx",
+      "status": "modified",
+      "additions": 58,
+      "deletions": 0
+    },
+    {
+      "filename": "src/web/theme/tokens.ts",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 3
+    },
+    {
+      "filename": "src/web/viewer/sample-bundle.ts",
+      "status": "modified",
+      "additions": 15,
+      "deletions": 1
+    }
+  ],
+  "hunks": [
+    {
+      "id": "H0001",
+      "filename": ".claude/rules/review-pipeline.md",
+      "header": "@@ -24,7 +24,12 @@ src/domain/",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 24,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 24,
+        "lineCount": 12
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0002",
+      "filename": ".claude/rules/review-pipeline.md",
+      "header": "@@ -41,7 +46,9 @@ src/domain/",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 41,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 46,
+        "lineCount": 9
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0003",
+      "filename": ".claude/rules/review-pipeline.md",
+      "header": "@@ -96,6 +103,12 @@ src/domain/",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 96,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 103,
+        "lineCount": 12
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0004",
+      "filename": ".claude/rules/web.md",
+      "header": "@@ -61,17 +61,26 @@ src/web/",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 61,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 61,
+        "lineCount": 26
+      },
+      "changedLines": 17
+    },
+    {
+      "id": "H0005",
+      "filename": "README.md",
+      "header": "@@ -1,8 +1,9 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 9
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0006",
+      "filename": "src/domain/review/coverage.ts",
+      "header": "@@ -88,6 +88,25 @@ export function chaptersCiting(",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 88,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 88,
+        "lineCount": 25
+      },
+      "changedLines": 19
+    },
+    {
+      "id": "H0007",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -28,6 +28,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 28,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 28,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0008",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -40,6 +41,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 40,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 41,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0009",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -53,6 +53,12 @@ const SEVERITY_BY_CODE = {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 53,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 53,
+        "lineCount": 12
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0010",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -74,8 +80,10 @@ const SEVERITY_BY_CODE = {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 74,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 80,
+        "lineCount": 10
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0011",
+      "filename": "src/domain/review/narrative.ts",
+      "header": "@@ -32,7 +32,7 @@ export const ProseSchema = z.object({",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 32,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 32,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0012",
+      "filename": "src/domain/review/narrative.ts",
+      "header": "@@ -54,6 +54,37 @@ export const InsightSchema = z.object({",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 54,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 54,
+        "lineCount": 37
+      },
+      "changedLines": 31
+    },
+    {
+      "id": "H0013",
+      "filename": "src/domain/review/narrative.ts",
+      "header": "@@ -158,6 +189,12 @@ export const NarrativeReviewSchema = z.object({",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 158,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 189,
+        "lineCount": 12
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0014",
+      "filename": "src/domain/review/prompt/__fixtures__/server-prompt.txt",
+      "header": "@@ -31,7 +31,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 31,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 31,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0015",
+      "filename": "src/domain/review/prompt/__fixtures__/server-prompt.txt",
+      "header": "@@ -46,6 +46,14 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 46,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 46,
+        "lineCount": 14
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0016",
+      "filename": "src/domain/review/prompt/__fixtures__/server-prompt.txt",
+      "header": "@@ -57,10 +65,9 @@ Guidelines:",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 57,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 65,
+        "lineCount": 9
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0017",
+      "filename": "src/domain/review/prompt/__fixtures__/server-prompt.txt",
+      "header": "@@ -104,3 +111,16 @@ (part 1 of 2) An insight may carry a \"filename\", and should whenever it is about one file in p",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 104,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 111,
+        "lineCount": 16
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0018",
+      "filename": "src/domain/review/prompt/__fixtures__/server-prompt.txt",
+      "header": "@@ -107,3 +127,14 @@ (part 2 of 2)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 107,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 127,
+        "lineCount": 14
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0019",
+      "filename": "src/domain/review/prompt/instructions.ts",
+      "header": "@@ -46,7 +46,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 46,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 46,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0020",
+      "filename": "src/domain/review/prompt/instructions.ts",
+      "header": "@@ -61,6 +61,14 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 61,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 61,
+        "lineCount": 14
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0021",
+      "filename": "src/domain/review/prompt/instructions.ts",
+      "header": "@@ -72,10 +80,9 @@ Guidelines:",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 72,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 80,
+        "lineCount": 9
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0022",
+      "filename": "src/domain/review/prompt/instructions.ts",
+      "header": "@@ -119,3 +126,16 @@ (part 1 of 2) An insight may carry a \"filename\", and should whenever it is about one file in p",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 119,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 126,
+        "lineCount": 16
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0023",
+      "filename": "src/domain/review/prompt/instructions.ts",
+      "header": "@@ -122,3 +142,14 @@ (part 2 of 2)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 122,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 142,
+        "lineCount": 14
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0024",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -478,3 +478,11 @@ (part 1 of 9) describe('an insight anchored to a file', () => {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 478,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 478,
+        "lineCount": 11
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0025",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -480,0 +489,22 @@ (part 2 of 9)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 480,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 489,
+        "lineCount": 22
+      },
+      "changedLines": 22
+    },
+    {
+      "id": "H0026",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -480,0 +511,6 @@ (part 3 of 9)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 480,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 511,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0027",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -480,0 +517,6 @@ (part 4 of 9)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 480,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 517,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0028",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -480,0 +523,9 @@ (part 5 of 9)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 480,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 523,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0029",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -480,0 +532,7 @@ (part 6 of 9)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 480,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 532,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0030",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -480,0 +539,21 @@ (part 7 of 9)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 480,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 539,
+        "lineCount": 21
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0031",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -480,0 +560,6 @@ (part 8 of 9)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 480,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 560,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0032",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -481,3 +566,19 @@ (part 9 of 9)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 481,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 566,
+        "lineCount": 19
+      },
+      "changedLines": 16
+    },
+    {
+      "importsOnly": true,
+      "id": "H0033",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -1,11 +1,14 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 14
+      },
+      "changedLines": 3
+    },
+    {
+      "importsOnly": true,
+      "id": "H0034",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -13,7 +16,7 @@ import {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 13,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 16,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0035",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -302,3 +305,28 @@ (part 1 of 3) function sanitizeInsights(",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 302,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 305,
+        "lineCount": 28
+      },
+      "changedLines": 25
+    },
+    {
+      "id": "H0036",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -304,0 +333,108 @@ (part 2 of 3)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 304,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 333,
+        "lineCount": 108
+      },
+      "changedLines": 108
+    },
+    {
+      "id": "H0037",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -305,3 +441,11 @@ (part 3 of 3)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 305,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 441,
+        "lineCount": 11
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0038",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -624,12 +768,14 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 624,
+        "lineCount": 12
+      },
+      "modified": {
+        "startLine": 768,
+        "lineCount": 14
+      },
+      "changedLines": 2
+    },
+    {
+      "importsOnly": true,
+      "id": "H0039",
+      "filename": "src/web/components/narrative/chapter-card.test.tsx",
+      "header": "@@ -1,7 +1,12 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 12
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0040",
+      "filename": "src/web/components/narrative/chapter-card.test.tsx",
+      "header": "@@ -19,7 +24,7 @@ describe('groupInsightsByFile', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 19,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 24,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0041",
+      "filename": "src/web/components/narrative/chapter-card.test.tsx",
+      "header": "@@ -57,7 +62,7 @@ describe('<ChapterCard /> with a mix of insights', () => {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 57,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 62,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0042",
+      "filename": "src/web/components/narrative/chapter-card.test.tsx",
+      "header": "@@ -79,7 +84,11 @@ describe('<ChapterCard /> with a mix of insights', () => {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 79,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 84,
+        "lineCount": 11
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0043",
+      "filename": "src/web/components/narrative/chapter-card.test.tsx",
+      "header": "@@ -116,3 +125,27 @@ (part 1 of 2) describe('<ChapterCard /> with a mix of insights', () => {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 116,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 125,
+        "lineCount": 27
+      },
+      "changedLines": 24
+    },
+    {
+      "id": "H0044",
+      "filename": "src/web/components/narrative/chapter-card.test.tsx",
+      "header": "@@ -119,3 +152,7 @@ (part 2 of 2)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 119,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 152,
+        "lineCount": 7
+      },
+      "changedLines": 4
+    },
+    {
+      "importsOnly": true,
+      "id": "H0045",
+      "filename": "src/web/components/narrative/chapter-card.tsx",
+      "header": "@@ -1,6 +1,11 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 11
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0046",
+      "filename": "src/web/components/narrative/chapter-card.tsx",
+      "header": "@@ -99,11 +104,18 @@ export function SectionRule({ label, count }: { label: string; count: number })",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 99,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 104,
+        "lineCount": 18
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0047",
+      "filename": "src/web/components/narrative/chapter-card.tsx",
+      "header": "@@ -184,6 +196,7 @@ export function ChapterCard({",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 184,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 196,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "importsOnly": true,
+      "id": "H0048",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -16,6 +16,11 @@ import type { ReviewMeta } from '@/domain/review/review-meta';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 16,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 16,
+        "lineCount": 11
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0049",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -114,6 +119,7 @@ export function ChapterReader({",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 114,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 119,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0050",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -263,9 +269,11 @@ export function ChapterReader({",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 263,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 269,
+        "lineCount": 11
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0051",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -285,17 +293,21 @@ function SectionCard({",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 285,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 293,
+        "lineCount": 21
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0052",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -303,7 +315,12 @@ function SectionCard({",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 303,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 315,
+        "lineCount": 12
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0053",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -312,8 +329,10 @@ function SectionCard({",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 312,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 329,
+        "lineCount": 10
+      },
+      "changedLines": 2
+    },
+    {
+      "importsOnly": true,
+      "id": "H0054",
+      "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
+      "header": "@@ -18,9 +18,9 @@ import {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 18,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 18,
+        "lineCount": 9
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0055",
+      "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
+      "header": "@@ -550,7 +550,12 @@ function SnippetEditor({",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 550,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 550,
+        "lineCount": 12
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0056",
+      "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
+      "header": "@@ -562,7 +567,13 @@ function SnippetEditor({",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 562,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 567,
+        "lineCount": 13
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0057",
+      "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
+      "header": "@@ -571,8 +582,11 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 571,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 582,
+        "lineCount": 11
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0058",
+      "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
+      "header": "@@ -585,16 +599,20 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 585,
+        "lineCount": 16
+      },
+      "modified": {
+        "startLine": 599,
+        "lineCount": 20
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0059",
+      "filename": "src/web/components/narrative/inline-diff-chunk.tsx",
+      "header": "@@ -694,7 +712,9 @@ export function InlineDiffChunk({",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 694,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 712,
+        "lineCount": 9
+      },
+      "changedLines": 4
+    },
+    {
+      "importsOnly": true,
+      "id": "H0060",
+      "filename": "src/web/components/narrative/insight-callout.test.tsx",
+      "header": "@@ -1,6 +1,6 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0061",
+      "filename": "src/web/components/narrative/insight-callout.test.tsx",
+      "header": "@@ -14,7 +14,6 @@ describe('<InsightCallout />', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 14,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 14,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0062",
+      "filename": "src/web/components/narrative/insight-callout.test.tsx",
+      "header": "@@ -35,3 +34,23 @@ describe('<InsightCallout />', () => {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 35,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 34,
+        "lineCount": 23
+      },
+      "changedLines": 20
+    },
+    {
+      "id": "H0063",
+      "filename": "src/web/components/narrative/insight-callout.tsx",
+      "header": "@@ -1,18 +1,24 @@ (part 1 of 2)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 18
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 24
+      },
+      "changedLines": 16
+    },
+    {
+      "id": "H0064",
+      "filename": "src/web/components/narrative/insight-callout.tsx",
+      "header": "@@ -19,6 +25,17 @@ (part 2 of 2)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 19,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 25,
+        "lineCount": 17
+      },
+      "changedLines": 17
+    },
+    {
+      "id": "H0065",
+      "filename": "src/web/components/narrative/insight-callout.tsx",
+      "header": "@@ -30,6 +47,11 @@ (part 1 of 2) export function InsightCallout({ insight }: { insight: Insight }) {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 30,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 47,
+        "lineCount": 11
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0066",
+      "filename": "src/web/components/narrative/insight-callout.tsx",
+      "header": "@@ -36,6 +58,25 @@ (part 2 of 2)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 36,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 58,
+        "lineCount": 25
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0067",
+      "filename": "src/web/components/narrative/judgement-calls.test.ts",
+      "header": "@@ -0,0 +1,11 @@ (part 1 of 10)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 11
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0068",
+      "filename": "src/web/components/narrative/judgement-calls.test.ts",
+      "header": "@@ -0,0 +12,13 @@ (part 2 of 10)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 12,
+        "lineCount": 13
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0069",
+      "filename": "src/web/components/narrative/judgement-calls.test.ts",
+      "header": "@@ -0,0 +25,12 @@ (part 3 of 10)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 25,
+        "lineCount": 12
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0070",
+      "filename": "src/web/components/narrative/judgement-calls.test.ts",
+      "header": "@@ -0,0 +37,14 @@ (part 4 of 10)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 37,
+        "lineCount": 14
+      },
+      "changedLines": 14
+    },
+    {
+      "id": "H0071",
+      "filename": "src/web/components/narrative/judgement-calls.test.ts",
+      "header": "@@ -0,0 +51,10 @@ (part 5 of 10)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 51,
+        "lineCount": 10
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0072",
+      "filename": "src/web/components/narrative/judgement-calls.test.ts",
+      "header": "@@ -0,0 +61,10 @@ (part 6 of 10)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 61,
+        "lineCount": 10
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0073",
+      "filename": "src/web/components/narrative/judgement-calls.test.ts",
+      "header": "@@ -0,0 +71,7 @@ (part 7 of 10)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 71,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0074",
+      "filename": "src/web/components/narrative/judgement-calls.test.ts",
+      "header": "@@ -0,0 +78,7 @@ (part 8 of 10)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 78,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0075",
+      "filename": "src/web/components/narrative/judgement-calls.test.ts",
+      "header": "@@ -0,0 +85,14 @@ (part 9 of 10)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 85,
+        "lineCount": 14
+      },
+      "changedLines": 14
+    },
+    {
+      "id": "H0076",
+      "filename": "src/web/components/narrative/judgement-calls.test.ts",
+      "header": "@@ -0,0 +99,8 @@ (part 10 of 10)",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 99,
+        "lineCount": 8
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0077",
+      "filename": "src/web/components/narrative/judgement-calls.ts",
+      "header": "@@ -0,0 +1,15 @@ (part 1 of 3)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 15
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0078",
+      "filename": "src/web/components/narrative/judgement-calls.ts",
+      "header": "@@ -0,0 +16,21 @@ (part 2 of 3)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 16,
+        "lineCount": 21
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0079",
+      "filename": "src/web/components/narrative/judgement-calls.ts",
+      "header": "@@ -0,0 +37,14 @@ (part 3 of 3)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 37,
+        "lineCount": 14
+      },
+      "changedLines": 14
+    },
+    {
+      "importsOnly": true,
+      "id": "H0080",
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "header": "@@ -4,6 +4,7 @@ import type { NarrativeReview } from '@/domain/review/narrative';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 4,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 4,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0081",
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "header": "@@ -132,3 +133,29 @@ (part 1 of 5) describe('<SummaryCard />', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 132,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 133,
+        "lineCount": 29
+      },
+      "changedLines": 26
+    },
+    {
+      "id": "H0082",
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "header": "@@ -134,0 +162,7 @@ (part 2 of 5)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 134,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 162,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0083",
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "header": "@@ -134,0 +169,5 @@ (part 3 of 5)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 134,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 169,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0084",
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "header": "@@ -134,0 +174,7 @@ (part 4 of 5)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 134,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 174,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0085",
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "header": "@@ -134,0 +181,5 @@ (part 5 of 5)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 134,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 181,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "importsOnly": true,
+      "id": "H0086",
+      "filename": "src/web/components/narrative/summary-card.tsx",
+      "header": "@@ -7,6 +7,7 @@ import { Caption } from '@/web/components/caption';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 7,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 7,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0087",
+      "filename": "src/web/components/narrative/summary-card.tsx",
+      "header": "@@ -31,17 +32,23 @@ export function SummaryCard({",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 31,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 32,
+        "lineCount": 23
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0088",
+      "filename": "src/web/components/narrative/summary-card.tsx",
+      "header": "@@ -156,11 +163,62 @@ export function SummaryCard({",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 156,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 163,
+        "lineCount": 62
+      },
+      "changedLines": 51
+    },
+    {
+      "id": "H0089",
+      "filename": "src/web/theme/tokens.ts",
+      "header": "@@ -3,9 +3,9 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 3,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 3,
+        "lineCount": 9
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0090",
+      "filename": "src/web/viewer/sample-bundle.ts",
+      "header": "@@ -337,7 +337,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 337,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 337,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0091",
+      "filename": "src/web/viewer/sample-bundle.ts",
+      "header": "@@ -443,6 +443,20 @@ export const SAMPLE_BUNDLE: ReviewBundle = {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 443,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 443,
+        "lineCount": 20
+      },
+      "changedLines": 14
+    }
+  ]
+}

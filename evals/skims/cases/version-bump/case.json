@@ -1,0 +1,283 @@
+{
+  "name": "version-bump",
+  "source": {
+    "folder": "evals/skims/contrived/version-bump",
+    "repo": "stockline",
+    "kind": "branch"
+  },
+  "title": "Retry a failed feed fetch before giving up on the run",
+  "description": "The supplier's CDN drops a connection a few times a day, and each one has been costing us a whole five-minute cycle plus a page to the on-call. This retries the fetch, twice by default (`FEED_RETRIES`), with a short backoff, and only fails the run once every attempt has failed.\n\nThe fetch now takes its `request` function as a dependency so the retry can be tested without a server. Bumped to 1.5.0 since the retry changes what a transient outage looks like in the logs, and raised the Node floor to 20, which is what every depot runs now and what `undici`'s current release needs.",
+  "commits": [
+    {
+      "sha": "6ea9bd0b05de852eccb9ffe2e6d7efdef95d702f",
+      "subject": "Retry a failed feed fetch before giving up on the run",
+      "body": "Two retries by default, FEED_RETRIES to change it. The fetch takes its\nrequest function as a dependency so the retry is testable. 1.5.0, Node 20."
+    }
+  ],
+  "files": [
+    {
+      "filename": "CHANGELOG.md",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 0
+    },
+    {
+      "filename": "README.md",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1
+    },
+    {
+      "filename": "package.json",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "filename": "src/config.ts",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 4
+    },
+    {
+      "filename": "src/feed/client.test.ts",
+      "status": "added",
+      "additions": 68,
+      "deletions": 0
+    },
+    {
+      "filename": "src/feed/client.ts",
+      "status": "modified",
+      "additions": 32,
+      "deletions": 5
+    }
+  ],
+  "hunks": [
+    {
+      "id": "H0001",
+      "filename": "CHANGELOG.md",
+      "header": "@@ -1,5 +1,10 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 10
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0002",
+      "filename": "README.md",
+      "header": "@@ -12,7 +12,7 @@ npm install",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 12,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 12,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0003",
+      "filename": "README.md",
+      "header": "@@ -20,6 +20,7 @@ Requires Node 18 or later.",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 20,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 20,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0004",
+      "filename": "package.json",
+      "header": "@@ -1,8 +1,8 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 8
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0005",
+      "filename": "src/config.ts",
+      "header": "@@ -1,8 +1,9 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 9
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0006",
+      "filename": "src/config.ts",
+      "header": "@@ -14,17 +15,22 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 14,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 15,
+        "lineCount": 22
+      },
+      "changedLines": 11
+    },
+    {
+      "importsOnly": true,
+      "id": "H0007",
+      "filename": "src/feed/client.test.ts",
+      "header": "@@ -0,0 +1,5 @@ (part 1 of 7)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0008",
+      "filename": "src/feed/client.test.ts",
+      "header": "@@ -0,0 +6,9 @@ (part 2 of 7)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 6,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0009",
+      "filename": "src/feed/client.test.ts",
+      "header": "@@ -0,0 +15,26 @@ (part 3 of 7)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 15,
+        "lineCount": 26
+      },
+      "changedLines": 26
+    },
+    {
+      "id": "H0010",
+      "filename": "src/feed/client.test.ts",
+      "header": "@@ -0,0 +41,9 @@ (part 4 of 7)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 41,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0011",
+      "filename": "src/feed/client.test.ts",
+      "header": "@@ -0,0 +50,7 @@ (part 5 of 7)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 50,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0012",
+      "filename": "src/feed/client.test.ts",
+      "header": "@@ -0,0 +57,6 @@ (part 6 of 7)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 57,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0013",
+      "filename": "src/feed/client.test.ts",
+      "header": "@@ -0,0 +63,6 @@ (part 7 of 7)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 63,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0014",
+      "filename": "src/feed/client.ts",
+      "header": "@@ -5,10 +5,39 @@ import { parseFeed, parseLegacyFeed, type FeedRow } from './parse.ts';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 5,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 5,
+        "lineCount": 39
+      },
+      "changedLines": 33
+    },
+    {
+      "id": "H0015",
+      "filename": "src/feed/client.ts",
+      "header": "@@ -16,7 +45,5 @@ export async function fetchFeed(config: Config): Promise<FeedFetch> {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 16,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 45,
+        "lineCount": 5
+      },
+      "changedLines": 4
+    }
+  ]
+}

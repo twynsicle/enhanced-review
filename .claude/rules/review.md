@@ -95,7 +95,7 @@ src/review/
                      line number on its own side;
                      provenFacts, handed the hunks and each file's two sides as text (null where gather embedded
                      none): importsOnly when a TypeScript or JavaScript hunk changes a line that is not blank and
-                     every such line is import wiring on its own side, read off the whole file by import-lines; whitespaceOnly when the two sides match with whitespace outside a string literal
+                     every such line is import wiring on its own side, read off the whole file by import-lines; whitespaceOnly when the two sides match, run by run (a stretch of changed lines with no context inside, since a line moved past a context line removes and adds the same text), with whitespace outside a string literal
                      cut to what can change a parse — one space between two characters that could fuse (two
                      words, or any two operator characters: `+ +`, `< -`, `= >`), one line break after a line
                      comment, or straight after a word, a closing bracket or a closing quote unless a closing

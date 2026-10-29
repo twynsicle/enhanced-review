@@ -1,0 +1,223 @@
+diff --git a/README.md b/README.md
+index 2eb605b..ab98354 100644
+--- a/README.md
++++ b/README.md
+# H0001
+@@ -22,6 +22,7 @@ Requires Node 18 or later.
+ | `FEED_TIMEOUT_MS` | 5000    | How long one fetch of the feed may take        |
+ | `LEGACY_FEED`     | false   | Read the feed in the pre-2023 three-column format |
+ | `LOCALE`          | en      | Language of the status page                    |
++| `DEPOT`           | —       | Sync this depot only; every depot when unset   |
+ 
+ ## The feed formats
+ 
+
+diff --git a/src/config.ts b/src/config.ts
+index d269dca..3f45d0b 100644
+--- a/src/config.ts
++++ b/src/config.ts
+# H0002
+@@ -6,6 +6,7 @@ export interface Config {
+   legacyFeed: boolean;
+   locale: string;
+   batchSize: number;
++  depot: string | null;
+ }
+ 
+ export function loadConfig(env: NodeJS.ProcessEnv): Config {
+# H0003
+@@ -17,6 +18,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
+     legacyFeed: env.LEGACY_FEED === 'true',
+     locale: env.LOCALE ?? 'en',
+     batchSize: integer(env.BATCH_SIZE, 500),
++    depot: env.DEPOT ?? null,
+   };
+ }
+ 
+
+diff --git a/src/main.ts b/src/main.ts
+index 30ab9b1..62373e4 100644
+--- a/src/main.ts
++++ b/src/main.ts
+# H0004
+@@ -18,11 +18,12 @@ async function main(): Promise<void> {
+   const run = async () => {
+     try {
+       const feed = await fetchFeed(config);
+-      const result = await reconcile(feed.rows, warehouse, config.batchSize);
+-      report = summarise(result);
++      const result = await reconcile(feed.rows, warehouse, config.batchSize, config.depot);
++      report = summarise(result, config.depot);
+       lastRun = feed.fetchedAt;
+       log.info('sync finished', { changed: report.changed, unknown: report.unknown });
+     } catch (error) {
++      report = null;
+       log.error('sync failed', { message: (error as Error).message });
+     }
+   };
+
+diff --git a/src/sync/reconcile.test.ts b/src/sync/reconcile.test.ts
+index ee4a567..7b15e61 100644
+--- a/src/sync/reconcile.test.ts
++++ b/src/sync/reconcile.test.ts
+# H0005
+@@ -6,7 +6,8 @@ function warehouse(levels: StockLevel[]): Warehouse & { applied: Adjustment[][]
+   const applied: Adjustment[][] = [];
+   return {
+     applied,
+-    levels: () => Promise.resolve(levels),
++    levels: (depot) =>
++      Promise.resolve(depot === null ? levels : levels.filter((level) => level.depot === depot)),
+     apply: (batch) => {
+       applied.push(batch);
+       return Promise.resolve();
+# H0006
+@@ -24,14 +25,14 @@ const row = (sku: string, quantity: number, depot = 'north') => ({
+ describe('reconcile', () => {
+   it('adjusts a level the feed disagrees with', async () => {
+     const w = warehouse([{ sku: 'A1', depot: 'north', quantity: 4 }]);
+-    const result = await reconcile([row('A1', 9)], w, 500);
++    const result = await reconcile([row('A1', 9)], w, 500, null);
+     assert.deepEqual(result.adjustments, [{ sku: 'A1', depot: 'north', from: 4, to: 9 }]);
+     assert.equal(result.unchanged, 0);
+   });
+ 
+   it('leaves a matching level alone and counts it', async () => {
+     const w = warehouse([{ sku: 'A1', depot: 'north', quantity: 4 }]);
+-    const result = await reconcile([row('A1', 4)], w, 500);
++    const result = await reconcile([row('A1', 4)], w, 500, null);
+     assert.deepEqual(result.adjustments, []);
+     assert.equal(result.unchanged, 1);
+     assert.deepEqual(w.applied, []);
+# H0007
+@@ -39,16 +40,17 @@ (part 1 of 2) describe('reconcile', () => {
+ 
+   it('reports a SKU the warehouse does not know rather than creating it', async () => {
+     const w = warehouse([]);
+-    const result = await reconcile([row('ZZ9', 1)], w, 500);
++    const result = await reconcile([row('ZZ9', 1)], w, 500, null);
+     assert.deepEqual(result.unknown, ['ZZ9']);
+   });
+ 
+   it('applies adjustments in batches', async () => {
+     const levels = ['A', 'B', 'C'].map((sku) => ({ sku, depot: 'north', quantity: 0 }));
+     const w = warehouse(levels);
+-    await reconcile(['A', 'B', 'C'].map((sku) => row(sku, 1)), w, 2);
++    await reconcile(['A', 'B', 'C'].map((sku) => row(sku, 1)), w, 2, null);
+     assert.deepEqual(
+       w.applied.map((batch) => batch.length),
+       [2, 1],
+     );
+   });
++
+# H0008
+@@ -55,1 +57,11 @@ (part 2 of 2)
++  it('syncs only the depot it was given', async () => {
++    const w = warehouse([
++      { sku: 'A1', depot: 'north', quantity: 4 },
++      { sku: 'A1', depot: 'south', quantity: 4 },
++    ]);
++    const result = await reconcile([row('A1', 9), row('A1', 9, 'south')], w, 500, 'south');
++    assert.deepEqual(result.adjustments, [{ sku: 'A1', depot: 'south', from: 4, to: 9 }]);
++    assert.deepEqual(result.unknown, []);
++    assert.equal(result.unchanged, 0);
++  });
+ });
+
+diff --git a/src/sync/reconcile.ts b/src/sync/reconcile.ts
+index 1bae6ce..dff16ce 100644
+--- a/src/sync/reconcile.ts
++++ b/src/sync/reconcile.ts
+# H0009
+@@ -14,7 +14,7 @@ export interface Adjustment {
+ }
+ 
+ export interface Warehouse {
+-  levels(): Promise<StockLevel[]>;
++  levels(depot: string | null): Promise<StockLevel[]>;
+   apply(adjustments: Adjustment[]): Promise<void>;
+ }
+ 
+# H0010
+@@ -34,8 +34,9 @@ export async function reconcile(
+   feed: FeedRow[],
+   warehouse: Warehouse,
+   batchSize: number,
++  depot: string | null,
+ ): Promise<ReconcileResult> {
+-  const current = await warehouse.levels();
++  const current = await warehouse.levels(depot);
+   const known = new Map<string, StockLevel>();
+   for (const level of current) known.set(key(level.sku, level.depot), level);
+ 
+# H0011
+@@ -43,6 +44,7 @@ export async function reconcile(
+   const unknown: string[] = [];
+   let unchanged = 0;
+   for (const row of feed) {
++    if (depot !== null && row.depot !== depot) continue;
+     const level = known.get(key(row.sku, row.depot));
+     if (!level) {
+       unknown.push(row.sku);
+
+diff --git a/src/sync/report.ts b/src/sync/report.ts
+index 9d835d8..0653904 100644
+--- a/src/sync/report.ts
++++ b/src/sync/report.ts
+# H0012
+@@ -5,9 +5,10 @@ export interface SyncReport {
+   unchanged: number;
+   unknown: number;
+   largest: { sku: string; depot: string; by: number } | null;
++  depot: string | null;
+ }
+ 
+-export function summarise(result: ReconcileResult): SyncReport {
++export function summarise(result: ReconcileResult, depot: string | null): SyncReport {
+   let largest: SyncReport['largest'] = null;
+   for (const adj of result.adjustments) {
+     const by = Math.abs(adj.to - adj.from);
+# H0013
+@@ -18,5 +19,6 @@ export function summarise(result: ReconcileResult): SyncReport {
+     unchanged: result.unchanged,
+     unknown: result.unknown.length,
+     largest,
++    depot,
+   };
+ }
+
+diff --git a/src/warehouse.ts b/src/warehouse.ts
+index 1a3434d..526ddf5 100644
+--- a/src/warehouse.ts
++++ b/src/warehouse.ts
+# H0014
+@@ -9,8 +9,11 @@ export async function openWarehouse(): Promise<Warehouse> {
+   const { WarehouseClient } = await import('@acme/warehouse-client');
+   const client = new WarehouseClient({ dsn: process.env.WAREHOUSE_DSN });
+   return {
+-    levels: async (): Promise<StockLevel[]> => {
+-      const rows = await client.query('select sku, depot, quantity from stock');
++    levels: async (depot: string | null): Promise<StockLevel[]> => {
++      const rows =
++        depot === null
++          ? await client.query('select sku, depot, quantity from stock')
++          : await client.query('select sku, depot, quantity from stock where depot = ?', [depot]);
+       return rows.map((row) => ({ sku: row.sku, depot: row.depot, quantity: row.quantity }));
+     },
+     apply: async (adjustments: Adjustment[]): Promise<void> => {
+
+diff --git a/src/web/status.ts b/src/web/status.ts
+index e524455..a399127 100644
+--- a/src/web/status.ts
++++ b/src/web/status.ts
+# H0015
+@@ -20,6 +20,9 @@ export function renderStatus(view: StatusView, now: Date): string {
+     }</dd></dl>`,
+   ];
+   if (view.report) {
++    if (view.report.depot !== null) {
++      lines.push(`<p>${t(locale, 'status.depot')}: ${view.report.depot}</p>`);
++    }
+     lines.push(
+       '<ul>',
+       `<li>${t(locale, 'status.changed', { count: view.report.changed })}</li>`,

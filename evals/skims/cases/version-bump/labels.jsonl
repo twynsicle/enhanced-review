@@ -1,0 +1,15 @@
+{"id":"H0001","file":"CHANGELOG.md","header":"@@ -1,5 +1,10 @@","tier":"skim","category":"changelog"}
+{"id":"H0002","file":"README.md","header":"@@ -12,7 +12,7 @@ npm install","tier":"skim","category":"docs","note":"the Node line of the README"}
+{"id":"H0003","file":"README.md","header":"@@ -20,6 +20,7 @@ Requires Node 18 or later.","tier":"skim","category":"docs","note":"one row in the config table"}
+{"id":"H0004","file":"package.json","header":"@@ -1,8 +1,8 @@","tier":"read","category":"version-bump","note":"engines >=20 rides under the version bump"}
+{"id":"H0005","file":"src/config.ts","header":"@@ -1,8 +1,9 @@","tier":"read","category":"version-bump","note":"the VERSION constant; the Config field beside it only carries a value"}
+{"id":"H0006","file":"src/config.ts","header":"@@ -14,17 +15,22 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {","tier":"read","category":"logic","note":"integer() grows allowZero"}
+{"id":"H0007","file":"src/feed/client.test.ts","header":"@@ -0,0 +1,5 @@ (part 1 of 7)","tier":"proven"}
+{"id":"H0008","file":"src/feed/client.test.ts","header":"@@ -0,0 +6,9 @@ (part 2 of 7)","tier":"skim","category":"test-scaffolding","note":"a Config literal"}
+{"id":"H0009","file":"src/feed/client.test.ts","header":"@@ -0,0 +15,26 @@ (part 3 of 7)","tier":"read","category":"test-scaffolding","note":"the fake request counts calls and sleeps"}
+{"id":"H0010","file":"src/feed/client.test.ts","header":"@@ -0,0 +41,9 @@ (part 4 of 7)","tier":"read","category":"test-case"}
+{"id":"H0011","file":"src/feed/client.test.ts","header":"@@ -0,0 +50,7 @@ (part 5 of 7)","tier":"read","category":"test-case"}
+{"id":"H0012","file":"src/feed/client.test.ts","header":"@@ -0,0 +57,6 @@ (part 6 of 7)","tier":"read","category":"test-case"}
+{"id":"H0013","file":"src/feed/client.test.ts","header":"@@ -0,0 +63,6 @@ (part 7 of 7)","tier":"read","category":"test-case"}
+{"id":"H0014","file":"src/feed/client.ts","header":"@@ -5,10 +5,39 @@ import { parseFeed, parseLegacyFeed, type FeedRow } from './parse.ts';","tier":"read","category":"logic","note":"the retry loop"}
+{"id":"H0015","file":"src/feed/client.ts","header":"@@ -16,7 +45,5 @@ export async function fetchFeed(config: Config): Promise<FeedFetch> {","tier":"either","category":"moved","note":"the tail of the fetch after it was split"}

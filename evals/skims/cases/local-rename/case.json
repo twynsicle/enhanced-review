@@ -1,0 +1,129 @@
+{
+  "name": "local-rename",
+  "source": {
+    "folder": "evals/skims/contrived/local-rename",
+    "repo": "stockline",
+    "kind": "branch"
+  },
+  "title": "Name things in reconcile for what they are",
+  "description": "`current`, `known`, `level` and `delta` read fine when reconcile was twenty lines; now that it has batches and the unknown list, half the locals need a second look to remember which side of the sync they belong to. This renames them for the warehouse side they come from (`existing`, `heldByKey`, `held`) and what the difference means (`shortfall`), and gives the key helper a name that says what it keys. Same treatment for the summary's loop. No tests needed changing beyond the name of the fake warehouse.",
+  "commits": [
+    {
+      "sha": "27b3896519027cbd188d7341e494300003020893",
+      "subject": "Name things in reconcile for what they are",
+      "body": "existing, heldByKey, held, shortfall, levelKey; the summary's loop to\nmatch; the test's fake warehouse is `stock`."
+    }
+  ],
+  "files": [
+    {
+      "filename": "src/sync/reconcile.test.ts",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 10
+    },
+    {
+      "filename": "src/sync/reconcile.ts",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 9
+    },
+    {
+      "filename": "src/sync/report.ts",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 3
+    }
+  ],
+  "hunks": [
+    {
+      "id": "H0001",
+      "filename": "src/sync/reconcile.test.ts",
+      "header": "@@ -23,17 +23,17 @@ (part 1 of 2) const row = (sku: string, quantity: number, depot = 'north') => ({",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 23,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 23,
+        "lineCount": 17
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0002",
+      "filename": "src/sync/reconcile.test.ts",
+      "header": "@@ -40,15 +40,15 @@ (part 2 of 2)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 40,
+        "lineCount": 15
+      },
+      "modified": {
+        "startLine": 40,
+        "lineCount": 15
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0003",
+      "filename": "src/sync/reconcile.ts",
+      "header": "@@ -35,7 +35,7 @@ (part 1 of 2) export async function reconcile(",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 35,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 35,
+        "lineCount": 7
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0004",
+      "filename": "src/sync/reconcile.ts",
+      "header": "@@ -42,18 +42,18 @@ (part 2 of 2)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 42,
+        "lineCount": 18
+      },
+      "modified": {
+        "startLine": 42,
+        "lineCount": 18
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0005",
+      "filename": "src/sync/reconcile.ts",
+      "header": "@@ -62,6 +62,6 @@ export async function reconcile(",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 62,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 62,
+        "lineCount": 6
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0006",
+      "filename": "src/sync/report.ts",
+      "header": "@@ -9,9 +9,11 @@ export interface SyncReport {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 9,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 9,
+        "lineCount": 11
+      },
+      "changedLines": 8
+    }
+  ]
+}

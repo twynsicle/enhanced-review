@@ -179,11 +179,12 @@ it writes.
 guardrail tests enforce; [.claude/rules/](.claude/rules/) holds the detail for
 each area.
 
-| Script               | What                                                                |
-| -------------------- | ------------------------------------------------------------------- |
-| `npm run check`      | **The gate**: typecheck + report:build + test + lint + format:check |
-| `npm run report:dev` | The report, against a committed sample review                       |
-| `npm run test:watch` | Vitest: unit + report + guardrails                                  |
+| Script               | What                                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| `npm run check`      | **The gate**: typecheck + report:build + test + lint + format:check                             |
+| `npm run report:dev` | The report, against a committed sample review                                                   |
+| `npm run test:watch` | Vitest: unit + report + guardrails                                                              |
+| `npm run eval:skims` | How well the model tiers hunks, on labelled cases; see [docs/skim-evals.md](docs/skim-evals.md) |
 
 `er review --stub` writes a mechanical review with no model run, which is how
 to work on the reader for nothing. The tests never call the Anthropic API:

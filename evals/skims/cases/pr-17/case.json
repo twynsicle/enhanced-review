@@ -1,0 +1,5981 @@
+{
+  "name": "pr-17",
+  "source": {
+    "folder": "er-reviews/pr-17/20261025-121626",
+    "repo": "twynsicle/enhanced-review",
+    "kind": "pr"
+  },
+  "title": "Validate a generated review: findings, a retry inside the run, and warnings for whoever ran it",
+  "description": "A review used to arrive with no trace of what it cost to obtain. The checks existed — the parsers repaired a promoted passage, dropped a diagram, cleared an insight's anchor and discarded a hunk id — but they were not a layer, and nearly every repair was made in silence, so a review pieced back together looked exactly like one that arrived intact. The prompt told the model to place every hunk it was shown in a chapter and nothing checked that it had, so uncited hunks reached reviews: a change the reader never saw, reported underneath the review as a backstop rather than treated as the hole it is. And because the producer is nondeterministic, \"we dropped it\" was indistinguishable from \"the model chose not to say anything about it\" — the one thing a person reading a generated review most needs to be able to tell apart. This makes validation one layer with one verdict, one record, and one place the severity of each defect is stated.\n\n## The policy\n\n`SEVERITY_BY_CODE` in `src/domain/review/findings.ts` is the only place a severity is decided. The tiers follow what the reader loses.\n\n| Tier | What it means | What happens |\n| --- | --- | --- |\n| **fatal** | Anything that risks the completeness or correctness of the chapters and the hunks they show — no parseable block, a chapter left with no hunks, a shown hunk no chapter cites, a run that did not end cleanly. | Retried inside the run, up to 3 times, via the Agent SDK `Stop` hook: the stop is refused, the exact defect is named, and the model is asked for the complete block again. If it still fails, the review fails. |\n| **warning** | Extra context on top of the chapters was lost — a risk assessment, a diagram, an insight's anchor, a truncated diff — or the answer cost more to get than it should have. | Ships with the review, shown to whoever ran it; `er review` exits 2. |\n| **note** | A repair that cost the reader nothing. | Recorded, and nothing more. |\n\nCoverage is now **strict**: a hunk the reviewer was shown that no chapter cites is fatal, so it is retried and then fails the review. That makes the \"Not discussed\" backstop card a section that can never have anything to put in it — and a backstop with nothing in it is worse than none, because it implies there is a place unreviewed changes go. It is gone, along with `UndiscussedCard`, `UNDISCUSSED_SECTION_ID` and everything in `coverage.ts` that existed only for them. What survives is per-file leftovers (`FileCoverage`), because a truncated prompt can still leave hunks nobody was shown.\n\n## What changed\n\n**Domain.** `findings.ts` is the record: a `Finding` carries a code, a severity, one self-contained sentence and where it happened. Both parsers (`parse-narrative.ts`, `parse-diagram.ts`) now write to a `FindingLog` at the point they repair something, which changes nothing they accept or drop — every silent repair is now a finding, including the six `.filter(isRecord)` calls that discarded a malformed diagram part before anything could log it, a chunk dropped for an unreadable filename, prose that arrived empty, and a coerced change mark. `validate-review.ts` is the one verdict: parse, then hold the answer against the hunks the prompt actually showed (`grounding.shown`, not the full catalog — a diff too big to fit was cut before the model ever saw it, and truncation has its own warning). `validation-stop-hook.server.ts` grades the text accumulated so far and refuses the stop; it reads the executor's accumulated text, because a long narrative spans several assistant messages. Because more than one `<narrative_review>` block can now exist in a transcript, block selection is the **last block that parses**: opening tags are tried last to first, and for each one every closing tag after it last to first, and the first body that parses into a record with a string `prTitle` and an array of `chapters` wins. Nothing is assumed about which tag closes which — the model's own JSON quotes the literal string `</narrative_review>` whenever this tool reviews its own repository, which cut the body short at a tag that was never a tag and failed a correct review three times.\n\n**Hosted.** The executor wires the hook in and, on a fatal, logs the whole finding list at error level and throws the first (the one a retry should fix). `reviews.findings` stores the non-fatal record (migration `0004`, hand-written). `reviews.diff_truncated` is dropped (migration `0005`) along with `ReviewExecutorOutput.wasTruncated`: truncation was being reported twice on the page, by the old `TruncationBanner` and by the `diff-truncated` warning, and the finding wins because it explains itself and travels with the review. `MAX_TURNS` goes 30 → 60, matching the CLI's measured default — an `error_max_turns` result is fatal under this policy where it used to ship a partial review, and each refused stop costs a full re-emission of the block on top of the reading, so the old ceiling would have started failing hosted reviews that used to succeed. A stream that ends with no result message at all is no longer read as a clean success. On the review page, `findings-notice.tsx` draws the warnings above the summary, inside `summary-card.tsx`, so the first thing read about a review is what it cost to get.\n\n**CLI.** `er` runs the same Stop hook over its own copy of the answer; each refusal is a `blocked` event and a note on the terminal while the run is still going, and a hook that throws is reported as a `hook-error` event rather than stranding the run. The parse stage asks `validateReview` for the verdict and joins it with what the run did, read back off `events.jsonl` rather than passed down from the run stage — refused commands become one warning, a missing or unclean result becomes a fatal `run-stopped-early`, blocked stops become `passed-after-retry`. Reading the log is what makes `--from parse` report exactly what a full run reported, which matters because that is how a report is rebuilt from an answer already paid for. Findings land in `findings.json` beside `review.json` and are read back through `FindingsSchema` on a render-only run, warnings are printed, and `er review` exits **0** clean, **2** shipped with warnings, **1** no review to open. `--stub` now writes a synthetic `events.jsonl` with one clean result event, so `--from run --stub` no longer grades itself on some earlier run's log.\n\n**Guardrails.** `cli-imports` now checks what only a comment asserted: the Agent SDK may appear in `er`'s graph as an `import type` or a dynamic import and nothing else. The detector takes re-export shapes too, and a synthetic case pins import, re-export, type-only re-export and dynamic import.\n\n**In-band fix.** The git-backed tests raised `testTimeout` but not `hookTimeout`, and most of them stand their repository up in a `beforeEach`: under `check:all` they failed in the hook at Vitest's 10s default while the tests themselves had 30. Both are raised now, which is what the comment beside `GIT_TEST_TIMEOUT` already described.\n\n## Testing\n\n`npm run check:all` is green on the branch head: **860 unit/web/guardrail tests** and **27 integration tests** against Postgres with both new migrations applied. The retry loop is unit-tested through the injected query function on both sides — the hosted executor and the CLI — covering a first answer that is disqualifying, a retry that passes, and three refusals ending in failure. The parsers' findings are pinned message by message, and `findings.test.ts` spells the severity table out a second time so a severity cannot change as a one-word edit.\n\n**The real SDK `Stop` hook has not been exercised end to end against a live model.** Every test drives it through an injected query, so the hook's contract with the actual Agent SDK — that the refusal is delivered, that the model re-emits, that the accumulated text is what the hook sees — is the one thing still to verify, after merge or on a real run.\n\n## Open questions for the reviewer\n\n- `commands-refused` is a warning under the agreed table, which means `er` exits 2 on an otherwise perfectly clean review that merely tried one command the sandbox refused. That may be noisier than it is worth; a note would still record it without colouring the exit code.\n- The local `review.html` deliberately carries no findings — the person who ran it has them in the terminal and in `findings.json`, and the report is a file they forward to someone who was not there. The consequence is that a forwarded report loses its warnings entirely: the recipient cannot tell a review with a truncated diff from a whole one.\n\nFixes ER-33\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+  "commits": [
+    {
+      "sha": "42e98c2eaa008e153f5294284885be7f72947d76",
+      "subject": "Record what validating a generated review found, and ask the model again when the answer is disqualifying",
+      "body": "A review used to arrive with no trace of what it cost to obtain. The parsers\nrepaired a promoted passage, dropped a diagram, cleared an insight's anchor\nand discarded a hunk id in silence, so a review pieced back together looked\nexactly like one that arrived intact. Separately, the prompt told the model\nto place every hunk it was shown in a chapter and nothing checked that it\nhad, so a hunk no chapter cited was a change the reader never saw, reported\nunderneath the review as a backstop rather than treated as the hole it is.\n\n`findings.ts` is the record. A `Finding` carries a code, a severity, one\nself-contained sentence and where it happened, and `SEVERITY_BY_CODE` is the\nonly place a severity is stated: fatal disqualifies the answer, warning ships\nwith the review and is shown to whoever ran it, note is recorded and nothing\nmore. The tiers follow what the reader loses — anything that risks the\ncompleteness or correctness of the chapters and the hunks they show is\ndisqualifying; anything that is extra context on top of them is a warning.\n`findings.test.ts` spells the table out a second time so a severity cannot\nchange as a one-word edit.\n\nBoth parsers now write to a `FindingLog` at the point they repair something,\nwhich changes nothing they accept or drop. `ParseResult` gains `findings`,\nand `error` is the first fatal finding, so what fails a review and what is\nmerely noted are the same list rather than two mechanisms.\n\n`validate-review.ts` is the one verdict: parse, then hold the answer against\nthe hunks the prompt showed. A shown hunk that no chapter cites is fatal, and\nmeasured against `grounding.shown` rather than the full catalog, since a diff\ntoo big to fit was cut before the model ever saw it — truncation has its own\nwarning. A run that ends on anything but a clean success is fatal too, which\nreverses the old leniency that shipped a review parsed out of a run that had\nhit its turn limit: the turns it never took are files it never read.\n\nRather than fail a job over a defect the model can still fix, validation runs\nas a Stop hook. `validation-stop-hook.server.ts` grades the text accumulated\nso far and refuses the stop up to three times, naming the exact defect and\nasking for the complete block again; the correction costs one turn instead of\na resubmitted job. It reads the executor's own accumulated text, because a\nlong narrative spans several assistant messages and the last one alone is not\nthe answer. It imports the SDK for types only, so the local CLI can share it.\n\nThat makes more than one `<narrative_review>` block possible in a transcript,\nso `parseNarrativeReview` and the live view's checklist both take the last\ncomplete one. Reading from the first would grade the model on the answer it\nwas already told to replace, and would have listed both attempts' chapters.\n\n`reviews.findings` stores the non-fatal record (0004, hand-written: Postgres\nis not running here, so `prisma migrate dev` could not generate it). A fatal\nfinding fails the job, so a stored review's findings are never fatal. The\n`job done` log line reports them by severity.\n\nCo-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+    },
+    {
+      "sha": "a34341c6252af40a91163d62d26d2febd9929946",
+      "subject": "Tell whoever ran a review what validating it cost, and drop the backstop a strict coverage check makes impossible",
+      "body": "The first half of this made validation a record and a retry; nothing carried\nthat record out to a person. `er` still counted cited hunks and warned about\nfiles the chapters left out, the reader still showed those hunks under \"Not\ndiscussed\", and both were describing a state that can no longer exist: a hunk\nthe reviewer was shown and no chapter cites is fatal, so it is retried and then\nfails the review. A backstop section with nothing to put in it is worse than no\nsection — it implies there is a place unreviewed changes go.\n\nSo the local CLI now runs the same Stop hook the hosted executor does, over its\nown copy of the answer, and each refusal is a `blocked` event and a note on the\nterminal while the run is still going. The parse stage asks `validateReview`\nfor the verdict and joins it with what the run itself did, read back off\n`events.jsonl` rather than passed down from the run stage: refused commands\nbecome one warning, a result that is missing or not a clean success becomes a\nfatal `run-stopped-early`, blocked stops become `passed-after-retry`. Reading\nthe log rather than the run is what makes `--from parse` report exactly what a\nfull run reported, which matters because that is how a report is rebuilt from\nan answer already paid for. Every finding lands in `findings.json` beside\n`review.json`, every warning is printed, and `er review` exits 2 when it\nshipped with warnings and 0 when it did not — 1 still means there is no review\nto open.\n\nThat also retires the run stage's own \"stopped early\" warning, which said the\nreview may be partial and then shipped it anyway. It is a fatal finding now:\nthe turns a run never took are files it never read.\n\nOn the reader, `UndiscussedCard`, `UNDISCUSSED_SECTION_ID` and everything in\n`coverage.ts` that existed only for them are gone. What is left is per-file:\n`FileCoverage` still carries a file's leftovers, because a truncated prompt can\nstill leave hunks nobody was shown, and the file view and the sidebar still\ndraw them. In their place the hosted review page shows the warnings above the\nsummary, so the first thing read about a review is what it cost to get. The\nlocal report deliberately shows none — the person who ran it has them in the\nterminal and in the run folder, and the report is a file they forward to\nsomeone who was not there.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+    },
+    {
+      "sha": "b39d46680395bb9e6a248653c71c8f48107913e0",
+      "subject": "Close the gaps in the record: no drop is silent, and the reader is told once",
+      "body": "The first two commits made validation a record and a retry, and left holes in\nit. Six `.filter(isRecord)` calls in `parse-diagram.ts` discarded a node, edge,\ngroup, participant, step or branch that arrived as a non-object before the\n`flatMap` that would have logged it, so the one shape of malformed part most\nlikely to arrive was the one shape that went unrecorded. `resolveHunks`\nreturned nothing for a `hunkIds` that was not a list, and `sanitizeChapter`\nfiltered out a chunk whose `filename` was not a string; both were then removed\nby the empty-hunk filter with no finding of any kind, which is a chapter\nquietly losing a file's diff. A coerced change mark, an unreadable node kind\nand a caption cut to its limit are all text the reader is shown as though the\nmodel wrote it that way, and said nothing. Prose that arrived and turned out to\nbe empty left a chapter with a title, diffs and nothing to read. Each of these\nis now a finding at the point it happens, under two new note codes —\n`chunk-dropped` and `prose-dropped` — and the parsers' tests pin the messages.\n\n`claude-executor.server.ts` treated a stream that ended with no result message\nat all as a clean success. The SDK sends one for every way a run can finish,\nincluding running out of turns, so no result means the run stopped for a reason\nnobody recorded — and shipping its answer is exactly the \"reads well on half\nthe change\" failure the fatal tier exists for. `howItEnded` now reads a missing\nresult as `no result`, the way `er`'s parse stage already read its event log,\nand a test drives a stream that ends without one.\n\n`MAX_TURNS` goes from 30 to 60, matching the CLI's measured default. An\n`error_max_turns` result is fatal under this policy where it used to ship a\npartial review, and each refused stop costs a full re-emission of the block on\ntop of the reading, so the old ceiling would have started failing hosted\nreviews that used to succeed.\n\nThe `hunk-uncited` message now leads with the total and names at most eight\nhunks rather than twenty. The job error column clips at 500 characters, and\nwith real paths the \"and N more\" tail — the part that says how bad this is —\nwas the first thing to go.\n\nTruncation was reported twice on the hosted page: the old `TruncationBanner`\nand the `diff-truncated` warning in the findings notice, which say the same\nthing in two voices. The finding wins, because it explains itself and travels\nwith the review. That left `reviews.diff_truncated` with no reader at all, so\nit goes (0005), along with `ReviewExecutorOutput.wasTruncated`, which existed\nonly to fill it. Two tests were missing for the surviving path and are here: a\nsummary card rendering a warning, and the loader handing its stored findings to\nthe reader.\n\nThe CLI's `passed-after-retry` was guarded by `!isFatal(...)`, which could\nnever be false in a way anyone could observe — `parseRun` throws on a fatal\nbefore any of it is written or read — so the guard, and the argument feeding\nit, are gone.\n\nThe git-backed tests raised `testTimeout` but not `hookTimeout`, and most of\nthem stand their repository up in a `beforeEach`: under `check:all` they failed\nin the hook at Vitest's 10s default while the tests themselves had 30. Both are\nraised now, which is what the comment beside `GIT_TEST_TIMEOUT` already\ndescribed.\n\nAlso rewrites the comments that narrated their own change rather than\ndescribing the code — \"what was missing until now\", \"no longer the same thing\nas silence\", \"now carries the receipt\" — and the two that still named the \"Not\ndiscussed\" section the previous commit deleted.\n\nCo-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+    },
+    {
+      "sha": "9c102ca2552c00bb2fcb2f701ab497c213af0787",
+      "subject": "Make the record survive the answer, the run and the stage that reads it back",
+      "body": "Two reviews of the validation layer found the same shape of defect in several\nplaces: something the code already knew was told to nobody, or was told to the\nwrong reader.\n\n`lastNarrativeBlock` took the last closing tag and the nearest opening tag\nbefore it, so a model that closes with \"I have re-emitted the complete\n<narrative_review>…</narrative_review> block\" handed the parser a few words of\nprose instead of its answer. The Stop hook then refused a correct review three\ntimes and failed it. The parser now pairs every opening tag with the next\nclosing tag after it and takes the last pair whose body parses as JSON, and the\nhook's instruction no longer spells the tag pair that caused this. Two tests\ncover it: a correct block followed by a postamble naming both tags, and a good\nblock followed by a malformed retry.\n\n`er`'s `events.jsonl` is the only record of how a run ended, and a missing one\nread as an empty findings list — identical to a clean run. `--stub` wrote none\nat all, so `--from run --stub` graded itself on some earlier run's log.\n`writeStubRun` now overwrites the file with one clean result event, and a\nmissing file is a fatal `run-stopped-early` saying there is no record and to\nrun again from the run stage; any other read error is rethrown rather than\nswallowed. Its old message told the reader to edit `raw.txt` and use\n`--from parse`, which cannot clear a finding drawn from the event log.\n\n`--from render` reported a warned review as clean: `findings.json` was written\nand never read. `readFindings` reads it back through `FindingsSchema`, refusing\na file that is missing or holds a fatal finding, and the render-only branch\nprints the warnings and returns `WARNED` exactly as the parse branch does. A\nfatal at parse now writes `findings.json` before it throws and writes no\n`review.json`, so the record outlives the terminal it was printed to and there\nis no stale review for a later render to draw.\n\nThe hosted executor threw the *last* fatal finding's message where\n`parse-narrative.ts` says the first is the one a retry should fix, and logged\nnone of the others; it now logs the whole list at error level and throws\n`fatal[0]`. The Stop hook had no failure path of its own — a throw inside it\nwould strand the run — so its body is wrapped and a new required `onError`\nreports it: pino on the server, a `hook-error` event and a terminal warning in\n`er`. `blockedNote` printed the whole reason including the sentence addressed\nto the model; `onBlock` now passes the defects apart from it, and the full\nreason stays in `events.jsonl`.\n\nThree copies of \"how the run ended\" and two duplicated finding messages are one\neach: `howItEnded` beside `SdkRunResult` in `sdk-loop.server.ts`, which both\nsides already import, and `runStoppedEarly`/`passedAfterRetry` in `findings.ts`,\nso a job's findings and a run folder's read the same sentence.\n\nNine more repairs of model output were made in silence and are now notes at the\npoint they happen, each with a test: a `diagram` that arrived as something other\nthan an object, `insights` that arrived as something other than a list, a risk\n`rationale` that was not text, a `direction`, a group `style` and a message\n`style` coerced to their defaults through a new `toOneOf` shaped like\n`toChange`, a `filename` on a non-code node, `hunkIds` with no filename, an\ninsight whose text is only whitespace (which the code's own doc already claimed\nwas dropped), a non-integer risk score and what it was rounded from, and hunk\nids repeated inside one chunk. A `hunk-id-dropped` on a chunk that named no file\ncarried `filename: ''`; it now omits the key, as its sibling ten lines up does.\n\n`ParseResult.error` duplicated the first fatal finding and had no production\ncaller, and `isFatal` had none either; both go, with `validate-review.ts`'s\ncomment corrected to point at `fatalFindings`. `findings-notice.tsx` respelled\n`review-banners.tsx`'s panel style, so `bannerStyle` moves to the theme and both\ntake it from there — rather than the notice importing the hosted rerun button\ninto the local report's bundle. The `cli-imports` guardrail now checks what only\na comment asserted, that nothing in the CLI's graph loads the Agent SDK outside\nan `import type` or a dynamic import; it was confirmed to fail on a planted\nvalue import. The `viewer-page.tsx` comment argued against its own conclusion\nand now states it, and the `warning` tier's definition covers a run that cost\nmore than it should have, which is where `commands-refused` and\n`passed-after-retry` already sat.\n\n`npm run check:all` passes: 844 unit/web/guardrail tests and 27 integration\ntests against Postgres.\n\nCo-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+    },
+    {
+      "sha": "1f47678c72b8ec570c7c14ca06704e43334c071a",
+      "subject": "Pair the narrative tags by what parses, not by what comes next",
+      "body": "`narrativeBlocks` paired each opening `<narrative_review>` tag with the first\nclosing tag after it, which is wrong whenever the answer's own JSON contains\nthe literal string `</narrative_review>` — an insight quoting the tag, which\nis exactly what this tool writes when it reviews its own repository. The body\nwas cut short at a tag that was never a tag, nothing parsed, and a correct\nreview was refused three times by the Stop hook and then failed. Nothing is\nassumed about which tag goes with which any more: opening tags are tried last\nto first, and for each one every closing tag after it last to first — widest\nbody first, since a quoted tag is always narrower than the real one — and the\nfirst body that parses into a record with a string `prTitle` and an array of\n`chapters` wins. That shape check is also new: a block is now disqualified as\nthe answer for being the wrong shape rather than only for failing to parse, so\na postamble `<narrative_review>{}</narrative_review>` no longer beats the\nreview above it. When nothing qualifies, the last opening tag paired with the\nlast closing tag after it is what the finding is reported against, so an\nanswer whose only block is missing `prTitle` still says so. Eleven tests pin\nthe rule, one per shape it has to survive: both tags quoted inside the JSON,\nthree blocks where only the middle one is an answer, an unclosed opening tag,\na closing tag that comes first, an empty body, and the repair path.\n\n`partial-narrative-parse.ts` scanned from the last opening tag whatever\nfollowed it, so the live checklist on `/jobs/:id` went blank at the moment the\nreview finished: the model's closing remark names the tag, and the tail behind\nit has no chapters. It now walks back to the last tag that has a `\"chapters\": [`\nunder it.\n\nThree fixes in the local CLI's parse stage. A fatal `run-stopped-early` was\ntold, like every other fatal, that the model's answer is in `raw.txt` and to\nrerun with `--from parse` — which cannot give back the turns the run never\ntook, and contradicts the finding's own instruction to run again from the run\nstage; the sentence is now appended only when every fatal is about the answer\nitself. A failed parse wrote `findings.json` and left any `review.json` an\nearlier parse had written, so `--from render` could draw a stale review as\nthough it were this run's; it is removed with `rm(..., { force: true })`. And\n`readFindings` caught every read error as \"no findings.json\", while a\n`findings.json` cut off mid-write escaped as a bare `SyntaxError` from a stage\nthat never mentioned JSON: ENOENT and a truncated file each get their own\nsentence saying to run from parse, and anything else — a permission, a bad\nhandle — is rethrown as the fact about this machine that it is.\n\nThe Stop hook's `onError` was called unguarded from the catch that exists so a\nthrowing hook cannot strand a run; an `onError` that threw became the failure\nit was reporting. It is wrapped, and a test drives both throwing at once.\n\n`parse-diagram.ts` dropped a `code` node's `filename` that arrived as a number\nor as nothing but space with no finding at all, and then described the node as\none that \"named no file\". The unusable filename is reported where it is\ndropped. The file also tested \"did the model send this\" four different ways;\none `arrived()` predicate now covers `toChange`, `toNodeKind`, `toOneOf` and\nthe node filename checks, so `null` reads as absent everywhere rather than as\na drop in one check and silence in the next.\n\nThe `cli-imports` guardrail matched only `import … from`, so\n`export { query } from '@anthropic-ai/claude-agent-sdk'` would have loaded the\nSDK into `er`'s startup path unremarked. The detector takes both shapes, and a\nsynthetic case in the same file pins import, re-export, type-only re-export and\nthe dynamic import that must keep counting as none.\n\nAlso drops a test comment narrating its own change and sorts `review.test.ts`'s\nimports the way the rest of the file is sorted.\n\n`npm run check:all` passes: 860 unit/web/guardrail tests and 27 integration\ntests against Postgres.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+    }
+  ],
+  "files": [
+    {
+      "filename": ".claude/rules/cli.md",
+      "status": "modified",
+      "additions": 39,
+      "deletions": 13
+    },
+    {
+      "filename": ".claude/rules/review-pipeline.md",
+      "status": "modified",
+      "additions": 59,
+      "deletions": 17
+    },
+    {
+      "filename": ".claude/rules/web.md",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 9
+    },
+    {
+      "filename": "AGENTS.md",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 1
+    },
+    {
+      "filename": "README.md",
+      "status": "modified",
+      "additions": 11,
+      "deletions": 4
+    },
+    {
+      "filename": "prisma/migrations/0004_review_findings/migration.sql",
+      "status": "added",
+      "additions": 9,
+      "deletions": 0
+    },
+    {
+      "filename": "prisma/migrations/0005_drop_review_diff_truncated/migration.sql",
+      "status": "added",
+      "additions": 7,
+      "deletions": 0
+    },
+    {
+      "filename": "prisma/schema.prisma",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 1
+    },
+    {
+      "filename": "src/cli/claude-run.test.ts",
+      "status": "modified",
+      "additions": 93,
+      "deletions": 4
+    },
+    {
+      "filename": "src/cli/claude-run.ts",
+      "status": "modified",
+      "additions": 57,
+      "deletions": 18
+    },
+    {
+      "filename": "src/cli/context.test.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/cli/parse.ts",
+      "status": "modified",
+      "additions": 185,
+      "deletions": 17
+    },
+    {
+      "filename": "src/cli/review.test.ts",
+      "status": "modified",
+      "additions": 104,
+      "deletions": 71
+    },
+    {
+      "filename": "src/cli/review.ts",
+      "status": "modified",
+      "additions": 60,
+      "deletions": 39
+    },
+    {
+      "filename": "src/cli/run-folder.test.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/cli/run-folder.ts",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 0
+    },
+    {
+      "filename": "src/cli/stages.test.ts",
+      "status": "modified",
+      "additions": 126,
+      "deletions": 6
+    },
+    {
+      "filename": "src/cli/stub-run.ts",
+      "status": "modified",
+      "additions": 21,
+      "deletions": 0
+    },
+    {
+      "filename": "src/cli/targets.test.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/cli/worktree.test.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/db/review-jobs.integration.test.ts",
+      "status": "modified",
+      "additions": 13,
+      "deletions": 10
+    },
+    {
+      "filename": "src/db/review-jobs.ts",
+      "status": "modified",
+      "additions": 7,
+      "deletions": 2
+    },
+    {
+      "filename": "src/db/reviews.ts",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 3
+    },
+    {
+      "filename": "src/domain/jobs/jobs.server.test.ts",
+      "status": "modified",
+      "additions": 19,
+      "deletions": 3
+    },
+    {
+      "filename": "src/domain/jobs/jobs.server.ts",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 2
+    },
+    {
+      "filename": "src/domain/review/coverage.test.ts",
+      "status": "modified",
+      "additions": 17,
+      "deletions": 39
+    },
+    {
+      "filename": "src/domain/review/coverage.ts",
+      "status": "modified",
+      "additions": 7,
+      "deletions": 35
+    },
+    {
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "status": "modified",
+      "additions": 138,
+      "deletions": 5
+    },
+    {
+      "filename": "src/domain/review/executor/claude-executor.server.ts",
+      "status": "modified",
+      "additions": 81,
+      "deletions": 15
+    },
+    {
+      "filename": "src/domain/review/executor/sdk-loop.server.ts",
+      "status": "modified",
+      "additions": 19,
+      "deletions": 0
+    },
+    {
+      "filename": "src/domain/review/executor/stub-executor.server.test.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/domain/review/executor/stub-executor.server.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/domain/review/executor/types.ts",
+      "status": "modified",
+      "additions": 7,
+      "deletions": 1
+    },
+    {
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "status": "added",
+      "additions": 139,
+      "deletions": 0
+    },
+    {
+      "filename": "src/domain/review/executor/validation-stop-hook.server.ts",
+      "status": "added",
+      "additions": 90,
+      "deletions": 0
+    },
+    {
+      "filename": "src/domain/review/findings.test.ts",
+      "status": "added",
+      "additions": 118,
+      "deletions": 0
+    },
+    {
+      "filename": "src/domain/review/findings.ts",
+      "status": "added",
+      "additions": 178,
+      "deletions": 0
+    },
+    {
+      "filename": "src/domain/review/narrative.ts",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 5
+    },
+    {
+      "filename": "src/domain/review/partial-narrative-parse.test.ts",
+      "status": "modified",
+      "additions": 53,
+      "deletions": 0
+    },
+    {
+      "filename": "src/domain/review/partial-narrative-parse.ts",
+      "status": "modified",
+      "additions": 28,
+      "deletions": 1
+    },
+    {
+      "filename": "src/domain/review/prompt/narrative-prompt.test.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "status": "modified",
+      "additions": 267,
+      "deletions": 20
+    },
+    {
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "status": "modified",
+      "additions": 335,
+      "deletions": 105
+    },
+    {
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "status": "modified",
+      "additions": 463,
+      "deletions": 41
+    },
+    {
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "status": "modified",
+      "additions": 403,
+      "deletions": 112
+    },
+    {
+      "filename": "src/domain/review/run.integration.test.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/domain/review/run.server.test.ts",
+      "status": "modified",
+      "additions": 19,
+      "deletions": 2
+    },
+    {
+      "filename": "src/domain/review/run.server.ts",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 3
+    },
+    {
+      "filename": "src/domain/review/skip-reasons.server.test.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "filename": "src/domain/review/validate-review.test.ts",
+      "status": "added",
+      "additions": 113,
+      "deletions": 0
+    },
+    {
+      "filename": "src/domain/review/validate-review.ts",
+      "status": "added",
+      "additions": 84,
+      "deletions": 0
+    },
+    {
+      "filename": "src/guardrails/cli-imports.guard.test.ts",
+      "status": "modified",
+      "additions": 93,
+      "deletions": 26
+    },
+    {
+      "filename": "src/test/git-repo.ts",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 0
+    },
+    {
+      "filename": "src/web/components/jobs/review-banners.tsx",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 23
+    },
+    {
+      "filename": "src/web/components/narrative/chapter-reader.test.tsx",
+      "status": "modified",
+      "additions": 6,
+      "deletions": 1
+    },
+    {
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "status": "modified",
+      "additions": 19,
+      "deletions": 25
+    },
+    {
+      "filename": "src/web/components/narrative/chapter-sidebar.test.tsx",
+      "status": "modified",
+      "additions": 0,
+      "deletions": 25
+    },
+    {
+      "filename": "src/web/components/narrative/findings-notice.test.tsx",
+      "status": "added",
+      "additions": 36,
+      "deletions": 0
+    },
+    {
+      "filename": "src/web/components/narrative/findings-notice.tsx",
+      "status": "added",
+      "additions": 40,
+      "deletions": 0
+    },
+    {
+      "filename": "src/web/components/narrative/sections.test.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 47
+    },
+    {
+      "filename": "src/web/components/narrative/sections.ts",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 19
+    },
+    {
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "status": "modified",
+      "additions": 35,
+      "deletions": 2
+    },
+    {
+      "filename": "src/web/components/narrative/summary-card.tsx",
+      "status": "modified",
+      "additions": 7,
+      "deletions": 0
+    },
+    {
+      "filename": "src/web/components/narrative/undiscussed-card.test.tsx",
+      "status": "removed",
+      "additions": 0,
+      "deletions": 185
+    },
+    {
+      "filename": "src/web/components/narrative/undiscussed-card.tsx",
+      "status": "removed",
+      "additions": 0,
+      "deletions": 97
+    },
+    {
+      "filename": "src/web/components/narrative/use-narrative-keyboard.ts",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 5
+    },
+    {
+      "filename": "src/web/routes/reviews.$id.test.ts",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 2
+    },
+    {
+      "filename": "src/web/routes/reviews.$id.tsx",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 4
+    },
+    {
+      "filename": "src/web/theme/tokens.ts",
+      "status": "modified",
+      "additions": 14,
+      "deletions": 0
+    },
+    {
+      "filename": "src/web/viewer/sample-bundle.test.ts",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 4
+    },
+    {
+      "filename": "src/web/viewer/sample-bundle.ts",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "filename": "src/web/viewer/viewer-page.tsx",
+      "status": "modified",
+      "additions": 6,
+      "deletions": 0
+    }
+  ],
+  "hunks": [
+    {
+      "id": "H0001",
+      "filename": ".claude/rules/cli.md",
+      "header": "@@ -11,15 +11,19 @@ review and writes one `review.html` — everything inlined but the Monaco editor",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 11,
+        "lineCount": 15
+      },
+      "modified": {
+        "startLine": 11,
+        "lineCount": 19
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0002",
+      "filename": ".claude/rules/cli.md",
+      "header": "@@ -32,17 +36,32 @@ src/cli/",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 32,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 36,
+        "lineCount": 32
+      },
+      "changedLines": 29
+    },
+    {
+      "id": "H0003",
+      "filename": ".claude/rules/cli.md",
+      "header": "@@ -69,9 +88,16 @@ src/cli/",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 69,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 88,
+        "lineCount": 16
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0004",
+      "filename": ".claude/rules/review-pipeline.md",
+      "header": "@@ -27,16 +27,26 @@ src/domain/",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 27,
+        "lineCount": 16
+      },
+      "modified": {
+        "startLine": 27,
+        "lineCount": 26
+      },
+      "changedLines": 28
+    },
+    {
+      "id": "H0005",
+      "filename": ".claude/rules/review-pipeline.md",
+      "header": "@@ -49,7 +59,9 @@ src/domain/",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 49,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 59,
+        "lineCount": 9
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0006",
+      "filename": ".claude/rules/review-pipeline.md",
+      "header": "@@ -65,12 +77,20 @@ src/domain/",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 65,
+        "lineCount": 12
+      },
+      "modified": {
+        "startLine": 77,
+        "lineCount": 20
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0007",
+      "filename": ".claude/rules/review-pipeline.md",
+      "header": "@@ -81,18 +101,26 @@ src/domain/",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 81,
+        "lineCount": 18
+      },
+      "modified": {
+        "startLine": 101,
+        "lineCount": 26
+      },
+      "changedLines": 14
+    },
+    {
+      "id": "H0008",
+      "filename": ".claude/rules/review-pipeline.md",
+      "header": "@@ -122,13 +150,26 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 122,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 150,
+        "lineCount": 26
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0009",
+      "filename": ".claude/rules/review-pipeline.md",
+      "header": "@@ -144,4 +185,5 @@ src/jobs/            cli.ts (`npm run job -- <name>`), recover-jobs.ts, errors.t",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 144,
+        "lineCount": 4
+      },
+      "modified": {
+        "startLine": 185,
+        "lineCount": 5
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0010",
+      "filename": ".claude/rules/web.md",
+      "header": "@@ -41,17 +41,16 @@ src/web/",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 41,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 41,
+        "lineCount": 16
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0011",
+      "filename": ".claude/rules/web.md",
+      "header": "@@ -62,7 +61,7 @@ src/web/",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 62,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 61,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0012",
+      "filename": ".claude/rules/web.md",
+      "header": "@@ -117,7 +116,8 @@ src/web/",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 117,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 116,
+        "lineCount": 8
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0013",
+      "filename": "AGENTS.md",
+      "header": "@@ -44,7 +44,9 @@ server/index.ts        Express bootstrap: dev = Vite middleware, prod = build/;",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 44,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 44,
+        "lineCount": 9
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0014",
+      "filename": "README.md",
+      "header": "@@ -143,8 +143,14 @@ ignored by git automatically. The report is `review.html`, and it opens when",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 143,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 143,
+        "lineCount": 14
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0015",
+      "filename": "README.md",
+      "header": "@@ -152,8 +158,9 @@ It gets `Read`, `Glob` and `Grep`, and `Bash` for read-only history —",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 152,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 158,
+        "lineCount": 9
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0016",
+      "filename": "prisma/migrations/0004_review_findings/migration.sql",
+      "header": "@@ -0,0 +1,9 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0017",
+      "filename": "prisma/migrations/0005_drop_review_diff_truncated/migration.sql",
+      "header": "@@ -0,0 +1,7 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0018",
+      "filename": "prisma/schema.prisma",
+      "header": "@@ -100,7 +100,9 @@ model Review {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 100,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 100,
+        "lineCount": 9
+      },
+      "changedLines": 4
+    },
+    {
+      "importsOnly": true,
+      "id": "H0019",
+      "filename": "src/cli/claude-run.test.ts",
+      "header": "@@ -1,8 +1,9 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 9
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0020",
+      "filename": "src/cli/claude-run.test.ts",
+      "header": "@@ -51,7 +52,22 @@ function fakeQuery(messages: SDKMessage[]): QueryFn & { options: () => Options }",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 51,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 52,
+        "lineCount": 22
+      },
+      "changedLines": 17
+    },
+    {
+      "id": "H0021",
+      "filename": "src/cli/claude-run.test.ts",
+      "header": "@@ -59,3 +75,18 @@ (part 1 of 2) const events = () =>",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 59,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 75,
+        "lineCount": 18
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0022",
+      "filename": "src/cli/claude-run.test.ts",
+      "header": "@@ -62,3 +93,32 @@ (part 2 of 2)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 62,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 93,
+        "lineCount": 32
+      },
+      "changedLines": 29
+    },
+    {
+      "id": "H0023",
+      "filename": "src/cli/claude-run.test.ts",
+      "header": "@@ -69,7 +129,6 @@ describe('the model run', () => {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 69,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 129,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0024",
+      "filename": "src/cli/claude-run.test.ts",
+      "header": "@@ -153,7 +212,7 @@ describe('the model run', () => {",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 153,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 212,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0025",
+      "filename": "src/cli/claude-run.test.ts",
+      "header": "@@ -221,3 +280,22 @@ (part 1 of 2) describe('the model run', () => {",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 221,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 280,
+        "lineCount": 22
+      },
+      "changedLines": 19
+    },
+    {
+      "id": "H0026",
+      "filename": "src/cli/claude-run.test.ts",
+      "header": "@@ -223,0 +302,11 @@ (part 2 of 2)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 223,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 302,
+        "lineCount": 11
+      },
+      "changedLines": 11
+    },
+    {
+      "importsOnly": true,
+      "id": "H0027",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -3,10 +3,16 @@ import { readFile } from 'node:fs/promises';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 3,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 3,
+        "lineCount": 16
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0028",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -55,6 +61,8 @@ export interface ClaudeRunOptions {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 55,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 61,
+        "lineCount": 8
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0029",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -63,6 +71,10 @@ export interface ClaudeRunDeps {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 63,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 71,
+        "lineCount": 10
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0030",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -70,8 +82,6 @@ export interface ClaudeRunResult {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 70,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 82,
+        "lineCount": 6
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0031",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -103,9 +113,20 @@ (part 1 of 2) export async function runClaude(",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 103,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 113,
+        "lineCount": 20
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0032",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -112,11 +133,20 @@ (part 2 of 2)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 112,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 133,
+        "lineCount": 20
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0033",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -151,11 +181,10 @@ export async function runClaude(",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 151,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 181,
+        "lineCount": 10
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0034",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -164,22 +193,19 @@ export async function runClaude(",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 164,
+        "lineCount": 22
+      },
+      "modified": {
+        "startLine": 193,
+        "lineCount": 19
+      },
+      "changedLines": 17
+    },
+    {
+      "id": "H0035",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -189,7 +215,7 @@ function sdkOptions(",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 189,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 215,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0036",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -197,6 +223,19 @@ function sdkOptions(",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 197,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 223,
+        "lineCount": 19
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0037",
+      "filename": "src/cli/context.test.ts",
+      "header": "@@ -10,7 +10,7 @@ import { createRunFolder } from './run-folder.ts';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 10,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 10,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "importsOnly": true,
+      "id": "H0038",
+      "filename": "src/cli/parse.ts",
+      "header": "@@ -1,8 +1,19 @@ (part 1 of 3)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 19
+      },
+      "changedLines": 17
+    },
+    {
+      "id": "H0039",
+      "filename": "src/cli/parse.ts",
+      "header": "@@ -9,25 +20,55 @@ (part 2 of 3)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 9,
+        "lineCount": 25
+      },
+      "modified": {
+        "startLine": 20,
+        "lineCount": 55
+      },
+      "changedLines": 54
+    },
+    {
+      "id": "H0040",
+      "filename": "src/cli/parse.ts",
+      "header": "@@ -34,9 +75,136 @@ (part 3 of 3)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 34,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 75,
+        "lineCount": 136
+      },
+      "changedLines": 131
+    },
+    {
+      "id": "H0041",
+      "filename": "src/cli/review.test.ts",
+      "header": "@@ -1,24 +1,23 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 24
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 23
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0042",
+      "filename": "src/cli/review.test.ts",
+      "header": "@@ -83,6 +82,16 @@ const MODEL_REVIEW = `<narrative_review>",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 83,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 82,
+        "lineCount": 16
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0043",
+      "filename": "src/cli/review.test.ts",
+      "header": "@@ -99,14 +108,3 @@ (part 1 of 2) function runFolders(): string[] {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 99,
+        "lineCount": 14
+      },
+      "modified": {
+        "startLine": 108,
+        "lineCount": 3
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0044",
+      "filename": "src/cli/review.test.ts",
+      "header": "@@ -113,28 +111,3 @@ (part 2 of 2)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 113,
+        "lineCount": 28
+      },
+      "modified": {
+        "startLine": 111,
+        "lineCount": 3
+      },
+      "changedLines": 25
+    },
+    {
+      "id": "H0045",
+      "filename": "src/cli/review.test.ts",
+      "header": "@@ -146,7 +119,9 @@ describe('er review', () => {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 146,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 119,
+        "lineCount": 9
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0046",
+      "filename": "src/cli/review.test.ts",
+      "header": "@@ -173,46 +148,87 @@ describe('er review', () => {",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 173,
+        "lineCount": 46
+      },
+      "modified": {
+        "startLine": 148,
+        "lineCount": 87
+      },
+      "changedLines": 97
+    },
+    {
+      "id": "H0047",
+      "filename": "src/cli/review.test.ts",
+      "header": "@@ -233,3 +249,7 @@ (part 1 of 2) describe('er review', () => {",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 233,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 249,
+        "lineCount": 7
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0048",
+      "filename": "src/cli/review.test.ts",
+      "header": "@@ -236,3 +256,16 @@ (part 2 of 2)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 236,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 256,
+        "lineCount": 16
+      },
+      "changedLines": 13
+    },
+    {
+      "importsOnly": true,
+      "id": "H0049",
+      "filename": "src/cli/review.ts",
+      "header": "@@ -2,18 +2,16 @@ import { rename } from 'node:fs/promises';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 2,
+        "lineCount": 18
+      },
+      "modified": {
+        "startLine": 2,
+        "lineCount": 16
+      },
+      "changedLines": 10
+    },
+    {
+      "importsOnly": true,
+      "id": "H0050",
+      "filename": "src/cli/review.ts",
+      "header": "@@ -21,7 +19,7 @@ import { HOST_RENDER_DEPS, renderRun, type RenderDeps } from './render.ts';",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 21,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 19,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0051",
+      "filename": "src/cli/review.ts",
+      "header": "@@ -35,12 +33,22 @@ import {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 35,
+        "lineCount": 12
+      },
+      "modified": {
+        "startLine": 33,
+        "lineCount": 22
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0052",
+      "filename": "src/cli/review.ts",
+      "header": "@@ -116,23 +124,20 @@ export async function review(",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 116,
+        "lineCount": 23
+      },
+      "modified": {
+        "startLine": 124,
+        "lineCount": 20
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0053",
+      "filename": "src/cli/review.ts",
+      "header": "@@ -140,22 +145,29 @@ export async function review(",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 140,
+        "lineCount": 22
+      },
+      "modified": {
+        "startLine": 145,
+        "lineCount": 29
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0054",
+      "filename": "src/cli/review.ts",
+      "header": "@@ -164,7 +176,27 @@ export async function review(",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 164,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 176,
+        "lineCount": 27
+      },
+      "changedLines": 22
+    },
+    {
+      "id": "H0055",
+      "filename": "src/cli/review.ts",
+      "header": "@@ -234,10 +266,15 @@ export function describeTarget(target: Target, meta: ReviewMeta): string {",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 234,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 266,
+        "lineCount": 15
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0056",
+      "filename": "src/cli/review.ts",
+      "header": "@@ -254,10 +291,3 @@ (part 1 of 2) function describeUsage(usage: ClaudeRunResult['usage']): string {",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 254,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 291,
+        "lineCount": 3
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0057",
+      "filename": "src/cli/review.ts",
+      "header": "@@ -264,12 +294,3 @@ (part 2 of 2)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 264,
+        "lineCount": 12
+      },
+      "modified": {
+        "startLine": 294,
+        "lineCount": 3
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0058",
+      "filename": "src/cli/run-folder.test.ts",
+      "header": "@@ -12,7 +12,7 @@ import {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 12,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 12,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0059",
+      "filename": "src/cli/run-folder.ts",
+      "header": "@@ -25,6 +25,8 @@ export interface RunFiles {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 25,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 25,
+        "lineCount": 8
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0060",
+      "filename": "src/cli/run-folder.ts",
+      "header": "@@ -39,6 +41,7 @@ export function runFiles(folder: string): RunFiles {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 39,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 41,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "importsOnly": true,
+      "id": "H0061",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -1,11 +1,11 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 11
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0062",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -84,9 +84,12 @@ function context(overrides: Partial<RunContext> = {}): RunContext {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 84,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 84,
+        "lineCount": 12
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0063",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -109,15 +112,16 @@ (part 1 of 10) describe('stub run → parse', () => {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 109,
+        "lineCount": 15
+      },
+      "modified": {
+        "startLine": 112,
+        "lineCount": 16
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0064",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -123,0 +128,15 @@ (part 2 of 10)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 123,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 128,
+        "lineCount": 15
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0065",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -123,0 +143,12 @@ (part 3 of 10)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 123,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 143,
+        "lineCount": 12
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0066",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -123,0 +155,23 @@ (part 4 of 10)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 123,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 155,
+        "lineCount": 23
+      },
+      "changedLines": 23
+    },
+    {
+      "id": "H0067",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -123,0 +178,19 @@ (part 5 of 10)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 123,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 178,
+        "lineCount": 19
+      },
+      "changedLines": 19
+    },
+    {
+      "id": "H0068",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -123,0 +197,8 @@ (part 6 of 10)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 123,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 197,
+        "lineCount": 8
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0069",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -124,3 +205,15 @@ (part 7 of 10)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 124,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 205,
+        "lineCount": 15
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0070",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -126,0 +220,10 @@ (part 8 of 10)",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 126,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 220,
+        "lineCount": 10
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0071",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -126,0 +230,5 @@ (part 9 of 10)",
+      "fileOrder": 11,
+      "original": {
+        "startLine": 126,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 230,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0072",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -127,3 +235,15 @@ (part 10 of 10)",
+      "fileOrder": 12,
+      "original": {
+        "startLine": 127,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 235,
+        "lineCount": 15
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0073",
+      "filename": "src/cli/stages.test.ts",
+      "header": "@@ -132,7 +252,7 @@ describe('render', () => {",
+      "fileOrder": 13,
+      "original": {
+        "startLine": 132,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 252,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0074",
+      "filename": "src/cli/stub-run.ts",
+      "header": "@@ -4,6 +4,26 @@ import { detectLanguage } from '../domain/review/language-map.ts';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 4,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 4,
+        "lineCount": 26
+      },
+      "changedLines": 20
+    },
+    {
+      "id": "H0075",
+      "filename": "src/cli/stub-run.ts",
+      "header": "@@ -16,6 +36,7 @@ export async function writeStubRun(context: RunContext, run: RunFiles): Promise<",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 16,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 36,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0076",
+      "filename": "src/cli/targets.test.ts",
+      "header": "@@ -8,7 +8,7 @@ import { Shell } from './git.ts';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 8,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 8,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0077",
+      "filename": "src/cli/worktree.test.ts",
+      "header": "@@ -13,7 +13,7 @@ import {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 13,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 13,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0078",
+      "filename": "src/db/review-jobs.integration.test.ts",
+      "header": "@@ -60,9 +60,12 @@ describeDb('review-jobs repository', () => {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 60,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 60,
+        "lineCount": 12
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0079",
+      "filename": "src/db/review-jobs.integration.test.ts",
+      "header": "@@ -71,13 +74,13 @@ describeDb('review-jobs repository', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 71,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 74,
+        "lineCount": 13
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0080",
+      "filename": "src/db/review-jobs.integration.test.ts",
+      "header": "@@ -85,7 +88,7 @@ describeDb('review-jobs repository', () => {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 85,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 88,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0081",
+      "filename": "src/db/review-jobs.integration.test.ts",
+      "header": "@@ -119,7 +122,7 @@ describeDb('review-jobs repository', () => {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 119,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 122,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0082",
+      "filename": "src/db/review-jobs.integration.test.ts",
+      "header": "@@ -135,7 +138,7 @@ describeDb('review-jobs repository', () => {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 135,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 138,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0083",
+      "filename": "src/db/review-jobs.ts",
+      "header": "@@ -150,7 +150,8 @@ export async function markRunning(id: string, now = new Date()): Promise<boolean",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 150,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 150,
+        "lineCount": 8
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0084",
+      "filename": "src/db/review-jobs.ts",
+      "header": "@@ -171,7 +172,11 @@ export async function finalizeDone(",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 171,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 172,
+        "lineCount": 11
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0085",
+      "filename": "src/db/reviews.ts",
+      "header": "@@ -3,13 +3,14 @@ (part 1 of 2) import { prisma } from './client.ts';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 3,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 3,
+        "lineCount": 14
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0086",
+      "filename": "src/db/reviews.ts",
+      "header": "@@ -16,6 +17,12 @@ (part 2 of 2)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 16,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 17,
+        "lineCount": 12
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0087",
+      "filename": "src/domain/jobs/jobs.server.test.ts",
+      "header": "@@ -47,11 +47,15 @@ describe('parseReview', () => {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 47,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 47,
+        "lineCount": 15
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0088",
+      "filename": "src/domain/jobs/jobs.server.test.ts",
+      "header": "@@ -60,9 +64,21 @@ describe('parseReview', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 60,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 64,
+        "lineCount": 21
+      },
+      "changedLines": 14
+    },
+    {
+      "importsOnly": true,
+      "id": "H0089",
+      "filename": "src/domain/jobs/jobs.server.ts",
+      "header": "@@ -1,6 +1,7 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0090",
+      "filename": "src/domain/jobs/jobs.server.ts",
+      "header": "@@ -19,7 +20,7 @@ export interface ReviewJob extends Omit<reviewJobs.ReviewJobRecord, 'target'> {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 19,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 20,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0091",
+      "filename": "src/domain/jobs/jobs.server.ts",
+      "header": "@@ -36,10 +37,16 @@ export function parseReview(record: reviews.ReviewRecord): Review {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 36,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 37,
+        "lineCount": 16
+      },
+      "changedLines": 8
+    },
+    {
+      "importsOnly": true,
+      "id": "H0092",
+      "filename": "src/domain/review/coverage.test.ts",
+      "header": "@@ -1,11 +1,5 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0093",
+      "filename": "src/domain/review/coverage.test.ts",
+      "header": "@@ -84,18 +78,22 @@ (part 1 of 2) describe('withFileHunks', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 84,
+        "lineCount": 18
+      },
+      "modified": {
+        "startLine": 78,
+        "lineCount": 22
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0094",
+      "filename": "src/domain/review/coverage.test.ts",
+      "header": "@@ -102,11 +100,10 @@ (part 2 of 2)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 102,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 100,
+        "lineCount": 10
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0095",
+      "filename": "src/domain/review/coverage.test.ts",
+      "header": "@@ -114,7 +111,7 @@ describe('reviewCoverage', () => {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 114,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 111,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0096",
+      "filename": "src/domain/review/coverage.test.ts",
+      "header": "@@ -122,13 +119,14 @@ describe('reviewCoverage', () => {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 122,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 119,
+        "lineCount": 14
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0097",
+      "filename": "src/domain/review/coverage.test.ts",
+      "header": "@@ -232,23 +230,3 @@ describe('citedChunk', () => {",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 232,
+        "lineCount": 23
+      },
+      "modified": {
+        "startLine": 230,
+        "lineCount": 3
+      },
+      "changedLines": 20
+    },
+    {
+      "importsOnly": true,
+      "id": "H0098",
+      "filename": "src/domain/review/coverage.ts",
+      "header": "@@ -1,4 +1,3 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 4
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 3
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0099",
+      "filename": "src/domain/review/coverage.ts",
+      "header": "@@ -10,12 +9,12 @@ import type {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 10,
+        "lineCount": 12
+      },
+      "modified": {
+        "startLine": 9,
+        "lineCount": 12
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0100",
+      "filename": "src/domain/review/coverage.ts",
+      "header": "@@ -35,19 +34,10 @@ export interface FileCoverage {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 35,
+        "lineCount": 19
+      },
+      "modified": {
+        "startLine": 34,
+        "lineCount": 10
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0101",
+      "filename": "src/domain/review/coverage.ts",
+      "header": "@@ -162,7 +152,6 @@ export function fileCoverage(file: ReviewFile, cited: ReadonlySet<string>): File",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 162,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 152,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0102",
+      "filename": "src/domain/review/coverage.ts",
+      "header": "@@ -173,24 +162,7 @@ export function reviewCoverage(review: NarrativeReview): ReviewCoverage {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 173,
+        "lineCount": 24
+      },
+      "modified": {
+        "startLine": 162,
+        "lineCount": 7
+      },
+      "changedLines": 19
+    },
+    {
+      "importsOnly": true,
+      "id": "H0103",
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "header": "@@ -1,3 +1,4 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 4
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0104",
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "header": "@@ -77,7 +78,6 @@ describe('ClaudeExecutor', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 77,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 78,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0105",
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "header": "@@ -123,7 +123,7 @@ describe('ClaudeExecutor', () => {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 123,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 123,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0106",
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "header": "@@ -197,13 +197,28 @@ describe('ClaudeExecutor', () => {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 197,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 197,
+        "lineCount": 28
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0107",
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "header": "@@ -217,3 +232,13 @@ (part 1 of 7) describe('ClaudeExecutor', () => {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 217,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 232,
+        "lineCount": 13
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0108",
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "header": "@@ -219,0 +245,16 @@ (part 2 of 7)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 219,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 245,
+        "lineCount": 16
+      },
+      "changedLines": 16
+    },
+    {
+      "id": "H0109",
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "header": "@@ -219,0 +261,15 @@ (part 3 of 7)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 219,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 261,
+        "lineCount": 15
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0110",
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "header": "@@ -219,0 +276,32 @@ (part 4 of 7)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 219,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 276,
+        "lineCount": 32
+      },
+      "changedLines": 32
+    },
+    {
+      "id": "H0111",
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "header": "@@ -219,0 +308,19 @@ (part 5 of 7)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 219,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 308,
+        "lineCount": 19
+      },
+      "changedLines": 19
+    },
+    {
+      "id": "H0112",
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "header": "@@ -219,0 +327,16 @@ (part 6 of 7)",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 219,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 327,
+        "lineCount": 16
+      },
+      "changedLines": 16
+    },
+    {
+      "id": "H0113",
+      "filename": "src/domain/review/executor/claude-executor.server.test.ts",
+      "header": "@@ -219,0 +343,10 @@ (part 7 of 7)",
+      "fileOrder": 11,
+      "original": {
+        "startLine": 219,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 343,
+        "lineCount": 10
+      },
+      "changedLines": 10
+    },
+    {
+      "importsOnly": true,
+      "id": "H0114",
+      "filename": "src/domain/review/executor/claude-executor.server.ts",
+      "header": "@@ -1,10 +1,18 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 18
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0115",
+      "filename": "src/domain/review/executor/claude-executor.server.ts",
+      "header": "@@ -21,7 +29,15 @@ import {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 21,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 29,
+        "lineCount": 15
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0116",
+      "filename": "src/domain/review/executor/claude-executor.server.ts",
+      "header": "@@ -72,6 +88,16 @@ export class ClaudeExecutor implements ReviewExecutor {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 72,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 88,
+        "lineCount": 16
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0117",
+      "filename": "src/domain/review/executor/claude-executor.server.ts",
+      "header": "@@ -94,6 +120,22 @@ (part 1 of 2) export class ClaudeExecutor implements ReviewExecutor {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 94,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 120,
+        "lineCount": 22
+      },
+      "changedLines": 16
+    },
+    {
+      "id": "H0118",
+      "filename": "src/domain/review/executor/claude-executor.server.ts",
+      "header": "@@ -100,9 +142,6 @@ (part 2 of 2)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 100,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 142,
+        "lineCount": 6
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0119",
+      "filename": "src/domain/review/executor/claude-executor.server.ts",
+      "header": "@@ -118,13 +157,40 @@ export class ClaudeExecutor implements ReviewExecutor {",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 118,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 157,
+        "lineCount": 40
+      },
+      "changedLines": 41
+    },
+    {
+      "id": "H0120",
+      "filename": "src/domain/review/executor/sdk-loop.server.ts",
+      "header": "@@ -27,6 +27,25 @@ export interface SdkRunResult {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 27,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 27,
+        "lineCount": 25
+      },
+      "changedLines": 19
+    },
+    {
+      "id": "H0121",
+      "filename": "src/domain/review/executor/stub-executor.server.test.ts",
+      "header": "@@ -56,8 +56,8 @@ describe('StubExecutor', () => {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 56,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 56,
+        "lineCount": 8
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0122",
+      "filename": "src/domain/review/executor/stub-executor.server.ts",
+      "header": "@@ -129,7 +129,7 @@ export class StubExecutor implements ReviewExecutor {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 129,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 129,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "importsOnly": true,
+      "id": "H0123",
+      "filename": "src/domain/review/executor/types.ts",
+      "header": "@@ -1,3 +1,4 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 4
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0124",
+      "filename": "src/domain/review/executor/types.ts",
+      "header": "@@ -19,7 +20,6 @@ export interface ReviewExecutorInput {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 19,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 20,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0125",
+      "filename": "src/domain/review/executor/types.ts",
+      "header": "@@ -27,6 +27,12 @@ export interface ReviewExecutorOutput {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 27,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 27,
+        "lineCount": 12
+      },
+      "changedLines": 6
+    },
+    {
+      "importsOnly": true,
+      "id": "H0126",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +1,5 @@ (part 1 of 14)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0127",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +6,11 @@ (part 2 of 14)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 6,
+        "lineCount": 11
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0128",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +17,15 @@ (part 3 of 14)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 17,
+        "lineCount": 15
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0129",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +32,8 @@ (part 4 of 14)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 32,
+        "lineCount": 8
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0130",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +40,21 @@ (part 5 of 14)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 40,
+        "lineCount": 21
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0131",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +61,7 @@ (part 6 of 14)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 61,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0132",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +68,9 @@ (part 7 of 14)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 68,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0133",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +77,5 @@ (part 8 of 14)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 77,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0134",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +82,6 @@ (part 9 of 14)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 82,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0135",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +88,12 @@ (part 10 of 14)",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 88,
+        "lineCount": 12
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0136",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +100,17 @@ (part 11 of 14)",
+      "fileOrder": 11,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 100,
+        "lineCount": 17
+      },
+      "changedLines": 17
+    },
+    {
+      "id": "H0137",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +117,7 @@ (part 12 of 14)",
+      "fileOrder": 12,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 117,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0138",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +124,9 @@ (part 13 of 14)",
+      "fileOrder": 13,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 124,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0139",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.test.ts",
+      "header": "@@ -0,0 +133,7 @@ (part 14 of 14)",
+      "fileOrder": 14,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 133,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "importsOnly": true,
+      "id": "H0140",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.ts",
+      "header": "@@ -0,0 +1,5 @@ (part 1 of 5)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0141",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.ts",
+      "header": "@@ -0,0 +6,45 @@ (part 2 of 5)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 6,
+        "lineCount": 45
+      },
+      "changedLines": 45
+    },
+    {
+      "id": "H0142",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.ts",
+      "header": "@@ -0,0 +51,11 @@ (part 3 of 5)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 51,
+        "lineCount": 11
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0143",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.ts",
+      "header": "@@ -0,0 +62,10 @@ (part 4 of 5)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 62,
+        "lineCount": 10
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0144",
+      "filename": "src/domain/review/executor/validation-stop-hook.server.ts",
+      "header": "@@ -0,0 +72,19 @@ (part 5 of 5)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 72,
+        "lineCount": 19
+      },
+      "changedLines": 19
+    },
+    {
+      "importsOnly": true,
+      "id": "H0145",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -0,0 +1,14 @@ (part 1 of 10)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 14
+      },
+      "changedLines": 14
+    },
+    {
+      "id": "H0146",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -0,0 +15,33 @@ (part 2 of 10)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 15,
+        "lineCount": 33
+      },
+      "changedLines": 33
+    },
+    {
+      "id": "H0147",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -0,0 +48,5 @@ (part 3 of 10)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 48,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0148",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -0,0 +53,9 @@ (part 4 of 10)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 53,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0149",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -0,0 +62,6 @@ (part 5 of 10)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 62,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0150",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -0,0 +68,9 @@ (part 6 of 10)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 68,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0151",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -0,0 +77,9 @@ (part 7 of 10)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 77,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0152",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -0,0 +86,14 @@ (part 8 of 10)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 86,
+        "lineCount": 14
+      },
+      "changedLines": 14
+    },
+    {
+      "id": "H0153",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -0,0 +100,13 @@ (part 9 of 10)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 100,
+        "lineCount": 13
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0154",
+      "filename": "src/domain/review/findings.test.ts",
+      "header": "@@ -0,0 +113,6 @@ (part 10 of 10)",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 113,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0155",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +1,33 @@ (part 1 of 12)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 33
+      },
+      "changedLines": 33
+    },
+    {
+      "id": "H0156",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +34,16 @@ (part 2 of 12)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 34,
+        "lineCount": 16
+      },
+      "changedLines": 16
+    },
+    {
+      "id": "H0157",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +50,13 @@ (part 3 of 12)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 50,
+        "lineCount": 13
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0158",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +63,26 @@ (part 4 of 12)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 63,
+        "lineCount": 26
+      },
+      "changedLines": 26
+    },
+    {
+      "id": "H0159",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +89,9 @@ (part 5 of 12)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 89,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0160",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +98,19 @@ (part 6 of 12)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 98,
+        "lineCount": 19
+      },
+      "changedLines": 19
+    },
+    {
+      "id": "H0161",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +117,8 @@ (part 7 of 12)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 117,
+        "lineCount": 8
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0162",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +125,11 @@ (part 8 of 12)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 125,
+        "lineCount": 11
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0163",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +136,16 @@ (part 9 of 12)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 136,
+        "lineCount": 16
+      },
+      "changedLines": 16
+    },
+    {
+      "id": "H0164",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +152,14 @@ (part 10 of 12)",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 152,
+        "lineCount": 14
+      },
+      "changedLines": 14
+    },
+    {
+      "id": "H0165",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +166,7 @@ (part 11 of 12)",
+      "fileOrder": 11,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 166,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0166",
+      "filename": "src/domain/review/findings.ts",
+      "header": "@@ -0,0 +173,6 @@ (part 12 of 12)",
+      "fileOrder": 12,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 173,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0167",
+      "filename": "src/domain/review/narrative.ts",
+      "header": "@@ -162,11 +162,9 @@ export const NarrativeReviewSchema = z.object({",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 162,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 162,
+        "lineCount": 9
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0168",
+      "filename": "src/domain/review/partial-narrative-parse.test.ts",
+      "header": "@@ -135,3 +135,18 @@ (part 1 of 5) describe('extractChapterTitles', () => {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 135,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 135,
+        "lineCount": 18
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0169",
+      "filename": "src/domain/review/partial-narrative-parse.test.ts",
+      "header": "@@ -137,0 +153,11 @@ (part 2 of 5)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 137,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 153,
+        "lineCount": 11
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0170",
+      "filename": "src/domain/review/partial-narrative-parse.test.ts",
+      "header": "@@ -137,0 +164,5 @@ (part 3 of 5)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 137,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 164,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0171",
+      "filename": "src/domain/review/partial-narrative-parse.test.ts",
+      "header": "@@ -137,0 +169,11 @@ (part 4 of 5)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 137,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 169,
+        "lineCount": 11
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0172",
+      "filename": "src/domain/review/partial-narrative-parse.test.ts",
+      "header": "@@ -137,0 +180,11 @@ (part 5 of 5)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 137,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 180,
+        "lineCount": 11
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0173",
+      "filename": "src/domain/review/partial-narrative-parse.ts",
+      "header": "@@ -35,7 +35,7 @@ const EMPTY: ChapterTitleSnapshot = { titles: [], inProgressTitle: null };",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 35,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 35,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0174",
+      "filename": "src/domain/review/partial-narrative-parse.ts",
+      "header": "@@ -43,6 +43,33 @@ export function extractChapterTitles(buffer: string): ChapterTitleSnapshot {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 43,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 43,
+        "lineCount": 33
+      },
+      "changedLines": 27
+    },
+    {
+      "id": "H0175",
+      "filename": "src/domain/review/prompt/narrative-prompt.test.ts",
+      "header": "@@ -270,6 +270,6 @@ describe('buildNarrativePrompt', () => {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 270,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 270,
+        "lineCount": 6
+      },
+      "changedLines": 2
+    },
+    {
+      "importsOnly": true,
+      "id": "H0176",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -1,6 +1,7 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 7
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0177",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -20,3 +21,12 @@ (part 1 of 2) diff --git a/src/b.ts b/src/b.ts",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 20,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 21,
+        "lineCount": 12
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0178",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -23,3 +33,10 @@ (part 2 of 2)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 23,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 33,
+        "lineCount": 10
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0179",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -37,22 +54,22 @@ function graph(overrides: Record<string, unknown> = {}): Record<string, unknown>",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 37,
+        "lineCount": 22
+      },
+      "modified": {
+        "startLine": 54,
+        "lineCount": 22
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0180",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -66,7 +83,7 @@ describe('sanitizeDiagram', () => {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 66,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 83,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0181",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -82,7 +99,7 @@ describe('sanitizeDiagram', () => {",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 82,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 99,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0182",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -99,7 +116,7 @@ describe('sanitizeDiagram', () => {",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 99,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 116,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0183",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -120,7 +137,7 @@ describe('sanitizeDiagram', () => {",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 120,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 137,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0184",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -136,7 +153,7 @@ describe('sanitizeDiagram', () => {",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 136,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 153,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0185",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -151,7 +168,7 @@ describe('sanitizeDiagram', () => {",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 151,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 168,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0186",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -167,7 +184,7 @@ describe('sanitizeDiagram', () => {",
+      "fileOrder": 11,
+      "original": {
+        "startLine": 167,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 184,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0187",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -182,7 +199,7 @@ describe('sanitizeDiagram', () => {",
+      "fileOrder": 12,
+      "original": {
+        "startLine": 182,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 199,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0188",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -198,7 +215,7 @@ describe('sanitizeDiagram', () => {",
+      "fileOrder": 13,
+      "original": {
+        "startLine": 198,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 215,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0189",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -213,7 +230,7 @@ describe('sanitizeDiagram', () => {",
+      "fileOrder": 14,
+      "original": {
+        "startLine": 213,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 230,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0190",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -229,7 +246,7 @@ describe('sanitizeDiagram', () => {",
+      "fileOrder": 15,
+      "original": {
+        "startLine": 229,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 246,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0191",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -252,7 +269,7 @@ function sequence(steps: unknown[]): Record<string, unknown> {",
+      "fileOrder": 16,
+      "original": {
+        "startLine": 252,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 269,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0192",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -264,7 +281,7 @@ describe('sanitizeDiagram (sequence)', () => {",
+      "fileOrder": 17,
+      "original": {
+        "startLine": 264,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 281,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0193",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -309,7 +326,7 @@ describe('sanitizeDiagram (sequence)', () => {",
+      "fileOrder": 18,
+      "original": {
+        "startLine": 309,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 326,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0194",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -317,3 +334,11 @@ (part 1 of 17) describe('sanitizeDiagram (sequence)', () => {",
+      "fileOrder": 19,
+      "original": {
+        "startLine": 317,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 334,
+        "lineCount": 11
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0195",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +345,7 @@ (part 2 of 17)",
+      "fileOrder": 20,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 345,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0196",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +352,8 @@ (part 3 of 17)",
+      "fileOrder": 21,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 352,
+        "lineCount": 8
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0197",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +360,13 @@ (part 4 of 17)",
+      "fileOrder": 22,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 360,
+        "lineCount": 13
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0198",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +373,10 @@ (part 5 of 17)",
+      "fileOrder": 23,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 373,
+        "lineCount": 10
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0199",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +383,8 @@ (part 6 of 17)",
+      "fileOrder": 24,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 383,
+        "lineCount": 8
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0200",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +391,17 @@ (part 7 of 17)",
+      "fileOrder": 25,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 391,
+        "lineCount": 17
+      },
+      "changedLines": 17
+    },
+    {
+      "id": "H0201",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +408,30 @@ (part 8 of 17)",
+      "fileOrder": 26,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 408,
+        "lineCount": 30
+      },
+      "changedLines": 30
+    },
+    {
+      "id": "H0202",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +438,16 @@ (part 9 of 17)",
+      "fileOrder": 27,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 438,
+        "lineCount": 16
+      },
+      "changedLines": 16
+    },
+    {
+      "id": "H0203",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +454,22 @@ (part 10 of 17)",
+      "fileOrder": 28,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 454,
+        "lineCount": 22
+      },
+      "changedLines": 22
+    },
+    {
+      "id": "H0204",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +476,6 @@ (part 11 of 17)",
+      "fileOrder": 29,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 476,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0205",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +482,11 @@ (part 12 of 17)",
+      "fileOrder": 30,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 482,
+        "lineCount": 11
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0206",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +493,8 @@ (part 13 of 17)",
+      "fileOrder": 31,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 493,
+        "lineCount": 8
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0207",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +501,23 @@ (part 14 of 17)",
+      "fileOrder": 32,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 501,
+        "lineCount": 23
+      },
+      "changedLines": 23
+    },
+    {
+      "id": "H0208",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +524,15 @@ (part 15 of 17)",
+      "fileOrder": 33,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 524,
+        "lineCount": 15
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0209",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +539,16 @@ (part 16 of 17)",
+      "fileOrder": 34,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 539,
+        "lineCount": 16
+      },
+      "changedLines": 16
+    },
+    {
+      "id": "H0210",
+      "filename": "src/domain/review/prompt/parse-diagram.test.ts",
+      "header": "@@ -319,0 +555,12 @@ (part 17 of 17)",
+      "fileOrder": 35,
+      "original": {
+        "startLine": 319,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 555,
+        "lineCount": 12
+      },
+      "changedLines": 12
+    },
+    {
+      "importsOnly": true,
+      "id": "H0211",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -1,3 +1,4 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 4
+      },
+      "changedLines": 1
+    },
+    {
+      "importsOnly": true,
+      "id": "H0212",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -9,6 +10,7 @@ import {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 9,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 10,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0213",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -24,13 +26,21 @@ (part 1 of 5) import type { PromptGrounding } from './diff-hunk-catalog.ts';",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 24,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 26,
+        "lineCount": 21
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0214",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -36,0 +47,9 @@ (part 2 of 5)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 36,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 47,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0215",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -37,8 +56,13 @@ (part 3 of 5)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 37,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 56,
+        "lineCount": 13
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0216",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -45,5 +69,52 @@ (part 4 of 5)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 45,
+        "lineCount": 5
+      },
+      "modified": {
+        "startLine": 69,
+        "lineCount": 52
+      },
+      "changedLines": 51
+    },
+    {
+      "id": "H0217",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -50,6 +121,8 @@ (part 5 of 5)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 50,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 121,
+        "lineCount": 8
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0218",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -68,24 +141,40 @@ (part 1 of 12) function resolveNodeGrounding(",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 68,
+        "lineCount": 24
+      },
+      "modified": {
+        "startLine": 141,
+        "lineCount": 40
+      },
+      "changedLines": 44
+    },
+    {
+      "id": "H0219",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -92,11 +181,26 @@ (part 2 of 12)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 92,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 181,
+        "lineCount": 26
+      },
+      "changedLines": 33
+    },
+    {
+      "id": "H0220",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -103,10 +207,20 @@ (part 3 of 12)",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 103,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 207,
+        "lineCount": 20
+      },
+      "changedLines": 22
+    },
+    {
+      "id": "H0221",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -113,6 +227,11 @@ (part 4 of 12)",
+      "fileOrder": 11,
+      "original": {
+        "startLine": 113,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 227,
+        "lineCount": 11
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0222",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -119,17 +238,18 @@ (part 5 of 12)",
+      "fileOrder": 12,
+      "original": {
+        "startLine": 119,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 238,
+        "lineCount": 18
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0223",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -136,15 +256,32 @@ (part 6 of 12)",
+      "fileOrder": 13,
+      "original": {
+        "startLine": 136,
+        "lineCount": 15
+      },
+      "modified": {
+        "startLine": 256,
+        "lineCount": 32
+      },
+      "changedLines": 39
+    },
+    {
+      "id": "H0224",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -151,4 +288,10 @@ (part 7 of 12)",
+      "fileOrder": 14,
+      "original": {
+        "startLine": 151,
+        "lineCount": 4
+      },
+      "modified": {
+        "startLine": 288,
+        "lineCount": 10
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0225",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -155,7 +298,11 @@ (part 8 of 12)",
+      "fileOrder": 15,
+      "original": {
+        "startLine": 155,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 298,
+        "lineCount": 11
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0226",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -162,17 +309,34 @@ (part 9 of 12)",
+      "fileOrder": 16,
+      "original": {
+        "startLine": 162,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 309,
+        "lineCount": 34
+      },
+      "changedLines": 45
+    },
+    {
+      "id": "H0227",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -179,11 +343,17 @@ (part 10 of 12)",
+      "fileOrder": 17,
+      "original": {
+        "startLine": 179,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 343,
+        "lineCount": 17
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0228",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -190,19 +360,34 @@ (part 11 of 12)",
+      "fileOrder": 18,
+      "original": {
+        "startLine": 190,
+        "lineCount": 19
+      },
+      "modified": {
+        "startLine": 360,
+        "lineCount": 34
+      },
+      "changedLines": 33
+    },
+    {
+      "id": "H0229",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -209,28 +394,47 @@ (part 12 of 12)",
+      "fileOrder": 19,
+      "original": {
+        "startLine": 209,
+        "lineCount": 28
+      },
+      "modified": {
+        "startLine": 394,
+        "lineCount": 47
+      },
+      "changedLines": 45
+    },
+    {
+      "id": "H0230",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -245,6 +449,29 @@ (part 1 of 3) const FALLBACK_TITLES: Record<string, string> = {",
+      "fileOrder": 20,
+      "original": {
+        "startLine": 245,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 449,
+        "lineCount": 29
+      },
+      "changedLines": 27
+    },
+    {
+      "id": "H0231",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -251,6 +478,6 @@ (part 2 of 3)",
+      "fileOrder": 21,
+      "original": {
+        "startLine": 251,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 478,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0232",
+      "filename": "src/domain/review/prompt/parse-diagram.ts",
+      "header": "@@ -257,14 +484,17 @@ (part 3 of 3)",
+      "fileOrder": 22,
+      "original": {
+        "startLine": 257,
+        "lineCount": 14
+      },
+      "modified": {
+        "startLine": 484,
+        "lineCount": 17
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0233",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -1,8 +1,14 @@ (part 1 of 3)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 14
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0234",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -8,0 +15,6 @@ (part 2 of 3)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 8,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 15,
+        "lineCount": 6
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0235",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -9,3 +21,9 @@ (part 3 of 3)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 9,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 21,
+        "lineCount": 9
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0236",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -45,26 +63,23 @@ describe('parseNarrativeReview', () => {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 45,
+        "lineCount": 26
+      },
+      "modified": {
+        "startLine": 63,
+        "lineCount": 23
+      },
+      "changedLines": 35
+    },
+    {
+      "id": "H0237",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -163,10 +178,10 @@ describe('parseNarrativeReview', () => {",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 163,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 178,
+        "lineCount": 10
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0238",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -261,18 +276,12 @@ describe('parseNarrativeReview', () => {",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 261,
+        "lineCount": 18
+      },
+      "modified": {
+        "startLine": 276,
+        "lineCount": 12
+      },
+      "changedLines": 18
+    },
+    {
+      "id": "H0239",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -394,10 +403,8 @@ describe('prose passages', () => {",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 394,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 403,
+        "lineCount": 8
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0240",
+      "filename": "src/domain/review/prompt/parse-narrative.test.ts",
+      "header": "@@ -501,6 +508,421 @@ describe('a quote the model forgot to escape', () => {",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 501,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 508,
+        "lineCount": 421
+      },
+      "changedLines": 417
+    },
+    {
+      "importsOnly": true,
+      "id": "H0241",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -1,10 +1,11 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 11
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0242",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -25,8 +26,13 @@ import { sanitizeDiagram } from './parse-diagram.ts';",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 25,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 26,
+        "lineCount": 13
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0243",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -34,8 +40,17 @@ (part 1 of 6) function isRecord(value: unknown): value is Rec {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 34,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 40,
+        "lineCount": 17
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0244",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -42,7 +57,13 @@ (part 2 of 6)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 42,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 57,
+        "lineCount": 13
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0245",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -49,5 +70,10 @@ (part 3 of 6)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 49,
+        "lineCount": 5
+      },
+      "modified": {
+        "startLine": 70,
+        "lineCount": 10
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0246",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -54,5 +80,18 @@ (part 4 of 6)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 54,
+        "lineCount": 5
+      },
+      "modified": {
+        "startLine": 80,
+        "lineCount": 18
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0247",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -59,23 +98,42 @@ (part 5 of 6)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 59,
+        "lineCount": 23
+      },
+      "modified": {
+        "startLine": 98,
+        "lineCount": 42
+      },
+      "changedLines": 55
+    },
+    {
+      "id": "H0248",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -82,11 +140,38 @@ (part 6 of 6)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 82,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 140,
+        "lineCount": 38
+      },
+      "changedLines": 39
+    },
+    {
+      "id": "H0249",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -94,6 +179,13 @@ function resolveHunks(chunk: Rec, grounding: PromptGrounding | undefined): Resol",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 94,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 179,
+        "lineCount": 13
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0250",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -109,4 +201,20 @@ (part 1 of 2) function resolveHunks(chunk: Rec, grounding: PromptGrounding | undefined): Resol",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 109,
+        "lineCount": 4
+      },
+      "modified": {
+        "startLine": 201,
+        "lineCount": 20
+      },
+      "changedLines": 18
+    },
+    {
+      "id": "H0251",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -113,11 +221,21 @@ (part 2 of 2)",
+      "fileOrder": 11,
+      "original": {
+        "startLine": 113,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 221,
+        "lineCount": 21
+      },
+      "changedLines": 16
+    },
+    {
+      "id": "H0252",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -128,26 +246,60 @@ function sanitizeProse(raw: unknown): Prose | undefined {",
+      "fileOrder": 12,
+      "original": {
+        "startLine": 128,
+        "lineCount": 26
+      },
+      "modified": {
+        "startLine": 246,
+        "lineCount": 60
+      },
+      "changedLines": 70
+    },
+    {
+      "id": "H0253",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -156,7 +308,7 @@ function sanitizeInsights(raw: unknown, anchors: ReadonlySet<string>): Insight[]",
+      "fileOrder": 13,
+      "original": {
+        "startLine": 156,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 308,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0254",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -164,6 +316,11 @@ function mergeChunksByFile(chunks: DiffChunk[]): DiffChunk[] {",
+      "fileOrder": 14,
+      "original": {
+        "startLine": 164,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 316,
+        "lineCount": 11
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0255",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -171,14 +328,32 @@ (part 1 of 3) function mergeChunksByFile(chunks: DiffChunk[]): DiffChunk[] {",
+      "fileOrder": 15,
+      "original": {
+        "startLine": 171,
+        "lineCount": 14
+      },
+      "modified": {
+        "startLine": 328,
+        "lineCount": 32
+      },
+      "changedLines": 28
+    },
+    {
+      "id": "H0256",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -185,13 +360,27 @@ (part 2 of 3)",
+      "fileOrder": 16,
+      "original": {
+        "startLine": 185,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 360,
+        "lineCount": 27
+      },
+      "changedLines": 28
+    },
+    {
+      "id": "H0257",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -198,10 +387,15 @@ (part 3 of 3)",
+      "fileOrder": 17,
+      "original": {
+        "startLine": 198,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 387,
+        "lineCount": 15
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0258",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -220,12 +414,23 @@ function sanitizeChapter(",
+      "fileOrder": 18,
+      "original": {
+        "startLine": 220,
+        "lineCount": 12
+      },
+      "modified": {
+        "startLine": 414,
+        "lineCount": 23
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0259",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -285,13 +490,15 @@ (part 1 of 9) function endsString(json: string, from: number): boolean {",
+      "fileOrder": 19,
+      "original": {
+        "startLine": 285,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 490,
+        "lineCount": 15
+      },
+      "changedLines": 20
+    },
+    {
+      "id": "H0260",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -298,1 +505,6 @@ (part 2 of 9)",
+      "fileOrder": 20,
+      "original": {
+        "startLine": 298,
+        "lineCount": 1
+      },
+      "modified": {
+        "startLine": 505,
+        "lineCount": 6
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0261",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -299,10 +511,68 @@ (part 3 of 9)",
+      "fileOrder": 21,
+      "original": {
+        "startLine": 299,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 511,
+        "lineCount": 68
+      },
+      "changedLines": 68
+    },
+    {
+      "id": "H0262",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -308,0 +579,8 @@ (part 4 of 9)",
+      "fileOrder": 22,
+      "original": {
+        "startLine": 308,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 579,
+        "lineCount": 8
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0263",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -309,2 +587,13 @@ (part 5 of 9)",
+      "fileOrder": 23,
+      "original": {
+        "startLine": 309,
+        "lineCount": 2
+      },
+      "modified": {
+        "startLine": 587,
+        "lineCount": 13
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0264",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -311,8 +600,9 @@ (part 6 of 9)",
+      "fileOrder": 24,
+      "original": {
+        "startLine": 311,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 600,
+        "lineCount": 9
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0265",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -319,5 +609,6 @@ (part 7 of 9)",
+      "fileOrder": 25,
+      "original": {
+        "startLine": 319,
+        "lineCount": 5
+      },
+      "modified": {
+        "startLine": 609,
+        "lineCount": 6
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0266",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -324,11 +615,5 @@ (part 8 of 9)",
+      "fileOrder": 26,
+      "original": {
+        "startLine": 324,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 615,
+        "lineCount": 5
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0267",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -335,5 +620,10 @@ (part 9 of 9)",
+      "fileOrder": 27,
+      "original": {
+        "startLine": 335,
+        "lineCount": 5
+      },
+      "modified": {
+        "startLine": 620,
+        "lineCount": 10
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0268",
+      "filename": "src/domain/review/prompt/parse-narrative.ts",
+      "header": "@@ -344,7 +634,8 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):",
+      "fileOrder": 28,
+      "original": {
+        "startLine": 344,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 634,
+        "lineCount": 8
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0269",
+      "filename": "src/domain/review/run.integration.test.ts",
+      "header": "@@ -160,7 +160,7 @@ describeDb('runJob (stub executor against a local git repository)', () => {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 160,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 160,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "importsOnly": true,
+      "id": "H0270",
+      "filename": "src/domain/review/run.server.test.ts",
+      "header": "@@ -1,6 +1,7 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0271",
+      "filename": "src/domain/review/run.server.test.ts",
+      "header": "@@ -121,7 +122,7 @@ function capturingExecutor(",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 121,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 122,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0272",
+      "filename": "src/domain/review/run.server.test.ts",
+      "header": "@@ -156,8 +157,8 @@ describe('runJob', () => {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 156,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 157,
+        "lineCount": 8
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0273",
+      "filename": "src/domain/review/run.server.test.ts",
+      "header": "@@ -166,6 +167,22 @@ describe('runJob', () => {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 166,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 167,
+        "lineCount": 22
+      },
+      "changedLines": 16
+    },
+    {
+      "importsOnly": true,
+      "id": "H0274",
+      "filename": "src/domain/review/run.server.ts",
+      "header": "@@ -26,6 +26,7 @@ import {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 26,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 26,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0275",
+      "filename": "src/domain/review/run.server.ts",
+      "header": "@@ -272,7 +273,7 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 272,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 273,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0276",
+      "filename": "src/domain/review/run.server.ts",
+      "header": "@@ -286,8 +287,7 @@ export async function runJob(input: RunJobInput, deps: RunJobDeps): Promise<RunJ",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 286,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 287,
+        "lineCount": 7
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0277",
+      "filename": "src/domain/review/skip-reasons.server.test.ts",
+      "header": "@@ -5,7 +5,7 @@ import { runGit, runGitOrThrow } from './clone/git-runner.server.ts';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 5,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 5,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0278",
+      "filename": "src/domain/review/validate-review.test.ts",
+      "header": "@@ -0,0 +1,21 @@ (part 1 of 9)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 21
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0279",
+      "filename": "src/domain/review/validate-review.test.ts",
+      "header": "@@ -0,0 +22,15 @@ (part 2 of 9)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 22,
+        "lineCount": 15
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0280",
+      "filename": "src/domain/review/validate-review.test.ts",
+      "header": "@@ -0,0 +37,5 @@ (part 3 of 9)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 37,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0281",
+      "filename": "src/domain/review/validate-review.test.ts",
+      "header": "@@ -0,0 +42,7 @@ (part 4 of 9)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 42,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0282",
+      "filename": "src/domain/review/validate-review.test.ts",
+      "header": "@@ -0,0 +49,18 @@ (part 5 of 9)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 49,
+        "lineCount": 18
+      },
+      "changedLines": 18
+    },
+    {
+      "id": "H0283",
+      "filename": "src/domain/review/validate-review.test.ts",
+      "header": "@@ -0,0 +67,20 @@ (part 6 of 9)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 67,
+        "lineCount": 20
+      },
+      "changedLines": 20
+    },
+    {
+      "id": "H0284",
+      "filename": "src/domain/review/validate-review.test.ts",
+      "header": "@@ -0,0 +87,9 @@ (part 7 of 9)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 87,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0285",
+      "filename": "src/domain/review/validate-review.test.ts",
+      "header": "@@ -0,0 +96,8 @@ (part 8 of 9)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 96,
+        "lineCount": 8
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0286",
+      "filename": "src/domain/review/validate-review.test.ts",
+      "header": "@@ -0,0 +104,10 @@ (part 9 of 9)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 104,
+        "lineCount": 10
+      },
+      "changedLines": 10
+    },
+    {
+      "importsOnly": true,
+      "id": "H0287",
+      "filename": "src/domain/review/validate-review.ts",
+      "header": "@@ -0,0 +1,7 @@ (part 1 of 7)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0288",
+      "filename": "src/domain/review/validate-review.ts",
+      "header": "@@ -0,0 +8,15 @@ (part 2 of 7)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 8,
+        "lineCount": 15
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0289",
+      "filename": "src/domain/review/validate-review.ts",
+      "header": "@@ -0,0 +23,11 @@ (part 3 of 7)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 23,
+        "lineCount": 11
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0290",
+      "filename": "src/domain/review/validate-review.ts",
+      "header": "@@ -0,0 +34,9 @@ (part 4 of 7)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 34,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0291",
+      "filename": "src/domain/review/validate-review.ts",
+      "header": "@@ -0,0 +43,21 @@ (part 5 of 7)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 43,
+        "lineCount": 21
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0292",
+      "filename": "src/domain/review/validate-review.ts",
+      "header": "@@ -0,0 +64,12 @@ (part 6 of 7)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 64,
+        "lineCount": 12
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0293",
+      "filename": "src/domain/review/validate-review.ts",
+      "header": "@@ -0,0 +76,9 @@ (part 7 of 7)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 76,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0294",
+      "filename": "src/guardrails/cli-imports.guard.test.ts",
+      "header": "@@ -32,6 +32,17 @@ const FORBIDDEN_PREFIXES: Record<string, string> = {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 32,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 32,
+        "lineCount": 17
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0295",
+      "filename": "src/guardrails/cli-imports.guard.test.ts",
+      "header": "@@ -39,3 +50,26 @@ (part 1 of 6) function resolveFile(target: string): string | null {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 39,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 50,
+        "lineCount": 26
+      },
+      "changedLines": 23
+    },
+    {
+      "id": "H0296",
+      "filename": "src/guardrails/cli-imports.guard.test.ts",
+      "header": "@@ -41,0 +76,10 @@ (part 2 of 6)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 41,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 76,
+        "lineCount": 10
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0297",
+      "filename": "src/guardrails/cli-imports.guard.test.ts",
+      "header": "@@ -41,0 +86,15 @@ (part 3 of 6)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 41,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 86,
+        "lineCount": 15
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0298",
+      "filename": "src/guardrails/cli-imports.guard.test.ts",
+      "header": "@@ -42,41 +101,21 @@ (part 4 of 6)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 42,
+        "lineCount": 41
+      },
+      "modified": {
+        "startLine": 101,
+        "lineCount": 21
+      },
+      "changedLines": 32
+    },
+    {
+      "id": "H0299",
+      "filename": "src/guardrails/cli-imports.guard.test.ts",
+      "header": "@@ -82,0 +122,13 @@ (part 5 of 6)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 82,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 122,
+        "lineCount": 13
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0300",
+      "filename": "src/guardrails/cli-imports.guard.test.ts",
+      "header": "@@ -83,1 +135,16 @@ (part 6 of 6)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 83,
+        "lineCount": 1
+      },
+      "modified": {
+        "startLine": 135,
+        "lineCount": 16
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0301",
+      "filename": "src/test/git-repo.ts",
+      "header": "@@ -14,6 +14,10 @@ import { hostEnv } from '../config/host-env.ts';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 14,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 14,
+        "lineCount": 10
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0302",
+      "filename": "src/web/components/jobs/review-banners.tsx",
+      "header": "@@ -1,28 +1,7 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 28
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 7
+      },
+      "changedLines": 25
+    },
+    {
+      "id": "H0303",
+      "filename": "src/web/components/narrative/chapter-reader.test.tsx",
+      "header": "@@ -30,7 +30,12 @@ function renderReader(withReview: NarrativeReview = review) {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 30,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 30,
+        "lineCount": 12
+      },
+      "changedLines": 7
+    },
+    {
+      "importsOnly": true,
+      "id": "H0304",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -9,7 +9,8 @@ import {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 9,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 9,
+        "lineCount": 8
+      },
+      "changedLines": 3
+    },
+    {
+      "importsOnly": true,
+      "id": "H0305",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -22,7 +23,6 @@ import {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 22,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 23,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0306",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -88,8 +88,8 @@ export interface ChapterReaderProps {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 88,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 88,
+        "lineCount": 8
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0307",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -104,7 +104,7 @@ export function ChapterReader({",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 104,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 104,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0308",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -113,7 +113,7 @@ export function ChapterReader({",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 113,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 113,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0309",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -262,8 +262,7 @@ export function ChapterReader({",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 262,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 262,
+        "lineCount": 7
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0310",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -277,17 +276,15 @@ export function ChapterReader({",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 277,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 276,
+        "lineCount": 15
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0311",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -295,8 +292,7 @@ function SectionCard({",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 295,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 292,
+        "lineCount": 7
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0312",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -304,14 +300,6 @@ function SectionCard({",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 304,
+        "lineCount": 14
+      },
+      "modified": {
+        "startLine": 300,
+        "lineCount": 6
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0313",
+      "filename": "src/web/components/narrative/chapter-reader.tsx",
+      "header": "@@ -320,7 +308,13 @@ function SectionCard({",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 320,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 308,
+        "lineCount": 13
+      },
+      "changedLines": 8
+    },
+    {
+      "importsOnly": true,
+      "id": "H0314",
+      "filename": "src/web/components/narrative/chapter-sidebar.test.tsx",
+      "header": "@@ -3,7 +3,6 @@ import { reviewCoverage } from '@/domain/review/coverage';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 3,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 3,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0315",
+      "filename": "src/web/components/narrative/chapter-sidebar.test.tsx",
+      "header": "@@ -329,30 +328,6 @@ describe('<ChapterSidebar />', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 329,
+        "lineCount": 30
+      },
+      "modified": {
+        "startLine": 328,
+        "lineCount": 6
+      },
+      "changedLines": 24
+    },
+    {
+      "importsOnly": true,
+      "id": "H0316",
+      "filename": "src/web/components/narrative/findings-notice.test.tsx",
+      "header": "@@ -0,0 +1,5 @@ (part 1 of 4)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0317",
+      "filename": "src/web/components/narrative/findings-notice.test.tsx",
+      "header": "@@ -0,0 +6,17 @@ (part 2 of 4)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 6,
+        "lineCount": 17
+      },
+      "changedLines": 17
+    },
+    {
+      "id": "H0318",
+      "filename": "src/web/components/narrative/findings-notice.test.tsx",
+      "header": "@@ -0,0 +23,5 @@ (part 3 of 4)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 23,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0319",
+      "filename": "src/web/components/narrative/findings-notice.test.tsx",
+      "header": "@@ -0,0 +28,9 @@ (part 4 of 4)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 28,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "importsOnly": true,
+      "id": "H0320",
+      "filename": "src/web/components/narrative/findings-notice.tsx",
+      "header": "@@ -0,0 +1,5 @@ (part 1 of 3)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0321",
+      "filename": "src/web/components/narrative/findings-notice.tsx",
+      "header": "@@ -0,0 +6,15 @@ (part 2 of 3)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 6,
+        "lineCount": 15
+      },
+      "changedLines": 15
+    },
+    {
+      "id": "H0322",
+      "filename": "src/web/components/narrative/findings-notice.tsx",
+      "header": "@@ -0,0 +21,20 @@ (part 3 of 3)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 21,
+        "lineCount": 20
+      },
+      "changedLines": 20
+    },
+    {
+      "id": "H0323",
+      "filename": "src/web/components/narrative/sections.test.ts",
+      "header": "@@ -1,16 +1,13 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 16
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 13
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0324",
+      "filename": "src/web/components/narrative/sections.test.ts",
+      "header": "@@ -56,49 +53,6 @@ describe('readerSections', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 56,
+        "lineCount": 49
+      },
+      "modified": {
+        "startLine": 53,
+        "lineCount": 6
+      },
+      "changedLines": 43
+    },
+    {
+      "importsOnly": true,
+      "id": "H0325",
+      "filename": "src/web/components/narrative/sections.ts",
+      "header": "@@ -1,8 +1,6 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 6
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0326",
+      "filename": "src/web/components/narrative/sections.ts",
+      "header": "@@ -17,7 +15,7 @@ import {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 17,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 15,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0327",
+      "filename": "src/web/components/narrative/sections.ts",
+      "header": "@@ -30,7 +28,7 @@ export interface ReaderSection {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 30,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 28,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0328",
+      "filename": "src/web/components/narrative/sections.ts",
+      "header": "@@ -62,18 +60,6 @@ export function readerSections(review: NarrativeReview, coverage: ReviewCoverage",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 62,
+        "lineCount": 18
+      },
+      "modified": {
+        "startLine": 60,
+        "lineCount": 6
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0329",
+      "filename": "src/web/components/narrative/sections.ts",
+      "header": "@@ -86,10 +72,10 @@ export function readerSections(review: NarrativeReview, coverage: ReviewCoverage",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 86,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 72,
+        "lineCount": 10
+      },
+      "changedLines": 6
+    },
+    {
+      "importsOnly": true,
+      "id": "H0330",
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "header": "@@ -1,4 +1,5 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 4
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0331",
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "header": "@@ -26,8 +27,14 @@ function review(overrides: Partial<NarrativeReview> = {}): NarrativeReview {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 26,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 27,
+        "lineCount": 14
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0332",
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "header": "@@ -93,3 +100,16 @@ (part 1 of 3) describe('<SummaryCard />', () => {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 93,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 100,
+        "lineCount": 16
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0333",
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "header": "@@ -95,0 +116,5 @@ (part 2 of 3)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 95,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 116,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0334",
+      "filename": "src/web/components/narrative/summary-card.test.tsx",
+      "header": "@@ -96,3 +121,11 @@ (part 3 of 3)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 96,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 121,
+        "lineCount": 11
+      },
+      "changedLines": 8
+    },
+    {
+      "importsOnly": true,
+      "id": "H0335",
+      "filename": "src/web/components/narrative/summary-card.tsx",
+      "header": "@@ -1,10 +1,12 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 12
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0336",
+      "filename": "src/web/components/narrative/summary-card.tsx",
+      "header": "@@ -28,11 +30,14 @@ import { DISPLAY_SIZE } from '@/web/theme/tokens';",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 28,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 30,
+        "lineCount": 14
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0337",
+      "filename": "src/web/components/narrative/summary-card.tsx",
+      "header": "@@ -137,6 +142,8 @@ export function SummaryCard({",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 137,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 142,
+        "lineCount": 8
+      },
+      "changedLines": 2
+    },
+    {
+      "importsOnly": true,
+      "id": "H0338",
+      "filename": "src/web/components/narrative/undiscussed-card.test.tsx",
+      "header": "@@ -1,14 +0,0 @@ (part 1 of 10)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 14
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 14
+    },
+    {
+      "id": "H0339",
+      "filename": "src/web/components/narrative/undiscussed-card.test.tsx",
+      "header": "@@ -15,7 +0,0 @@ (part 2 of 10)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 15,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0340",
+      "filename": "src/web/components/narrative/undiscussed-card.test.tsx",
+      "header": "@@ -22,7 +0,0 @@ (part 3 of 10)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 22,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0341",
+      "filename": "src/web/components/narrative/undiscussed-card.test.tsx",
+      "header": "@@ -29,40 +0,0 @@ (part 4 of 10)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 29,
+        "lineCount": 40
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 40
+    },
+    {
+      "id": "H0342",
+      "filename": "src/web/components/narrative/undiscussed-card.test.tsx",
+      "header": "@@ -69,25 +0,0 @@ (part 5 of 10)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 69,
+        "lineCount": 25
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 25
+    },
+    {
+      "id": "H0343",
+      "filename": "src/web/components/narrative/undiscussed-card.test.tsx",
+      "header": "@@ -94,14 +0,0 @@ (part 6 of 10)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 94,
+        "lineCount": 14
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 14
+    },
+    {
+      "id": "H0344",
+      "filename": "src/web/components/narrative/undiscussed-card.test.tsx",
+      "header": "@@ -108,13 +0,0 @@ (part 7 of 10)",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 108,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0345",
+      "filename": "src/web/components/narrative/undiscussed-card.test.tsx",
+      "header": "@@ -121,20 +0,0 @@ (part 8 of 10)",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 121,
+        "lineCount": 20
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 20
+    },
+    {
+      "id": "H0346",
+      "filename": "src/web/components/narrative/undiscussed-card.test.tsx",
+      "header": "@@ -141,10 +0,0 @@ (part 9 of 10)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 141,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0347",
+      "filename": "src/web/components/narrative/undiscussed-card.test.tsx",
+      "header": "@@ -151,35 +0,0 @@ (part 10 of 10)",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 151,
+        "lineCount": 35
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 35
+    },
+    {
+      "importsOnly": true,
+      "id": "H0348",
+      "filename": "src/web/components/narrative/undiscussed-card.tsx",
+      "header": "@@ -1,12 +0,0 @@ (part 1 of 4)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 12
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0349",
+      "filename": "src/web/components/narrative/undiscussed-card.tsx",
+      "header": "@@ -13,47 +0,0 @@ (part 2 of 4)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 13,
+        "lineCount": 47
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 47
+    },
+    {
+      "id": "H0350",
+      "filename": "src/web/components/narrative/undiscussed-card.tsx",
+      "header": "@@ -60,13 +0,0 @@ (part 3 of 4)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 60,
+        "lineCount": 13
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0351",
+      "filename": "src/web/components/narrative/undiscussed-card.tsx",
+      "header": "@@ -73,25 +0,0 @@ (part 4 of 4)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 73,
+        "lineCount": 25
+      },
+      "modified": {
+        "startLine": 0,
+        "lineCount": 0
+      },
+      "changedLines": 25
+    },
+    {
+      "id": "H0352",
+      "filename": "src/web/components/narrative/use-narrative-keyboard.ts",
+      "header": "@@ -36,8 +36,8 @@ function ownsSpace(target: EventTarget | null): boolean {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 36,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 36,
+        "lineCount": 8
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0353",
+      "filename": "src/web/components/narrative/use-narrative-keyboard.ts",
+      "header": "@@ -45,9 +45,9 @@ function ownsSpace(target: EventTarget | null): boolean {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 45,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 45,
+        "lineCount": 9
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0354",
+      "filename": "src/web/routes/reviews.$id.test.ts",
+      "header": "@@ -41,7 +41,7 @@ const JOB = {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 41,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 41,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0355",
+      "filename": "src/web/routes/reviews.$id.test.ts",
+      "header": "@@ -100,7 +100,6 @@ describe('/reviews/:id loader', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 100,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 100,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0356",
+      "filename": "src/web/routes/reviews.$id.test.ts",
+      "header": "@@ -114,6 +113,14 @@ describe('/reviews/:id loader', () => {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 114,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 113,
+        "lineCount": 14
+      },
+      "changedLines": 8
+    },
+    {
+      "importsOnly": true,
+      "id": "H0357",
+      "filename": "src/web/routes/reviews.$id.tsx",
+      "header": "@@ -12,7 +12,7 @@ import { readGithubToken } from '@/web/auth/cookies.server';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 12,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 12,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0358",
+      "filename": "src/web/routes/reviews.$id.tsx",
+      "header": "@@ -70,7 +70,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 70,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 70,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0359",
+      "filename": "src/web/routes/reviews.$id.tsx",
+      "header": "@@ -108,7 +108,6 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 108,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 108,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0360",
+      "filename": "src/web/routes/reviews.$id.tsx",
+      "header": "@@ -123,7 +122,7 @@ export default function ReviewPage({ loaderData }: Route.ComponentProps) {",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 123,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 122,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0361",
+      "filename": "src/web/theme/tokens.ts",
+      "header": "@@ -307,6 +307,20 @@ export const FONT_SIZES = {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 307,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 307,
+        "lineCount": 20
+      },
+      "changedLines": 14
+    },
+    {
+      "id": "H0362",
+      "filename": "src/web/viewer/sample-bundle.test.ts",
+      "header": "@@ -4,10 +4,10 @@ import { reviewCoverage } from '@/domain/review/coverage';",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 4,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 4,
+        "lineCount": 10
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0363",
+      "filename": "src/web/viewer/sample-bundle.test.ts",
+      "header": "@@ -89,8 +89,12 @@ describe('the sample report bundle', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 89,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 89,
+        "lineCount": 12
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0364",
+      "filename": "src/web/viewer/sample-bundle.ts",
+      "header": "@@ -198,8 +198,8 @@ export const SAMPLE_BUNDLE: ReviewBundle = {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 198,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 198,
+        "lineCount": 8
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0365",
+      "filename": "src/web/viewer/viewer-page.tsx",
+      "header": "@@ -52,10 +52,16 @@ export function ViewerPage({ result }: { result: EmbeddedBundleResult }) {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 52,
+        "lineCount": 10
+      },
+      "modified": {
+        "startLine": 52,
+        "lineCount": 16
+      },
+      "changedLines": 6
+    }
+  ]
+}

@@ -50,15 +50,20 @@ src/
                        (SVG takes token() only), comment-paths (a repo path named in a comment still exists —
                        see Comments), monaco-version (the Monaco the reader loads is the one it is typechecked
                        against)
+  evals/               the skim eval: how well the model tiers hunks, on labelled cases. `npm run eval:skims`;
+                       runs the model as the CLI does, by hand, never in the gate
   test/                git-repo.ts (a throwaway repository with a bare origin, for tests that drive real git)
+evals/skims/           the skim eval's cases and the contrived branches some are built from (committed), and
+                       its results (ignored)
 docs/usage.md          running `er`: prerequisites, targets, every option, cost, where it writes
+docs/skim-evals.md     the skim eval: making a case, labelling it, running a sweep, reading the score
 .github/workflows/ci.yml  npm ci → npm run check
 .claude/rules/         area detail, loaded when you open a file in that area (see below)
 .claude/skills/        workflows loaded on demand (see below)
 ```
 
 Layering (enforced by `src/guardrails`): `cli → review`, `report → review`,
-and `review` imports nothing outside itself. `review` runs in Node and in the
+`evals → cli, review`, and `review` imports nothing outside itself. `review` runs in Node and in the
 browser, so it may not import a `node:` builtin, the Claude SDK or a UI
 package; `report` ships to the browser and may not import Node or the SDK
 either. Only `src/report/` imports React, Mantine or the icons.
@@ -78,6 +83,8 @@ directly.
 - `design-system.md` — type scale, the one label, the reading measure, page
   width, colour tokens and contrast. Loads for the report's components, CSS,
   the theme and the colour guardrails.
+- `evals.md` — file-by-file map of `src/evals/`, the skim eval. Loads for
+  `src/evals/**` and `evals/**`.
 
 Skills in `.claude/skills/`, loaded when the task calls for them:
 
@@ -147,6 +154,7 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
 | `npm test` / `test:watch`                  | Vitest `unit` + `report` + `guardrails`                             |
 | `npm run lint` / `format` / `format:check` | oxlint / Prettier                                                   |
 | `npm run check`                            | **The gate**: typecheck + report:build + test + lint + format:check |
+| `npm run eval:skims -- <cmd>`              | the skim eval: import a case, run a sweep, score one. Spends money  |
 
 `er` needs no environment of its own: the model runs as the engineer, with
 their own Claude credentials and user settings, plus the repository's own Claude

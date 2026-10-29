@@ -1,0 +1,15 @@
+{"id":"H0001","file":"README.md","header":"@@ -22,6 +22,7 @@ Requires Node 18 or later.","tier":"skim","category":"docs"}
+{"id":"H0002","file":"src/config.ts","header":"@@ -6,6 +6,7 @@ export interface Config {","tier":"skim","category":"wiring","note":"the field that carries DEPOT"}
+{"id":"H0003","file":"src/config.ts","header":"@@ -17,6 +18,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {","tier":"skim","category":"wiring","note":"read from the environment and passed on, unvalidated"}
+{"id":"H0004","file":"src/main.ts","header":"@@ -18,11 +18,12 @@ async function main(): Promise<void> {","tier":"read","category":"logic","note":"two wiring lines, then the catch now clears the report"}
+{"id":"H0005","file":"src/sync/reconcile.test.ts","header":"@@ -6,7 +6,8 @@ function warehouse(levels: StockLevel[]): Warehouse & { applied: Adjustment[][]","tier":"read","category":"test-scaffolding","note":"the fake does the filtering the change is about"}
+{"id":"H0006","file":"src/sync/reconcile.test.ts","header":"@@ -24,14 +25,14 @@ const row = (sku: string, quantity: number, depot = 'north') => ({","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0007","file":"src/sync/reconcile.test.ts","header":"@@ -39,16 +40,17 @@ (part 1 of 2) describe('reconcile', () => {","tier":"skim","category":"call-sites","note":"cases touched only by the new argument"}
+{"id":"H0008","file":"src/sync/reconcile.test.ts","header":"@@ -55,1 +57,11 @@ (part 2 of 2)","tier":"read","category":"test-case"}
+{"id":"H0009","file":"src/sync/reconcile.ts","header":"@@ -14,7 +14,7 @@ export interface Adjustment {","tier":"skim","category":"wiring","note":"the interface carries it"}
+{"id":"H0010","file":"src/sync/reconcile.ts","header":"@@ -34,8 +34,9 @@ export async function reconcile(","tier":"skim","category":"wiring","note":"taken and passed on"}
+{"id":"H0011","file":"src/sync/reconcile.ts","header":"@@ -43,6 +44,7 @@ export async function reconcile(","tier":"read","category":"logic","note":"where DEPOT is tested"}
+{"id":"H0012","file":"src/sync/report.ts","header":"@@ -5,9 +5,10 @@ export interface SyncReport {","tier":"skim","category":"wiring","note":"the report carries it"}
+{"id":"H0013","file":"src/sync/report.ts","header":"@@ -18,5 +19,6 @@ export function summarise(result: ReconcileResult): SyncReport {","tier":"skim","category":"wiring","note":"the report carries it"}
+{"id":"H0014","file":"src/warehouse.ts","header":"@@ -9,8 +9,11 @@ export async function openWarehouse(): Promise<Warehouse> {","tier":"read","category":"logic","note":"where depot narrows the query"}
+{"id":"H0015","file":"src/web/status.ts","header":"@@ -20,6 +20,9 @@ export function renderStatus(view: StatusView, now: Date): string {","tier":"read","category":"logic","note":"new output on the status page"}

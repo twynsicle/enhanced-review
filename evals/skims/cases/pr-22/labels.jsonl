@@ -1,0 +1,37 @@
+{"file":".claude/rules/cli.md","header":"@@ -36,7 +36,8 @@ src/cli/","tier":"skim","category":"docs","note":"the file map","id":"H0001"}
+{"file":".claude/rules/cli.md","header":"@@ -57,8 +58,8 @@ src/cli/","tier":"skim","category":"docs","note":"the file map","id":"H0002"}
+{"file":".claude/rules/cli.md","header":"@@ -69,8 +70,9 @@ src/cli/","tier":"skim","category":"docs","note":"the file map","id":"H0003"}
+{"file":".claude/rules/cli.md","header":"@@ -152,8 +154,10 @@ not an accident to fix:","tier":"skim","category":"docs","id":"H0004"}
+{"file":"AGENTS.md","header":"@@ -147,7 +147,8 @@ Skills in `.claude/skills/`, loaded when the task calls for them:","tier":"skim","category":"docs","id":"H0005"}
+{"id":"H0006","file":"src/cli/bash-gate.test.ts","header":"@@ -81,3 +81,8 @@ (part 1 of 6) describe('what the local agent may run', () => {","tier":"skim","category":"docs","note":"the doc comment of the case below, cut off from it"}
+{"id":"H0007","file":"src/cli/bash-gate.test.ts","header":"@@ -83,0 +89,13 @@ (part 2 of 6)","tier":"read","category":"test-case"}
+{"id":"H0008","file":"src/cli/bash-gate.test.ts","header":"@@ -83,0 +102,10 @@ (part 3 of 6)","tier":"read","category":"test-case"}
+{"id":"H0009","file":"src/cli/bash-gate.test.ts","header":"@@ -83,0 +112,7 @@ (part 4 of 6)","tier":"read","category":"test-case"}
+{"id":"H0010","file":"src/cli/bash-gate.test.ts","header":"@@ -83,0 +119,12 @@ (part 5 of 6)","tier":"read","category":"test-case"}
+{"id":"H0011","file":"src/cli/bash-gate.test.ts","header":"@@ -84,3 +131,14 @@ (part 6 of 6)","tier":"read","category":"test-case"}
+{"file":"src/cli/bash-gate.ts","header":"@@ -14,8 +14,15 @@ (part 1 of 3)","tier":"read","category":"logic","note":"a doc comment, then a backslash joins the forbidden syntax: noise around one character of behaviour","id":"H0012"}
+{"file":"src/cli/bash-gate.ts","header":"@@ -22,3 +29,6 @@ (part 2 of 3)","tier":"skim","category":"docs","note":"comment only","id":"H0013"}
+{"file":"src/cli/bash-gate.ts","header":"@@ -25,3 +35,10 @@ (part 3 of 3)","tier":"read","category":"logic","note":"GLOB, the new rule the gate applies in readLine","id":"H0014"}
+{"file":"src/cli/bash-gate.ts","header":"@@ -43,17 +60,24 @@ (part 1 of 3) const GIT_SUBCOMMANDS = new Set([","tier":"read","category":"logic","note":"the forbidden arguments reshaped per program, with new git flags; the refusal text changes","id":"H0015"}
+{"file":"src/cli/bash-gate.ts","header":"@@ -60,14 +84,14 @@ (part 2 of 3)","tier":"either","category":"call-sites","note":"splitChain becomes readLine and its parts become word lists; nothing here decides anything","id":"H0016"}
+{"file":"src/cli/bash-gate.ts","header":"@@ -74,6 +98,5 @@ (part 3 of 3)","tier":"either","category":"logic","note":"reviewOne takes words instead of splitting them; the splitting it drops is in readLine, which is read","id":"H0017"}
+{"file":"src/cli/bash-gate.ts","header":"@@ -81,9 +104,10 @@ function reviewOne(command: string): BashDecision {","tier":"read","category":"logic","note":"the per-program lookup","id":"H0018"}
+{"file":"src/cli/bash-gate.ts","header":"@@ -100,47 +124,88 @@ (part 1 of 3) function reviewOne(command: string): BashDecision {","tier":"read","category":"logic","note":"readLine, the rewritten reader","id":"H0019"}
+{"file":"src/cli/bash-gate.ts","header":"@@ -147,9 +212,8 @@ (part 2 of 3)","tier":"read","category":"logic","note":"the tail of readLine: the last command is flushed, where the old code pushed current","id":"H0020"}
+{"file":"src/cli/bash-gate.ts","header":"@@ -156,9 +219,0 @@ (part 3 of 3)","tier":"read","category":"logic","note":"splitWords removed; its quote handling is the bug the change fixes","id":"H0021"}
+{"file":"src/cli/claude-run.test.ts","header":"@@ -70,6 +70,7 @@ const hunk = (id: string) => ({","tier":"skim","category":"test-scaffolding","note":"the shared options gain the new field","id":"H0022"}
+{"id":"H0023","file":"src/cli/claude-run.test.ts","header":"@@ -188,3 +189,12 @@ (part 1 of 2) describe('the model run', () => {","tier":"read","category":"test-case"}
+{"id":"H0024","file":"src/cli/claude-run.test.ts","header":"@@ -191,3 +201,14 @@ (part 2 of 2)","tier":"read","category":"test-case"}
+{"id":"H0025","file":"src/cli/claude-run.ts","header":"@@ -6,6 +6,7 @@ import { howItEnded, runSdkLoop, type SdkQueryFn, type SdkUsage } from './sdk-lo","tier":"proven"}
+{"file":"src/cli/claude-run.ts","header":"@@ -18,9 +19,11 @@ import type { RunFiles } from './run-folder.ts';","tier":"skim","category":"docs","note":"the module comment restates the policy","id":"H0026"}
+{"file":"src/cli/claude-run.ts","header":"@@ -52,6 +55,11 @@ export type QueryFn = SdkQueryFn;","tier":"skim","category":"wiring","note":"a field that carries own or pr to where settingSources is decided","id":"H0027"}
+{"file":"src/cli/claude-run.ts","header":"@@ -212,8 +220,8 @@ function sdkOptions(","tier":"read","category":"logic","note":"settingSources branches on tree; the agent gets agentEnv","id":"H0028"}
+{"id":"H0029","file":"src/cli/host-env.test.ts","header":"@@ -1,5 +1,5 @@","tier":"proven"}
+{"file":"src/cli/host-env.test.ts","header":"@@ -12,3 +12,10 @@ (part 1 of 3) describe('hostEnv', () => {","tier":"read","category":"test-case","id":"H0030"}
+{"file":"src/cli/host-env.test.ts","header":"@@ -14,0 +22,9 @@ (part 2 of 3)","tier":"read","category":"test-case","id":"H0031"}
+{"file":"src/cli/host-env.test.ts","header":"@@ -14,0 +31,12 @@ (part 3 of 3)","tier":"read","category":"test-case","id":"H0032"}
+{"file":"src/cli/host-env.ts","header":"@@ -10,3 +10,21 @@ export type HostEnv = Record<string, string | undefined>;","tier":"read","category":"logic","note":"agentEnv","id":"H0033"}
+{"file":"src/cli/review.test.ts","header":"@@ -132,8 +132,10 @@ describe('er review', () => {","tier":"either","category":"test-case","note":"a capture for the assertion in the next hunk, inside a case","id":"H0034"}
+{"file":"src/cli/review.test.ts","header":"@@ -144,6 +146,7 @@ describe('er review', () => {","tier":"read","category":"test-case","note":"the assertion the capture feeds","id":"H0035"}
+{"id":"H0036","file":"src/cli/review.test.ts","header":"@@ -418,6 +421,27 @@ describe('er review', () => {","tier":"read","category":"test-case"}
+{"file":"src/cli/review.ts","header":"@@ -142,6 +142,7 @@ export async function review(","tier":"read","category":"logic","note":"where own or pr is decided, from whether a worktree was made","id":"H0037"}

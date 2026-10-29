@@ -16,18 +16,21 @@ import {
  *   cli    → cli, review
  *   report → report, review
  *   review → review
+ *   evals  → evals, cli, review
  *
  * `review` is the shape of a review and the rules that judge one, read by the
  * CLI in Node and by the report in the browser, so it may import neither side
  * and nothing that only one side can load: no Node builtin, no Agent SDK, no
  * UI package. The report ships to the browser as one file, so it may not
  * import Node or the SDK either. Only the report renders, so only the report
- * imports React, Mantine or the icons.
+ * imports React, Mantine or the icons. `evals` drives the review's own prompt
+ * through the CLI's run plumbing, so it may import both; nothing imports it.
  */
-const ALLOWED: Record<'cli' | 'report' | 'review', Area[]> = {
+const ALLOWED: Record<'cli' | 'report' | 'review' | 'evals', Area[]> = {
   cli: ['cli', 'review'],
   report: ['report', 'review'],
   review: ['review'],
+  evals: ['evals', 'cli', 'review'],
 };
 
 const UI_PACKAGES = /^(react|react-dom|@mantine\/|@tabler\/|@monaco-editor\/|zustand)/;
@@ -40,7 +43,7 @@ describe('guardrail: layering', () => {
     const violations: string[] = [];
     for (const file of files) {
       const area = areaOf(file);
-      if (area !== 'cli' && area !== 'report' && area !== 'review') continue;
+      if (area !== 'cli' && area !== 'report' && area !== 'review' && area !== 'evals') continue;
       for (const spec of importSpecifiers(readSource(file))) {
         const target = resolveProjectImport(spec, file);
         if (!target) continue;

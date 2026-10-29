@@ -12,6 +12,7 @@ function body(filename: string, removed: string[], added: string[]): HunkBody {
     added,
     removedAt: removed.map((_, i) => i + 1),
     addedAt: added.map((_, i) => i + 1),
+    runs: [{ removed: removed.length, added: added.length }],
   };
 }
 
@@ -56,9 +57,46 @@ describe('hunkLines', () => {
     ].join('\n');
 
     expect(hunkLines(diff)).toEqual([
-      { removed: ['old'], added: ['new'], removedAt: [2], addedAt: [2] },
-      { removed: [], added: ['--not a header'], removedAt: [], addedAt: [10] },
-      { removed: [], added: ['fresh'], removedAt: [], addedAt: [1] },
+      {
+        removed: ['old'],
+        added: ['new'],
+        removedAt: [2],
+        addedAt: [2],
+        runs: [{ removed: 1, added: 1 }],
+      },
+      {
+        removed: [],
+        added: ['--not a header'],
+        removedAt: [],
+        addedAt: [10],
+        runs: [{ removed: 0, added: 1 }],
+      },
+      {
+        removed: [],
+        added: ['fresh'],
+        removedAt: [],
+        addedAt: [1],
+        runs: [{ removed: 0, added: 1 }],
+      },
+    ]);
+  });
+
+  it('starts a new run at every context line', () => {
+    const diff = [
+      'diff --git a/src/a.ts b/src/a.ts',
+      '@@ -1,5 +1,5 @@',
+      '-a',
+      '+b',
+      ' kept',
+      '-c',
+      '-d',
+      ' kept',
+      '+e',
+    ].join('\n');
+    expect(hunkLines(diff)[0]!.runs).toEqual([
+      { removed: 1, added: 1 },
+      { removed: 2, added: 0 },
+      { removed: 0, added: 1 },
     ]);
     expect(hunkLines(diff)).toHaveLength(buildDiffHunkIndex(diff).hunks.length);
   });
@@ -79,6 +117,35 @@ describe('provenFacts: whitespace only', () => {
     const facts = provenFacts([reindent, rewrap], NO_FILES);
     expect(facts.get(reindent.id)).toEqual({ whitespaceOnly: true });
     expect(facts.get(rewrap.id)).toEqual({ whitespaceOnly: true });
+  });
+
+  it('does not prove a line moved past a context line, since its order changed', () => {
+    const diff = [
+      'diff --git a/src/alerts.ts b/src/alerts.ts',
+      '@@ -30,4 +30,4 @@',
+      '-  if (lines.length === 0) return null;',
+      '   lines.push(footer);',
+      '+  if (lines.length === 0) return null;',
+      '   return lines;',
+    ].join('\n');
+    const [lines] = hunkLines(diff);
+    const moved: HunkBody = { id: 'H0001', filename: 'src/alerts.ts', ...lines! };
+    expect(provenFacts([moved], NO_FILES).get(moved.id)).toBeUndefined();
+  });
+
+  it('proves two reindented runs of one hunk, each matching its own side', () => {
+    const diff = [
+      'diff --git a/src/a.ts b/src/a.ts',
+      '@@ -1,5 +1,5 @@',
+      '-const a = 1;',
+      '+const a  = 1;',
+      ' kept',
+      '-const b = 2;',
+      '+const b  = 2;',
+    ].join('\n');
+    const [lines] = hunkLines(diff);
+    const spaced: HunkBody = { id: 'H0001', filename: 'src/a.ts', ...lines! };
+    expect(provenFacts([spaced], NO_FILES).get(spaced.id)).toEqual({ whitespaceOnly: true });
   });
 
   it('treats added or removed blank lines alone as whitespace only', () => {

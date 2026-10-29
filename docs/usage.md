@@ -91,7 +91,7 @@ What you have staged, against `HEAD` — a review before the commit.
 | Flag                         | Applies to   | What it does                                                                                   |
 | ---------------------------- | ------------ | ---------------------------------------------------------------------------------------------- |
 | `--base <ref>`               | branch, PR   | compare against `<ref>` instead of the PR's base or the default branch                         |
-| `--model <name>`             | every review | review with `<name>` (default: `claude-sonnet-5[1m]`)                                          |
+| `--model <name>`             | every review | review with `<name>` (default: `claude-sonnet-5-5[1m]`)                                        |
 | `--max-turns <n>`            | every review | let the model take at most `<n>` turns (default: `120`)                                        |
 | `--timeout <minutes>`        | every review | give up on the model run after `<minutes>` (default: `15`)                                     |
 | `--instructions <text>`      | every review | add your own guidance to the prompt — what to focus on, what to explain — see below            |

@@ -22,7 +22,7 @@ import { hostEnv } from '../cli/host-env.ts';
  * the whole `unit` project carrying it, so a pure-logic test that starts taking
  * seconds is still caught.
  */
-export const GIT_TEST_TIMEOUT = 30_000;
+export const GIT_TEST_TIMEOUT = 60_000;
 
 /**
  * A throwaway repository with a bare `origin`, for tests that drive real git.

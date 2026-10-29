@@ -1,0 +1,21 @@
+{
+  "status.title": "Stock sync",
+  "status.lastRun": "Last run",
+  "status.never": "never",
+  "status.changed": "{count} items changed",
+  "status.unchanged": "{count} items unchanged",
+  "status.unknown": "{count} unknown SKUs",
+  "status.ok": "Up to date",
+  "alert.subject": "Stock sync needs attention",
+  "alert.feedDown": "The supplier feed could not be fetched for {minutes} minutes",
+  "alert.feedDownHint": "Check FEED_URL and the supplier's status page",
+  "alert.unknownSkus": "{count} SKUs in the feed are not in the warehouse",
+  "alert.unknownSkusHint": "They were reported, not created; ask the supplier to remove them",
+  "alert.largeAdjustment": "{sku} at {depot} moved by {by}",
+  "alert.largeAdjustmentHint": "A change this large is usually a feed error",
+  "alert.footer": "Sent by stockline {version}",
+  "status.stale": "The feed is older than one hour",
+  "status.depot": "Depot",
+  "status.items": "Items",
+  "status.footer": "stockline {version}"
+}

@@ -1,0 +1,648 @@
+{
+  "name": "pr-22",
+  "source": {
+    "folder": "C:\\workspace\\diffy\\enhanced-review\\er-reviews\\pr-22\\20261028-222051",
+    "repo": "twynsicle/enhanced-review",
+    "kind": "pr"
+  },
+  "title": "Stop a reviewed PR from running commands on the reviewer's machine",
+  "description": "Fixes ER-38\n\n## Why\n\nA security review of the tree found that the author of a pull request could run commands as whoever runs `er review <pr>`. Two paths were confirmed:\n\n- **The PR's own Claude config was loaded.** A PR review runs the agent in a worktree of the PR head, with `settingSources: ['user', 'project', 'local']`. A hook in the PR's `.claude/settings.json` ran on the reviewer's machine without the model doing anything. An allow rule there for Bash skipped the Bash gate.\n- **The Bash gate misread quotes.** It stopped checking once inside a quote and did not know backslashes. So `grep \"$(…)\" x`, backticks in double quotes, and `grep \\\" x ; … ; echo \\\" x` were all allowed, and bash ran the hidden command. The diff, PR title and body are in the prompt, so planted instructions can ask the model to run one.\n\n## What changed\n\n**Settings** (`src/cli/claude-run.ts`, `src/cli/review.ts`)\n- `runClaude` takes whose tree it runs in. A PR's worktree loads only the engineer's user settings. Branch and staged reviews run in the engineer's own checkout and keep all three sources.\n\n**Bash gate** (`src/cli/bash-gate.ts`)\n- The command is cut into words the way bash does, with quotes removed, and the program and flag checks run on those words.\n- Refused, because the gate doesn't model them: backslashes, `$` expansions (a bare `$` before a closing quote, as in `grep \"end$\"`, is still allowed), backticks, and a glob at the start of a word or in a word starting with a dash.\n- Fixing it turned up two more bypasses: `git log --out\"put\"=f` wrote a file, and `rg pattern *` could pick up a file in the tree named `--pre=…` as a flag. Both are now refused.\n- git also loses `-C`, `--git-dir`, `--work-tree`, `--config-env` and `--exec-path`. Forbidden flags are now per program, so `grep -c`, `wc -c` and `rg -C 3` pass.\n\n**Nested bare repositories** (`src/cli/host-env.ts`)\n- A PR can commit a directory laid out as a bare repository, config included. A `cd` into it followed by an allowed `git diff` ran the diff driver named in that config.\n- The SDK subprocess now gets the host environment plus `safe.bareRepository=explicit`, added as one more `GIT_CONFIG_*` entry after any the engineer already has.\n\n## For reviewers\n\n- Each bypass is a regression case in `bash-gate.test.ts`, next to the quoted forms the model actually writes, which must keep passing.\n- The gate is stricter: a Windows path with backslashes is now refused. The refusal message tells the model to use forward slashes and single-quote its patterns.\n- Not yet tested: a real model run against a PR carrying a hostile `.claude/`, and whether `safe.bareRepository` reaches the shell the SDK's Bash tool starts. Both are covered by unit tests only; the git behaviour itself was checked by hand.\n- The Monaco CDN load has no integrity hash, and none is added here. The loader injects `loader.js` itself and then fetches the editor through AMD, and neither can check a hash. Serving Monaco ourselves would fix it, but that has already been ruled out to keep the report small enough to email.\n\n`npm run check` passes (605 tests).\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+  "commits": [
+    {
+      "sha": "2897cb4734e35ef4cff4badc217c7a31e3ddd89c",
+      "subject": "Keep a reviewed PR's own Claude settings out of the model run",
+      "body": "A PR review runs the agent in a worktree of the PR head, and the run\nloaded project and local settings from it (settingSources\nuser/project/local). Those files are the PR author's: a SessionStart or\nPreToolUse hook in the PR's .claude/settings.json ran any command on the\nreviewer's machine without the model doing anything, and a\npermissions.allow rule for Bash approved every command before the Bash\ngate was asked.\n\nrunClaude now takes whose tree it runs in. The engineer's own checkout\n(branch and staged reviews) keeps loading all three sources; a PR's\nworktree loads only the engineer's user settings. claude-run.test.ts and\nreview.test.ts check both: a PR run starts with ['user'], a staged run\nwith all three.\n\nPart of ER-38.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+    },
+    {
+      "sha": "3cd3118e003b6a758f90217a0dc923dbbd4f311f",
+      "subject": "Read a Bash command the way bash will before letting it run",
+      "body": "The gate stopped checking syntax once inside a quote, did not know\nbackslashes, and matched flags as written rather than as bash passes\nthem. So `grep \"$(…)\" x` and `grep \"`…`\" x` ran a substitution,\n`grep \\\" x ; … ; echo \\\" x` took `\\\"` for a quote while bash took it\nas a character and ran the rest as separate commands, and\n`git log --out\"put\"=f` wrote a file because `--out\"put\"` is not\n`--output` until bash removes the quotes. An unquoted `rg pattern *`\nalso let a file in the reviewed tree named like a flag (`--pre=…`)\nbecome an argument.\n\nThe line is now cut into words the way bash does, quotes removed, and\nthe program and flag checks run on those. Whatever the reader does not\nmodel is refused: any backslash, a `$` expansion inside or outside\ndouble quotes (a bare `$` before the closing quote is still a\ncharacter), backticks, and a glob at the start of a word or in one that\nstarts with a dash. git also loses -C, --git-dir, --work-tree,\n--config-env and --exec-path, which point it at a repository or config\nthe reviewed tree could supply. -c and -C are forbidden to git and\nripgrep's launcher flags to rg only, so grep -c, wc -c and rg -C 3 now\npass.\n\nbash-gate.test.ts carries each bypass as a regression case, and the\nquoted forms the model writes still pass.\n\nPart of ER-38.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+    },
+    {
+      "sha": "04b2c4fd377c55189275f5a102e2d07b63ed9e0a",
+      "subject": "Keep the agent's git out of a bare repository committed in a reviewed tree",
+      "body": "A PR can commit a directory laid out as a bare repository, config\nincluded. git discovers a bare repository from the working directory, so\n`cd` into that directory followed by an allowed `git diff` ran whatever\ndiff driver its config named. The gate cannot tell such a directory from\nany other path.\n\nThe SDK subprocess, and so every command its Bash tool runs, now gets\nthe host environment plus safe.bareRepository=explicit as one more\nGIT_CONFIG_* entry, so git uses a bare repository only when one is named\nwith --git-dir, which the gate refuses. Checked by hand that git then\nrefuses to discover one (\"cannot use bare repository ... safe.bareRepository\nis 'explicit'\"); host-env.test.ts covers the entry being added after the\nengineer's own, and claude-run.test.ts that the run passes it.\n\nPart of ER-38.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+    }
+  ],
+  "files": [
+    {
+      "filename": ".claude/rules/cli.md",
+      "status": "modified",
+      "additions": 11,
+      "deletions": 7
+    },
+    {
+      "filename": "AGENTS.md",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1
+    },
+    {
+      "filename": "src/cli/bash-gate.test.ts",
+      "status": "modified",
+      "additions": 58,
+      "deletions": 0
+    },
+    {
+      "filename": "src/cli/bash-gate.ts",
+      "status": "modified",
+      "additions": 107,
+      "deletions": 52
+    },
+    {
+      "filename": "src/cli/claude-run.test.ts",
+      "status": "modified",
+      "additions": 21,
+      "deletions": 0
+    },
+    {
+      "filename": "src/cli/claude-run.ts",
+      "status": "modified",
+      "additions": 13,
+      "deletions": 5
+    },
+    {
+      "filename": "src/cli/host-env.test.ts",
+      "status": "modified",
+      "additions": 29,
+      "deletions": 1
+    },
+    {
+      "filename": "src/cli/host-env.ts",
+      "status": "modified",
+      "additions": 18,
+      "deletions": 0
+    },
+    {
+      "filename": "src/cli/review.test.ts",
+      "status": "modified",
+      "additions": 24,
+      "deletions": 0
+    },
+    {
+      "filename": "src/cli/review.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0
+    }
+  ],
+  "hunks": [
+    {
+      "id": "H0001",
+      "filename": ".claude/rules/cli.md",
+      "header": "@@ -36,7 +36,8 @@ src/cli/",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 36,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 36,
+        "lineCount": 8
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0002",
+      "filename": ".claude/rules/cli.md",
+      "header": "@@ -57,8 +58,8 @@ src/cli/",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 57,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 58,
+        "lineCount": 8
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0003",
+      "filename": ".claude/rules/cli.md",
+      "header": "@@ -69,8 +70,9 @@ src/cli/",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 69,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 70,
+        "lineCount": 9
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0004",
+      "filename": ".claude/rules/cli.md",
+      "header": "@@ -152,8 +154,10 @@ not an accident to fix:",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 152,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 154,
+        "lineCount": 10
+      },
+      "changedLines": 6
+    },
+    {
+      "id": "H0005",
+      "filename": "AGENTS.md",
+      "header": "@@ -147,7 +147,8 @@ Skills in `.claude/skills/`, loaded when the task calls for them:",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 147,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 147,
+        "lineCount": 8
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0006",
+      "filename": "src/cli/bash-gate.test.ts",
+      "header": "@@ -81,3 +81,8 @@ (part 1 of 6) describe('what the local agent may run', () => {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 81,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 81,
+        "lineCount": 8
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0007",
+      "filename": "src/cli/bash-gate.test.ts",
+      "header": "@@ -83,0 +89,13 @@ (part 2 of 6)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 83,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 89,
+        "lineCount": 13
+      },
+      "changedLines": 13
+    },
+    {
+      "id": "H0008",
+      "filename": "src/cli/bash-gate.test.ts",
+      "header": "@@ -83,0 +102,10 @@ (part 3 of 6)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 83,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 102,
+        "lineCount": 10
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0009",
+      "filename": "src/cli/bash-gate.test.ts",
+      "header": "@@ -83,0 +112,7 @@ (part 4 of 6)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 83,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 112,
+        "lineCount": 7
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0010",
+      "filename": "src/cli/bash-gate.test.ts",
+      "header": "@@ -83,0 +119,12 @@ (part 5 of 6)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 83,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 119,
+        "lineCount": 12
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0011",
+      "filename": "src/cli/bash-gate.test.ts",
+      "header": "@@ -84,3 +131,14 @@ (part 6 of 6)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 84,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 131,
+        "lineCount": 14
+      },
+      "changedLines": 11
+    },
+    {
+      "id": "H0012",
+      "filename": "src/cli/bash-gate.ts",
+      "header": "@@ -14,8 +14,15 @@ (part 1 of 3)",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 14,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 14,
+        "lineCount": 15
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0013",
+      "filename": "src/cli/bash-gate.ts",
+      "header": "@@ -22,3 +29,6 @@ (part 2 of 3)",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 22,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 29,
+        "lineCount": 6
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0014",
+      "filename": "src/cli/bash-gate.ts",
+      "header": "@@ -25,3 +35,10 @@ (part 3 of 3)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 25,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 35,
+        "lineCount": 10
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0015",
+      "filename": "src/cli/bash-gate.ts",
+      "header": "@@ -43,17 +60,24 @@ (part 1 of 3) const GIT_SUBCOMMANDS = new Set([",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 43,
+        "lineCount": 17
+      },
+      "modified": {
+        "startLine": 60,
+        "lineCount": 24
+      },
+      "changedLines": 19
+    },
+    {
+      "id": "H0016",
+      "filename": "src/cli/bash-gate.ts",
+      "header": "@@ -60,14 +84,14 @@ (part 2 of 3)",
+      "fileOrder": 5,
+      "original": {
+        "startLine": 60,
+        "lineCount": 14
+      },
+      "modified": {
+        "startLine": 84,
+        "lineCount": 14
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0017",
+      "filename": "src/cli/bash-gate.ts",
+      "header": "@@ -74,6 +98,5 @@ (part 3 of 3)",
+      "fileOrder": 6,
+      "original": {
+        "startLine": 74,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 98,
+        "lineCount": 5
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0018",
+      "filename": "src/cli/bash-gate.ts",
+      "header": "@@ -81,9 +104,10 @@ function reviewOne(command: string): BashDecision {",
+      "fileOrder": 7,
+      "original": {
+        "startLine": 81,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 104,
+        "lineCount": 10
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0019",
+      "filename": "src/cli/bash-gate.ts",
+      "header": "@@ -100,47 +124,88 @@ (part 1 of 3) function reviewOne(command: string): BashDecision {",
+      "fileOrder": 8,
+      "original": {
+        "startLine": 100,
+        "lineCount": 47
+      },
+      "modified": {
+        "startLine": 124,
+        "lineCount": 88
+      },
+      "changedLines": 89
+    },
+    {
+      "id": "H0020",
+      "filename": "src/cli/bash-gate.ts",
+      "header": "@@ -147,9 +212,8 @@ (part 2 of 3)",
+      "fileOrder": 9,
+      "original": {
+        "startLine": 147,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 212,
+        "lineCount": 8
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0021",
+      "filename": "src/cli/bash-gate.ts",
+      "header": "@@ -156,9 +219,0 @@ (part 3 of 3)",
+      "fileOrder": 10,
+      "original": {
+        "startLine": 156,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 219,
+        "lineCount": 0
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0022",
+      "filename": "src/cli/claude-run.test.ts",
+      "header": "@@ -70,6 +70,7 @@ const hunk = (id: string) => ({",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 70,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 70,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0023",
+      "filename": "src/cli/claude-run.test.ts",
+      "header": "@@ -188,3 +189,12 @@ (part 1 of 2) describe('the model run', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 188,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 189,
+        "lineCount": 12
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0024",
+      "filename": "src/cli/claude-run.test.ts",
+      "header": "@@ -191,3 +201,14 @@ (part 2 of 2)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 191,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 201,
+        "lineCount": 14
+      },
+      "changedLines": 11
+    },
+    {
+      "importsOnly": true,
+      "id": "H0025",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -6,6 +6,7 @@ import { howItEnded, runSdkLoop, type SdkQueryFn, type SdkUsage } from './sdk-lo",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 6,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 6,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0026",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -18,9 +19,11 @@ import type { RunFiles } from './run-folder.ts';",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 18,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 19,
+        "lineCount": 11
+      },
+      "changedLines": 8
+    },
+    {
+      "id": "H0027",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -52,6 +55,11 @@ export type QueryFn = SdkQueryFn;",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 52,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 55,
+        "lineCount": 11
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0028",
+      "filename": "src/cli/claude-run.ts",
+      "header": "@@ -212,8 +220,8 @@ function sdkOptions(",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 212,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 220,
+        "lineCount": 8
+      },
+      "changedLines": 4
+    },
+    {
+      "importsOnly": true,
+      "id": "H0029",
+      "filename": "src/cli/host-env.test.ts",
+      "header": "@@ -1,5 +1,5 @@",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "modified": {
+        "startLine": 1,
+        "lineCount": 5
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0030",
+      "filename": "src/cli/host-env.test.ts",
+      "header": "@@ -12,3 +12,10 @@ (part 1 of 3) describe('hostEnv', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 12,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 12,
+        "lineCount": 10
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0031",
+      "filename": "src/cli/host-env.test.ts",
+      "header": "@@ -14,0 +22,9 @@ (part 2 of 3)",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 14,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 22,
+        "lineCount": 9
+      },
+      "changedLines": 9
+    },
+    {
+      "id": "H0032",
+      "filename": "src/cli/host-env.test.ts",
+      "header": "@@ -14,0 +31,12 @@ (part 3 of 3)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 14,
+        "lineCount": 0
+      },
+      "modified": {
+        "startLine": 31,
+        "lineCount": 12
+      },
+      "changedLines": 12
+    },
+    {
+      "id": "H0033",
+      "filename": "src/cli/host-env.ts",
+      "header": "@@ -10,3 +10,21 @@ export type HostEnv = Record<string, string | undefined>;",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 10,
+        "lineCount": 3
+      },
+      "modified": {
+        "startLine": 10,
+        "lineCount": 21
+      },
+      "changedLines": 18
+    },
+    {
+      "id": "H0034",
+      "filename": "src/cli/review.test.ts",
+      "header": "@@ -132,8 +132,10 @@ describe('er review', () => {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 132,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 132,
+        "lineCount": 10
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0035",
+      "filename": "src/cli/review.test.ts",
+      "header": "@@ -144,6 +146,7 @@ describe('er review', () => {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 144,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 146,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0036",
+      "filename": "src/cli/review.test.ts",
+      "header": "@@ -418,6 +421,27 @@ describe('er review', () => {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 418,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 421,
+        "lineCount": 27
+      },
+      "changedLines": 21
+    },
+    {
+      "id": "H0037",
+      "filename": "src/cli/review.ts",
+      "header": "@@ -142,6 +142,7 @@ export async function review(",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 142,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 142,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    }
+  ]
+}

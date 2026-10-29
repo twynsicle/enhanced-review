@@ -1,0 +1,294 @@
+{
+  "name": "wiring",
+  "source": {
+    "folder": "evals/skims/contrived/wiring",
+    "repo": "stockline",
+    "kind": "branch"
+  },
+  "title": "Sync a single depot with DEPOT",
+  "description": "Two of the depots run their own instance of the service against the same feed, and today each instance reconciles every depot's rows and loads every depot's levels. With `DEPOT` set, feed rows for other depots are skipped (not reported as unknown), only that depot's levels are loaded from the warehouse, the report records which depot it covers and the status page says so. Unset, nothing changes.",
+  "commits": [
+    {
+      "sha": "1bddf3b10108c927a846bb4931a193c903761294",
+      "subject": "Sync a single depot with DEPOT",
+      "body": "DEPOT threads from config through reconcile and the warehouse's levels()\nto the report and the status page."
+    }
+  ],
+  "files": [
+    {
+      "filename": "README.md",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0
+    },
+    {
+      "filename": "src/config.ts",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 0
+    },
+    {
+      "filename": "src/main.ts",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 2
+    },
+    {
+      "filename": "src/sync/reconcile.test.ts",
+      "status": "modified",
+      "additions": 17,
+      "deletions": 5
+    },
+    {
+      "filename": "src/sync/reconcile.ts",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 2
+    },
+    {
+      "filename": "src/sync/report.ts",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 1
+    },
+    {
+      "filename": "src/warehouse.ts",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 2
+    },
+    {
+      "filename": "src/web/status.ts",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 0
+    }
+  ],
+  "hunks": [
+    {
+      "id": "H0001",
+      "filename": "README.md",
+      "header": "@@ -22,6 +22,7 @@ Requires Node 18 or later.",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 22,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 22,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0002",
+      "filename": "src/config.ts",
+      "header": "@@ -6,6 +6,7 @@ export interface Config {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 6,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 6,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0003",
+      "filename": "src/config.ts",
+      "header": "@@ -17,6 +18,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 17,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 18,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0004",
+      "filename": "src/main.ts",
+      "header": "@@ -18,11 +18,12 @@ async function main(): Promise<void> {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 18,
+        "lineCount": 11
+      },
+      "modified": {
+        "startLine": 18,
+        "lineCount": 12
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0005",
+      "filename": "src/sync/reconcile.test.ts",
+      "header": "@@ -6,7 +6,8 @@ function warehouse(levels: StockLevel[]): Warehouse & { applied: Adjustment[][]",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 6,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 6,
+        "lineCount": 8
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0006",
+      "filename": "src/sync/reconcile.test.ts",
+      "header": "@@ -24,14 +25,14 @@ const row = (sku: string, quantity: number, depot = 'north') => ({",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 24,
+        "lineCount": 14
+      },
+      "modified": {
+        "startLine": 25,
+        "lineCount": 14
+      },
+      "changedLines": 4
+    },
+    {
+      "id": "H0007",
+      "filename": "src/sync/reconcile.test.ts",
+      "header": "@@ -39,16 +40,17 @@ (part 1 of 2) describe('reconcile', () => {",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 39,
+        "lineCount": 16
+      },
+      "modified": {
+        "startLine": 40,
+        "lineCount": 17
+      },
+      "changedLines": 5
+    },
+    {
+      "id": "H0008",
+      "filename": "src/sync/reconcile.test.ts",
+      "header": "@@ -55,1 +57,11 @@ (part 2 of 2)",
+      "fileOrder": 4,
+      "original": {
+        "startLine": 55,
+        "lineCount": 1
+      },
+      "modified": {
+        "startLine": 57,
+        "lineCount": 11
+      },
+      "changedLines": 10
+    },
+    {
+      "id": "H0009",
+      "filename": "src/sync/reconcile.ts",
+      "header": "@@ -14,7 +14,7 @@ export interface Adjustment {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 14,
+        "lineCount": 7
+      },
+      "modified": {
+        "startLine": 14,
+        "lineCount": 7
+      },
+      "changedLines": 2
+    },
+    {
+      "id": "H0010",
+      "filename": "src/sync/reconcile.ts",
+      "header": "@@ -34,8 +34,9 @@ export async function reconcile(",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 34,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 34,
+        "lineCount": 9
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0011",
+      "filename": "src/sync/reconcile.ts",
+      "header": "@@ -43,6 +44,7 @@ export async function reconcile(",
+      "fileOrder": 3,
+      "original": {
+        "startLine": 43,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 44,
+        "lineCount": 7
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0012",
+      "filename": "src/sync/report.ts",
+      "header": "@@ -5,9 +5,10 @@ export interface SyncReport {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 5,
+        "lineCount": 9
+      },
+      "modified": {
+        "startLine": 5,
+        "lineCount": 10
+      },
+      "changedLines": 3
+    },
+    {
+      "id": "H0013",
+      "filename": "src/sync/report.ts",
+      "header": "@@ -18,5 +19,6 @@ export function summarise(result: ReconcileResult): SyncReport {",
+      "fileOrder": 2,
+      "original": {
+        "startLine": 18,
+        "lineCount": 5
+      },
+      "modified": {
+        "startLine": 19,
+        "lineCount": 6
+      },
+      "changedLines": 1
+    },
+    {
+      "id": "H0014",
+      "filename": "src/warehouse.ts",
+      "header": "@@ -9,8 +9,11 @@ export async function openWarehouse(): Promise<Warehouse> {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 9,
+        "lineCount": 8
+      },
+      "modified": {
+        "startLine": 9,
+        "lineCount": 11
+      },
+      "changedLines": 7
+    },
+    {
+      "id": "H0015",
+      "filename": "src/web/status.ts",
+      "header": "@@ -20,6 +20,9 @@ export function renderStatus(view: StatusView, now: Date): string {",
+      "fileOrder": 1,
+      "original": {
+        "startLine": 20,
+        "lineCount": 6
+      },
+      "modified": {
+        "startLine": 20,
+        "lineCount": 9
+      },
+      "changedLines": 3
+    }
+  ]
+}

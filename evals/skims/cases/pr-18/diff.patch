@@ -1,0 +1,1649 @@
+diff --git a/.claude/rules/review-pipeline.md b/.claude/rules/review-pipeline.md
+index 2382010..012720e 100644
+--- a/.claude/rules/review-pipeline.md
++++ b/.claude/rules/review-pipeline.md
+# H0001
+@@ -24,7 +24,12 @@ src/domain/
+                      ProseSchema — overviewSummary and chapter.description are a `{ lede, body? }`, the lede one
+                      short sentence and the body Markdown, because one free-text field is what produced the
+                      50-word sentences this replaced; Insight.filename? — the file an insight is about, drawn on
+-                     that diff card rather than above all of them;
++                     that diff card rather than above all of them; three insight types, not four — a pointer to
++                     related code or docs is `context` with a link, which is what `reference` was;
++                     JudgementCall / judgementCalls? / MAX_JUDGEMENT_CALLS — the questions only a human can
++                     answer, review-wide rather than per chapter so the cap is review-wide too, and anchored
++                     (filename + hunkIds both required) because a question is answerable only beside the lines
++                     that raised it;
+                      ReviewFile.skipped? — why a changed file was left out: generated, vendored, built-in, binary;
+                      ReviewFile.hunks? — the file's share of the hunk catalog, so a stored review knows what was
+                      reviewable and not only what was cited; SUMMARY_SECTION_ID / RISK_SECTION_ID, the reader's
+# H0002
+@@ -41,7 +46,9 @@ src/domain/
+                      coverage.ts (what the chapters left out, per file: withFileHunks attaches the catalog to the
+                      files — the local CLI at parse, the hosted runner at finalize; reviewCoverage subtracts what
+                      the chapters cite, per hunk, and returns the totals and byFile, one FileCoverage per
+-                     catalogued file carrying its leftovers and their DiffChunk; plus chaptersCiting and
++                     catalogued file carrying its leftovers and their DiffChunk; plus chaptersCiting,
++                     judgementCallOwner (the first chapter whose card for the call's file shows one of its hunks —
++                     the parser and the reader must agree on it) and
+                      citedChunk (every chapter's hunks for one file merged into a single chunk, deduplicated and in
+                      file order, so the file view draws one diff rather than one per citing chapter); a file
+                      without a catalog reports nothing. A shown hunk no chapter cites is fatal, so leftovers
+# H0003
+@@ -96,6 +103,12 @@ src/domain/
+                      diffChunks after hunk-id resolution and the prompt showed at least one hunk to cite, since prose
+                      with nothing to show for it is a generation defect, not a valid review; a diff with nothing
+                      reviewable at all is exempt, since then no chapter could have cited anything;
++                     a judgement call is held to the chapters' own cited paths, not the change's file list, and
++                     dropped whole — never hoisted — when its filename is not one of them or none of its hunk
++                     ids resolve to that file, since it is drawn beside those lines or nowhere; it is drawn on
++                     its judgementCallOwner's card (coverage.ts), so its hunk ids are narrowed to the ones that
++                     card shows, and the reader picks the owner the same way; the cap is
++                     applied here rather than by the schema, which could only refuse the whole review;
+                      sanitizeProse takes a `{ lede, body? }` object or a bare string, which is promoted to the
+                      lede, as is a body that arrived without one; a chapter's diffChunks are merged to one per
+                      filename, since the reader keys a file's insights and its count on the name; and an insight's
+
+diff --git a/.claude/rules/web.md b/.claude/rules/web.md
+index b5553a0..c932f3f 100644
+--- a/.claude/rules/web.md
++++ b/.claude/rules/web.md
+# H0004
+@@ -61,17 +61,26 @@ src/web/
+                      file-tree.ts (pure, no rendering: ReviewFile[] → the directory tree, single-child directory
+                      chains collapsed into one row), chapter-card (groupInsightsByFile splits the chapter's
+                      insights: an anchored one goes down to its diff card, the rest stay in the Insights
+-                     section above them), summary-card (title/meta, the findings notice, overview
+-                     diagram, AI overview, author's description collapsed last), risk-card, file-view (one diff over
++                     section above them; the review's judgement calls for this chapter arrive already keyed
++                     by file and go down the same way), judgement-calls.ts (pure: anchorJudgementCalls pairs
++                     each of the review's questions with the first chapter citing its file, so the summary's
++                     index and the chapter that draws it cannot disagree, and judgementCallsByFile keys one
++                     chapter's share by file), summary-card (title/meta, the findings notice, overview
++                     diagram, AI overview, the judgement-call index — titles linking to the chapter that draws
++                     each, since the reader shows one section at a time and a question in chapter seven is
++                     otherwise never met — author's description collapsed last), risk-card, file-view (one diff over
+                      every hunk the chapters cited, merged by coverage.ts's citedChunk so neighbouring hunks are not
+                      sliced twice, then its uncited hunks under their own label — coverage.byFile's entry is passed
+                      in, never recomputed — or why it has none), skipped-file.ts (the copy for
+-                     ReviewFile.skipped reasons), insight-callout,
++                     ReviewFile.skipped reasons), insight-callout (InsightCallout and JudgementCallout over one
++                     marginalia treatment; the judgement call takes amber `suggestion` rather than the token
++                     named `question`, which is also the chapter eyebrow),
+                      article.module.css (the reading measure + the diff bleed lane),
+                      prose-passage (a Prose: the lede one step up the scale, the body as Markdown beneath),
+                      markdown-text (+ .module.css; react-markdown + gfm + rehype-highlight),
+                      inline-diff-chunk (+ .module.css; both sides from useFilePair, snippets per hunk group,
+-                     the chapter's insights that named this file above the diff, capped at the measure,
++                     the asides for this file above the diff and capped at the measure — judgement calls first,
++                     then the chapter's insights that named it,
+                      lazy Monaco DiffEditor behind useHydrated, vs/vs-dark follows the scheme; the wrap preference
+                      goes to the live widget as diffWordWrap, never through its construction options, so a flip
+                      reflows in place instead of remounting; its lazy factory is also the one place that imports
+
+diff --git a/README.md b/README.md
+index 58fa7a4..793548e 100644
+--- a/README.md
++++ b/README.md
+# H0005
+@@ -1,8 +1,9 @@
+ # enhanced-review
+ 
+ AI code review: a chaptered narrative with an overview, a risk assessment,
+-insights, diagrams of what changed, and inline diffs you can open beside the
+-prose. Run it as [**local mode**](#local-mode), one command inside the
++insights, diagrams of what changed, inline diffs you can open beside the prose,
++and — where the code cannot settle it — a question or two put back to you.
++Run it as [**local mode**](#local-mode), one command inside the
+ repository you want reviewed, or as [**hosted mode**](#hosted-mode), a
+ multi-user web app you sign in to with GitHub — currently parked, see that
+ section for why.
+
+diff --git a/src/domain/review/coverage.ts b/src/domain/review/coverage.ts
+index 226102b..1b7ba3f 100644
+--- a/src/domain/review/coverage.ts
++++ b/src/domain/review/coverage.ts
+# H0006
+@@ -88,6 +88,25 @@ export function chaptersCiting(
+   );
+ }
+ 
++/**
++ * The chapter a judgement call is drawn in: the first whose chunk for its file
++ * shows one of the hunks it cites. Matching the file alone is not enough — two
++ * chapters can each show different hunks of one file, and a question drawn on
++ * the card that lacks its lines asks about code the reader cannot see there.
++ */
++export function judgementCallOwner<C extends Pick<NarrativeChapter, 'diffChunks'>>(
++  call: { filename: string; hunkIds: readonly string[] },
++  chapters: readonly C[],
++): C | undefined {
++  const wanted = new Set(call.hunkIds);
++  return chapters.find((chapter) =>
++    chapter.diffChunks.some(
++      (chunk) =>
++        chunk.filename === call.filename && chunk.hunks.some((hunk) => wanted.has(hunk.id)),
++    ),
++  );
++}
++
+ /**
+  * Every hunk the chapters cited from one file, as a single chunk. The file
+  * view draws this rather than a chunk per chapter: slicing the file around
+
+diff --git a/src/domain/review/findings.test.ts b/src/domain/review/findings.test.ts
+index 9a92679..757c6e3 100644
+--- a/src/domain/review/findings.test.ts
++++ b/src/domain/review/findings.test.ts
+# H0007
+@@ -28,6 +28,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {
+   'risk-dropped': 'warning',
+   'diagram-dropped': 'warning',
+   'insight-anchor-dropped': 'warning',
++  'judgement-call-dropped': 'warning',
+   'diff-truncated': 'warning',
+   'commands-refused': 'warning',
+   'passed-after-retry': 'warning',
+# H0008
+@@ -40,6 +41,7 @@ const EXPECTED: Record<FindingCode, FindingSeverity> = {
+   'chunks-merged': 'note',
+   'insight-type-unknown': 'note',
+   'insight-dropped': 'note',
++  'judgement-hunk-id-dropped': 'note',
+   'diagram-part-dropped': 'note',
+   'hunk-id-dropped': 'note',
+   'risk-part-dropped': 'note',
+
+diff --git a/src/domain/review/findings.ts b/src/domain/review/findings.ts
+index 09a33d5..97f5622 100644
+--- a/src/domain/review/findings.ts
++++ b/src/domain/review/findings.ts
+# H0009
+@@ -53,6 +53,12 @@ const SEVERITY_BY_CODE = {
+   'diagram-dropped': 'warning',
+   /** An insight anchored to a file its chapter does not cite lost the anchor. */
+   'insight-anchor-dropped': 'warning',
++  /**
++   * A judgement call the reviewer will never be asked. Unlike an insight, it
++   * has nowhere else to go: it is drawn beside the lines it is about or not at
++   * all, so an anchor that resolved against nothing costs the whole question.
++   */
++  'judgement-call-dropped': 'warning',
+   /** The diff did not fit the prompt, so part of the change was never shown. */
+   'diff-truncated': 'warning',
+   /** The sandbox refused commands the reviewer asked to run (`er` only). */
+# H0010
+@@ -74,8 +80,10 @@ const SEVERITY_BY_CODE = {
+   'json-quote-repaired': 'note',
+   /** A chapter showed one file twice — two chunks, or one hunk cited twice — and the repeat went. */
+   'chunks-merged': 'note',
+-  /** An insight's type is not one of the four, and fell back to `context`. */
++  /** An insight's type is not one of the three, and fell back to `context`. */
+   'insight-type-unknown': 'note',
++  /** A hunk id a surviving judgement call cited that resolved against nothing. */
++  'judgement-hunk-id-dropped': 'note',
+   /** An insight with no text to show was dropped. */
+   'insight-dropped': 'note',
+   /** Part of a diagram went: a node, an edge, a group, a filename, a hunk id. */
+
+diff --git a/src/domain/review/narrative.ts b/src/domain/review/narrative.ts
+index bea52b6..97e42ab 100644
+--- a/src/domain/review/narrative.ts
++++ b/src/domain/review/narrative.ts
+# H0011
+@@ -32,7 +32,7 @@ export const ProseSchema = z.object({
+ });
+ export type Prose = z.infer<typeof ProseSchema>;
+ 
+-export const InsightTypeSchema = z.enum(['context', 'rationale', 'highlight', 'reference']);
++export const InsightTypeSchema = z.enum(['context', 'rationale', 'highlight']);
+ export type InsightType = z.infer<typeof InsightTypeSchema>;
+ 
+ export const InsightSchema = z.object({
+# H0012
+@@ -54,6 +54,37 @@ export const InsightSchema = z.object({
+ });
+ export type Insight = z.infer<typeof InsightSchema>;
+ 
++/** At most three judgement calls in a review, and most reviews earn none. */
++export const MAX_JUDGEMENT_CALLS = 3;
++
++/**
++ * A decision in the change whose correctness needs a human, because the fact
++ * that settles it is not in the repository: expected volume, what is coming
++ * next, who depends on the current behaviour, a product call.
++ *
++ * Not an `Insight`, for two reasons. An insight tells the reviewer something;
++ * this asks them something, and the two read differently enough that sharing a
++ * type would blur both. More practically, insights are budgeted per chapter,
++ * so a twelve-chapter review may hold thirty of them — right for a reviewer
++ * aid and wrong for a question, which is worth reading precisely because there
++ * are two of them and not thirty. The budget therefore has to be review-wide,
++ * and a review-wide cap cannot be enforced on a chapter-scoped array.
++ *
++ * `filename` and `hunkIds` are required rather than optional: a question is
++ * only answerable beside the lines that prompted it, and one the reader meets
++ * before any code is a question about nothing in particular. The path must be
++ * one a chapter cites, so there is a diff card for the question to sit on.
++ */
++export const JudgementCallSchema = z.object({
++  /** Short headline naming the decision, not the question. */
++  title: z.string(),
++  text: z.string(),
++  filename: z.string(),
++  /** Ids from the prompt's catalog, all belonging to `filename`. */
++  hunkIds: z.array(z.string()).nonempty(),
++});
++export type JudgementCall = z.infer<typeof JudgementCallSchema>;
++
+ export const DiffLineSpanSchema = z.object({
+   startLine: z.number().int(),
+   lineCount: z.number().int(),
+# H0013
+@@ -158,6 +189,12 @@ export const NarrativeReviewSchema = z.object({
+    */
+   overviewDiagram: DiagramSchema.optional(),
+   chapters: z.array(NarrativeChapterSchema),
++  /**
++   * Review-wide rather than per chapter, and capped: see `JudgementCallSchema`.
++   * Absent and empty mean the same thing — no decision here needed a human —
++   * which is the common case and not a defect.
++   */
++  judgementCalls: z.array(JudgementCallSchema).max(MAX_JUDGEMENT_CALLS).optional(),
+ });
+ export type NarrativeReview = z.infer<typeof NarrativeReviewSchema>;
+ 
+
+diff --git a/src/domain/review/prompt/__fixtures__/server-prompt.txt b/src/domain/review/prompt/__fixtures__/server-prompt.txt
+index 5bcb643..b2e17f8 100644
+--- a/src/domain/review/prompt/__fixtures__/server-prompt.txt
++++ b/src/domain/review/prompt/__fixtures__/server-prompt.txt
+# H0014
+@@ -31,7 +31,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
+       },
+       "insights": [
+         {
+-          "type": "context | rationale | highlight | reference",
++          "type": "context | rationale | highlight",
+           "title": "string — short 4-10 word headline naming the takeaway",
+           "text": "string — concise reviewer aid, 1-2 sentences",
+           "filename": "string — optional. A path from this chapter's diffChunks, when the insight is about that one file. See Anchoring an insight below"
+# H0015
+@@ -46,6 +46,14 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
+       ],
+       "diagram": "optional object — see Diagrams below. At most one per chapter"
+     }
++  ],
++  "judgementCalls": [
++    {
++      "title": "string — 4-10 word phrase naming the decision, not the question",
++      "text": "string — 1-3 sentences: the decision, the alternative, and what differs under each answer. Cite the evidence you found",
++      "filename": "string — a path one of your own chapters cites, character-for-character",
++      "hunkIds": ["string — one or more hunk IDs from the Changed Hunks list belonging to that same file"]
++    }
+   ]
+ }
+ 
+# H0016
+@@ -57,10 +65,9 @@ Guidelines:
+ - Each chapter description should be readable by a product-minded reviewer: the lede says what was done, the body covers why it was likely done and the tradeoffs or alternatives the author likely considered. Keep it specific but not overly technical.
+ - Describe the PR's final diff, not how it got there. Never narrate the PR's own review or iteration history ("per review feedback", "used to do X, now does Y", "originally implemented as...") — the reviewer sees only the current diff, so a summary framed around an intermediate state compares against something they never saw. Describe what the code does now and why, not the path taken between commits.
+ - Each chapter may have 0–3 insights — they are optional, not a quota. Add one only when it tells the reviewer something the chapter description does not already say. Insight types are reviewer aids (not AI opinions):
+-  - "context": outside knowledge the reviewer would otherwise have to look up themselves — how a library, API, or pattern actually behaves, with a link when one is genuinely useful
++  - "context": outside knowledge the reviewer would otherwise have to look up themselves — how a library, API, or pattern actually behaves, or a pointer to the related code, docs or external resource that explains it, with a link when one is genuinely useful
+   - "rationale": why this approach was chosen over alternatives, when that reasoning is not already covered in the chapter description
+   - "highlight": a potential issue you spotted in the diff, ideally naming which riskAssessment factor it lines up with
+-  - "reference": pointers to related code, docs, or an external resource
+ - Never add an insight that restates the chapter description in other words. If there is nothing left to add beyond what the description already says, give the chapter fewer insights, or none.
+ - Each insight has a "title" (4–10 word phrase that names the takeaway, e.g., "Buffer can grow unbounded under reconnect") and a "text" (the 1–2 sentence explanation). Title and text must not duplicate each other — the title is the headline, the text is the supporting detail.
+ - Prefer concise insights. If an idea needs more explanation, put the broader explanation in the chapter description and keep the insight focused.
+# H0017
+@@ -104,3 +111,16 @@ (part 1 of 2) An insight may carry a "filename", and should whenever it is about one file in p
+ - Leave it unanchored when the insight orients the reader before they start: how a library behaves, why this approach was taken over another, a pointer to related code. These are worth knowing before the first diff, not at the third file.
+ - The path must be one this chapter's own diffChunks cite, character-for-character. A filename that is not on this chapter's list is dropped, and the insight falls back to the unanchored list.
+ 
++Judgement calls:
++
++A judgement call is a question for a human, and a review carries at most three. Most reviews earn none. An empty list is a complete answer, and omitting "judgementCalls" entirely is the right output whenever nothing passes every test below.
++
++You are looking for one thing: a decision in this diff whose correctness you genuinely cannot determine, because the fact that settles it is not in this repository and not in your own knowledge — expected volume, what is coming next, who depends on the current behaviour, the team's operational appetite, a product call.
++
++Before writing one, find where the deciding fact lives. If it is:
++- in the code, a test, the README, a comment or the history — go and read it. You now have an answer, so say it as an insight instead of asking about it.
++- in your own technical knowledge — how a library behaves, what a pattern costs, whether a loop is quadratic — then you already know it. Say it as a "highlight". "Is X the right library" is never a judgement call on its own; "does the team have the operational appetite X assumes" may be.
++- in the repository's own conventions — it already uses Y for this job, there is already a shared helper, the pattern is visible in five other files — that is an insight too.
++
++A question you could have answered by looking is the worst thing you can put here. It tells the reader you did not look.
++
+# H0018
+@@ -107,3 +127,14 @@ (part 2 of 2)
++Every judgement call must pass all five of these. Discard it if it fails any one:
++- Two concrete branches. You can name both plausible answers, and say what in this diff would be different under each. Not "it depends on scale" — "under a few hundred rows the index and its maintenance are dead weight; over a million the current full scan is the request's whole latency budget".
++- A road visibly taken. The diff contains the choice. An absence is not a decision, and there are infinitely many things a diff does not do.
++- The legwork done, and cited. Whatever you could establish, you did, and the question carries it: the call sites you found, the convention, the line numbers.
++- The answer changes what a reviewer does. Name the action each branch leads to — "ask for the cache and its invalidation path to be dropped before merge", "ask for a benchmark first", "approve as it stands". If both branches end in the same action, discard it. If the only thing that differs is cosmetic, discard it. A latent bug you can describe is a "highlight" and not a question: state it plainly instead.
++- Every citation re-read. Cite only what you have just looked at, and only what the reader will actually find there. Never cite a file to corroborate a claim it does not make: the citations are the only thing the reader has to check you against, so one that does not hold up wastes the whole question however good it was. If you believe two places in this repository contradict each other, re-read both and quote their words.
++
++Address the code, never the person's intent — "is the expected volume here enough to justify the cache", not "why did you choose to cache". The reader may be the author or a reviewer, and no question should read as an exam or as a demand that someone justify themselves. You are a colleague pointing at a fork in the road.
++
++Anchor every judgement call. "filename" must be a path one of your own chapters cites, and "hunkIds" must be ids from the Changed Hunks list belonging to that same file, because the question is drawn beside those lines and nowhere else. A judgement call anchored to a file no chapter cites is dropped in full — not moved, dropped — so check the anchor before you write it.
++
+ Diagrams:
+ 
+ A diagram is optional. Draw one wherever it does work the prose cannot, and leave it out everywhere else. There are two places one may go: "overviewDiagram" on the review, and "diagram" on a chapter — at most one each. Every diagram has:
+
+diff --git a/src/domain/review/prompt/instructions.ts b/src/domain/review/prompt/instructions.ts
+index 229a3ea..0242027 100644
+--- a/src/domain/review/prompt/instructions.ts
++++ b/src/domain/review/prompt/instructions.ts
+# H0019
+@@ -46,7 +46,7 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
+       },
+       "insights": [
+         {
+-          "type": "context | rationale | highlight | reference",
++          "type": "context | rationale | highlight",
+           "title": "string — short 4-10 word headline naming the takeaway",
+           "text": "string — concise reviewer aid, 1-2 sentences",
+           "filename": "string — optional. A path from this chapter's diffChunks, when the insight is about that one file. See Anchoring an insight below"
+# H0020
+@@ -61,6 +61,14 @@ Output a JSON object wrapped in <narrative_review> tags. The JSON must conform t
+       ],
+       "diagram": "optional object — see Diagrams below. At most one per chapter"
+     }
++  ],
++  "judgementCalls": [
++    {
++      "title": "string — 4-10 word phrase naming the decision, not the question",
++      "text": "string — 1-3 sentences: the decision, the alternative, and what differs under each answer. Cite the evidence you found",
++      "filename": "string — a path one of your own chapters cites, character-for-character",
++      "hunkIds": ["string — one or more hunk IDs from the Changed Hunks list belonging to that same file"]
++    }
+   ]
+ }
+ 
+# H0021
+@@ -72,10 +80,9 @@ Guidelines:
+ - Each chapter description should be readable by a product-minded reviewer: the lede says what was done, the body covers why it was likely done and the tradeoffs or alternatives the author likely considered. Keep it specific but not overly technical.
+ - Describe the PR's final diff, not how it got there. Never narrate the PR's own review or iteration history ("per review feedback", "used to do X, now does Y", "originally implemented as...") — the reviewer sees only the current diff, so a summary framed around an intermediate state compares against something they never saw. Describe what the code does now and why, not the path taken between commits.
+ - Each chapter may have 0–3 insights — they are optional, not a quota. Add one only when it tells the reviewer something the chapter description does not already say. Insight types are reviewer aids (not AI opinions):
+-  - "context": outside knowledge the reviewer would otherwise have to look up themselves — how a library, API, or pattern actually behaves, with a link when one is genuinely useful
++  - "context": outside knowledge the reviewer would otherwise have to look up themselves — how a library, API, or pattern actually behaves, or a pointer to the related code, docs or external resource that explains it, with a link when one is genuinely useful
+   - "rationale": why this approach was chosen over alternatives, when that reasoning is not already covered in the chapter description
+   - "highlight": a potential issue you spotted in the diff, ideally naming which riskAssessment factor it lines up with
+-  - "reference": pointers to related code, docs, or an external resource
+ - Never add an insight that restates the chapter description in other words. If there is nothing left to add beyond what the description already says, give the chapter fewer insights, or none.
+ - Each insight has a "title" (4–10 word phrase that names the takeaway, e.g., "Buffer can grow unbounded under reconnect") and a "text" (the 1–2 sentence explanation). Title and text must not duplicate each other — the title is the headline, the text is the supporting detail.
+ - Prefer concise insights. If an idea needs more explanation, put the broader explanation in the chapter description and keep the insight focused.
+# H0022
+@@ -119,3 +126,16 @@ (part 1 of 2) An insight may carry a "filename", and should whenever it is about one file in p
+ - Leave it unanchored when the insight orients the reader before they start: how a library behaves, why this approach was taken over another, a pointer to related code. These are worth knowing before the first diff, not at the third file.
+ - The path must be one this chapter's own diffChunks cite, character-for-character. A filename that is not on this chapter's list is dropped, and the insight falls back to the unanchored list.
+ 
++Judgement calls:
++
++A judgement call is a question for a human, and a review carries at most three. Most reviews earn none. An empty list is a complete answer, and omitting "judgementCalls" entirely is the right output whenever nothing passes every test below.
++
++You are looking for one thing: a decision in this diff whose correctness you genuinely cannot determine, because the fact that settles it is not in this repository and not in your own knowledge — expected volume, what is coming next, who depends on the current behaviour, the team's operational appetite, a product call.
++
++Before writing one, find where the deciding fact lives. If it is:
++- in the code, a test, the README, a comment or the history — go and read it. You now have an answer, so say it as an insight instead of asking about it.
++- in your own technical knowledge — how a library behaves, what a pattern costs, whether a loop is quadratic — then you already know it. Say it as a "highlight". "Is X the right library" is never a judgement call on its own; "does the team have the operational appetite X assumes" may be.
++- in the repository's own conventions — it already uses Y for this job, there is already a shared helper, the pattern is visible in five other files — that is an insight too.
++
++A question you could have answered by looking is the worst thing you can put here. It tells the reader you did not look.
++
+# H0023
+@@ -122,3 +142,14 @@ (part 2 of 2)
++Every judgement call must pass all five of these. Discard it if it fails any one:
++- Two concrete branches. You can name both plausible answers, and say what in this diff would be different under each. Not "it depends on scale" — "under a few hundred rows the index and its maintenance are dead weight; over a million the current full scan is the request's whole latency budget".
++- A road visibly taken. The diff contains the choice. An absence is not a decision, and there are infinitely many things a diff does not do.
++- The legwork done, and cited. Whatever you could establish, you did, and the question carries it: the call sites you found, the convention, the line numbers.
++- The answer changes what a reviewer does. Name the action each branch leads to — "ask for the cache and its invalidation path to be dropped before merge", "ask for a benchmark first", "approve as it stands". If both branches end in the same action, discard it. If the only thing that differs is cosmetic, discard it. A latent bug you can describe is a "highlight" and not a question: state it plainly instead.
++- Every citation re-read. Cite only what you have just looked at, and only what the reader will actually find there. Never cite a file to corroborate a claim it does not make: the citations are the only thing the reader has to check you against, so one that does not hold up wastes the whole question however good it was. If you believe two places in this repository contradict each other, re-read both and quote their words.
++
++Address the code, never the person's intent — "is the expected volume here enough to justify the cache", not "why did you choose to cache". The reader may be the author or a reviewer, and no question should read as an exam or as a demand that someone justify themselves. You are a colleague pointing at a fork in the road.
++
++Anchor every judgement call. "filename" must be a path one of your own chapters cites, and "hunkIds" must be ids from the Changed Hunks list belonging to that same file, because the question is drawn beside those lines and nowhere else. A judgement call anchored to a file no chapter cites is dropped in full — not moved, dropped — so check the anchor before you write it.
++
+ Diagrams:
+ 
+ A diagram is optional. Draw one wherever it does work the prose cannot, and leave it out everywhere else. There are two places one may go: "overviewDiagram" on the review, and "diagram" on a chapter — at most one each. Every diagram has:
+
+diff --git a/src/domain/review/prompt/parse-narrative.test.ts b/src/domain/review/prompt/parse-narrative.test.ts
+index 9445b87..846f253 100644
+--- a/src/domain/review/prompt/parse-narrative.test.ts
++++ b/src/domain/review/prompt/parse-narrative.test.ts
+# H0024
+@@ -478,3 +478,11 @@ (part 1 of 9) describe('an insight anchored to a file', () => {
+   });
+ });
+ 
++const call = (over: Record<string, unknown> = {}) => ({
++  title: 'Hourly cadence offered to every repo',
++  text: 'Cheap if few choose it, expensive if most do.',
++  filename: 'src/a.ts',
++  hunkIds: ['H0001'],
++  ...over,
++});
++
+# H0025
+@@ -480,0 +489,22 @@ (part 2 of 9)
++describe('a judgement call', () => {
++  const parse = (judgementCalls: unknown) =>
++    parseNarrativeReview(
++      wrap({
++        prTitle: 't',
++        overviewSummary: { lede: 's' },
++        chapters: [
++          { id: 'c', title: 'C', insights: [], diffChunks: [cite('src/a.ts', ['H0001', 'H0002'])] },
++          { id: 'd', title: 'D', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
++        ],
++        judgementCalls,
++      }),
++      groundingFor(buildDiffHunkIndex(DIFF).hunks),
++    );
++
++  it('survives with the hunks it named, in file order', () => {
++    const result = parse([call({ hunkIds: ['H0002', 'H0001'] })]);
++    expect(result.ok && result.data.judgementCalls).toEqual([
++      call({ hunkIds: ['H0001', 'H0002'] }),
++    ]);
++  });
++
+# H0026
+@@ -480,0 +511,6 @@ (part 3 of 9)
++  it('is absent, not empty, when the model asked nothing', () => {
++    const result = parse(undefined);
++    expect(result.ok && 'judgementCalls' in result.data).toBe(false);
++    expect(codes(result)).not.toContain('judgement-call-dropped');
++  });
++
+# H0027
+@@ -480,0 +517,6 @@ (part 4 of 9)
++  it('is dropped in full when no chapter cites its file, since it has no card to sit on', () => {
++    const result = parse([call({ filename: 'src/c.ts', hunkIds: ['H0001'] })]);
++    expect(result.ok && result.data.judgementCalls).toBeUndefined();
++    expect(codes(result)).toContain('judgement-call-dropped');
++  });
++
+# H0028
+@@ -480,0 +523,9 @@ (part 5 of 9)
++  it('is dropped when every hunk it cites belongs to another file', () => {
++    // src/a.ts is cited by a chapter, so the anchor stands; H0003 is src/b.ts,
++    // so the question points at lines this card does not show.
++    const result = parse([call({ hunkIds: ['H0003'] })]);
++    expect(result.ok && result.data.judgementCalls).toBeUndefined();
++    expect(codes(result)).toContain('judgement-hunk-id-dropped');
++    expect(codes(result)).toContain('judgement-call-dropped');
++  });
++
+# H0029
+@@ -480,0 +532,7 @@ (part 6 of 9)
++  it('keeps the hunks that resolved and records the one that did not', () => {
++    const result = parse([call({ hunkIds: ['H0001', 'H9999'] })]);
++    expect(result.ok && result.data.judgementCalls).toEqual([call({ hunkIds: ['H0001'] })]);
++    expect(codes(result)).toContain('judgement-hunk-id-dropped');
++    expect(codes(result)).not.toContain('judgement-call-dropped');
++  });
++
+# H0030
+@@ -480,0 +539,21 @@ (part 7 of 9)
++  it('keeps only the hunks of the chapter that draws it, when two chapters split its file', () => {
++    const result = parseNarrativeReview(
++      wrap({
++        prTitle: 't',
++        overviewSummary: { lede: 's' },
++        chapters: [
++          { id: 'c', title: 'C', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
++          { id: 'd', title: 'D', insights: [], diffChunks: [cite('src/a.ts', ['H0002'])] },
++          { id: 'e', title: 'E', insights: [], diffChunks: [cite('src/b.ts', ['H0003'])] },
++        ],
++        judgementCalls: [call({ hunkIds: ['H0002', 'H0001'] })],
++      }),
++      groundingFor(buildDiffHunkIndex(DIFF).hunks),
++    );
++    // Drawn in chapter c, the first showing one of its hunks; H0002 is on
++    // chapter d's card, where the question will not be.
++    expect(result.ok && result.data.judgementCalls).toEqual([call({ hunkIds: ['H0001'] })]);
++    expect(codes(result)).toContain('judgement-hunk-id-dropped');
++    expect(codes(result)).not.toContain('judgement-call-dropped');
++  });
++
+# H0031
+@@ -480,0 +560,6 @@ (part 8 of 9)
++  it('is dropped without a title or without text, either of which leaves no question', () => {
++    expect(parse([call({ title: '  ' })]).ok).toBe(true);
++    expect(codes(parse([call({ title: '  ' })]))).toContain('judgement-call-dropped');
++    expect(codes(parse([call({ text: undefined })]))).toContain('judgement-call-dropped');
++  });
++
+# H0032
+@@ -481,3 +566,19 @@ (part 9 of 9)
++  it('is capped at three, however many the model asked', () => {
++    const result = parse([
++      call({ title: 'one' }),
++      call({ title: 'two' }),
++      call({ title: 'three' }),
++      call({ title: 'four' }),
++    ]);
++    expect(result.ok && result.data.judgementCalls?.map((c) => c.title)).toEqual([
++      'one',
++      'two',
++      'three',
++    ]);
++    expect(codes(result)).toContain('judgement-call-dropped');
++  });
++});
++
+ describe('a quote the model forgot to escape', () => {
+   // What a real review sent, and what it used to cost: one unescaped pair
+   // inside a 37 KB answer, and the whole run thrown away.
+
+diff --git a/src/domain/review/prompt/parse-narrative.ts b/src/domain/review/prompt/parse-narrative.ts
+index 6c5565e..7380713 100644
+--- a/src/domain/review/prompt/parse-narrative.ts
++++ b/src/domain/review/prompt/parse-narrative.ts
+# H0033
+@@ -1,11 +1,14 @@
+ import { plural } from '../../../common/plural.ts';
++import { judgementCallOwner } from '../coverage.ts';
+ import { findingLog, type Finding, type FindingLog } from '../findings.ts';
+ import {
+   InsightTypeSchema,
++  MAX_JUDGEMENT_CALLS,
+   NarrativeReviewSchema,
+   ReviewRiskFactorImpactSchema,
+   type DiffChunk,
+   type Insight,
++  type JudgementCall,
+   type NarrativeReview,
+   type Prose,
+   type ResolvedDiffHunk,
+# H0034
+@@ -13,7 +16,7 @@ import {
+   type ReviewRiskFactorImpact,
+   type ReviewRiskScore,
+ } from '../narrative.ts';
+-import type { PromptGrounding } from './diff-hunk-catalog.ts';
++import type { DiffHunk, PromptGrounding } from './diff-hunk-catalog.ts';
+ import { sanitizeDiagram } from './parse-diagram.ts';
+ 
+ /**
+# H0035
+@@ -302,3 +305,28 @@ (part 1 of 3) function sanitizeInsights(
+   });
+ }
+ 
++/** The hunks of one file a judgement call points at, in file order. */
++function resolveJudgementHunks(
++  raw: unknown,
++  filename: string,
++  title: string,
++  grounding: PromptGrounding | undefined,
++  log: FindingLog,
++): DiffHunk[] {
++  const rawIds: unknown[] = Array.isArray(raw) ? raw : [];
++  const deduped = new Map<string, DiffHunk>();
++  for (const hunkId of rawIds) {
++    const hunk = typeof hunkId === 'string' ? grounding?.shown.byId[hunkId] : undefined;
++    if (!hunk || hunk.filename !== filename) {
++      log.add(
++        'judgement-hunk-id-dropped',
++        `The judgement call "${title}" cited ${typeof hunkId === 'string' ? hunkId : 'a hunk id that is not a string'} for ${filename}, which resolved against nothing.`,
++        { filename },
++      );
++      continue;
++    }
++    deduped.set(hunk.id, hunk);
++  }
++  return [...deduped.values()].toSorted((a, b) => a.fileOrder - b.fileOrder);
++}
++
+# H0036
+@@ -304,0 +333,108 @@ (part 2 of 3)
++/**
++ * The review's judgement calls, each held to the one place it can be drawn.
++ *
++ * The check is against the diff cards that exist on the page rather than
++ * against the change: a question anchored to a file no chapter shows has no
++ * card to sit beside, and it is dropped rather than hoisted somewhere the
++ * reader meets it before any code. That is the opposite call to the one an
++ * insight gets — an insight that loses its anchor still says something on its
++ * own, while a question about lines the reader cannot see is a question about
++ * nothing.
++ *
++ * A call is drawn on one card, its `judgementCallOwner`'s, so its hunk ids are
++ * narrowed to the ones that card shows: a hunk of the same file that another
++ * chapter shows is somewhere the reader will not find the question.
++ *
++ * The cap is applied here and not left to the schema, because the schema can
++ * only refuse the whole review, and a model that asks five good questions has
++ * not produced an invalid answer.
++ */
++function sanitizeJudgementCalls(
++  raw: unknown,
++  chapters: readonly SanitizedChapter[],
++  grounding: PromptGrounding | undefined,
++  log: FindingLog,
++): JudgementCall[] {
++  const cited = new Set(
++    chapters.flatMap((chapter) => chapter.diffChunks.map((chunk) => chunk.filename)),
++  );
++  if (arrived(raw) && !Array.isArray(raw)) {
++    log.add(
++      'judgement-call-dropped',
++      'The judgement calls arrived as something other than a list, so the review asks nothing.',
++    );
++  }
++  const rawCalls: unknown[] = Array.isArray(raw) ? raw : [];
++  const kept = rawCalls.flatMap<JudgementCall>((call) => {
++    if (!isRecord(call)) {
++      log.add(
++        'judgement-call-dropped',
++        'A judgement call arrived as something other than an object.',
++      );
++      return [];
++    }
++    const title = typeof call['title'] === 'string' ? call['title'].trim() : '';
++    const text = typeof call['text'] === 'string' ? call['text'].trim() : '';
++    if (title.length === 0 || text.length === 0) {
++      log.add(
++        'judgement-call-dropped',
++        `A judgement call arrived with no ${title.length === 0 ? 'title' : 'text'}, so there is no question to ask.`,
++      );
++      return [];
++    }
++    const filename = typeof call['filename'] === 'string' ? call['filename'] : '';
++    if (!cited.has(filename)) {
++      log.add(
++        'judgement-call-dropped',
++        `The judgement call "${title}" is anchored to ${filename || 'no file'}, which no chapter shows, so there is nowhere to ask it.`,
++        filename ? { filename } : {},
++      );
++      return [];
++    }
++    const resolved = resolveJudgementHunks(call['hunkIds'], filename, title, grounding, log);
++    if (resolved.length === 0) {
++      log.add(
++        'judgement-call-dropped',
++        `The judgement call "${title}" cites no hunk of ${filename} that resolved against the diff.`,
++        { filename },
++      );
++      return [];
++    }
++    const owner = judgementCallOwner(
++      { filename, hunkIds: resolved.map((hunk) => hunk.id) },
++      chapters,
++    );
++    if (!owner) {
++      log.add(
++        'judgement-call-dropped',
++        `The judgement call "${title}" cites hunks of ${filename} that no chapter shows, so there is nowhere to ask it.`,
++        { filename },
++      );
++      return [];
++    }
++    const shown = new Set(
++      owner.diffChunks
++        .filter((chunk) => chunk.filename === filename)
++        .flatMap((chunk) => chunk.hunks.map((hunk) => hunk.id)),
++    );
++    const [first, ...rest] = resolved.filter((hunk) => {
++      if (shown.has(hunk.id)) return true;
++      log.add(
++        'judgement-hunk-id-dropped',
++        `The judgement call "${title}" cited ${hunk.id}, which chapter ${owner.id} does not show beside it.`,
++        { filename, chapterId: owner.id },
++      );
++      return false;
++    });
++    // `owner` was chosen for showing one of these, so at least one survives.
++    if (first === undefined) return [];
++    return [
++      {
++        title,
++        text,
++        filename,
++        hunkIds: [first.id, ...rest.map((hunk) => hunk.id)] as [string, ...string[]],
++      },
++    ];
++  });
++
+# H0037
+@@ -305,3 +441,11 @@ (part 3 of 3)
++  if (kept.length <= MAX_JUDGEMENT_CALLS) return kept;
++  log.add(
++    'judgement-call-dropped',
++    `The review asked ${plural(kept.length, 'judgement call')}; only the first ${String(MAX_JUDGEMENT_CALLS)} are shown.`,
++  );
++  return kept.slice(0, MAX_JUDGEMENT_CALLS);
++}
++
+ /**
+  * One chunk per file in a chapter. The reader keys a file's insights and its
+  * file count on the filename, so a chapter the model split across two chunks
+# H0038
+@@ -624,12 +768,14 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
+     grounding,
+     log,
+   );
++  const judgementCalls = sanitizeJudgementCalls(parsed['judgementCalls'], chapters, grounding, log);
+   const candidate = {
+     prTitle: parsed['prTitle'],
+     overviewSummary,
+     ...(riskAssessment ? { riskAssessment } : {}),
+     ...(overviewDiagram ? { overviewDiagram } : {}),
+     chapters,
++    ...(judgementCalls.length > 0 ? { judgementCalls } : {}),
+   };
+ 
+   const validated = NarrativeReviewSchema.safeParse(candidate);
+
+diff --git a/src/web/components/narrative/chapter-card.test.tsx b/src/web/components/narrative/chapter-card.test.tsx
+index 7f7b08e..2c89b96 100644
+--- a/src/web/components/narrative/chapter-card.test.tsx
++++ b/src/web/components/narrative/chapter-card.test.tsx
+# H0039
+@@ -1,7 +1,12 @@
+ import { createRoutesStub } from 'react-router';
+ import { describe, expect, it, vi } from 'vitest';
+ import { BUNDLE_SCHEMA_VERSION, type ReviewBundle } from '@/domain/review/bundle';
+-import type { DiffChunk, Insight, NarrativeChapter } from '@/domain/review/narrative';
++import type {
++  DiffChunk,
++  Insight,
++  JudgementCall,
++  NarrativeChapter,
++} from '@/domain/review/narrative';
+ import { EmbeddedFileSource } from '@/web/components/narrative/file-source';
+ import { render, screen, within } from '@/web/test/render';
+ import { ChapterCard, groupInsightsByFile, orderChunksTestsLast } from './chapter-card';
+# H0040
+@@ -19,7 +24,7 @@ describe('groupInsightsByFile', () => {
+   const orient: Insight = { type: 'context', text: 'read this first' };
+   const onA: Insight = { type: 'highlight', text: 'about a', filename: 'src/a.ts' };
+   const alsoOnA: Insight = { type: 'rationale', text: 'also about a', filename: 'src/a.ts' };
+-  const onB: Insight = { type: 'reference', text: 'about b', filename: 'src/b.ts' };
++  const onB: Insight = { type: 'context', text: 'about b', filename: 'src/b.ts' };
+ 
+   it('sends an anchored insight to its file and leaves the rest above the diffs', () => {
+     const { anchored, unanchored } = groupInsightsByFile([orient, onA, onB]);
+# H0041
+@@ -57,7 +62,7 @@ describe('<ChapterCard /> with a mix of insights', () => {
+     diffChunks: [chunk('src/pipeline.ts'), chunk('src/constants.ts')],
+   };
+ 
+-  function renderCard() {
++  function renderCard(judgementCalls?: ReadonlyMap<string, JudgementCall[]>) {
+     const bundle: ReviewBundle = {
+       schemaVersion: BUNDLE_SCHEMA_VERSION,
+       generatedAt: '2026-09-11T10:00:00.000Z',
+# H0042
+@@ -79,7 +84,11 @@ describe('<ChapterCard /> with a mix of insights', () => {
+         path: '/',
+         Component: () => (
+           <EmbeddedFileSource bundle={bundle}>
+-            <ChapterCard chapter={chapter} chapterIndex={1} />
++            <ChapterCard
++              chapter={chapter}
++              chapterIndex={1}
++              {...(judgementCalls ? { judgementCalls } : {})}
++            />
+           </EmbeddedFileSource>
+         ),
+       },
+# H0043
+@@ -116,3 +125,27 @@ (part 1 of 2) describe('<ChapterCard /> with a mix of insights', () => {
+     expect(screen.getByText('Late cancellations stop counting against a tech.')).toBeDefined();
+     expect(container.querySelectorAll('li')).toHaveLength(2);
+   });
++
++  it('draws a judgement call on its own file, above the insights anchored there', () => {
++    const call: JudgementCall = {
++      title: 'The margin is a business-rules constant',
++      text: 'Fourteen days suits the current SLA; a shorter one makes this a config value.',
++      filename: 'src/constants.ts',
++      hunkIds: ['H0001'],
++    };
++    renderCard(new Map([['src/constants.ts', [call]]]));
++
++    const constants = screen.getByRole('figure', { name: 'Diff for src/constants.ts' });
++    const pipeline = screen.getByRole('figure', { name: 'Diff for src/pipeline.ts' });
++    expect(within(constants).getByText(/Judgement call/)).toBeDefined();
++    expect(within(pipeline).queryByText(/Judgement call/)).toBeNull();
++
++    // Ahead of the insight anchored to the same file: the question is the only
++    // thing on the page addressed to the reader.
++    const question = within(constants).getByText(call.title);
++    const insight = within(constants).getByText('Why the margin is 14 days');
++    expect(
++      question.compareDocumentPosition(insight) & Node.DOCUMENT_POSITION_FOLLOWING,
++    ).toBeTruthy();
++  });
++
+# H0044
+@@ -119,3 +152,7 @@ (part 2 of 2)
++  it('draws no judgement calls when the chapter owns none', () => {
++    renderCard();
++    expect(screen.queryByText(/Judgement call/)).toBeNull();
++  });
+ });
+ 
+ describe('orderChunksTestsLast', () => {
+
+diff --git a/src/web/components/narrative/chapter-card.tsx b/src/web/components/narrative/chapter-card.tsx
+index 32d7f78..f4d40c5 100644
+--- a/src/web/components/narrative/chapter-card.tsx
++++ b/src/web/components/narrative/chapter-card.tsx
+# H0045
+@@ -1,6 +1,11 @@
+ import { Group, Stack, Text, Title } from '@mantine/core';
+ import { plural } from '@/common/plural';
+-import type { DiffChunk, Insight, NarrativeChapter } from '@/domain/review/narrative';
++import type {
++  DiffChunk,
++  Insight,
++  JudgementCall,
++  NarrativeChapter,
++} from '@/domain/review/narrative';
+ import { Caption } from '@/web/components/caption';
+ import classes from '@/web/components/narrative/article.module.css';
+ import { InlineDiffChunk } from '@/web/components/narrative/inline-diff-chunk';
+# H0046
+@@ -99,11 +104,18 @@ export function SectionRule({ label, count }: { label: string; count: number })
+ export function ChapterCard({
+   chapter,
+   chapterIndex,
++  judgementCalls,
+   onSelectFile,
+ }: {
+   chapter: NarrativeChapter;
+   /** 1-based index for the eyebrow ("Chapter Two"). */
+   chapterIndex: number;
++  /**
++   * The review's judgement calls this chapter draws, keyed by the file each
++   * sits on. Review-wide rather than the chapter's own, since a question
++   * belongs to a decision and is anchored to a file rather than to a chapter.
++   */
++  judgementCalls?: ReadonlyMap<string, JudgementCall[]>;
+   /** Threaded down so a grounded diagram node can open its file. */
+   onSelectFile?: (filename: string) => void;
+ }) {
+# H0047
+@@ -184,6 +196,7 @@ export function ChapterCard({
+               key={`${chunk.filename}-${i}`}
+               chunk={chunk}
+               insights={anchored.get(chunk.filename) ?? []}
++              judgementCalls={judgementCalls?.get(chunk.filename) ?? []}
+             />
+           ))}
+         </Stack>
+
+diff --git a/src/web/components/narrative/chapter-reader.tsx b/src/web/components/narrative/chapter-reader.tsx
+index 49787f7..dfbe10b 100644
+--- a/src/web/components/narrative/chapter-reader.tsx
++++ b/src/web/components/narrative/chapter-reader.tsx
+# H0048
+@@ -16,6 +16,11 @@ import type { ReviewMeta } from '@/domain/review/review-meta';
+ import { ChapterCard } from '@/web/components/narrative/chapter-card';
+ import { ChapterSidebar } from '@/web/components/narrative/chapter-sidebar';
+ import { FileView } from '@/web/components/narrative/file-view';
++import {
++  anchorJudgementCalls,
++  judgementCallsByFile,
++  type AnchoredJudgementCall,
++} from '@/web/components/narrative/judgement-calls';
+ import { RiskCard } from '@/web/components/narrative/risk-card';
+ import {
+   findSection,
+# H0049
+@@ -114,6 +119,7 @@ export function ChapterReader({
+   useReportedColumnWidth(mainRef);
+   const coverage = useMemo(() => reviewCoverage(review), [review]);
+   const sections = useMemo(() => readerSections(review), [review]);
++  const judgementCalls = useMemo(() => anchorJudgementCalls(review), [review]);
+   const urlActive = searchParams.get('ch');
+   const urlFile = searchParams.get('file');
+   const activeFile = urlFile && fileExists(urlFile, review) ? urlFile : null;
+# H0050
+@@ -263,9 +269,11 @@ export function ChapterReader({
+             review={review}
+             meta={meta}
+             findings={findings}
++            judgementCalls={judgementCalls}
+             chapterIndex={activeIndex}
+             actions={actions}
+             onSelectFile={onSelectFile}
++            onSelect={onSelect}
+           />
+         )}
+       </section>
+# H0051
+@@ -285,17 +293,21 @@ function SectionCard({
+   review,
+   meta,
+   findings,
++  judgementCalls,
+   chapterIndex,
+   actions,
+   onSelectFile,
++  onSelect,
+ }: {
+   section: ReaderSection;
+   review: NarrativeReview;
+   meta: ReviewMeta;
+   findings: readonly Finding[];
++  judgementCalls: readonly AnchoredJudgementCall[];
+   chapterIndex: number;
+   actions?: ReactNode;
+   onSelectFile: (filename: string) => void;
++  onSelect: (id: string) => void;
+ }) {
+   switch (section.kind) {
+     case 'risk':
+# H0052
+@@ -303,7 +315,12 @@ function SectionCard({
+     case 'chapter': {
+       const chapter = review.chapters.find((ch) => ch.id === section.id);
+       return chapter ? (
+-        <ChapterCard chapter={chapter} chapterIndex={chapterIndex} onSelectFile={onSelectFile} />
++        <ChapterCard
++          chapter={chapter}
++          chapterIndex={chapterIndex}
++          judgementCalls={judgementCallsByFile(judgementCalls, chapter.id)}
++          onSelectFile={onSelectFile}
++        />
+       ) : null;
+     }
+     case 'summary':
+# H0053
+@@ -312,8 +329,10 @@ function SectionCard({
+           review={review}
+           meta={meta}
+           findings={findings}
++          judgementCalls={judgementCalls}
+           actions={actions}
+           onSelectFile={onSelectFile}
++          onSelectChapter={onSelect}
+         />
+       );
+   }
+
+diff --git a/src/web/components/narrative/inline-diff-chunk.tsx b/src/web/components/narrative/inline-diff-chunk.tsx
+index 2bc8919..8728c7f 100644
+--- a/src/web/components/narrative/inline-diff-chunk.tsx
++++ b/src/web/components/narrative/inline-diff-chunk.tsx
+# H0054
+@@ -18,9 +18,9 @@ import {
+   type InlineDiffSnippet,
+ } from '@/domain/review/inline-diff-snippets';
+ import { detectLanguage } from '@/domain/review/language-map';
+-import type { DiffChunk, Insight } from '@/domain/review/narrative';
++import type { DiffChunk, Insight, JudgementCall } from '@/domain/review/narrative';
+ import { useFilePair } from '@/web/components/narrative/file-source';
+-import { InsightCallout } from '@/web/components/narrative/insight-callout';
++import { InsightCallout, JudgementCallout } from '@/web/components/narrative/insight-callout';
+ import { MONACO_VS_URL } from '@/web/components/narrative/monaco-cdn';
+ import { useHydrated } from '@/web/lib/use-hydrated';
+ import {
+# H0055
+@@ -550,7 +550,12 @@ function SnippetEditor({
+ }
+ 
+ /**
+- * The insights anchored to this file, between the card's header and its diff.
++ * The asides anchored to this file, between the card's header and its diff:
++ * the judgement calls first, then the insights.
++ *
++ * Judgement calls lead because they are the only thing on the page addressed
++ * to the reader, and there are at most three in a whole review. Set below a
++ * chapter's insights they read as a footnote to them, which is backwards.
+  *
+  * Capped at the reading measure even though the card itself bleeds to the full
+  * column. The diff is what earns the extra width; a sentence set across 1700px
+# H0056
+@@ -562,7 +567,13 @@ function SnippetEditor({
+  * is the whole reason a diff is a diff. This is close enough to be an answer
+  * and far enough to leave the code alone.
+  */
+-function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {
++function AnchoredAsides({
++  insights,
++  judgementCalls,
++}: {
++  insights: readonly Insight[];
++  judgementCalls: readonly JudgementCall[];
++}) {
+   return (
+     <Box
+       px={12}
+# H0057
+@@ -571,8 +582,11 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {
+       style={{ borderBottom: `1px solid ${token('border')}` }}
+     >
+       <Box style={{ display: 'grid', rowGap: 16 }}>
++        {judgementCalls.map((call, i) => (
++          <JudgementCallout key={`judgement-${String(i)}`} call={call} />
++        ))}
+         {insights.map((insight, i) => (
+-          <InsightCallout key={i} insight={insight} />
++          <InsightCallout key={`insight-${String(i)}`} insight={insight} />
+         ))}
+       </Box>
+     </Box>
+# H0058
+@@ -585,16 +599,20 @@ function AnchoredInsights({ insights }: { insights: readonly Insight[] }) {
+  * each hunk group (`buildInlineDiffSnippets`) and shown in one Monaco
+  * `DiffEditor` per group; "Show full file" swaps in the whole pair.
+  *
+- * `insights` are the chapter's insights that named this file. The other places
+- * a diff appears — the file view, the undiscussed backstop — pass none, since
+- * an insight belongs to the chapter that wrote it.
++ * `insights` are the chapter's insights that named this file, and
++ * `judgementCalls` the review's questions this chapter draws for it. The other
++ * places a diff appears — the file view, the undiscussed backstop — pass
++ * neither: an insight belongs to the chapter that wrote it, and a question is
++ * drawn once, by the chapter that owns it.
+  */
+ export function InlineDiffChunk({
+   chunk,
+   insights = [],
++  judgementCalls = [],
+ }: {
+   chunk: DiffChunk;
+   insights?: readonly Insight[];
++  judgementCalls?: readonly JudgementCall[];
+ }) {
+   const pair = useFilePair(chunk.filename);
+   const stored = useDiffView((s) => s.view);
+# H0059
+@@ -694,7 +712,9 @@ export function InlineDiffChunk({
+         )}
+       </Group>
+ 
+-      {insights.length > 0 && <AnchoredInsights insights={insights} />}
++      {(insights.length > 0 || judgementCalls.length > 0) && (
++        <AnchoredAsides insights={insights} judgementCalls={judgementCalls} />
++      )}
+ 
+       {state.kind === 'loading' && (
+         <Text px={12} py={16} fz="sm" c="dimmed">
+
+diff --git a/src/web/components/narrative/insight-callout.test.tsx b/src/web/components/narrative/insight-callout.test.tsx
+index d8aa1af..84ca5a7 100644
+--- a/src/web/components/narrative/insight-callout.test.tsx
++++ b/src/web/components/narrative/insight-callout.test.tsx
+# H0060
+@@ -1,6 +1,6 @@
+ import { describe, expect, it } from 'vitest';
+ import { render, screen } from '@/web/test/render';
+-import { InsightCallout } from './insight-callout';
++import { InsightCallout, JudgementCallout } from './insight-callout';
+ 
+ describe('<InsightCallout />', () => {
+   it('renders the editorial label and the insight text', () => {
+# H0061
+@@ -14,7 +14,6 @@ describe('<InsightCallout />', () => {
+       { type: 'context', label: /Context/ },
+       { type: 'rationale', label: /Reasoning/ },
+       { type: 'highlight', label: /Risk/ },
+-      { type: 'reference', label: /Suggestion/ },
+     ] as const;
+ 
+     for (const { type, label } of cases) {
+# H0062
+@@ -35,3 +34,23 @@ describe('<InsightCallout />', () => {
+     expect(screen.getByText('Long story…')).toBeDefined();
+   });
+ });
++
++describe('<JudgementCallout />', () => {
++  it('labels the question and renders its title and text', () => {
++    render(
++      <JudgementCallout
++        call={{
++          title: 'Hourly cadence offered to every repo',
++          text: 'Cheap if few choose it, 24x the work if most do.',
++          filename: 'src/scheduler/cadence.ts',
++          hunkIds: ['H0003'],
++        }}
++      />,
++    );
++    expect(screen.getByText(/Judgement call/)).toBeDefined();
++    expect(
++      screen.getByRole('heading', { name: 'Hourly cadence offered to every repo' }),
++    ).toBeDefined();
++    expect(screen.getByText('Cheap if few choose it, 24x the work if most do.')).toBeDefined();
++  });
++});
+
+diff --git a/src/web/components/narrative/insight-callout.tsx b/src/web/components/narrative/insight-callout.tsx
+index eea4cd1..15352a3 100644
+--- a/src/web/components/narrative/insight-callout.tsx
++++ b/src/web/components/narrative/insight-callout.tsx
+# H0063
+@@ -1,18 +1,24 @@ (part 1 of 2)
+ import { Stack, Text, Title } from '@mantine/core';
+-import type { Insight, InsightType } from '@/domain/review/narrative';
++import type { ReactNode } from 'react';
++import type { Insight, InsightType, JudgementCall } from '@/domain/review/narrative';
+ import { Caption } from '@/web/components/caption';
+ import { token, type TokenName } from '@/web/theme/tokens';
+ 
+ /**
+  * Colour-coded by kind: highlight reads as risk (coral), rationale as
+- * reasoning (mint), reference as suggestion (amber), context as question
+- * (cobalt). The kind shows as a 3px left rail in the accent hue — editorial
+- * marginalia sitting directly on the page, with no card chrome of its own.
++ * reasoning (mint), context as question (cobalt), and a judgement call as
++ * suggestion (amber). The kind shows as a 3px left rail in the accent hue —
++ * editorial marginalia sitting directly on the page, with no card chrome of
++ * its own.
++ *
++ * Amber for the judgement call rather than cobalt, even though cobalt is the
++ * token literally named `question`: cobalt is also the chapter eyebrow, and a
++ * question sharing that hue reads as part of the chapter's furniture instead
++ * of as the one thing on the page addressed to the reader.
+  */
+ const TYPE_TONE: Record<InsightType, { label: string; tone: TokenName }> = {
+   context: { label: 'Context', tone: 'question' },
+   rationale: { label: 'Reasoning', tone: 'praise' },
+   highlight: { label: 'Risk', tone: 'risk' },
+-  reference: { label: 'Suggestion', tone: 'suggestion' },
+ };
+ 
+# H0064
+@@ -19,6 +25,17 @@ (part 2 of 2)
+-export function InsightCallout({ insight }: { insight: Insight }) {
+-  const { label, tone } = TYPE_TONE[insight.type] ?? TYPE_TONE.context;
+-  const hasTitle = typeof insight.title === 'string' && insight.title.trim().length > 0;
++const JUDGEMENT_TONE: TokenName = 'suggestion';
++
++function Marginalia({
++  label,
++  tone,
++  title,
++  children,
++}: {
++  label: string;
++  tone: TokenName;
++  title?: string | undefined;
++  children: ReactNode;
++}) {
++  const hasTitle = typeof title === 'string' && title.trim().length > 0;
+   return (
+     <Stack
+       component="aside"
+# H0065
+@@ -30,6 +47,11 @@ (part 1 of 2) export function InsightCallout({ insight }: { insight: Insight }) {
+       <Caption tone={tone}>{label}</Caption>
+       {hasTitle && (
+         <Title order={3} fz="lg" fw={600} lh={1.35} style={{ textWrap: 'pretty' }}>
+-          {insight.title}
++          {title}
+         </Title>
+       )}
++      {children}
++    </Stack>
++  );
++}
++
+# H0066
+@@ -36,6 +58,25 @@ (part 2 of 2)
++export function InsightCallout({ insight }: { insight: Insight }) {
++  const { label, tone } = TYPE_TONE[insight.type] ?? TYPE_TONE.context;
++  return (
++    <Marginalia label={label} tone={tone} title={insight.title}>
+       <Text fz="md" style={{ textWrap: 'pretty' }}>
+         {insight.text}
+       </Text>
+-    </Stack>
++    </Marginalia>
++  );
++}
++
++/**
++ * A question put to the reader, drawn in the same marginalia as an insight
++ * because it belongs to the same column of asides — what differs is the hue
++ * and the label, not the shape.
++ */
++export function JudgementCallout({ call }: { call: JudgementCall }) {
++  return (
++    <Marginalia label="Judgement call" tone={JUDGEMENT_TONE} title={call.title}>
++      <Text fz="md" style={{ textWrap: 'pretty' }}>
++        {call.text}
++      </Text>
++    </Marginalia>
+   );
+ }
+
+diff --git a/src/web/components/narrative/judgement-calls.test.ts b/src/web/components/narrative/judgement-calls.test.ts
+new file mode 100644
+index 0000000..3dc1b8d
+--- /dev/null
++++ b/src/web/components/narrative/judgement-calls.test.ts
+# H0067
+@@ -0,0 +1,11 @@ (part 1 of 10)
++import { describe, expect, it } from 'vitest';
++import type { JudgementCall, NarrativeChapter, NarrativeReview } from '@/domain/review/narrative';
++import { anchorJudgementCalls, judgementCallsByFile } from './judgement-calls';
++
++const hunk = (id: string) => ({
++  id,
++  fileOrder: 0,
++  original: { startLine: 1, lineCount: 1 },
++  modified: { startLine: 1, lineCount: 1 },
++});
++
+# H0068
+@@ -0,0 +12,13 @@ (part 2 of 10)
++/** A chapter showing each file for H0001 unless the entry names its hunks. */
++function chapter(id: string, files: (string | [string, string[]])[]): NarrativeChapter {
++  return {
++    id,
++    title: id.toUpperCase(),
++    insights: [],
++    diffChunks: files.map((entry) => {
++      const [filename, hunkIds] = typeof entry === 'string' ? [entry, ['H0001']] : entry;
++      return { filename, language: 'typescript', hunks: hunkIds.map(hunk) };
++    }),
++  };
++}
++
+# H0069
+@@ -0,0 +25,12 @@ (part 3 of 10)
++function call(
++  filename: string,
++  title: string,
++  hunkIds: [string, ...string[]] = ['H0001'],
++): JudgementCall {
++  return { title, text: `about ${filename}`, filename, hunkIds };
++}
++
++function review(chapters: NarrativeChapter[], judgementCalls: JudgementCall[]): NarrativeReview {
++  return { prTitle: 't', overviewSummary: { lede: 's' }, chapters, judgementCalls };
++}
++
+# H0070
+@@ -0,0 +37,14 @@ (part 4 of 10)
++describe('anchorJudgementCalls', () => {
++  it('gives each call the chapter that cites its file', () => {
++    const anchored = anchorJudgementCalls(
++      review(
++        [chapter('one', ['src/a.ts']), chapter('two', ['src/b.ts'])],
++        [call('src/b.ts', 'about b'), call('src/a.ts', 'about a')],
++      ),
++    );
++    expect(anchored).toEqual([
++      { call: call('src/b.ts', 'about b'), chapterId: 'two' },
++      { call: call('src/a.ts', 'about a'), chapterId: 'one' },
++    ]);
++  });
++
+# H0071
+@@ -0,0 +51,10 @@ (part 5 of 10)
++  it('gives a file two chapters both cite to the first of them, so it is asked once', () => {
++    const anchored = anchorJudgementCalls(
++      review(
++        [chapter('one', ['src/a.ts']), chapter('two', ['src/a.ts'])],
++        [call('src/a.ts', 'about a')],
++      ),
++    );
++    expect(anchored.map((entry) => entry.chapterId)).toEqual(['one']);
++  });
++
+# H0072
+@@ -0,0 +61,10 @@ (part 6 of 10)
++  it('gives a file two chapters show different hunks of to the one showing its lines', () => {
++    const anchored = anchorJudgementCalls(
++      review(
++        [chapter('one', [['src/a.ts', ['H0001']]]), chapter('two', [['src/a.ts', ['H0002']]])],
++        [call('src/a.ts', 'about the second hunk', ['H0002'])],
++      ),
++    );
++    expect(anchored.map((entry) => entry.chapterId)).toEqual(['two']);
++  });
++
+# H0073
+@@ -0,0 +71,7 @@ (part 7 of 10)
++  it('leaves out a call whose file no chapter shows, having nowhere to draw it', () => {
++    const anchored = anchorJudgementCalls(
++      review([chapter('one', ['src/a.ts'])], [call('src/gone.ts', 'about gone')]),
++    );
++    expect(anchored).toEqual([]);
++  });
++
+# H0074
+@@ -0,0 +78,7 @@ (part 8 of 10)
++  it('is empty for a review that asked nothing', () => {
++    const base = review([chapter('one', ['src/a.ts'])], []);
++    expect(anchorJudgementCalls(base)).toEqual([]);
++    expect(anchorJudgementCalls({ ...base, judgementCalls: undefined })).toEqual([]);
++  });
++});
++
+# H0075
+@@ -0,0 +85,14 @@ (part 9 of 10)
++describe('judgementCallsByFile', () => {
++  const anchored = anchorJudgementCalls(
++    review(
++      [chapter('one', ['src/a.ts', 'src/b.ts']), chapter('two', ['src/c.ts'])],
++      [call('src/a.ts', 'first on a'), call('src/c.ts', 'on c'), call('src/a.ts', 'second on a')],
++    ),
++  );
++
++  it('collects the calls of one chapter under the file each sits on', () => {
++    const byFile = judgementCallsByFile(anchored, 'one');
++    expect(byFile.get('src/a.ts')?.map((c) => c.title)).toEqual(['first on a', 'second on a']);
++    expect(byFile.has('src/c.ts')).toBe(false);
++  });
++
+# H0076
+@@ -0,0 +99,8 @@ (part 10 of 10)
++  it('gives another chapter only its own', () => {
++    expect([...judgementCallsByFile(anchored, 'two').keys()]).toEqual(['src/c.ts']);
++  });
++
++  it('is empty for a chapter that draws none', () => {
++    expect(judgementCallsByFile(anchored, 'three').size).toBe(0);
++  });
++});
+
+diff --git a/src/web/components/narrative/judgement-calls.ts b/src/web/components/narrative/judgement-calls.ts
+new file mode 100644
+index 0000000..1125ae7
+--- /dev/null
++++ b/src/web/components/narrative/judgement-calls.ts
+# H0077
+@@ -0,0 +1,15 @@ (part 1 of 3)
++import { judgementCallOwner } from '@/domain/review/coverage';
++import type { JudgementCall, NarrativeReview } from '@/domain/review/narrative';
++
++/**
++ * Where each of a review's judgement calls gets drawn. Pure, no rendering:
++ * the summary lists them and a chapter draws them, and both have to agree on
++ * which chapter owns which, or a link in the summary leads somewhere the
++ * question is not.
++ */
++export interface AnchoredJudgementCall {
++  call: JudgementCall;
++  /** The chapter that draws it. */
++  chapterId: string;
++}
++
+# H0078
+@@ -0,0 +16,21 @@ (part 2 of 3)
++/**
++ * Each judgement call paired with the one chapter that draws it: the first
++ * whose card for its file shows one of its hunks.
++ *
++ * A file two chapters both cite has a diff card in each, and a question drawn
++ * on both is the same question asked twice. First wins because that is where
++ * the reader meets those lines earliest, so the question arrives with them
++ * rather than after.
++ *
++ * A call no chapter shows the lines for is left out. The parser drops those
++ * before they are ever stored, so this is not a second policy — there is
++ * simply no card here for one to sit on, and inventing a home for it is how
++ * a question ends up somewhere it reads as an interruption.
++ */
++export function anchorJudgementCalls(review: NarrativeReview): AnchoredJudgementCall[] {
++  return (review.judgementCalls ?? []).flatMap((call) => {
++    const owner = judgementCallOwner(call, review.chapters);
++    return owner ? [{ call, chapterId: owner.id }] : [];
++  });
++}
++
+# H0079
+@@ -0,0 +37,14 @@ (part 3 of 3)
++/** One chapter's judgement calls, keyed by the file each sits on. */
++export function judgementCallsByFile(
++  anchored: readonly AnchoredJudgementCall[],
++  chapterId: string,
++): Map<string, JudgementCall[]> {
++  const byFile = new Map<string, JudgementCall[]>();
++  for (const anchor of anchored) {
++    if (anchor.chapterId !== chapterId) continue;
++    const existing = byFile.get(anchor.call.filename);
++    if (existing) existing.push(anchor.call);
++    else byFile.set(anchor.call.filename, [anchor.call]);
++  }
++  return byFile;
++}
+
+diff --git a/src/web/components/narrative/summary-card.test.tsx b/src/web/components/narrative/summary-card.test.tsx
+index 13250d3..8501c4d 100644
+--- a/src/web/components/narrative/summary-card.test.tsx
++++ b/src/web/components/narrative/summary-card.test.tsx
+# H0080
+@@ -4,6 +4,7 @@ import type { NarrativeReview } from '@/domain/review/narrative';
+ import type { ReviewMeta } from '@/domain/review/review-meta';
+ import { REAL_ARCHITECTURE } from '@/web/test/diagram-fixtures';
+ import { fireEvent, render, screen } from '@/web/test/render';
++import type { AnchoredJudgementCall } from './judgement-calls';
+ import { SummaryCard } from './summary-card';
+ 
+ const baseMeta: ReviewMeta = {
+# H0081
+@@ -132,3 +133,29 @@ (part 1 of 5) describe('<SummaryCard />', () => {
+     expect(screen.getByText('+40')).toBeDefined();
+   });
+ });
++
++describe('<SummaryCard /> and the judgement calls', () => {
++  const anchored: AnchoredJudgementCall[] = [
++    {
++      call: {
++        title: 'Hourly cadence offered to every repo',
++        text: 'Cheap if few choose it, 24x the work if most do.',
++        filename: 'src/scheduler/cadence.ts',
++        hunkIds: ['H0003'],
++      },
++      chapterId: 'cadence-table',
++    },
++  ];
++
++  function renderIndex(onSelectChapter: (chapterId: string) => void) {
++    return render(
++      <SummaryCard
++        review={review()}
++        meta={baseMeta}
++        findings={[]}
++        judgementCalls={anchored}
++        onSelectChapter={onSelectChapter}
++      />,
++    );
++  }
++
+# H0082
+@@ -134,0 +162,7 @@ (part 2 of 5)
++  it('lists each title with the file it sits on', () => {
++    renderIndex(() => {});
++    expect(screen.getByText('Judgement calls')).toBeDefined();
++    expect(screen.getByText('Hourly cadence offered to every repo')).toBeDefined();
++    expect(screen.getByText('src/scheduler/cadence.ts')).toBeDefined();
++  });
++
+# H0083
+@@ -134,0 +169,5 @@ (part 3 of 5)
++  it('lists the title only, leaving the question itself beside its code', () => {
++    renderIndex(() => {});
++    expect(screen.queryByText('Cheap if few choose it, 24x the work if most do.')).toBeNull();
++  });
++
+# H0084
+@@ -134,0 +174,7 @@ (part 4 of 5)
++  it('sends the reader to the chapter that draws the question', () => {
++    const selected: string[] = [];
++    renderIndex((chapterId) => selected.push(chapterId));
++    fireEvent.click(screen.getByRole('button', { name: 'Hourly cadence offered to every repo' }));
++    expect(selected).toEqual(['cadence-table']);
++  });
++
+# H0085
+@@ -134,0 +181,5 @@ (part 5 of 5)
++  it('draws nothing at all for a review that asked nothing', () => {
++    renderCard();
++    expect(screen.queryByText('Judgement calls')).toBeNull();
++  });
++});
+
+diff --git a/src/web/components/narrative/summary-card.tsx b/src/web/components/narrative/summary-card.tsx
+index fb2134d..993470c 100644
+--- a/src/web/components/narrative/summary-card.tsx
++++ b/src/web/components/narrative/summary-card.tsx
+# H0086
+@@ -7,6 +7,7 @@ import { Caption } from '@/web/components/caption';
+ import classes from '@/web/components/narrative/article.module.css';
+ import { DiagramFigure } from '@/web/components/narrative/diagram/diagram-figure';
+ import { FindingsNotice } from '@/web/components/narrative/findings-notice';
++import type { AnchoredJudgementCall } from '@/web/components/narrative/judgement-calls';
+ import { MarkdownText } from '@/web/components/narrative/markdown-text';
+ import { ProsePassage } from '@/web/components/narrative/prose-passage';
+ import { sectionCardId, sectionHeadingId } from '@/web/components/narrative/sections';
+# H0087
+@@ -31,17 +32,23 @@ export function SummaryCard({
+   review,
+   meta,
+   findings,
++  judgementCalls = [],
+   actions,
+   onSelectFile,
++  onSelectChapter,
+ }: {
+   review: NarrativeReview;
+   meta: ReviewMeta;
+   /** What validating this review found; empty in the local report, which carries none. */
+   findings: readonly Finding[];
++  /** The review's questions and the chapter each is drawn in. */
++  judgementCalls?: readonly AnchoredJudgementCall[];
+   /** Header action (the hosted app's rerun button). */
+   actions?: ReactNode;
+   /** Threaded down so a grounded diagram node can open its file. */
+   onSelectFile?: (filename: string) => void;
++  /** How a judgement call in the index reaches the chapter that draws it. */
++  onSelectChapter?: (chapterId: string) => void;
+ }) {
+   const { baseRefName: baseRef, headRefName: headRef, authorLogin: author, prNumber } = meta;
+   const title = review.prTitle || meta.title;
+# H0088
+@@ -156,11 +163,62 @@ export function SummaryCard({
+         />
+       )}
+ 
++      {judgementCalls.length > 0 && onSelectChapter && (
++        <JudgementCallIndex anchored={judgementCalls} onSelectChapter={onSelectChapter} />
++      )}
++
+       {meta.description && <AuthorDescription body={meta.description} />}
+     </article>
+   );
+ }
+ 
++/**
++ * The review's judgement calls as an index, not as the questions themselves.
++ *
++ * Each one is drawn in full beside the lines that raised it, which is the only
++ * place it can be answered — but the reader sees one section at a time, so a
++ * question in the seventh chapter is a question nobody meets. A title and a
++ * link cost the summary four lines at most and make the set visible from the
++ * top, while the question itself stays where its evidence is.
++ */
++function JudgementCallIndex({
++  anchored,
++  onSelectChapter,
++}: {
++  anchored: readonly AnchoredJudgementCall[];
++  onSelectChapter: (chapterId: string) => void;
++}) {
++  return (
++    <Stack component="section" gap={12}>
++      <Caption component="h3" tone="suggestion">
++        Judgement calls
++      </Caption>
++      <Text fz="sm" c="dimmed">
++        {anchored.length === 1
++          ? 'One decision here needs context the code does not carry.'
++          : `${String(anchored.length)} decisions here need context the code does not carry.`}
++      </Text>
++      <Stack component="ol" gap={8} m={0} pl={0} style={{ listStyle: 'none' }}>
++        {anchored.map((entry, i) => (
++          <Box component="li" key={`${entry.chapterId}-${String(i)}`}>
++            <UnstyledButton
++              fz="md"
++              ta="left"
++              onClick={() => onSelectChapter(entry.chapterId)}
++              style={{ textWrap: 'pretty', textDecoration: 'underline' }}
++            >
++              {entry.call.title}
++            </UnstyledButton>
++            <Text fz="sm" c="dimmed" ff="monospace" style={{ wordBreak: 'break-all' }}>
++              {entry.call.filename}
++            </Text>
++          </Box>
++        ))}
++      </Stack>
++    </Stack>
++  );
++}
++
+ /**
+  * The author's own PR description, collapsed.
+  *
+
+diff --git a/src/web/theme/tokens.ts b/src/web/theme/tokens.ts
+index fc43d20..8cafb77 100644
+--- a/src/web/theme/tokens.ts
++++ b/src/web/theme/tokens.ts
+# H0089
+@@ -3,9 +3,9 @@
+  *
+  * Cobalt (hue 240/245) is the "before / current state" accent and the primary
+  * chrome colour; mint (hue 165) is the "after / new state / approved"
+- * counterpart. Insight kinds (risk / praise / suggestion / question) each pick
+- * a hue, and each comes as a triple: the base for text and rails, `-soft` for
+- * a tinted background, `-ink` for text sitting on that `-soft`.
++ * counterpart. The reader's asides (risk / praise / suggestion / question) each
++ * pick a hue, and each comes as a triple: the base for text and rails, `-soft`
++ * for a tinted background, `-ink` for text sitting on that `-soft`.
+  *
+  * **Every token that carries text clears WCAG AA (4.5:1) against both
+  * `background` and `card` in its own scheme**, and every value is inside the
+
+diff --git a/src/web/viewer/sample-bundle.ts b/src/web/viewer/sample-bundle.ts
+index 7dc2153..b34530a 100644
+--- a/src/web/viewer/sample-bundle.ts
++++ b/src/web/viewer/sample-bundle.ts
+# H0090
+@@ -337,7 +337,7 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
+             text: 'isDue returns early for a paused schedule, so the clock is never read for it.',
+           },
+           {
+-            type: 'reference',
++            type: 'context',
+             title: 'Never-run schedules sort first',
+             text: 'A repo with no last run counts as having run at time zero.',
+             filename: 'src/scheduler/queue.ts',
+# H0091
+@@ -443,6 +443,20 @@ export const SAMPLE_BUNDLE: ReviewBundle = {
+         ],
+       },
+     ],
++    judgementCalls: [
++      {
++        title: 'Hourly cadence offered to every repo',
++        text: 'INTERVALS exposes hourly to any schedule, and isDue reads the clock per schedule per pass, so a repo on hourly runs 24 reviews a day where nightly ran one. If few repos will choose it, the table is the cheaper shape either way; if most will, the queue does this work 24 times over and wants a cap before the cadence ships.',
++        filename: 'src/scheduler/cadence.ts',
++        hunkIds: ['H0003', 'H0004'],
++      },
++      {
++        title: 'The cron job is deleted, not disabled',
++        text: 'startNightlyReviews is removed outright rather than flagged off, so a rollback of the scheduler leaves nothing running the nightly pass. Whether that matters depends on whether anything outside this repo still calls it — nothing here does — and on whether a bad deploy can be rolled back within a night.',
++        filename: 'src/legacy/cron.ts',
++        hunkIds: ['H0007'],
++      },
++    ],
+   },
+   files: {
+     'src/scheduler/cadence.ts': {

@@ -1,0 +1,312 @@
+diff --git a/README.md b/README.md
+index 2eb605b..9b8d924 100644
+--- a/README.md
++++ b/README.md
+# H0001
+@@ -22,6 +22,10 @@ Requires Node 18 or later.
+ | `FEED_TIMEOUT_MS` | 5000    | How long one fetch of the feed may take        |
+ | `LEGACY_FEED`     | false   | Read the feed in the pre-2023 three-column format |
+ | `LOCALE`          | en      | Language of the status page                    |
++| `LOG_LEVEL`       | info    | `debug` shows every step of a run, with its trace id |
++
++Every log line of a run carries the run's `trace` field, so one run can be
++pulled out of the log with a single filter.
+ 
+ ## The feed formats
+ 
+
+diff --git a/src/config.ts b/src/config.ts
+index d269dca..bc8516a 100644
+--- a/src/config.ts
++++ b/src/config.ts
+# H0002
+@@ -1,3 +1,5 @@
++import type { Level } from './logger.ts';
++
+ export const VERSION = '1.4.2';
+ 
+ export interface Config {
+# H0003
+@@ -6,8 +8,11 @@ export interface Config {
+   legacyFeed: boolean;
+   locale: string;
+   batchSize: number;
++  logLevel: Level;
+ }
+ 
++const LEVELS: Level[] = ['debug', 'info', 'warn', 'error'];
++
+ export function loadConfig(env: NodeJS.ProcessEnv): Config {
+   const feedUrl = env.FEED_URL;
+   if (!feedUrl) throw new Error('FEED_URL is required');
+# H0004
+@@ -17,9 +22,18 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
+     legacyFeed: env.LEGACY_FEED === 'true',
+     locale: env.LOCALE ?? 'en',
+     batchSize: integer(env.BATCH_SIZE, 500),
++    logLevel: level(env.LOG_LEVEL),
+   };
+ }
+ 
++function level(value: string | undefined): Level {
++  if (value === undefined) return 'info';
++  if (!LEVELS.includes(value as Level)) {
++    throw new Error(`LOG_LEVEL must be one of ${LEVELS.join(', ')}, got ${value}`);
++  }
++  return value as Level;
++}
++
+ function integer(value: string | undefined, fallback: number): number {
+   if (value === undefined) return fallback;
+   const parsed = Number.parseInt(value, 10);
+
+diff --git a/src/feed/client.ts b/src/feed/client.ts
+index 457f6d5..e9f6201 100644
+--- a/src/feed/client.ts
++++ b/src/feed/client.ts
+# H0005
+@@ -1,5 +1,6 @@
+ import { request } from 'undici';
+ import type { Config } from '../config.ts';
++import { log } from '../logger.ts';
+ import { parseFeed, parseLegacyFeed, type FeedRow } from './parse.ts';
+ 
+ export interface FeedFetch {
+# H0006
+@@ -7,7 +8,8 @@ export interface FeedFetch {
+   fetchedAt: Date;
+ }
+ 
+-export async function fetchFeed(config: Config): Promise<FeedFetch> {
++export async function fetchFeed(config: Config, trace: string): Promise<FeedFetch> {
++  log.debug('feed: fetching', { trace, url: config.feedUrl, timeoutMs: config.feedTimeoutMs });
+   const response = await request(config.feedUrl, {
+     method: 'GET',
+     headersTimeout: config.feedTimeoutMs,
+# H0007
+@@ -18,5 +20,6 @@ export async function fetchFeed(config: Config): Promise<FeedFetch> {
+   }
+   const text = await response.body.text();
+   const rows = config.legacyFeed ? parseLegacyFeed(text) : parseFeed(text);
++  log.debug('feed: parsed', { trace, rows: rows.length, bytes: text.length, legacy: config.legacyFeed });
+   return { rows, fetchedAt: new Date() };
+ }
+
+diff --git a/src/main.ts b/src/main.ts
+index 30ab9b1..1937d9f 100644
+--- a/src/main.ts
++++ b/src/main.ts
+# H0008
+@@ -1,9 +1,10 @@
+ import { createServer } from 'node:http';
+ import { loadConfig } from './config.ts';
+ import { fetchFeed } from './feed/client.ts';
+-import { log } from './logger.ts';
++import { log, setLevel } from './logger.ts';
+ import { reconcile, type Warehouse } from './sync/reconcile.ts';
+ import { summarise, type SyncReport } from './sync/report.ts';
++import { newTraceId } from './sync/trace.ts';
+ import { renderStatus } from './web/status.ts';
+ import { openWarehouse } from './warehouse.ts';
+ 
+# H0009
+@@ -11,19 +12,22 @@ const INTERVAL_MS = 5 * 60 * 1000;
+ 
+ async function main(): Promise<void> {
+   const config = loadConfig(process.env);
++  setLevel(config.logLevel);
+   const warehouse: Warehouse = await openWarehouse();
+   let lastRun: Date | null = null;
+   let report: SyncReport | null = null;
+ 
+   const run = async () => {
++    const trace = newTraceId();
++    log.info('sync started', { trace });
+     try {
+-      const feed = await fetchFeed(config);
+-      const result = await reconcile(feed.rows, warehouse, config.batchSize);
++      const feed = await fetchFeed(config, trace);
++      const result = await reconcile(feed.rows, warehouse, config.batchSize, trace);
+       report = summarise(result);
+       lastRun = feed.fetchedAt;
+-      log.info('sync finished', { changed: report.changed, unknown: report.unknown });
++      log.info('sync finished', { trace, changed: report.changed, unknown: report.unknown });
+     } catch (error) {
+-      log.error('sync failed', { message: (error as Error).message });
++      log.error('sync failed', { trace, message: (error as Error).message });
+     }
+   };
+ 
+
+diff --git a/src/sync/reconcile.test.ts b/src/sync/reconcile.test.ts
+index ee4a567..294aef5 100644
+--- a/src/sync/reconcile.test.ts
++++ b/src/sync/reconcile.test.ts
+# H0010
+@@ -21,17 +21,19 @@ const row = (sku: string, quantity: number, depot = 'north') => ({
+   updatedAt: null,
+ });
+ 
++const TRACE = 'test';
++
+ describe('reconcile', () => {
+   it('adjusts a level the feed disagrees with', async () => {
+     const w = warehouse([{ sku: 'A1', depot: 'north', quantity: 4 }]);
+-    const result = await reconcile([row('A1', 9)], w, 500);
++    const result = await reconcile([row('A1', 9)], w, 500, TRACE);
+     assert.deepEqual(result.adjustments, [{ sku: 'A1', depot: 'north', from: 4, to: 9 }]);
+     assert.equal(result.unchanged, 0);
+   });
+ 
+   it('leaves a matching level alone and counts it', async () => {
+     const w = warehouse([{ sku: 'A1', depot: 'north', quantity: 4 }]);
+-    const result = await reconcile([row('A1', 4)], w, 500);
++    const result = await reconcile([row('A1', 4)], w, 500, TRACE);
+     assert.deepEqual(result.adjustments, []);
+     assert.equal(result.unchanged, 1);
+     assert.deepEqual(w.applied, []);
+# H0011
+@@ -39,14 +41,21 @@ describe('reconcile', () => {
+ 
+   it('reports a SKU the warehouse does not know rather than creating it', async () => {
+     const w = warehouse([]);
+-    const result = await reconcile([row('ZZ9', 1)], w, 500);
++    const result = await reconcile([row('ZZ9', 1)], w, 500, TRACE);
+     assert.deepEqual(result.unknown, ['ZZ9']);
+   });
+ 
++  it('skips a level the warehouse reports as negative', async () => {
++    const w = warehouse([{ sku: 'A1', depot: 'north', quantity: -2 }]);
++    const result = await reconcile([row('A1', 9)], w, 500, TRACE);
++    assert.deepEqual(result.adjustments, []);
++    assert.equal(result.unchanged, 0);
++  });
++
+   it('applies adjustments in batches', async () => {
+     const levels = ['A', 'B', 'C'].map((sku) => ({ sku, depot: 'north', quantity: 0 }));
+     const w = warehouse(levels);
+-    await reconcile(['A', 'B', 'C'].map((sku) => row(sku, 1)), w, 2);
++    await reconcile(['A', 'B', 'C'].map((sku) => row(sku, 1)), w, 2, TRACE);
+     assert.deepEqual(
+       w.applied.map((batch) => batch.length),
+       [2, 1],
+
+diff --git a/src/sync/reconcile.ts b/src/sync/reconcile.ts
+index 1bae6ce..b17e345 100644
+--- a/src/sync/reconcile.ts
++++ b/src/sync/reconcile.ts
+# H0012
+@@ -1,4 +1,6 @@
+ import type { FeedRow } from '../feed/parse.ts';
++import { log } from '../logger.ts';
++import { RunCounters } from './trace.ts';
+ 
+ export interface StockLevel {
+   sku: string;
+# H0013
+@@ -34,8 +36,11 @@ export async function reconcile(
+   feed: FeedRow[],
+   warehouse: Warehouse,
+   batchSize: number,
++  trace: string,
+ ): Promise<ReconcileResult> {
++  const counters = new RunCounters();
+   const current = await warehouse.levels();
++  log.debug('reconcile: loaded levels', { trace, levels: current.length, rows: feed.length });
+   const known = new Map<string, StockLevel>();
+   for (const level of current) known.set(key(level.sku, level.depot), level);
+ 
+# H0014
+@@ -45,20 +50,30 @@ export async function reconcile(
+   for (const row of feed) {
+     const level = known.get(key(row.sku, row.depot));
+     if (!level) {
++      log.debug('reconcile: unknown sku', { trace, sku: row.sku, depot: row.depot });
++      counters.add('unknown');
+       unknown.push(row.sku);
+       continue;
+     }
++    if (level.quantity < 0) {
++      log.warn('reconcile: negative level, skipping', { trace, sku: row.sku, depot: row.depot });
++      counters.add('skipped');
++      continue;
++    }
+     const delta = row.quantity - level.quantity;
+     if (delta === 0) {
+       unchanged += 1;
+       continue;
+     }
++    counters.add('adjusted');
+     adjustments.push({ sku: row.sku, depot: row.depot, from: level.quantity, to: row.quantity });
+   }
+ 
+   for (let start = 0; start < adjustments.length; start += batchSize) {
+     await warehouse.apply(adjustments.slice(start, start + batchSize));
++    counters.add('batches');
+   }
++  log.info('reconcile: done', { trace, ...counters.snapshot(), unchanged });
+   return { adjustments, unchanged, unknown };
+ }
+ 
+
+diff --git a/src/sync/trace.test.ts b/src/sync/trace.test.ts
+new file mode 100644
+index 0000000..c35e262
+--- /dev/null
++++ b/src/sync/trace.test.ts
+# H0015
+@@ -0,0 +1,12 @@ (part 1 of 2)
++import assert from 'node:assert/strict';
++import { describe, it } from 'node:test';
++import { newTraceId, RunCounters } from './trace.ts';
++
++describe('newTraceId', () => {
++  it('is twelve hex characters and differs between calls', () => {
++    const a = newTraceId();
++    assert.match(a, /^[0-9a-f]{12}$/);
++    assert.notEqual(a, newTraceId());
++  });
++});
++
+# H0016
+@@ -0,0 +13,9 @@ (part 2 of 2)
++describe('RunCounters', () => {
++  it('adds up by name and snapshots in name order', () => {
++    const counters = new RunCounters();
++    counters.add('rows');
++    counters.add('rows', 4);
++    counters.add('batches');
++    assert.deepEqual(counters.snapshot(), { batches: 1, rows: 5 });
++  });
++});
+
+diff --git a/src/sync/trace.ts b/src/sync/trace.ts
+new file mode 100644
+index 0000000..ff37525
+--- /dev/null
++++ b/src/sync/trace.ts
+# H0017
+@@ -0,0 +1,7 @@ (part 1 of 3)
++import { randomBytes } from 'node:crypto';
++
++/** A short id that ties one run's log lines together. */
++export function newTraceId(): string {
++  return randomBytes(6).toString('hex');
++}
++
+# H0018
+@@ -0,0 +8,8 @@ (part 2 of 3)
++/** Counters a run accumulates, logged once at the end. */
++export class RunCounters {
++  private readonly counts = new Map<string, number>();
++
++  add(name: string, by = 1): void {
++    this.counts.set(name, (this.counts.get(name) ?? 0) + by);
++  }
++
+# H0019
+@@ -0,0 +16,4 @@ (part 3 of 3)
++  snapshot(): Record<string, number> {
++    return Object.fromEntries([...this.counts.entries()].toSorted());
++  }
++}

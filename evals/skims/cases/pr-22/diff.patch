@@ -1,0 +1,654 @@
+diff --git a/.claude/rules/cli.md b/.claude/rules/cli.md
+index 54ae641..085c71c 100644
+--- a/.claude/rules/cli.md
++++ b/.claude/rules/cli.md
+# H0001
+@@ -36,7 +36,8 @@ src/cli/
+                    for `hostConfig` (the tests run without it), abort → SIGTERM; argBatches, the path-list split
+                    that keeps a command line inside Windows' limit
+   host-env.ts      the only process.env reader: hostEnv(), what a spawned git, gh or SDK
+-                   subprocess inherits
++                   subprocess inherits; agentEnv(), the SDK's, adds safe.bareRepository=explicit so a
++                   bare repository committed inside a reviewed tree is never used by the agent's git
+   diff-files.ts    listChangedFileDetails/parseChangedFiles: per-file counts joined to statuses over `-z` output,
+                    each rename's old path and the binary flag; output that ends mid-record throws rather than
+                    yielding a short list
+# H0002
+@@ -57,8 +58,8 @@ src/cli/
+                    usage); validationStopHook registered on Stop over the run's own copy of the answer,
+                    so a disqualified one costs a turn rather than a second run, and each refusal is a `blocked`
+                    event and a terminal note, and a hook that throws is a `hook-error` event and a warning rather
+-                   than a stranded run; the reviewed repo's own settings (settingSources user/project/local),
+-                   read-only tools, the engineer's environment inherited by the subprocess; the SDK is imported
++                   than a stranded run; the engineer's user settings, plus the working tree's
++                   project/local settings only when it is their own checkout (never a PR's worktree), read-only tools, the engineer's environment inherited by the subprocess; the SDK is imported
+                    only when a run happens
+   sdk-loop.ts      the SDK message loop: text, tool uses and the result out — subtype, turns, cost and token
+                    usage, cost counted even when the run ran out of turns — nothing thrown; howItEnded, the one
+# H0003
+@@ -69,8 +70,9 @@ src/cli/
+                    spelling the tag pair, which the parser would then find; onBlock gets the defects apart from
+                    the reason sent to the model, and onError allows the stop when the hook itself throws rather
+                    than stranding the run; SDK types only
+-  bash-gate.ts     which Bash commands a review may run: the line is split at | && ||, every part must be a known
+-                   read-only invocation; no redirection (bar 2>/dev/null), substitution or launcher flags
++  bash-gate.ts     which Bash commands a review may run: the line is read as bash reads it, quotes removed, and
++                   split at | && ||; every part must be a known read-only invocation; no redirection (bar
++                   2>/dev/null), substitution, variables, backslashes, launcher flags or a glob that could be a flag
+   progress.ts      the run log: one elapsed-time-stamped line per tool use, carrying the SDK's own turn number
+                    (one turn however many tools it asked for at once), plus a line per chapter title picked out
+                    of the answer as it streams, and a heartbeat line while a turn is quiet
+# H0004
+@@ -152,8 +154,10 @@ not an accident to fix:
+   staged reviews run where the engineer already is, and warn about edits that
+   are not part of the review.
+ - **The model runs as the engineer**, headless through the Agent SDK, with
+-  their own credentials and the reviewed repository's own Claude config. `er`
+-  reads no credential itself; a sign-in problem is theirs to fix in their own
++  their own credentials and user settings. The repository's own Claude config
++  loads only for a branch or staged review, in the engineer's checkout: a PR's
++  worktree is its author's files, and a hook there would run as the reviewer.
++  `er` reads no credential itself; a sign-in problem is theirs to fix in their own
+   terminal.
+ - **Five stages, each resumable**, because the model run is the only one that
+   costs money: `gather → prompt → run → parse → render`. Nothing should ever
+
+diff --git a/AGENTS.md b/AGENTS.md
+index dd55754..6b04ee0 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+# H0005
+@@ -147,7 +147,8 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
+ | `npm run check`                            | **The gate**: typecheck + report:build + test + lint + format:check |
+ 
+ `er` needs no environment of its own: the model runs as the engineer, with
+-their own Claude credentials and the reviewed repository's own Claude config.
++their own Claude credentials and user settings, plus the repository's own Claude
++config when the working tree is their checkout (never a PR's worktree).
+ 
+ ## Working on Windows
+ 
+
+diff --git a/src/cli/bash-gate.test.ts b/src/cli/bash-gate.test.ts
+index 854bf15..3a49773 100644
+--- a/src/cli/bash-gate.test.ts
++++ b/src/cli/bash-gate.test.ts
+# H0006
+@@ -81,3 +81,8 @@ (part 1 of 6) describe('what the local agent may run', () => {
+     expect(wrongly(commands, false)).toEqual([]);
+   });
+ 
++  /**
++   * Bash still expands `$(…)` and backticks inside double quotes, and reads a
++   * backslash as an escape; a gate that stopped looking at the quote, or took
++   * `\"` for one, passed commands bash ran as two.
++   */
+# H0007
+@@ -83,0 +89,13 @@ (part 2 of 6)
++  it('refuses a command hidden inside quotes or behind an escape', () => {
++    const commands = [
++      'grep "$(touch pwned)" README.md',
++      'grep "`touch pwned`" README.md',
++      'grep "${HOME}" README.md',
++      'grep \\" x ; touch pwned ; echo \\" README.md',
++      'grep "a\\" x" ; touch pwned ; echo "',
++      "grep $'\\x2d' README.md",
++      'git log $HOME',
++    ];
++    expect(wrongly(commands, false)).toEqual([]);
++  });
++
+# H0008
+@@ -83,0 +102,10 @@ (part 3 of 6)
++  it('checks each argument as bash will pass it, quotes removed', () => {
++    const commands = [
++      'git log --out"put"=notes.txt',
++      "git log --'output'=notes.txt",
++      'git -"c" core.pager=sh log',
++      'rg --p"re"=sh pattern .',
++    ];
++    expect(wrongly(commands, false)).toEqual([]);
++  });
++
+# H0009
+@@ -83,0 +112,7 @@ (part 4 of 6)
++  it('refuses a glob that a file named like a flag could answer', () => {
++    expect(allows('rg pattern *')).toBe(false);
++    expect(allows('grep -r pattern -*')).toBe(false);
++    expect(allows('rg pattern "--pre=s"*')).toBe(false);
++    expect(allows('ls src/cli/*.ts')).toBe(true);
++  });
++
+# H0010
+@@ -83,0 +119,12 @@ (part 5 of 6)
++  it('still reads quoted patterns the way the model writes them', () => {
++    const commands = [
++      "rg 'foo$' src",
++      'grep "end$" src/cli/review.ts',
++      'grep -c "a|b && c; d" README.md',
++      "rg -C 3 'a{2}' src",
++      'wc -c README.md',
++      'git log --format="%h %s" -5',
++    ];
++    expect(wrongly(commands, true)).toEqual([]);
++  });
++
+# H0011
+@@ -84,3 +131,14 @@ (part 6 of 6)
++  it('keeps git away from a repository or config the reviewed tree could supply', () => {
++    const commands = [
++      'git --git-dir=vendor/x diff HEAD~1 HEAD',
++      'git --work-tree=vendor/x status',
++      'git -C vendor/x log',
++      'git --config-env=core.pager=HOME log',
++      'git --exec-path=vendor log',
++    ];
++    expect(wrongly(commands, false)).toEqual([]);
++  });
++
+   it('refuses arguments that turn an allowed program into a launcher', () => {
+     expect(allows('rg --pre sh pattern .')).toBe(false);
+     expect(allows('git -c core.pager=sh log')).toBe(false);
+
+diff --git a/src/cli/bash-gate.ts b/src/cli/bash-gate.ts
+index 165af3b..0a3bd6e 100644
+--- a/src/cli/bash-gate.ts
++++ b/src/cli/bash-gate.ts
+# H0012
+@@ -14,8 +14,15 @@ (part 1 of 3)
+  * own: the line is allowed only if all of them are known read-only
+  * invocations, with no syntax that could start something unlisted, and no
+  * argument that turns a listed program into a launcher for one.
++ *
++ * The line is read the way bash will read it, quotes removed, because the
++ * words checked here must be the words bash runs: a gate that stops looking
++ * inside double quotes lets `"$(…)"` through, and one that checks `-"c"` as
++ * written lets bash run `-c`. Whatever this reader does not model — escapes,
++ * expansions, a glob that could expand to a flag — is refused rather than
++ * guessed at.
+  */
+ 
+ /** Characters that could start a command this gate never sees. */
+-const FORBIDDEN_SYNTAX = /[;`<(){}\n\r]/;
++const FORBIDDEN_SYNTAX = /[;`<(){}\n\r\\]/;
+ 
+# H0013
+@@ -22,3 +29,6 @@ (part 2 of 3)
+-/** Discarding stderr is a read; it is also the only redirection allowed. */
++/**
++ * Discarding stderr is a read; it is also the only redirection allowed. It
++ * comes out before the line is read, so the `>` in it is never seen.
++ */
+ const STDERR_DISCARD = /\s2>\s*(?:\/dev\/null|[Nn][Uu][Ll])(?=\s|$)/g;
+ 
+# H0014
+@@ -25,3 +35,10 @@ (part 3 of 3)
++/**
++ * Glob characters. One that could expand to a flag — at the start of a word,
++ * or in a word that starts with a dash — is refused: a file in the reviewed
++ * tree named `--pre=sh` would answer it.
++ */
++const GLOB = /[*?[]/;
++
+ const PROGRAMS = new Set(['cd', 'git', 'rg', 'grep', 'ls', 'cat', 'head', 'tail', 'wc']);
+ 
+ /** `git` subcommands that only read. `config` is absent on purpose: it writes. */
+# H0015
+@@ -43,17 +60,24 @@ (part 1 of 3) const GIT_SUBCOMMANDS = new Set([
+ ]);
+ 
+ /**
+- * Arguments that make an allowed program run something else or write a file:
+- * `git --output=` writes the diff out, `git -c` sets config for the command
+- * (including hook and pager paths), and ripgrep's preprocessor flags name a
+- * program to execute.
++ * Arguments that make an allowed program run something else or write a file.
++ * For git: `--output` writes the diff out, `-c` and `--config-env` set config
++ * for the command (hook, pager and diff-driver commands among it), and
++ * `--git-dir`, `--work-tree`, `--exec-path` and `-C` point git somewhere the
++ * reviewed tree could have prepared. For ripgrep: the preprocessor flags name
++ * a program to execute. Per program, because `-c` and `-C` are harmless
++ * counts and context to grep, rg and wc.
+  */
+-const FORBIDDEN_ARGUMENTS = ['-c', '--output', '--pre', '--hostname-bin', '--exec', '-exec'];
++const FORBIDDEN_ARGUMENTS: Record<string, readonly string[]> = {
++  git: ['-c', '-C', '--config-env', '--exec-path', '--git-dir', '--work-tree', '--output'],
++  rg: ['--pre', '--hostname-bin'],
++};
+ 
+ export type BashDecision = { allowed: true } | { allowed: false; reason: string };
+ 
+ const REFUSAL =
+   'er allows read-only commands only: git log/show/diff/blame/status and similar, rg, grep, ls, ' +
+   'cat, head, tail, wc. They may be chained with `|` or `&&` as long as every command in the ' +
+-  'line is one of those; redirection and command substitution are not available.';
++  'line is one of those; redirection, substitution, variables, backslashes and globs are not ' +
++  'available, so write paths with forward slashes and quote search patterns in single quotes.';
+ 
+# H0016
+@@ -60,14 +84,14 @@ (part 2 of 3)
+ export function reviewBashCommand(command: string): BashDecision {
+   const trimmed = command.trim();
+   if (trimmed === '') return deny('an empty command');
+ 
+-  const split = splitChain(trimmed.replace(STDERR_DISCARD, ' '));
+-  if (!split.ok) return deny(split.reason);
++  const read = readLine(trimmed.replace(STDERR_DISCARD, ' '));
++  if (!read.ok) return deny(read.reason);
+ 
+-  for (const part of split.parts) {
+-    const decision = reviewOne(part);
++  for (const words of read.commands) {
++    const decision = reviewOne(words);
+     if (!decision.allowed) return decision;
+   }
+   return { allowed: true };
+ }
+ 
+# H0017
+@@ -74,6 +98,5 @@ (part 3 of 3)
+-/** One command: a known program, run in a way that only reads. */
+-function reviewOne(command: string): BashDecision {
+-  const words = splitWords(command.trim());
++/** One command, as the words bash will pass it: a known program, run in a way that only reads. */
++function reviewOne(words: string[]): BashDecision {
+   const program = words[0];
+   if (program === undefined) return deny('an empty command in the line');
+   if (!PROGRAMS.has(program)) {
+# H0018
+@@ -81,9 +104,10 @@ function reviewOne(command: string): BashDecision {
+   }
+ 
+   const rest = words.slice(1);
++  const forbidden = FORBIDDEN_ARGUMENTS[program] ?? [];
+   for (const word of rest) {
+     const flag = word.split('=')[0]!;
+-    if (FORBIDDEN_ARGUMENTS.includes(flag)) {
++    if (forbidden.includes(flag)) {
+       return deny(`\`${flag}\` can run or write something else`);
+     }
+   }
+# H0019
+@@ -100,47 +124,88 @@ (part 1 of 3) function reviewOne(command: string): BashDecision {
+   return { allowed: true };
+ }
+ 
+-type Chain = { ok: true; parts: string[] } | { ok: false; reason: string };
++type Line = { ok: true; commands: string[][] } | { ok: false; reason: string };
+ 
+ /**
+- * The line broken at `|`, `||` and `&&`, respecting quotes so a separator
+- * inside a search pattern stays part of it. Anything else that could reach a
+- * second program — a `;`, a subshell, a redirection, a substitution, a
+- * background `&` — ends the scan instead, because splitting on it would not
+- * be enough to check what it runs.
++ * The line as bash will split it: commands broken at `|`, `||` and `&&`, each
++ * cut into words with the quotes removed. Inside single quotes everything is
++ * literal. Inside double quotes bash still expands `$…` and backticks and
++ * honours backslashes, so those are refused there; a `$` is let through only
++ * where bash leaves it as a character, before the closing quote or a space
++ * (`grep "end$"`). Outside quotes, anything that could reach a second program
++ * — a `;`, a subshell, a redirection, a substitution, a background `&` — ends
++ * the scan, because splitting on it would not be enough to check what it runs.
+  */
+-function splitChain(command: string): Chain {
+-  const parts: string[] = [];
+-  let current = '';
+-  let quote: string | null = null;
+-
+-  for (let i = 0; i < command.length; i += 1) {
+-    const char = command[i]!;
+-    if (quote !== null) {
+-      current += char;
+-      if (char === quote) quote = null;
++function readLine(line: string): Line {
++  const commands: string[][] = [];
++  let words: string[] = [];
++  let word = '';
++  /** Whether a word has started: `''` is a word, and so is `""`. */
++  let inWord = false;
++  let quote: "'" | '"' | null = null;
++
++  const endWord = () => {
++    if (inWord) words.push(word);
++    word = '';
++    inWord = false;
++  };
++  const endCommand = () => {
++    endWord();
++    commands.push(words);
++    words = [];
++  };
++
++  for (let i = 0; i < line.length; i += 1) {
++    const char = line[i]!;
++    const next = line[i + 1];
++
++    if (quote === "'") {
++      if (char === "'") quote = null;
++      else word += char;
++      continue;
++    }
++    if (quote === '"') {
++      if (char === '"') {
++        quote = null;
++        continue;
++      }
++      if (char === '`' || char === '\\') {
++        return { ok: false, reason: `\`${char}\` inside double quotes, which bash still reads` };
++      }
++      if (char === '$' && next !== '"' && next !== ' ') {
++        return { ok: false, reason: 'a `$` expansion inside double quotes' };
++      }
++      word += char;
+       continue;
+     }
+-    if (char === '"' || char === "'") {
++
++    if (char === "'" || char === '"') {
+       quote = char;
+-      current += char;
++      inWord = true;
++      continue;
++    }
++    if (char === ' ' || char === '\t') {
++      endWord();
+       continue;
+     }
+     if (char === '|' || char === '&') {
+-      const doubled = command[i + 1] === char;
++      const doubled = next === char;
+       if (char === '&' && !doubled) return { ok: false, reason: 'a backgrounded command' };
+-      parts.push(current);
+-      current = '';
++      endCommand();
+       if (doubled) i += 1;
+       continue;
+     }
+     if (char === '>') return { ok: false, reason: 'redirection, which writes' };
+-    if (char === '$' && (command[i + 1] === '(' || command[i + 1] === '{')) {
+-      return { ok: false, reason: 'a substitution, which could expand to another command' };
++    if (char === '$') {
++      return { ok: false, reason: 'a `$` expansion, which could expand to another command' };
+     }
+     if (FORBIDDEN_SYNTAX.test(char)) {
+       return { ok: false, reason: `\`${char}\`, which could run something else` };
+     }
+-    current += char;
++    if (GLOB.test(char) && (word === '' || word.startsWith('-'))) {
++      return { ok: false, reason: 'a glob that could expand to a flag' };
++    }
++    word += char;
++    inWord = true;
+   }
+ 
+# H0020
+@@ -147,9 +212,8 @@ (part 2 of 3)
+   if (quote !== null) return { ok: false, reason: 'an unclosed quote' };
+-  parts.push(current);
+-  return { ok: true, parts };
++  endCommand();
++  return { ok: true, commands };
+ }
+ 
+ function deny(what: string): BashDecision {
+   return { allowed: false, reason: `Refused ${what}. ${REFUSAL}` };
+ }
+-
+# H0021
+@@ -156,9 +219,0 @@ (part 3 of 3)
+-/**
+- * Words, treating a quoted run as one word. Quoting cannot hide a separator
+- * from this gate: the line was split before it was cut into words.
+- */
+-function splitWords(command: string): string[] {
+-  return (command.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((word) =>
+-    /^(".*"|'.*')$/.test(word) ? word.slice(1, -1) : word,
+-  );
+-}
+
+diff --git a/src/cli/claude-run.test.ts b/src/cli/claude-run.test.ts
+index cc25b1d..732aeab 100644
+--- a/src/cli/claude-run.test.ts
++++ b/src/cli/claude-run.test.ts
+# H0022
+@@ -70,6 +70,7 @@ const hunk = (id: string) => ({
+ 
+ const options = {
+   cwd: 'C:/repo',
++  tree: 'own' as const,
+   model: 'test-model',
+   maxTurns: 5,
+   timeoutMs: 60_000,
+# H0023
+@@ -188,3 +189,12 @@ (part 1 of 2) describe('the model run', () => {
+     });
+   });
+ 
++  it('reads only the engineer’s user settings in a worktree of someone else’s PR', async () => {
++    const query = fakeQuery([text('a review'), result({ subtype: 'success', total_cost_usd: 0 })]);
++
++    await runClaude(run, { ...options, tree: 'pr' }, { query });
++
++    // A hook or an allow rule in the PR's own .claude/ would run as the reviewer.
++    expect(query.options().settingSources).toEqual(['user']);
++  });
++
+# H0024
+@@ -191,3 +201,14 @@ (part 2 of 2)
++  it('runs the agent with git refusing a bare repository it was not pointed at', async () => {
++    const query = fakeQuery([text('a review'), result({ subtype: 'success', total_cost_usd: 0 })]);
++
++    await runClaude(run, options, { query });
++
++    const env = query.options().env ?? {};
++    const index = Number(env.GIT_CONFIG_COUNT) - 1;
++    expect(env[`GIT_CONFIG_KEY_${String(index)}`]).toBe('safe.bareRepository');
++    expect(env[`GIT_CONFIG_VALUE_${String(index)}`]).toBe('explicit');
++  });
++
+   it('lets the agent read history with Bash, and nothing else', async () => {
+     const query = fakeQuery([text('a review'), result({ subtype: 'success', total_cost_usd: 0 })]);
+     await runClaude(run, options, { query });
+
+diff --git a/src/cli/claude-run.ts b/src/cli/claude-run.ts
+index 4bf58b6..13559aa 100644
+--- a/src/cli/claude-run.ts
++++ b/src/cli/claude-run.ts
+# H0025
+@@ -6,6 +6,7 @@ import { howItEnded, runSdkLoop, type SdkQueryFn, type SdkUsage } from './sdk-lo
+ import { MAX_VALIDATION_RETRIES, validationStopHook } from './validation-stop-hook.ts';
+ import type { PromptGrounding } from '../review/prompt/diff-hunk-catalog.ts';
+ import { reviewBashCommand } from './bash-gate.ts';
++import { agentEnv } from './host-env.ts';
+ import { onInterrupt } from './interrupts.ts';
+ import type { RunFiles } from './run-folder.ts';
+ 
+# H0026
+@@ -18,9 +19,11 @@ import type { RunFiles } from './run-folder.ts';
+  *
+  * The engineer's own environment is what authenticates: the SDK subprocess
+  * inherits it, and this CLI reads none of it itself, so it needs no
+- * configuration of its own. The reviewed repository's own Claude
+- * configuration loads as it would in a normal session: it is the engineer's
+- * own repository, so its hooks and settings are theirs to trust.
++ * configuration of its own. The engineer's user settings always load. The
++ * working tree's project and local settings load only when that tree is the
++ * engineer's own checkout: a PR's worktree is its author's files, and a hook
++ * or an allow rule in its `.claude/` would run commands, or wave Bash past the
++ * gate, on the reviewer's machine.
+  */
+ 
+ /**
+# H0027
+@@ -52,6 +55,11 @@ export type QueryFn = SdkQueryFn;
+ export interface ClaudeRunOptions {
+   /** The agent's working directory: a PR's worktree, or the repository. */
+   cwd: string;
++  /**
++   * Whose files `cwd` holds: `own` for the engineer's checkout, whose Claude
++   * settings are theirs to trust; `pr` for a worktree of someone else's PR.
++   */
++  tree: 'own' | 'pr';
+   model: string;
+   maxTurns: number;
+   timeoutMs: number;
+# H0028
+@@ -212,8 +220,8 @@ function sdkOptions(
+       if (decision.behavior === 'deny') callbacks.onDeny(tool, input, decision.message);
+       return Promise.resolve(decision);
+     },
+-    // The engineer's own settings, and the reviewed repository's CLAUDE.md.
+-    settingSources: ['user', 'project', 'local'],
++    settingSources: options.tree === 'own' ? ['user', 'project', 'local'] : ['user'],
++    env: agentEnv(),
+     persistSession: false,
+     abortController: controller,
+     maxTurns: options.maxTurns,
+
+diff --git a/src/cli/host-env.test.ts b/src/cli/host-env.test.ts
+index 5581c8a..6809f96 100644
+--- a/src/cli/host-env.test.ts
++++ b/src/cli/host-env.test.ts
+# H0029
+@@ -1,5 +1,5 @@
+ import { afterEach, describe, expect, it, vi } from 'vitest';
+-import { hostEnv } from './host-env.ts';
++import { agentEnv, hostEnv } from './host-env.ts';
+ 
+ afterEach(() => vi.unstubAllEnvs());
+ 
+# H0030
+@@ -12,3 +12,10 @@ (part 1 of 3) describe('hostEnv', () => {
+     expect(snapshot['ER_TEST_HOST_ENV']).toBe('one');
+   });
+ });
++
++describe('agentEnv', () => {
++  it('passes the host environment on', () => {
++    vi.stubEnv('ER_TEST_HOST_ENV', 'one');
++    expect(agentEnv()['ER_TEST_HOST_ENV']).toBe('one');
++  });
++
+# H0031
+@@ -14,0 +22,9 @@ (part 2 of 3)
++  it('tells git to use no bare repository it was not pointed at', () => {
++    vi.stubEnv('GIT_CONFIG_COUNT', undefined);
++    expect(agentEnv()).toMatchObject({
++      GIT_CONFIG_COUNT: '1',
++      GIT_CONFIG_KEY_0: 'safe.bareRepository',
++      GIT_CONFIG_VALUE_0: 'explicit',
++    });
++  });
++
+# H0032
+@@ -14,0 +31,12 @@ (part 3 of 3)
++  it('adds to the engineer’s own GIT_CONFIG entries rather than replacing them', () => {
++    vi.stubEnv('GIT_CONFIG_COUNT', '1');
++    vi.stubEnv('GIT_CONFIG_KEY_0', 'core.autocrlf');
++    vi.stubEnv('GIT_CONFIG_VALUE_0', 'true');
++    expect(agentEnv()).toMatchObject({
++      GIT_CONFIG_COUNT: '2',
++      GIT_CONFIG_KEY_0: 'core.autocrlf',
++      GIT_CONFIG_KEY_1: 'safe.bareRepository',
++      GIT_CONFIG_VALUE_1: 'explicit',
++    });
++  });
++});
+
+diff --git a/src/cli/host-env.ts b/src/cli/host-env.ts
+index 17e1ac9..692ef4c 100644
+--- a/src/cli/host-env.ts
++++ b/src/cli/host-env.ts
+# H0033
+@@ -10,3 +10,21 @@ export type HostEnv = Record<string, string | undefined>;
+ export function hostEnv(): HostEnv {
+   return { ...process.env };
+ }
++
++/**
++ * The environment for the Agent SDK subprocess, and so for every command its
++ * Bash tool runs: the host's, with git told to use a bare repository only when
++ * one is named explicitly. A reviewed tree can commit a directory laid out as
++ * a bare repository, config and all; a `cd` into it followed by an allowed
++ * `git diff` would otherwise run whatever diff driver that config names.
++ * Added as one more `GIT_CONFIG_*` entry so the engineer's own are kept.
++ */
++export function agentEnv(): HostEnv {
++  const env = hostEnv();
++  const count = Number.parseInt(env.GIT_CONFIG_COUNT ?? '', 10);
++  const index = Number.isInteger(count) && count > 0 ? count : 0;
++  env[`GIT_CONFIG_KEY_${String(index)}`] = 'safe.bareRepository';
++  env[`GIT_CONFIG_VALUE_${String(index)}`] = 'explicit';
++  env.GIT_CONFIG_COUNT = String(index + 1);
++  return env;
++}
+
+diff --git a/src/cli/review.test.ts b/src/cli/review.test.ts
+index 6e9f1c2..fc77f24 100644
+--- a/src/cli/review.test.ts
++++ b/src/cli/review.test.ts
+# H0034
+@@ -132,8 +132,10 @@ describe('er review', () => {
+ 
+   it('runs the model without --stub, in the repository, and reports what it wrote', async () => {
+     let cwd = '';
++    let settingSources: unknown;
+     const query: QueryFn = ({ options: sdkOptions }) => {
+       cwd = sdkOptions.cwd ?? '';
++      settingSources = sdkOptions.settingSources;
+       return (async function* () {
+         yield assistantText(MODEL_REVIEW);
+         yield runResult();
+# H0035
+@@ -144,6 +146,7 @@ describe('er review', () => {
+ 
+     const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
+     expect(cwd).toBe(repoRoot);
++    expect(settingSources).toEqual(['user', 'project', 'local']);
+     expect(readFileSync(path.join(run, 'raw.txt'), 'utf8')).toBe(MODEL_REVIEW);
+     expect(readFileSync(path.join(run, 'events.jsonl'), 'utf8')).toContain('"subtype":"success"');
+     expect(readFileSync(path.join(run, 'review.json'), 'utf8')).toContain('The staged change');
+# H0036
+@@ -418,6 +421,27 @@ describe('er review', () => {
+       expect(repo.git('worktree', 'list').trim().split('\n')).toHaveLength(1);
+     });
+ 
++    it('keeps the PR’s own Claude settings out of the run', async () => {
++      openPull();
++      let settingSources: unknown;
++      const query: QueryFn = ({ options: sdkOptions }) => {
++        settingSources = sdkOptions.settingSources;
++        return (async function* () {
++          yield runResult();
++        })();
++      };
++
++      // No answer, so the run fails; what it was started with is the point.
++      await expect(
++        review(
++          options({ request: { kind: 'pr', number: 7, base: null }, stub: false, open: false }),
++          { ...deps, claude: { query } },
++        ),
++      ).rejects.toThrow('the model wrote nothing');
++
++      expect(settingSources).toEqual(['user']);
++    });
++
+     it('removes the worktree when interrupted mid-run', async () => {
+       openPull();
+       let during: string[] = [];
+
+diff --git a/src/cli/review.ts b/src/cli/review.ts
+index 6d74ca5..179e25e 100644
+--- a/src/cli/review.ts
++++ b/src/cli/review.ts
+# H0037
+@@ -142,6 +142,7 @@ export async function review(
+             run,
+             {
+               cwd: worktree?.path ?? context.target.repoRoot,
++              tree: worktree ? 'pr' : 'own',
+               model: options.model,
+               maxTurns: options.maxTurns,
+               timeoutMs: options.timeoutMs,
