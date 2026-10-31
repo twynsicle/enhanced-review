@@ -27,7 +27,7 @@ may "draw only what the diff supports".
 ## Decisions that hold across phases
 
 - **One diagram style per run, chosen by a flag.** `--diagram-style
-  <mechanism|files>`, default `mechanism`, written into the run's context so
+<mechanism|files>`, default `mechanism`, written into the run's context so
   `--from` reuses it. `files` is today's behaviour: nodes are the changed
   files and what they call. `mechanism` draws the parts of the system the
   change moves through, named by their responsibility, the untouched

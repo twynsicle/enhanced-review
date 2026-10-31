@@ -21,6 +21,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "eval:skims": "node src/evals/skims.ts",
+    "eval:diagrams": "node src/evals/diagrams.ts",
     "test": "vitest run --project unit --project report --project guardrails",
     "test:watch": "vitest --project unit --project report --project guardrails",
     "check": "npm run typecheck && npm run report:build && npm run test && npm run lint && npm run format:check"

@@ -4,18 +4,30 @@ paths:
   - 'evals/**'
 ---
 
-# `src/evals/` — the skim eval
+# `src/evals/` — the skim and diagram evals
 
-How well the model tiers hunks, measured on labelled cases, so that a change
-to the Attention tiers section of the review instructions can be compared
-before and after on the same changes. `docs/skim-evals.md` is the guide to
-running and labelling; this is the map. It runs the model the way the CLI
-does (`cli → review` plumbing, the SDK loaded only by a real sweep), so the
+Two measurements of the model, each on cases made for it, so that a change
+to one section of the review instructions can be compared before and after
+on the same changes: the **skim eval**, how well the model tiers hunks
+against a person's labels (`docs/skim-evals.md`), and the **diagram eval**,
+whether it draws the diagram a change deserves and nothing when it deserves
+none (`docs/diagram-evals.md`). Both run the model the way the CLI does
+(`cli → review` plumbing, the SDK loaded only by a real sweep), so the
 `layering` guardrail allows `evals → evals, cli, review` and nothing imports
-`evals`. Not part of the gate: a sweep spends money.
+`evals`. Neither is part of the gate: a sweep spends money.
 
 ```
 src/evals/
+  contrive.ts      shared by both evals: BranchSpecSchema (branch.json: branch, title, description, commit,
+                   removed paths), parseBranchSpec through whichever spec schema an eval keeps, listBranches (every
+                   directory under a contrived dir but base), layBranch (files/ copied whole over the tree,
+                   removed paths deleted), ModelRepo (a base tree, the working clone's name, the import
+                   commit's subject and a fixed author, so two builds make the same commits),
+                   withContrivedBranch (the base stood up in a temp directory as main of a working clone with
+                   a bare origin whose HEAD is set, since a branch review measures from origin's default
+                   branch; the branch laid over it and committed; the tree handed to the caller and removed
+                   after, however the caller ends), stubReview (`er review --stub --no-open` through this
+                   checkout's bin)
   skims.ts         the bin, `npm run eval:skims -- <import|recut|contrive|run|score|score-runs>`, run from this repository's root
   skim-case.ts     SkimCase (case.json: title, description, commits, files, the hunk catalog, where it came
                    from), Label (labels.jsonl, one JSON object per line: id, file, header, tier, category?,
@@ -33,12 +45,9 @@ src/evals/
                    leaves older cases naming hunks the tool no longer cuts; carryLabels keeps each judgement on
                    the new hunk with the same file and lines (hunkBodies, each hunk's text off its marker line,
                    its part tag left out so a renumbered part still matches) and leaves the rest seeded
-  contrive.ts      contriveCase: a branch under evals/skims/contrived stood up as a throwaway repository (the
-                   base tree pushed to a bare origin with its HEAD set, since a branch review measures from
-                   origin's default branch; a fixed author, so a rebuild makes the same commits), the branch's
-                   files laid over it and its removals applied, `er review --stub --no-open` run there through
-                   this checkout's bin, and the run imported as the case; BranchSpecSchema (branch.json);
-                   listContrived, every branch but the base
+  skim-contrive.ts contriveCase: a branch under evals/skims/contrived stood up over stockline (stocklineRepo,
+                   the ModelRepo) through withContrivedBranch, `er review --stub --no-open` run there, and the
+                   run imported as the case; listContrived, every branch but the base
   skim-review.ts   a whole er run's tiers: readReviewTiers (review.json read for the chapters' cited hunk ids
                    and tiers alone), citedTiers (read wins over skim across chapters, as the parser merges),
                    readRunAnswer / runAnswer, a run as one sample of a case for `score-runs`, refused unless
@@ -66,17 +75,42 @@ src/evals/
                    samples with every reason the model gave; spread, `mean (min–max)` across samples;
                    formatCaseScore / formatOverall, the latter pooling the cases sample by sample so the
                    spread is still across runs of one prompt
+  diagrams.ts      the bin, `npm run eval:diagrams -- contrive <name>... | --all`, run from this repository's
+                   root: the base's tests, then each branch stood up, tested, stub-reviewed and sized
+  diagram-case.ts  DiagramBranchSpecSchema, the shared spec plus `expect` (ExpectSchema: overview, the kinds
+                   an overview may be or null for none; chapterDiagrams, a min–max count and the kinds, max 0
+                   the control; mustName, the mechanisms the overview should name, prose for the eye and
+                   later a judge; mustReach, the untouched files a mechanism map should ground; question,
+                   what the overview alone should answer), kinds held to DiagramKindSchema; readDiagramSpec,
+                   listDiagramBranches, packhouseRepo (the ModelRepo); GIVEAWAY and giveaways, the words
+                   that would tell the model what a branch is for, found in the spec's prose or any file it
+                   lays down, `diagram` among them since a change that names its own picture has not made
+                   the model choose it
+  diagram-contrive.ts contriveDiagramBranch: refuses a branch that gives itself away, stands it up over
+                   packhouse, runs the service's own tests on the tree (runTests: `node --test` with the
+                   pattern Node expands itself, no shell and no install) and a stub review, and reports
+                   ChangeSize (reviewed files, hunks, the diff's added and removed lines; changeSize); nothing
+                   is kept, since the branch is the case and a sweep stands it up again
 evals/skims/
   cases/<name>/    case.json, diff.patch, labels.jsonl — committed, cut from merged pull requests or built
                    from a contrived branch
-  contrived/base/  the small service every contrived branch starts from
+  contrived/base/  stockline, the small service every skim branch starts from
   contrived/<name>/ branch.json (branch, title, description, commit, removed paths) and files/, the files the
                    branch changes or adds, whole; one branch per kind of skim, with traps — see docs/skim-evals.md
   results/<stamp>/ one sweep's answers and summary.json — ignored by git
+evals/diagrams/
+  contrived/base/  packhouse, the order service every diagram branch starts from: wide and shallow, three
+                   externals, a store, a queue and worker, a scheduler, HTTP and an ops CLI, no dependencies
+  contrived/<name>/ branch.json (the skim spec plus `expect`) and files/; one branch per picture, a control
+                   that deserves none, and a mixed change — see docs/diagram-evals.md
+  results/<stamp>/ one sweep's runs and scores — ignored by git
 ```
 
-- The categories the docs recommend are free text here, grouped as written;
-  the scorer never validates them against a list.
-- The eval reproduces the tiering question, not the review: the full run
-  decides its chapters before it tiers, and the eval has no chapters. Confirm
-  a change to the rules with a few real runs once the sweep says it helps.
+- The skim categories the docs recommend are free text here, grouped as
+  written; the scorer never validates them against a list.
+- The skim eval reproduces the tiering question, not the review: the full
+  run decides its chapters before it tiers, and the eval has no chapters.
+  Confirm a change to the rules with a few real runs once the sweep says it
+  helps. The diagram eval runs whole reviews for the opposite reason:
+  whether a diagram is drawn at all is decided while the model chapters the
+  change.

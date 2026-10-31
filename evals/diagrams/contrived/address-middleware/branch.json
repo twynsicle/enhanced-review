@@ -1,0 +1,21 @@
+{
+  "branch": "refactor/validate-address-in-middleware",
+  "title": "Answer a bad address from the middleware chain, before any order is stored",
+  "description": "A bad address used to get as far as `createOrder`, which checked it first thing and threw, and the JSON middleware turned the throw into a 400 beside every other malformed body. That put the one check that can refuse an order outright behind the handler's door, and made a postcode we cannot route read like a body-shape error when it is a content one. The check now sits in the chain: `validateAddressBody()` runs after the API key and the JSON parse on POST /orders, hands the handler the normalised address, and answers 422 with the field that failed, so a request with an address the shop cannot ship to is turned away before an order exists for it and before the gateway is asked. `createOrder` takes the address as already checked and no longer calls `validateAddress`; json.ts stops mapping `AddressError`, since nothing past the middleware throws it. The storefront sees 422 rather than 400 for a bad address, which is the one visible change; a body with no address at all is still the handler's 400, and GET keeps its chain. `isRecord` moves to json.ts so the middleware and the route share it. The new middleware test drives the route through `runChain`, as the webhook tests do, and create's own test for the removed check goes.",
+  "commit": {
+    "subject": "Validate the address in middleware, before the handler",
+    "body": "validateAddressBody() runs after jsonBody on POST /orders and answers\n422 naming the field; createOrder takes the address as checked; json.ts\nno longer maps AddressError; isRecord shared from json.ts."
+  },
+  "removed": [],
+  "expect": {
+    "overview": { "kinds": ["beforeAfter"] },
+    "chapterDiagrams": { "min": 0, "max": 1, "kinds": ["beforeAfter"] },
+    "mustName": [
+      "address validation runs in the middleware chain after auth and before the handler",
+      "a bad address answers 422 naming the field and never reaches createOrder",
+      "createOrder takes an address already validated"
+    ],
+    "mustReach": ["src/http/server.ts", "src/http/middleware/auth.ts"],
+    "question": "Where in the request's path does a bad address stop now, compared with before?"
+  }
+}

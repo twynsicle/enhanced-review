@@ -93,14 +93,14 @@ small edits that ride along with real work (a README line, a changelog
 entry, a log field), so that the diagram has to be chosen out of a change
 and not handed to the model by the change's shape.
 
-| name                 | the picture wanted                      | the change                                                                                                                                                                                                                                                                                                      |
-| -------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| name                 | the picture wanted                        | the change                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `retry-queue`        | an architecture map, most of it unchanged | a capture that fails with a gateway error no longer cancels the order: it goes to a new retry queue with backoff, the scheduler drains it, and a retry that succeeds continues to packing. New `queue/retry.ts` and a sweep; `orders/create.ts`, `scheduler/sweeps.ts`, `config.ts` touched. The gateway, worker, store and customer are untouched and are the map |
-| `on-hold`            | a state machine                         | orders gain `on_hold`: entered from `paid` when the address fails a stricter check, left to `packing` by the ops CLI's new `release`, or to `cancelled` by the abandoned sweep after a week. `orders/order.ts`, `orders/address.ts`, `cli/packhouse.ts`, `scheduler/sweeps.ts`, tests                             |
-| `async-capture`      | a sequence with three endings           | capture becomes asynchronous: the gateway answers `pending`, the webhook route completes it to `paid` or `cancelled`, and a new sweep cancels a capture that has had no webhook in an hour. `payments/gateway.ts`, `payments/cardflow.ts`, `http/routes/webhooks.ts`, `orders/create.ts`, `scheduler/sweeps.ts` |
-| `address-middleware` | a before-and-after of one path          | address validation moves out of `orders/create.ts` into `http/middleware/address.ts`, after auth and before the handler, answering 422 with the field named, so the handler never sees a bad address. One step moved in a chain that is otherwise unchanged                                                       |
-| `timestamps`         | nothing                                 | `createdAt` and `updatedAt` on every record: the two migrations, the store, both route handlers, the CLI's output, the email templates, the fixtures in every test. Fifteen files, each gaining a line or two. The control: a change with a shape and no structure                                             |
-| `carrier-switch`     | one chapter's picture, the rest none    | a second carrier (`shipping/northpost.ts`) chosen by destination country in `worker/ship.ts` through a new `shipping/choose.ts`; beside it, a README section, a `carrier` field on the ship log line, and two tests renamed. One chapter deserves an architecture or before-and-after picture of the choice; the others deserve nothing |
+| `on-hold`            | a state machine                           | orders gain `on_hold`: entered from `paid` when the address fails a stricter check, left to `packing` by the ops CLI's new `release`, or to `cancelled` by the abandoned sweep after a week. `orders/order.ts`, `orders/address.ts`, `cli/packhouse.ts`, `scheduler/sweeps.ts`, tests                                                                              |
+| `async-capture`      | a sequence with three endings             | capture becomes asynchronous: the gateway answers `pending`, the webhook route completes it to `paid` or `cancelled`, and a new sweep cancels a capture that has had no webhook in an hour. `payments/gateway.ts`, `payments/cardflow.ts`, `http/routes/webhooks.ts`, `orders/create.ts`, `scheduler/sweeps.ts`                                                    |
+| `address-middleware` | a before-and-after of one path            | address validation moves out of `orders/create.ts` into `http/middleware/address.ts`, after auth and before the handler, answering 422 with the field named, so the handler never sees a bad address. One step moved in a chain that is otherwise unchanged                                                                                                        |
+| `timestamps`         | nothing                                   | `createdAt` and `updatedAt` on every record: the two migrations, the store, both route handlers, the CLI's output, the email templates, the fixtures in every test. Fifteen files, each gaining a line or two. The control: a change with a shape and no structure                                                                                                 |
+| `carrier-switch`     | one chapter's picture, the rest none      | a second carrier (`shipping/northpost.ts`) chosen by destination country in `worker/ship.ts` through a new `shipping/choose.ts`; beside it, a README section, a `carrier` field on the ship log line, and two tests renamed. One chapter deserves an architecture or before-and-after picture of the choice; the others deserve nothing                            |
 
 The last two are what make "drawn when it helps" measurable: without them a
 prompt that draws on every change scores as well as one that draws when it
@@ -120,7 +120,11 @@ The skim eval's spec, plus what the branch deserves:
   "expect": {
     "overview": { "kinds": ["architecture"] },
     "chapterDiagrams": { "min": 0, "max": 1, "kinds": ["sequence"] },
-    "mustName": ["a capture failure enqueues a retry", "the scheduler drains retries with backoff", "the order stays paid-pending until the retry settles"],
+    "mustName": [
+      "a capture failure enqueues a retry",
+      "the scheduler drains retries with backoff",
+      "the order stays paid-pending until the retry settles"
+    ],
     "mustReach": ["src/payments/gateway.ts", "src/worker/worker.ts", "src/store/store.ts"],
     "question": "Where does a failed capture go now, and what still reads the order while it waits?"
   }
@@ -157,7 +161,7 @@ The skim eval's spec, plus what the branch deserves:
   `context.json` for the change's size, throw the repository away. Phase 2
   reuses everything but the stub.
 - `src/evals/diagrams.ts`: the bin, `npm run eval:diagrams -- contrive
-  <name>... | --all`, printing one line a branch. `run`, `score` and `sheet`
+<name>... | --all`, printing one line a branch. `run`, `score` and `sheet`
   are phase 2 and are named in `USAGE` only when they exist.
 - Tests: the spec schema; `listDiagramBranches`; the no-giveaway check over
   spec and files; `contriveDiagramBranch` with a stubbed review against a

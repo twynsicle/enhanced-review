@@ -1,0 +1,22 @@
+{
+  "branch": "feat/retry-failed-captures",
+  "title": "Retry a capture the gateway failed instead of leaving the order to the abandoned sweep",
+  "description": "A Cardflow timeout or 5xx during capture fails the request with a 502 today and leaves the order `placed` for the abandoned sweep to cancel a day later, so a few minutes of gateway trouble costs us every order placed in them. Now the request keeps the order `placed`, queues a retry and answers 202 with it; the storefront already reads the order back until it is `paid`, so nothing changes on its side. A third sweep, `capture-retries`, runs every minute (`CAPTURE_RETRY_SWEEP_MS`) and captures again for every retry that has come due, through the same gateway with the same merchant reference, so Cardflow's idempotency key keeps a first attempt that landed late from charging twice. A capture that succeeds moves the order to `paid` and queues the pack job and the confirmation exactly as a fresh order does — that step is pulled out of `createOrder` as `applyCapture` so there is one of it; a decline cancels; another gateway error waits out the next step of the backoff (one, five, thirty minutes), and a failure on the third attempt cancels the order with a log line. The card token rides on the retry rather than the order, so it is gone once the gateway has answered. The retry queue is in-process behind a `RetryQueue` interface like the store and the job queue, and `packhouse stuck` lists the retries due beside the abandoned and stuck orders. The order never leaves `placed` while it waits, so the abandoned sweep's day-old cutoff still applies to it as before.",
+  "commit": {
+    "subject": "Retry a capture the gateway failed",
+    "body": "A GatewayError from capture no longer fails POST /orders: the order stays\nplaced, a retry goes on the new RetryQueue and the request answers 202.\nThe capture-retries sweep drains due retries through the same gateway on a\n1/5/30 minute backoff, then cancels. applyCapture extracted from\ncreateOrder so a retried capture continues into packing the same way."
+  },
+  "removed": [],
+  "expect": {
+    "overview": { "kinds": ["architecture"] },
+    "chapterDiagrams": { "min": 0, "max": 1, "kinds": ["sequence"] },
+    "mustName": [
+      "a gateway error during capture queues a retry instead of failing the request",
+      "the scheduler drains due retries with backoff",
+      "a retry that succeeds continues into packing exactly as a fresh order does",
+      "the order stays placed, where the abandoned sweep would still find it"
+    ],
+    "mustReach": ["src/payments/gateway.ts", "src/worker/worker.ts", "src/store/store.ts", "src/http/routes/orders.ts"],
+    "question": "Where does a capture the gateway failed go now, and which existing parts still see the order while it waits?"
+  }
+}

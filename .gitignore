@@ -37,3 +37,6 @@ npm-debug.log*
 
 # skim eval runs: model answers and scores, regenerated from the cases
 /evals/skims/results/
+
+# diagram eval runs: whole reviews and scores, regenerated from the branches
+/evals/diagrams/results/

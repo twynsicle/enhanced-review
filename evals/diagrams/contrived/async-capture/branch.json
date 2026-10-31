@@ -1,0 +1,21 @@
+{
+  "branch": "feat/asynchronous-capture",
+  "title": "Take Cardflow's asynchronous capture: pending on the call, settled by the webhook",
+  "description": "Cardflow has moved captures to an asynchronous flow: for a growing share of cards the capture call now answers 202 with a reference and the outcome comes later on the webhook, which we were reading as the gateway falling over and failing the order with a 502. `CaptureResult` gains a `pending` outcome; `createOrder` stores a pending order still `placed` with its `paymentReference` set and queues nothing, and `POST /orders` answers 202 for it (201 as before for a card Cardflow still captures on the spot). The webhook takes two new events beside `refund`: `capture.completed` moves the order to `paid` and queues the pack job and the confirmed email, through a `markPaid` step pulled out of `createOrder` so the two cannot drift, and `capture.declined` moves it to `cancelled`; both match the order by `merchantReference`. A notice for an order no longer `placed` is acknowledged and logged, since Cardflow sends a notice again until it gets a 200 for it. A pending capture Cardflow says nothing about for an hour is cancelled by a new `unansweredCaptures` sweep (`UNANSWERED_SWEEP_MS`, five minutes by default); the abandoned sweep now leaves those to it and keeps cancelling orders that never got a reference after a day. The worker, the queue and the store are untouched.",
+  "commit": {
+    "subject": "Settle pending captures from the Cardflow webhook",
+    "body": "CaptureResult gains pending, mapped from Cardflow's 202; createOrder keeps a\npending order placed with its reference and POST /orders answers 202; the\nwebhook settles capture.completed and capture.declined through markPaid,\nshared with createOrder; the unansweredCaptures sweep cancels a capture with\nno answer inside an hour, UNANSWERED_SWEEP_MS."
+  },
+  "removed": [],
+  "expect": {
+    "overview": { "kinds": ["architecture", "beforeAfter"] },
+    "chapterDiagrams": { "min": 1, "max": 1, "kinds": ["sequence"] },
+    "mustName": [
+      "capture now answers pending and the order waits as placed with its reference",
+      "the webhook settles a pending capture to paid or cancelled",
+      "a capture with no webhook inside an hour is cancelled by a sweep"
+    ],
+    "mustReach": ["src/http/middleware/json.ts", "src/worker/pack.ts", "src/scheduler/scheduler.ts"],
+    "question": "What are the three ways a pending capture ends, and which part of the system ends each?"
+  }
+}
