@@ -317,8 +317,8 @@ describe('parseNarrativeReview', () => {
 
   it('rejects missing tags, malformed JSON and missing required fields', () => {
     expect(error('no tags here')).toBe('The answer contains no complete <narrative_review> block.');
-    expect(error('<narrative_review>{oops</narrative_review>')).toBe(
-      'The <narrative_review> block is not valid JSON.',
+    expect(error('<narrative_review>{oops</narrative_review>')).toMatch(
+      /^The <narrative_review> block is not valid JSON: .*, near "\{oops"\.$/,
     );
     expect(error(wrap({ prTitle: 'x' }))).toBe('The narrative review has no chapters array.');
     expect(error(wrap({ chapters: [] }))).toBe('The narrative review has no prTitle.');
@@ -1206,9 +1206,19 @@ ${block('The answer', 'one')}
     );
   });
 
+  it('names the brackets an answer left open at its end, and what closes them', () => {
+    const whole = JSON.stringify({ prTitle: 'x', chapters: [{ id: 'a', insights: [] }] });
+    expect(error(`<narrative_review>${whole.slice(0, -1)}</narrative_review>`)).toBe(
+      'The <narrative_review> block is not valid JSON: it ends with 1 bracket still open; it needs } at the end.',
+    );
+    expect(error(`<narrative_review>${whole.slice(0, -3)}</narrative_review>`)).toBe(
+      'The <narrative_review> block is not valid JSON: it ends with 3 brackets still open; it needs }]} at the end.',
+    );
+  });
+
   it('reports an empty block as JSON it cannot read', () => {
     expect(error('<narrative_review></narrative_review>')).toBe(
-      'The <narrative_review> block is not valid JSON.',
+      'The <narrative_review> block is not valid JSON: it is empty.',
     );
   });
 

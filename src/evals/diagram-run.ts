@@ -142,7 +142,7 @@ async function runSample(
   const specDir = path.join(options.root, DIAGRAM_CONTRIVED_DIR, name);
   const spec = await readDiagramSpec(specDir);
   const repo = packhouseRepo(options.root);
-  const meta = await withContrivedBranch(repo, specDir, spec, async (work) => {
+  return withContrivedBranch(repo, specDir, spec, async (work) => {
     const started = performance.now();
     const outcome = await review(work, {
       model: options.model,
@@ -160,11 +160,12 @@ async function runSample(
       turns: result?.turns ?? null,
       failure: wrote ? null : tail(outcome.output) || `er exited ${String(outcome.exitCode)}`,
     };
+    // Written before the tree is removed, so a paid sample is on disk however
+    // the clean-up goes.
+    await mkdir(path.dirname(files.meta), { recursive: true });
+    await writeFile(files.meta, `${JSON.stringify(sample, null, 2)}\n`);
     return sample;
   });
-  await mkdir(path.dirname(files.meta), { recursive: true });
-  await writeFile(files.meta, `${JSON.stringify(meta, null, 2)}\n`);
-  return meta;
 }
 
 const ResultEventSchema = z.object({

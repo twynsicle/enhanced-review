@@ -94,7 +94,9 @@ export async function withContrivedBranch<T>(
     await git(work, repo, 'commit', '--quiet', '-m', spec.commit.subject, '-m', spec.commit.body);
     return await run(work);
   } finally {
-    await rm(temp, { recursive: true, force: true });
+    // On Windows the folder can stay locked for a moment after er and the git
+    // it spawned exit, and an EBUSY here once ended a whole sweep.
+    await rm(temp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 }
 
