@@ -68,6 +68,7 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   instructions: null,
   splitLines: 0,
   overviewStyles: ['narrative'],
+  diagramStyle: 'mechanism',
   ...overrides,
 });
 
@@ -168,7 +169,7 @@ describe('er review', () => {
     );
     expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
       'prompt',
-      expect.stringMatching(/^~\d+ tokens with yours, plus the review instructions$/),
+      expect.stringMatching(/^~[\d.]+k? tokens with yours, plus the review instructions$/),
       expect.any(Number),
     );
   });
@@ -183,8 +184,20 @@ describe('er review', () => {
     expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
       'prompt',
       expect.stringMatching(
-        /^~\d+ tokens, plus the review instructions; five-whys overview style$/,
+        /^~[\d.]+k? tokens, plus the review instructions; five-whys overview style$/,
       ),
+      expect.any(Number),
+    );
+  });
+
+  it('writes the files diagram style into the prompt, and says so', async () => {
+    await expect(review(options({ diagramStyle: 'files' }), deps)).resolves.toBe(0);
+
+    const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
+    expect(readFileSync(path.join(run, 'prompt.md'), 'utf8')).toContain('in the files style');
+    expect(vi.mocked(terminal.stage)).toHaveBeenCalledWith(
+      'prompt',
+      expect.stringMatching(/plus the review instructions; files diagrams$/),
       expect.any(Number),
     );
   });
@@ -194,7 +207,10 @@ describe('er review', () => {
     await expect(review(options({ overviewStyles: [...styles] }), deps)).resolves.toBe(0);
 
     const run = path.join(repoRoot, RUNS_DIR, 'staged', runFolders()[0]!);
-    expect(JSON.parse(readFileSync(path.join(run, 'styles.json'), 'utf8'))).toEqual(styles);
+    expect(JSON.parse(readFileSync(path.join(run, 'styles.json'), 'utf8'))).toEqual({
+      overview: styles,
+      diagrams: 'mechanism',
+    });
     expect(readFileSync(path.join(run, 'prompt.md'), 'utf8')).toContain(
       '## Overview Styles: simple, pros-cons\n',
     );

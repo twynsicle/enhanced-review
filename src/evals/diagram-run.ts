@@ -9,6 +9,7 @@ import { hostEnv } from '../cli/host-env.ts';
 import { WARNED } from '../cli/review.ts';
 import { latestRunFolder, runStamp } from '../cli/run-folder.ts';
 import { slugify } from '../cli/targets.ts';
+import { DiagramStyleSchema, type DiagramStyle } from '../review/prompt/diagram-styles.ts';
 import { withContrivedBranch } from './contrive.ts';
 import {
   branchDigest,
@@ -27,13 +28,15 @@ import {
  * samples already paid for.
  *
  *   evals/diagrams/results/<stamp>/
- *     run.json                   model, samples, branches and their digests, what it cost
+ *     run.json                   model, diagram style, samples, branches and their digests, cost
  *     <branch>/sample-<n>.json   how er exited, what the run cost, why it failed
  *     <branch>/sample-<n>/       the run folder: review.json, findings.json, review.html, …
  */
 export const DiagramSweepSchema = z.object({
   /** null for er's default, so a sweep measures what a reviewer gets. */
   model: z.string().nullable(),
+  /** Passed to every review, so two sweeps of the same code can compare the styles. */
+  diagramStyle: DiagramStyleSchema,
   samples: z.number().int().positive(),
   branches: z.array(z.string()),
   /** Each branch's digest when it was swept; a score of a branch changed since is refused. */
@@ -57,6 +60,7 @@ export type DiagramSample = z.infer<typeof DiagramSampleSchema>;
 export interface DiagramSweepOptions {
   root: string;
   model: string | null;
+  diagramStyle: DiagramStyle;
   samples: number;
   branches: string[];
   /** Reviews in flight at once; each is its own er process and model run. */
@@ -68,9 +72,15 @@ export interface ReviewOutcome {
   output: string;
 }
 
+/** What every review of a sweep is asked for. */
+export interface ReviewRun {
+  model: string | null;
+  diagramStyle: DiagramStyle;
+}
+
 export interface DiagramSweepDeps {
   /** Runs `er review --no-open` in a stood-up branch; the real one spawns this checkout's bin. */
-  review?: (cwd: string, model: string | null) => Promise<ReviewOutcome>;
+  review?: (cwd: string, run: ReviewRun) => Promise<ReviewOutcome>;
   onSample?: (branch: string, sample: number, meta: DiagramSample) => void;
 }
 
@@ -97,6 +107,7 @@ export async function runDiagramSweep(
   );
   const record: DiagramSweep = {
     model: options.model,
+    diagramStyle: options.diagramStyle,
     samples: options.samples,
     branches: options.branches,
     digests: Object.fromEntries(digests),
@@ -133,7 +144,10 @@ async function runSample(
   const repo = packhouseRepo(options.root);
   const meta = await withContrivedBranch(repo, specDir, spec, async (work) => {
     const started = performance.now();
-    const outcome = await review(work, options.model);
+    const outcome = await review(work, {
+      model: options.model,
+      diagramStyle: options.diagramStyle,
+    });
     const ms = Math.round(performance.now() - started);
     const run = await latestRunFolder(work, `branch-${slugify(spec.branch)}`);
     if (run) await cp(run.folder, files.run, { recursive: true });
@@ -190,9 +204,16 @@ const execFileAsync = promisify(execFile);
  * returned rather than thrown: a warning exit still wrote the report, and a
  * first answer disqualified and then fixed is a result, not a lost sample.
  */
-async function erReview(cwd: string, model: string | null): Promise<ReviewOutcome> {
+async function erReview(cwd: string, run: ReviewRun): Promise<ReviewOutcome> {
   const bin = path.join(path.dirname(import.meta.dirname), 'cli', 'er.ts');
-  const args = [bin, 'review', '--no-open', ...(model ? ['--model', model] : [])];
+  const args = [
+    bin,
+    'review',
+    '--no-open',
+    '--diagram-style',
+    run.diagramStyle,
+    ...(run.model ? ['--model', run.model] : []),
+  ];
   try {
     const { stdout, stderr } = await execFileAsync(process.execPath, args, {
       cwd,

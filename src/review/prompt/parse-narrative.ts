@@ -1,4 +1,5 @@
 import { plural } from '../plural.ts';
+import { isRepositoryPath } from './repository-path.ts';
 import { asRead, judgementCallOwner, mergeCitations } from '../coverage.ts';
 import {
   excerptsDropped,
@@ -661,20 +662,6 @@ function raiseJudgedHunks(
 
 function isLineNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1;
-}
-
-/**
- * A path as git names a file from the repository root. Anything else — an
- * absolute path, a `..`, a Windows separator — is not a file this review can
- * show, and handed to git as a pathspec it would fail the parse stage rather
- * than the one excerpt.
- */
-function isRepositoryPath(filename: string): boolean {
-  return (
-    !filename.includes(BACKSLASH) &&
-    !/^[A-Za-z]:/.test(filename) &&
-    filename.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
-  );
 }
 
 /** An excerpt as a finding names it: its path and span, as far as it gave them. */

@@ -24,6 +24,12 @@ export const DIAGRAM_TYPE = {
   edge: { size: px(FONT_SIZES.xs), lineHeight: 14 },
 } as const;
 
+/** The gap between a node's label and the path beneath it. */
+export const PATH_GAP = 3;
+
+/** The height a path line adds to a box: the gap and one line of edge type. */
+export const PATH_HEIGHT = PATH_GAP + DIAGRAM_TYPE.edge.lineHeight;
+
 /** What a cut label ends in, and so how a painter knows one was cut. */
 const ELLIPSIS = '…';
 
@@ -132,6 +138,35 @@ export function fitCaption(text: string, maxWidth: number): string {
  */
 export function cutFrom(label: string, drawn: readonly string[]): string | undefined {
   return drawn.some((line) => line.endsWith(ELLIPSIS)) ? label : undefined;
+}
+
+/** A monospace glyph is one fixed width, so a path's estimate is a count. */
+export function estimateMonoWidth(text: string, size: number): number {
+  return [...text].length * size * 0.62;
+}
+
+/**
+ * The path a grounded node draws beneath its label: the answer to "where is
+ * this" for a part named by what it does. None when the label already is the
+ * path or its file name, since the line would say it twice.
+ */
+export function pathLine(label: string, filename: string | undefined): string | undefined {
+  if (filename === undefined) return undefined;
+  const base = filename.slice(filename.lastIndexOf('/') + 1);
+  return label === filename || label === base ? undefined : filename;
+}
+
+/**
+ * A path cut from the left to fit `maxWidth`, or unchanged if it fits. The
+ * file name at the end is what tells two paths apart, so the folders go first.
+ */
+export function fitPath(path: string, size: number, maxWidth: number): string {
+  if (estimateMonoWidth(path, size) <= maxWidth) return path;
+  let out = path;
+  while (out.length > 0 && estimateMonoWidth(`${ELLIPSIS}${out}`, size) > maxWidth) {
+    out = out.slice(1);
+  }
+  return `${ELLIPSIS}${out}`;
 }
 
 /** The width a wrapped label actually occupies. */

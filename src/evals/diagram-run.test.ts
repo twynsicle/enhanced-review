@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRunFolder } from '../cli/run-folder.ts';
 import { GIT_TEST_TIMEOUT } from '../test/git-repo.ts';
 import { DIAGRAM_CONTRIVED_DIR } from './diagram-case.ts';
-import { diagramSampleFiles, readDiagramSweep, runDiagramSweep } from './diagram-run.ts';
+import {
+  diagramSampleFiles,
+  readDiagramSweep,
+  runDiagramSweep,
+  type ReviewRun,
+} from './diagram-run.ts';
 import { scoreDiagramSweep } from './diagram-score.ts';
 
 // Each sample stands a branch up in real git — see GIT_TEST_TIMEOUT.
@@ -48,8 +53,9 @@ function write(file: string, text: string) {
 }
 
 /** er as a stand-in: `good` writes a run folder and exits with a warning, `bad` writes none. */
-async function review(cwd: string) {
+async function review(cwd: string, asked: ReviewRun) {
   if (path.basename(cwd) !== 'packhouse') throw new Error(`not a packhouse tree: ${cwd}`);
+  if (asked.diagramStyle !== 'files') throw new Error(`asked for ${asked.diagramStyle}`);
   if (existsSync(path.join(cwd, 'src', 'bad.ts'))) {
     return { exitCode: 1, output: 'gather  1 file\nerror the model never answered' };
   }
@@ -69,13 +75,21 @@ describe('runDiagramSweep', () => {
   it('keeps each sample’s run folder and how it ended, a warning exit as a review and a non-zero one without a folder as a failure', async () => {
     const seen: string[] = [];
     const folder = await runDiagramSweep(
-      { root, model: null, samples: 1, branches: ['good', 'bad'], parallel: 2 },
+      {
+        root,
+        model: null,
+        diagramStyle: 'files',
+        samples: 1,
+        branches: ['good', 'bad'],
+        parallel: 2,
+      },
       { review, onSample: (branch, sample) => seen.push(`${branch} ${String(sample)}`) },
     );
 
     const record = await readDiagramSweep(folder);
     expect(record).toMatchObject({
       model: null,
+      diagramStyle: 'files',
       samples: 1,
       branches: ['good', 'bad'],
       costUsd: 0.5,
@@ -106,7 +120,7 @@ describe('runDiagramSweep', () => {
 describe('scoreDiagramSweep', () => {
   it('scores a failed sample as a failure, and refuses a sweep whose branch has changed since', async () => {
     const folder = await runDiagramSweep(
-      { root, model: null, samples: 1, branches: ['bad'], parallel: 1 },
+      { root, model: null, diagramStyle: 'files', samples: 1, branches: ['bad'], parallel: 1 },
       { review },
     );
     const [score] = await scoreDiagramSweep(folder, root);
@@ -118,7 +132,7 @@ describe('scoreDiagramSweep', () => {
 
   it('rescores without complaint when only the expectation changed', async () => {
     const folder = await runDiagramSweep(
-      { root, model: null, samples: 1, branches: ['bad'], parallel: 1 },
+      { root, model: null, diagramStyle: 'files', samples: 1, branches: ['bad'], parallel: 1 },
       { review },
     );
     const spec = path.join(root, DIAGRAM_CONTRIVED_DIR, 'bad', 'branch.json');

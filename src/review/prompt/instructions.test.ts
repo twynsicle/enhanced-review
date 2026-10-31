@@ -58,7 +58,10 @@ describe('the review instructions', () => {
   it('state the diagram contract with the real limits, not a template hole', () => {
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('"overviewDiagram"');
     expect(NARRATIVE_SYSTEM_PROMPT).toContain('architecture | state | beforeAfter | sequence');
-    expect(NARRATIVE_SYSTEM_PROMPT).toContain('describes a CHANGE, not a system');
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('is about a CHANGE');
+    // How a node is named and grounded is the run's diagram style, in prompt.md.
+    expect(NARRATIVE_SYSTEM_PROMPT).toContain('set by the Diagram Style section');
+    expect(NARRATIVE_SYSTEM_PROMPT).not.toContain('a path from Files Changed');
     // The caps come from DIAGRAM_LIMITS so the prompt cannot drift from the
     // schema that rejects what it asks for.
     expect(NARRATIVE_SYSTEM_PROMPT).toContain(

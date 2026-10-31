@@ -1,90 +1,12 @@
 import { CAPTION_TYPE, token } from '@/report/theme/tokens';
 import { changeStyle } from './change-style';
-import {
-  SELF_LABEL_OFFSET,
-  type LaidOutMessage,
-  type LaidOutParticipant,
-  type SequenceLayout,
-} from './sequence-layout';
+import { SELF_LABEL_OFFSET, type LaidOutMessage, type SequenceLayout } from './sequence-layout';
+import { NodeBox, type DiagramFiles } from './node-box';
 import { DIAGRAM_TYPE } from './text-metrics';
-import classes from './diagram.module.css';
 
 /** Paints a laid-out sequence: heads, lifelines, group frames, messages. */
 const ARROW = 6;
 const LABEL_LIFT = 12;
-
-function Head({
-  participant,
-  uniform,
-  onSelectFile,
-}: {
-  participant: LaidOutParticipant;
-  uniform: boolean;
-  onSelectFile?: (filename: string) => void;
-}) {
-  const style = changeStyle(participant.change, uniform);
-  const clickable = participant.filename !== undefined && onSelectFile !== undefined;
-  const { lineHeight } = DIAGRAM_TYPE.node;
-  const firstY =
-    participant.y + participant.height / 2 - ((participant.lines.length - 1) * lineHeight) / 2;
-
-  return (
-    <g
-      className={clickable ? classes.clickable : undefined}
-      role={clickable ? 'button' : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      aria-label={
-        clickable
-          ? `${participant.fullLabel ?? participant.lines.join(' ')} — ${participant.filename ?? ''}`
-          : undefined
-      }
-      onClick={clickable ? () => onSelectFile(participant.filename as string) : undefined}
-      onKeyDown={
-        clickable
-          ? (event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                onSelectFile(participant.filename as string);
-              }
-            }
-          : undefined
-      }
-    >
-      {/*
-       * The label in full for a pointer, since the head could only hold part
-       * of it. A participant named after a file is where this matters: two
-       * files in one diagram can differ only in the part that was cut, which
-       * leaves the diagram drawing the comparison and unable to say which side
-       * is which.
-       */}
-      {participant.fullLabel !== undefined && <title>{participant.fullLabel}</title>}
-      <rect
-        x={participant.x}
-        y={participant.y}
-        width={participant.width}
-        height={participant.height}
-        rx={participant.kind === 'data' ? 12 : 6}
-        fill={token('card')}
-        stroke={token(style.stroke)}
-        strokeWidth={participant.change === 'unchanged' ? 1 : 1.75}
-        strokeDasharray={style.dashed ? '5 4' : undefined}
-      />
-      {participant.lines.map((line, index) => (
-        <text
-          key={index}
-          x={participant.centerX}
-          y={firstY + index * lineHeight}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fontSize={DIAGRAM_TYPE.node.size}
-          fill={token(style.label)}
-        >
-          {line}
-        </text>
-      ))}
-    </g>
-  );
-}
 
 function Message({ message, uniform }: { message: LaidOutMessage; uniform: boolean }) {
   const style = changeStyle(message.change, uniform);
@@ -170,13 +92,7 @@ function Message({ message, uniform }: { message: LaidOutMessage; uniform: boole
   );
 }
 
-export function SequenceSvg({
-  layout,
-  onSelectFile,
-}: {
-  layout: SequenceLayout;
-  onSelectFile?: (filename: string) => void;
-}) {
+export function SequenceSvg({ layout, files }: { layout: SequenceLayout; files?: DiagramFiles }) {
   return (
     <>
       {layout.participants.map((participant) => (
@@ -259,11 +175,11 @@ export function SequenceSvg({
       ))}
 
       {layout.participants.map((participant) => (
-        <Head
+        <NodeBox
           key={participant.id}
-          participant={participant}
+          part={participant}
           uniform={layout.uniform}
-          {...(onSelectFile ? { onSelectFile } : {})}
+          {...(files ? { files } : {})}
         />
       ))}
     </>

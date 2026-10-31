@@ -9,6 +9,11 @@ import { runDiagramSweep } from './diagram-run.ts';
 import { formatBranchScore, formatDiagramOverall, scoreDiagramSweep } from './diagram-score.ts';
 import { writeContactSheet } from './diagram-sheet.ts';
 import { requireApiKey } from './skim-run.ts';
+import {
+  DEFAULT_DIAGRAM_STYLE,
+  DIAGRAM_STYLES,
+  isDiagramStyle,
+} from '../review/prompt/diagram-styles.ts';
 
 /**
  * `npm run eval:diagrams -- <command>`: the diagram eval, run from this
@@ -20,8 +25,10 @@ export const USAGE = `usage:
       stand each branch under evals/diagrams/contrived up as a throwaway repository, run the order
       service's tests on it and a --stub review, and report the change's size; nothing is kept
   npm run eval:diagrams -- run [--branch <name>]... [--samples <n>] [--model <name>] [--parallel <n>]
+                             [--diagram-style <mechanism|files>]
       a whole er review of every branch (or those named), --samples times each (3), --parallel at
-      once (3), with er's default model unless --model; each run folder kept under
+      once (3), with er's default model unless --model and in er's default diagram style
+      (mechanism) unless --diagram-style; each run folder kept under
       evals/diagrams/results/<stamp>/, then scored. Needs ANTHROPIC_API_KEY; spends money
   npm run eval:diagrams -- score <results folder>
       what each sample drew against what its branch deserves, and the counts, again; written to
@@ -85,8 +92,13 @@ async function runCommand(argv: string[], root: string): Promise<number> {
       samples: { type: 'string', default: '3' },
       model: { type: 'string' },
       parallel: { type: 'string', default: '3' },
+      'diagram-style': { type: 'string', default: DEFAULT_DIAGRAM_STYLE },
     },
   });
+  const diagramStyle = values['diagram-style'];
+  if (!isDiagramStyle(diagramStyle)) {
+    throw new Error(`--diagram-style takes ${DIAGRAM_STYLES.join(' or ')}; not "${diagramStyle}"`);
+  }
   requireApiKey();
   const samples = positiveInteger(values.samples, '--samples');
   const parallel = positiveInteger(values.parallel, '--parallel');
@@ -95,10 +107,10 @@ async function runCommand(argv: string[], root: string): Promise<number> {
   const unknown = branches.filter((name) => !known.includes(name));
   if (unknown.length > 0) throw new Error(`no such branch: ${unknown.join(', ')}`);
   note(
-    `${String(branches.length * samples)} reviews: ${String(branches.length)} branches × ${String(samples)} samples, ${String(parallel)} at once`,
+    `${String(branches.length * samples)} reviews in ${diagramStyle} style: ${String(branches.length)} branches × ${String(samples)} samples, ${String(parallel)} at once`,
   );
   const folder = await runDiagramSweep(
-    { root, model: values.model ?? null, samples, branches, parallel },
+    { root, model: values.model ?? null, diagramStyle, samples, branches, parallel },
     {
       onSample: (branch, sample, meta) => {
         const cost = meta.costUsd === null ? '' : `, $${meta.costUsd.toFixed(2)}`;

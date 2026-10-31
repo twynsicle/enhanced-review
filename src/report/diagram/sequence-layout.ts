@@ -5,7 +5,17 @@ import {
   type SequenceDiagram,
   type SequenceStep,
 } from '@/review/diagram';
-import { cutFrom, DIAGRAM_TYPE, estimateTextWidth, widestLine, wrapLabel } from './text-metrics';
+import {
+  cutFrom,
+  DIAGRAM_TYPE,
+  estimateMonoWidth,
+  estimateTextWidth,
+  fitPath,
+  PATH_HEIGHT,
+  pathLine,
+  widestLine,
+  wrapLabel,
+} from './text-metrics';
 
 /**
  * Sequence layout, done by hand rather than by an engine.
@@ -52,6 +62,8 @@ export interface LaidOutParticipant {
   change: DiagramChange;
   kind: DiagramNodeKind;
   filename?: string;
+  /** The path drawn beneath the label, fitted to the head; see `pathLine`. */
+  path?: string;
   hunkIds?: string[];
 }
 
@@ -99,9 +111,13 @@ export interface SequenceLayout {
   lifelineBottom: number;
 }
 
-function measureHead(label: string): {
+function measureHead(
+  label: string,
+  filename: string | undefined,
+): {
   lines: string[];
   fullLabel?: string;
+  path?: string;
   width: number;
   height: number;
 } {
@@ -111,16 +127,22 @@ function measureHead(label: string): {
     estimateTextWidth(label, size) <= inner
       ? [label]
       : wrapLabel(label, inner, size, HEAD_MAX_LINES);
+  const fullPath = pathLine(label, filename);
+  const pathWidth =
+    fullPath !== undefined ? estimateMonoWidth(fullPath, DIAGRAM_TYPE.edge.size) : 0;
   const width = Math.min(
     HEAD_MAX_W,
-    Math.max(HEAD_MIN_W, Math.ceil(widestLine(lines, size)) + HEAD_PAD_X * 2),
+    Math.max(HEAD_MIN_W, Math.ceil(Math.max(widestLine(lines, size), pathWidth)) + HEAD_PAD_X * 2),
   );
   const fullLabel = cutFrom(label, lines);
   return {
     lines,
     ...(fullLabel !== undefined ? { fullLabel } : {}),
+    ...(fullPath !== undefined
+      ? { path: fitPath(fullPath, DIAGRAM_TYPE.edge.size, width - HEAD_PAD_X * 2) }
+      : {}),
     width,
-    height: lines.length * lineHeight + HEAD_PAD_Y * 2,
+    height: lines.length * lineHeight + (fullPath !== undefined ? PATH_HEIGHT : 0) + HEAD_PAD_Y * 2,
   };
 }
 
@@ -213,7 +235,7 @@ function walk(
 export function layoutSequence(diagram: SequenceDiagram): SequenceLayout {
   const heads = diagram.participants.map((participant) => ({
     participant,
-    box: measureHead(participant.label),
+    box: measureHead(participant.label, participant.filename),
   }));
 
   let x = MARGIN;
@@ -236,6 +258,7 @@ export function layoutSequence(diagram: SequenceDiagram): SequenceLayout {
       change: participant.change,
       kind: participant.kind,
       ...(participant.filename !== undefined ? { filename: participant.filename } : {}),
+      ...(box.path !== undefined ? { path: box.path } : {}),
       ...(participant.hunkIds !== undefined ? { hunkIds: participant.hunkIds } : {}),
     });
     x += box.width + COL_GAP;

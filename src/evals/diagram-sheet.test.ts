@@ -25,6 +25,7 @@ const meta = { exitCode: 0, ms: 1, costUsd: 0.5, turns: 3, failure: null };
 function sweep(stamp: string, costUsd: number) {
   const record: DiagramSweep = {
     model: null,
+    diagramStyle: 'mechanism',
     samples: 1,
     branches: ['retry-queue'],
     digests: { 'retry-queue': 'abc' },
@@ -63,8 +64,14 @@ describe('contactSheet', () => {
       path.join('results', '20261031-100000'),
     );
     expect(sheet.sweeps).toEqual([
-      { stamp: '20261030-100000', summary: "er's default model, 1 branches × 1 samples, $1.50" },
-      { stamp: '20261031-100000', summary: "er's default model, 1 branches × 1 samples, $2.00" },
+      {
+        stamp: '20261030-100000',
+        summary: "er's default model, mechanism diagrams, 1 branches × 1 samples, $1.50",
+      },
+      {
+        stamp: '20261031-100000',
+        summary: "er's default model, mechanism diagrams, 1 branches × 1 samples, $2.00",
+      },
     ]);
     const [branch] = sheet.branches;
     expect(branch).toMatchObject({

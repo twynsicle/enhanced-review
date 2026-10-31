@@ -89,7 +89,8 @@ src/evals/
                    that would tell the model what a branch is for, found in the spec's prose or any file it
                    lays down, `diagram` among them since a change that names its own picture has not made
                    the model choose it
-  diagram-run.ts   runDiagramSweep: every branch × samples, each a whole `er review --no-open [--model]` (erReview,
+  diagram-run.ts   runDiagramSweep: every branch × samples, each a whole
+                   `er review --no-open --diagram-style <style> [--model]` (erReview,
                    this checkout's bin as a subprocess) on the branch stood up afresh, `parallel` at once, the
                    run folder copied out before the tree goes; exit 0 and WARNED both a written review, any
                    other exit or no run folder a failed sample with the tail of er's output; cost and turns
@@ -125,7 +126,7 @@ evals/diagrams/
                    externals, a store, a queue and worker, a scheduler, HTTP and an ops CLI, no dependencies
   contrived/<name>/ branch.json (the skim spec plus `expect`) and files/; one branch per picture, a control
                    that deserves none, and a mixed change — see docs/diagram-evals.md
-  results/<stamp>/ one sweep — ignored by git: run.json, <branch>/sample-<n>.json (how er exited, cost,
+  results/<stamp>/ one sweep — ignored by git: run.json (the model and diagram style with the rest), <branch>/sample-<n>.json (how er exited, cost,
                    the failure) and <branch>/sample-<n>/ (the whole run folder), score.txt, sheet.html
 ```
 

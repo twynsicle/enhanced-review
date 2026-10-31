@@ -1,10 +1,11 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { LOCAL_WORKING_TREE, NARRATIVE_SYSTEM_PROMPT } from '../review/prompt/instructions.ts';
 import type { DiffHunk } from '../review/prompt/diff-hunk-catalog.ts';
+import { z } from 'zod';
+import { diagramStyleSection, DiagramStyleSchema } from '../review/prompt/diagram-styles.ts';
 import { overviewStyleSection } from '../review/prompt/overview-styles.ts';
 import {
   OverviewStylesSchema,
-  type OverviewStyles,
   type ReviewFile,
   type ReviewFileSkipReason,
 } from '../review/narrative.ts';
@@ -23,11 +24,18 @@ import type { RunFiles } from './run-folder.ts';
 const MAX_INLINE_DESCRIPTION = 8000;
 const MAX_COMMIT_BODY = 600;
 
+/** What the run's prompt asked for beyond the change itself, kept as `styles.json`. */
+export const RunStylesSchema = z.object({
+  overview: OverviewStylesSchema,
+  diagrams: DiagramStyleSchema,
+});
+export type RunStyles = z.infer<typeof RunStylesSchema>;
+
 export async function writePrompt(
   context: RunContext,
   run: RunFiles,
   instructions: string | null,
-  styles: OverviewStyles,
+  styles: RunStyles,
 ): Promise<string> {
   const user = buildPrompt(context, run, instructions, styles);
   await writeFile(run.system, NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
@@ -41,7 +49,7 @@ export async function writePrompt(
  * command line, since a run resumed past the prompt reuses that prompt and
  * cannot be given new styles.
  */
-export async function readOverviewStyles(run: RunFiles): Promise<OverviewStyles> {
+export async function readRunStyles(run: RunFiles): Promise<RunStyles> {
   let text: string;
   try {
     text = await readFile(run.styles, 'utf8');
@@ -50,11 +58,13 @@ export async function readOverviewStyles(run: RunFiles): Promise<OverviewStyles>
   }
   let parsed;
   try {
-    parsed = OverviewStylesSchema.safeParse(JSON.parse(text));
+    parsed = RunStylesSchema.safeParse(JSON.parse(text));
   } catch {
     parsed = null;
   }
-  if (!parsed?.success) throw new Error(`${run.styles} does not name the overview styles`);
+  if (!parsed?.success) {
+    throw new Error(`${run.styles} does not name the overview styles and the diagram style`);
+  }
   return parsed.data;
 }
 
@@ -62,7 +72,7 @@ export function buildPrompt(
   context: RunContext,
   run: RunFiles,
   instructions: string | null,
-  styles: OverviewStyles,
+  styles: RunStyles,
 ): string {
   const { target, meta, files, hunks, diffLines } = context;
   const reviewed = files.filter((file) => !file.skipped);
@@ -91,7 +101,8 @@ export function buildPrompt(
       'instead of paging through it. Each hunk’s id is on a `# H0001` line directly above its `@@` ' +
       'header. Read that for the change itself, and the files in your working directory for the ' +
       'code around it.',
-    overviewStyleSection(styles),
+    overviewStyleSection(styles.overview),
+    diagramStyleSection(styles.diagrams),
     reviewerInstructions(instructions),
   ];
   return `${sections.filter((section) => section !== null).join('\n\n')}\n`;

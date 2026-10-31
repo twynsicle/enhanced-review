@@ -71,7 +71,8 @@ src/review/
                      for them and the sidebar's ○/◐ are what one would look like
   diagram.ts         Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk
-                     grounding, DIAGRAM_LIMITS, hasUniformChange
+                     grounding (a reviewed file, or on an unchanged node any file at the head commit, never on an
+                     external or actor), DIAGRAM_LIMITS, hasUniformChange
   review-meta.ts     ReviewMeta: the report's summary header, what kind of review it is (pr, branch or staged, so
                      the reader never guesses it from a ref's name), and the base and head commits the reader keys
                      a reader's progress on
@@ -133,7 +134,16 @@ src/review/
                      opener, measured on the opener's own side; a hunk that starts mid-case has no opener to go
                      by and is cut by paragraphs; splitPart reads a header's part number back),
                      instructions.ts (NARRATIVE_SYSTEM_PROMPT, the review instructions and output schema, and
-                     LOCAL_WORKING_TREE, the closing paragraph saying where the agent is standing),
+                     LOCAL_WORKING_TREE, the closing paragraph saying where the agent is standing; the Diagrams
+                     section holds what both diagram styles share and defers naming and grounding to the run's
+                     Diagram Style section),
+                     diagram-styles (DIAGRAM_STYLES, mechanism the default and files; DIAGRAM_STYLE_TEXT, each
+                     style's instruction — mechanism names parts by responsibility, draws the untouched parts
+                     around the change and grounds them in their own files once read; files is the code touched,
+                     named as the code names it, grounded in the change alone; diagramStyleSection, the prompt.md
+                     section, never system.md, so the cached system prompt is the same on every run),
+                     repository-path (isRepositoryPath: a plain path from the repository root, no absolute, `..`
+                     or backslash, which excerpts and diagram grounding both require),
                      overview-styles (OVERVIEW_STYLE_TEXT, each style's instruction for the overview's and the
                      chapters' bodies — narrative, the default, has none; bodyStyles, the styles a body is
                      written in: all asked for but tldr; overviewStyleSection, the prompt.md section saying the
@@ -207,8 +217,11 @@ src/review/
                      check, since only git knows),
                      parse-diagram (same leniency for diagrams, and the same record of it: drops the invalid part,
                      validates each diagram on its own
-                     so a bad picture cannot fail the review; a node's filename checked against the reviewed file
-                     list and its hunk ids against the hunks the prompt showed),
+                     so a bad picture cannot fail the review; a node's filename and hunk ids checked against the
+                     reviewed files and the hunks the prompt showed, except on an `unchanged` node, which may name
+                     a file outside the change as a plain repository path with no hunk ids — never one the change
+                     touches but does not review; a `data` node is grounded as `code` is, and `external` and
+                     `actor` never are; whether an outside file exists is the parse stage's to check),
 ```
 
 ## How a review runs

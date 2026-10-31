@@ -8,6 +8,7 @@ import { CHANGE_ORDER, changeStyle } from './change-style';
 import { DiagramModal } from './diagram-modal';
 import { GraphSvg } from './graph-svg';
 import { layoutGraph } from './graph-layout';
+import type { DiagramFiles } from './node-box';
 import { SequenceSvg } from './sequence-svg';
 import { layoutSequence } from './sequence-layout';
 import classes from './diagram.module.css';
@@ -23,11 +24,11 @@ import classes from './diagram.module.css';
  */
 export function DiagramFigure({
   diagram,
-  onSelectFile,
+  files,
 }: {
   diagram: Diagram;
-  /** Clicking a node that carries a filename opens that file in the reader. */
-  onSelectFile?: (filename: string) => void;
+  /** Where a node grounded in a reviewed file takes the reader when clicked. */
+  files?: DiagramFiles;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -81,7 +82,7 @@ export function DiagramFigure({
           role="img"
           aria-label={label}
         >
-          {painted.render(onSelectFile)}
+          {painted.render(files)}
         </svg>
       </div>
 
@@ -121,12 +122,14 @@ export function DiagramFigure({
         height={painted.height}
       >
         {painted.render(
-          onSelectFile &&
-            ((filename: string) => {
+          files && {
+            reviewed: files.reviewed,
+            open: (filename: string) => {
               // The file opens in the reader behind the modal, so get out of its way.
               setExpanded(false);
-              onSelectFile(filename);
-            }),
+              files.open(filename);
+            },
+          },
         )}
       </DiagramModal>
     </figure>
@@ -143,9 +146,7 @@ function paint(diagram: Diagram) {
       height: layout.height,
       uniform: layout.uniform,
       marks,
-      render: (handler?: (filename: string) => void) => (
-        <GraphSvg layout={layout} {...(handler ? { onSelectFile: handler } : {})} />
-      ),
+      render: (files?: DiagramFiles) => <GraphSvg layout={layout} {...(files ? { files } : {})} />,
     };
   }
   const layout = layoutSequence(diagram);
@@ -154,8 +155,6 @@ function paint(diagram: Diagram) {
     height: layout.height,
     uniform: layout.uniform,
     marks,
-    render: (handler?: (filename: string) => void) => (
-      <SequenceSvg layout={layout} {...(handler ? { onSelectFile: handler } : {})} />
-    ),
+    render: (files?: DiagramFiles) => <SequenceSvg layout={layout} {...(files ? { files } : {})} />,
   };
 }

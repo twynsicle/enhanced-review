@@ -6,6 +6,7 @@ import { Caption } from '@/report/chrome/caption';
 import { changeTitle } from '@/report/chrome/change-label';
 import classes from '@/report/reader/article.module.css';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
+import type { DiagramFiles } from '@/report/diagram/node-box';
 import type { AnchoredJudgementCall } from '@/report/reader/judgement-calls';
 import { MarkdownText } from '@/report/reader/markdown-text';
 import { OverviewStyleTabs } from '@/report/reader/overview-style-tabs';
@@ -38,7 +39,7 @@ export function SummaryCard({
   bodyStyle,
   meta,
   judgementCalls = [],
-  onSelectFile,
+  diagramFiles,
   onSelectChapter,
   footer,
 }: {
@@ -48,8 +49,8 @@ export function SummaryCard({
   meta: ReviewMeta;
   /** The review's questions and the chapter each is drawn in. */
   judgementCalls?: readonly AnchoredJudgementCall[];
-  /** Threaded down so a grounded diagram node can open its file. */
-  onSelectFile?: (filename: string) => void;
+  /** Threaded down so a node grounded in a reviewed file can open it. */
+  diagramFiles?: DiagramFiles;
   /** How the reading plan's links and the judgement-call index reach a chapter. */
   onSelectChapter: (chapterId: string) => void;
   /** Drawn after everything else: where the reader goes next. */
@@ -170,7 +171,7 @@ export function SummaryCard({
       {review.overviewDiagram && (
         <DiagramFigure
           diagram={review.overviewDiagram}
-          {...(onSelectFile ? { onSelectFile } : {})}
+          {...(diagramFiles ? { files: diagramFiles } : {})}
         />
       )}
 

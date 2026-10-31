@@ -19,6 +19,7 @@ import {
 import { groundingFor, type PromptGrounding } from '../review/prompt/diff-hunk-catalog.ts';
 import { validateReview } from '../review/validate-review.ts';
 import type { RunContext } from './context.ts';
+import { checkDiagramFiles } from './diagram-files.ts';
 import { checkExcerpts } from './excerpts.ts';
 import type { Shell } from './git.ts';
 import type { RunFiles } from './run-folder.ts';
@@ -28,9 +29,9 @@ import type { RunFiles } from './run-folder.ts';
  * with hunk ids resolved against the catalog gather wrote, and the changed
  * file list attached from context rather than trusted from the model. Each
  * file carries its share of that catalog, so the report knows what was
- * reviewable and not only what was cited. Excerpts of unchanged code are held
- * to the head commit here, with `shell` the repository's, since this is the
- * last stage that reads git.
+ * reviewable and not only what was cited. Excerpts of unchanged code, and the
+ * files a diagram names outside the change, are held to the head commit here,
+ * with `shell` the repository's, since this is the last stage that reads git.
  *
  * What the answer cost is two things joined: what validating the answer found,
  * and what the run itself did. The second is read back from `events.jsonl`
@@ -93,8 +94,15 @@ export async function parseRun(
     shell,
   );
   if (excerpts.dropped) findings.push(excerpts.dropped);
+  const diagramFiles = await checkDiagramFiles(
+    excerpts.review,
+    context.target.headSha,
+    context.files.map((file) => file.filename),
+    shell,
+  );
+  findings.push(...diagramFiles.dropped);
   const review: NarrativeReview = {
-    ...excerpts.review,
+    ...diagramFiles.review,
     files: withFileHunks(context.files, context.hunks),
   };
   await writeFile(run.review, `${JSON.stringify(review, null, 2)}\n`);

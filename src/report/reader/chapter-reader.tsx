@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { reviewCoverage } from '@/review/coverage';
+import type { DiagramFiles } from '@/report/diagram/node-box';
 import { SUMMARY_SECTION_ID, type NarrativeReview } from '@/review/narrative';
 import type { ReviewMeta } from '@/review/review-meta';
 import { ChapterCard } from '@/report/reader/chapter-card';
@@ -167,6 +168,14 @@ export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderPr
     [searchParams, setSearchParams],
   );
 
+  const diagramFiles = useMemo<DiagramFiles>(
+    () => ({
+      reviewed: new Set((review.files ?? []).map((file) => file.filename)),
+      open: onSelectFile,
+    }),
+    [review.files, onSelectFile],
+  );
+
   /*
    * Puts the card's top a pixel above the topbar's lower edge, the line
    * useReadingFile reads, so the sidebar's rail lands on the row just clicked
@@ -286,7 +295,7 @@ export function ChapterReader({ review, meta, initialActiveId }: ChapterReaderPr
             meta={meta}
             judgementCalls={judgementCalls}
             chapterIndex={activeIndex}
-            onSelectFile={onSelectFile}
+            diagramFiles={diagramFiles}
             onSelect={onSelect}
             footer={
               <SectionFooter
@@ -317,7 +326,7 @@ function SectionCard({
   meta,
   judgementCalls,
   chapterIndex,
-  onSelectFile,
+  diagramFiles,
   onSelect,
   footer,
 }: {
@@ -326,7 +335,7 @@ function SectionCard({
   meta: ReviewMeta;
   judgementCalls: readonly AnchoredJudgementCall[];
   chapterIndex: number;
-  onSelectFile: (filename: string) => void;
+  diagramFiles: DiagramFiles;
   onSelect: (id: string) => void;
   footer: ReactNode;
 }) {
@@ -349,7 +358,7 @@ function SectionCard({
           meta={meta}
           chapterIndex={chapterIndex}
           judgementCalls={judgementCallsByFile(judgementCalls, chapter.id)}
-          onSelectFile={onSelectFile}
+          diagramFiles={diagramFiles}
           footer={footer}
         />
       ) : null;
@@ -361,7 +370,7 @@ function SectionCard({
           bodyStyle={bodyStyle}
           meta={meta}
           judgementCalls={judgementCalls}
-          onSelectFile={onSelectFile}
+          diagramFiles={diagramFiles}
           onSelectChapter={onSelect}
           footer={footer}
         />

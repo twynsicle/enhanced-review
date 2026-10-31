@@ -4,6 +4,12 @@ import { reaches, RESUMABLE_STAGES, type ReviewOptions } from './review.ts';
 import { reviewerInstructions } from './reviewer-instructions.ts';
 import { OVERVIEW_STYLES, type OverviewStyle, type OverviewStyles } from '../review/narrative.ts';
 import { DEFAULT_OVERVIEW_STYLE, isOverviewStyle } from '../review/prompt/overview-styles.ts';
+import {
+  DEFAULT_DIAGRAM_STYLE,
+  DIAGRAM_STYLES,
+  isDiagramStyle,
+  type DiagramStyle,
+} from '../review/prompt/diagram-styles.ts';
 import { DEFAULT_SPLIT_LINES } from '../review/prompt/split-hunks.ts';
 import type { TargetRequest } from './targets.ts';
 
@@ -26,6 +32,10 @@ Options:
                        write what follows the overview's lede and each chapter's headline as:
                        ${OVERVIEW_STYLES.join(', ')} (default: ${DEFAULT_OVERVIEW_STYLE});
                        several, comma-separated, or all, to switch between in the report
+  --diagram-style <name>
+                       draw diagrams as ${DIAGRAM_STYLES.join(' or ')} (default: ${DEFAULT_DIAGRAM_STYLE}):
+                       mechanism names the parts of the system by what they do and draws the
+                       untouched ones around the change; files draws the changed code by name
   --split-hunks <lines>
                        split a hunk of more changed lines than this into parts of about this
                        size, at declaration boundaries; 0 keeps git's hunks (default: ${String(DEFAULT_SPLIT_LINES)})
@@ -66,6 +76,7 @@ export function parseCommand(argv: string[], cwd: string): Command {
       instructions: { type: 'string' },
       'instructions-file': { type: 'string' },
       'overview-style': { type: 'string' },
+      'diagram-style': { type: 'string' },
       'split-hunks': { type: 'string' },
     },
   });
@@ -96,6 +107,12 @@ export function parseCommand(argv: string[], cwd: string): Command {
       `--from ${from} reuses the prompt already written, so it cannot take a new overview style; use --from prompt`,
     );
   }
+  const diagramStyle = diagramStyleFlag(values['diagram-style']);
+  if (values['diagram-style'] !== undefined && !reaches(from, 'prompt')) {
+    throw new UsageError(
+      `--from ${from} reuses the prompt already written, so it cannot take a new diagram style; use --from prompt`,
+    );
+  }
   if (values['split-hunks'] !== undefined && from !== null) {
     throw new UsageError(
       `--from ${from} reuses the hunks the last run numbered, so it cannot split them again; run without --from`,
@@ -117,6 +134,7 @@ export function parseCommand(argv: string[], cwd: string): Command {
       instructions,
       splitLines: lineCount(values['split-hunks'], '--split-hunks', DEFAULT_SPLIT_LINES),
       overviewStyles,
+      diagramStyle,
     },
   };
 }
@@ -153,6 +171,14 @@ function overviewStylesFlag(value: string | undefined): OverviewStyles {
     if (!styles.includes(name)) styles.push(name);
   }
   return [styles[0]!, ...styles.slice(1)];
+}
+
+function diagramStyleFlag(value: string | undefined): DiagramStyle {
+  if (value === undefined) return DEFAULT_DIAGRAM_STYLE;
+  if (!isDiagramStyle(value)) {
+    throw new UsageError(`--diagram-style takes ${DIAGRAM_STYLES.join(' or ')}; not "${value}"`);
+  }
+  return value;
 }
 
 /** A flag that must be a whole number of lines, zero included. */

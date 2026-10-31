@@ -206,8 +206,13 @@ src/report/
                      drawn half of), change-style (change → token; nodes are outlined,
                      never filled), graph-layout (dagre, compound + multigraph; beforeAfter splits into two panels
                      off the change marks), sequence-layout (hand-rolled columns × rows), graph-svg / sequence-svg
-                     (painters), diagram-figure (the `data-bleed` figure: 1:1 with horizontal scroll, legend,
-                     caption), diagram-modal (full-screen viewBox pan/zoom), diagram.module.css
+                     (painters), node-box (the one box both painters draw a node or a participant as: its
+                     label, the grounded path beneath it in the edge type and mono — pathLine leaves it out when
+                     the label is the path or its file name, fitPath cuts it from the left — and the click, which
+                     opens only a file in DiagramFiles.reviewed, since an untouched file has nothing in the
+                     report to show), diagram-figure (the `data-bleed` figure: 1:1 with horizontal scroll,
+                     legend, caption; `files`, the reviewed set and the reader's open), diagram-modal
+                     (full-screen viewBox pan/zoom), diagram.module.css
   stores/            Zustand, persisted, each hydrating from localStorage as it loads: layout-width.ts (`er-layout`,
                      full ⇄ wide; followLayoutWidth keeps `--review-max-width` on `<html>`), diff-view.ts
                      (`er-diff-view`, split ⇄ unified), diff-wrap.ts (`er-diff-wrap`, off ⇄ on, on by default, spelled the way

@@ -97,6 +97,7 @@ What you have staged, against `HEAD` — a review before the commit.
 | `--instructions <text>`      | every review | add your own guidance to the prompt — what to focus on, what to explain — see below            |
 | `--instructions-file <path>` | every review | the same, read from a file, for anything long or multi-line                                    |
 | `--overview-style <names>`   | every review | how the overview and each chapter are written beneath their opening sentence — see below       |
+| `--diagram-style <name>`     | every review | what the review's diagrams draw: `mechanism` (the default) or `files` — see Diagrams           |
 | `--split-hunks <lines>`      | every review | split a hunk of more changed lines than this into parts of about this size — see below         |
 | `--stub`                     | every review | write a mechanical review instead of running a model — see below                               |
 | `--from <stage>`             | every review | resume the newest run for this target at `prompt`, `run`, `parse` or `render` — see below      |
@@ -272,10 +273,26 @@ architecture map, a state machine, a before/after of one procedure, or a
 sequence. It does not write mermaid. It writes a small JSON schema
 (`src/review/diagram.ts`) in which every node and edge says what the
 pull request did to it — added, removed, modified or unchanged — because a
-review diagram describes a change, not a system. A code node can point at a
-file and hunks from the diff, and the parser drops any path or hunk the diff
-does not contain, so a diagram can only link to code that is really there.
-An invalid diagram is dropped on its own and never fails the review.
+review diagram describes a change, not a system. An invalid diagram is
+dropped on its own and never fails the review.
+
+`--diagram-style` chooses what the diagrams draw, one style for the whole
+review:
+
+| Style       | What a diagram draws                                                                                                               |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mechanism` | the default: the running system the change moves through, each part named by what it does, the untouched parts around it drawn too |
+| `files`     | the code the change touched and what it calls, named as the code names it                                                          |
+
+A node can point at the file it lives in, drawn in small type beneath its
+name. A node the change touched points at a changed file, and may name the
+hunks too. In the `mechanism` style an unchanged node may point at any file
+in the repository, which says where that part lives. The parser drops a path
+that is not a plain path from the repository root, and the parse stage drops
+one the head commit does not hold, so a diagram names only files that are
+really there. Clicking a node opens its file only when the review carries it:
+an untouched file has nothing in the report to show. Like `--overview-style`,
+it cannot be given with a `--from` past the prompt stage.
 
 The reader lays diagrams out with dagre and draws them as SVG,
 in the design system's tokens and type scale. They render at full size and

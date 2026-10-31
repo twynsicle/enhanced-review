@@ -16,6 +16,23 @@ describe('the command line', () => {
     expect(options.overviewStyles).toEqual(['narrative']);
   });
 
+  it('draws diagrams in the mechanism style unless told otherwise', () => {
+    expect(reviewOptions([]).diagramStyle).toBe('mechanism');
+    expect(reviewOptions(['--diagram-style', 'files']).diagramStyle).toBe('files');
+    expect(() => reviewOptions(['--diagram-style', 'arrows'])).toThrow(
+      '--diagram-style takes mechanism or files; not "arrows"',
+    );
+  });
+
+  it('refuses a diagram style with a --from that writes no new prompt', () => {
+    expect(() => reviewOptions(['--from', 'run', '--diagram-style', 'files'])).toThrow(
+      '--from run reuses the prompt already written, so it cannot take a new diagram style; use --from prompt',
+    );
+    expect(reviewOptions(['--from', 'prompt', '--diagram-style', 'files']).diagramStyle).toBe(
+      'files',
+    );
+  });
+
   it('takes each overview style by name', () => {
     for (const style of OVERVIEW_STYLES) {
       expect(reviewOptions(['--overview-style', style]).overviewStyles).toEqual([style]);
