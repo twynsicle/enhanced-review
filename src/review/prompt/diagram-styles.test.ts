@@ -22,6 +22,14 @@ describe('diagram styles', () => {
     expect(section).toContain('only once you have read it');
   });
 
+  it('leave whether to draw, and which kind, to the shared instructions', () => {
+    // An early mechanism text spoke of the architecture overview, and a change
+    // that deserved a before-and-after was drawn as a map in every sample.
+    const section = diagramStyleSection('mechanism');
+    expect(section).toContain('never whether one is drawn or which kind it is');
+    expect(section).not.toContain('architecture overview');
+  });
+
   it('keep the files style to the change’s own files', () => {
     const section = diagramStyleSection('files');
     expect(section).toContain('from the Files Changed list');
