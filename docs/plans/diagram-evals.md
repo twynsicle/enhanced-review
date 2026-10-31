@@ -1,8 +1,10 @@
 # Diagram evals — plan of plans (ER-62)
 
-One PR per phase. Each phase gets its own just-in-time plan before any code;
-this file fixes the shape, the order and the decisions that cut across
-phases. Deleted when the work lands.
+One branch and one PR for all four phases: the phases are checkpoints in the
+commits, not reviews of their own, since the work cycles back between the
+prompt, the cases and the score. Each phase gets its own just-in-time plan
+before any code; this file fixes the shape, the order and the decisions that
+cut across phases. Deleted when the work lands.
 
 ## Goal
 

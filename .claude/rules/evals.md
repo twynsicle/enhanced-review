@@ -13,8 +13,9 @@ against a person's labels (`docs/skim-evals.md`), and the **diagram eval**,
 whether it draws the diagram a change deserves and nothing when it deserves
 none (`docs/diagram-evals.md`). Both run the model the way the CLI does
 (`cli → review` plumbing, the SDK loaded only by a real sweep), so the
-`layering` guardrail allows `evals → evals, cli, review` and nothing imports
-`evals`. Neither is part of the gate: a sweep spends money.
+`layering` guardrail allows `evals → evals, cli, review`, plus `report` for
+the diagram eval's contact sheet data shape (`src/report/sheet/sheet-data.ts`),
+and nothing imports `evals`. Neither is part of the gate: a sweep spends money.
 
 ```
 src/evals/
@@ -75,8 +76,10 @@ src/evals/
                    samples with every reason the model gave; spread, `mean (min–max)` across samples;
                    formatCaseScore / formatOverall, the latter pooling the cases sample by sample so the
                    spread is still across runs of one prompt
-  diagrams.ts      the bin, `npm run eval:diagrams -- contrive <name>... | --all`, run from this repository's
-                   root: the base's tests, then each branch stood up, tested, stub-reviewed and sized
+  diagrams.ts      the bin, `npm run eval:diagrams -- <contrive|run|score|sheet>`, run from this repository's
+                   root: contrive, the base's tests, then each branch stood up, tested, stub-reviewed and
+                   sized; run, a sweep (requireApiKey first) then its score; score, the score again, written
+                   to score.txt; sheet, the contact sheet of one sweep or two
   diagram-case.ts  DiagramBranchSpecSchema, the shared spec plus `expect` (ExpectSchema: overview, the kinds
                    an overview may be or null for none; chapterDiagrams, a min–max count and the kinds, max 0
                    the control; mustName, the mechanisms the overview should name, prose for the eye and
@@ -86,6 +89,25 @@ src/evals/
                    that would tell the model what a branch is for, found in the spec's prose or any file it
                    lays down, `diagram` among them since a change that names its own picture has not made
                    the model choose it
+  diagram-run.ts   runDiagramSweep: every branch × samples, each a whole `er review --no-open [--model]` (erReview,
+                   this checkout's bin as a subprocess) on the branch stood up afresh, `parallel` at once, the
+                   run folder copied out before the tree goes; exit 0 and WARNED both a written review, any
+                   other exit or no run folder a failed sample with the tail of er's output; cost and turns
+                   off the run's result event; run.json (DiagramSweepSchema) carries each branch's digest;
+                   readDiagramSweep, readDiagramSample, diagramSampleFiles
+  diagram-score.ts scoreDiagramSweep, refused when a branch's digest moved since the sweep; scoreReview, a
+                   review's diagrams against `expect` (overview present and of an allowed kind or absent when
+                   none deserved, chapter diagrams within min–max and of the allowed kinds, onTarget when
+                   both), diagramStats per diagram (nodes — a sequence's participants — unchanged, identifier
+                   labels by isIdentifierLabel's code-shaped-word test, labelled edges — every message of a
+                   sequence, nested groups included — and grounding filenames), mustReach files reached,
+                   diagram drops and a retry from findings.json; the one-line formatters (deserved,
+                   sampleVerdict, sampleFigures) the bin and the sheet share; formatBranchScore and
+                   formatDiagramOverall, the skim eval's `mean (min–max)` spread across samples
+  diagram-sheet.ts writeContactSheet: one sweep or two scored, contactSheet (a row per branch with what it
+                   deserves, a band per sweep, each sample's verdict, figures, diagrams and its review.html as a
+                   link relative to the sheet), injected into the sheet page vite.sheet.config.ts builds on
+                   every call (vite's own build, loaded only then), written into the later sweep's folder
   diagram-contrive.ts contriveDiagramBranch: refuses a branch that gives itself away, stands it up over
                    packhouse, runs the service's own tests on the tree (runTests: `node --test` with the
                    pattern Node expands itself, no shell and no install) and a stub review, and reports
@@ -103,7 +125,8 @@ evals/diagrams/
                    externals, a store, a queue and worker, a scheduler, HTTP and an ops CLI, no dependencies
   contrived/<name>/ branch.json (the skim spec plus `expect`) and files/; one branch per picture, a control
                    that deserves none, and a mixed change — see docs/diagram-evals.md
-  results/<stamp>/ one sweep's runs and scores — ignored by git
+  results/<stamp>/ one sweep — ignored by git: run.json, <branch>/sample-<n>.json (how er exited, cost,
+                   the failure) and <branch>/sample-<n>/ (the whole run folder), score.txt, sheet.html
 ```
 
 - The skim categories the docs recommend are free text here, grouped as

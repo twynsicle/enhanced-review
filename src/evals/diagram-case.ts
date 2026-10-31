@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
@@ -113,4 +114,29 @@ async function filesUnder(dir: string): Promise<string[]> {
     .filter((entry) => entry.isFile())
     .map((entry) => path.join(entry.parentPath, entry.name))
     .toSorted();
+}
+
+/**
+ * A fingerprint of the change a branch makes: the base, its files and its
+ * spec, `expect` left out. A sweep records it so that a later score or
+ * contact sheet is refused when the change has moved under it, while an
+ * edited expectation rescores the answers already paid for.
+ */
+export async function branchDigest(root: string, name: string): Promise<string> {
+  const contrived = path.join(root, DIAGRAM_CONTRIVED_DIR);
+  const specDir = path.join(contrived, name);
+  const hash = createHash('sha256');
+  for (const [label, dir] of [
+    ['base', path.join(contrived, 'base')],
+    ['files', path.join(specDir, 'files')],
+  ] as const) {
+    for (const file of await filesUnder(dir)) {
+      hash.update(`${label}/${path.relative(dir, file).replaceAll(path.sep, '/')}\0`);
+      hash.update(await readFile(file));
+      hash.update('\0');
+    }
+  }
+  const spec = await readDiagramSpec(specDir);
+  hash.update(JSON.stringify({ ...spec, expect: null }));
+  return hash.digest('hex').slice(0, 16);
 }

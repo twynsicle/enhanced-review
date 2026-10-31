@@ -245,10 +245,16 @@ src/report/
                      css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules),
                      oklch.ts (oklch → linear sRGB: the arithmetic the palette guardrail checks contrast and gamut
                      with)
+  sheet/             the diagram eval's contact sheet, a second page with its own build (vite.sheet.config.ts →
+                     build/sheet/sheet.html, never part of `er`'s report): sheet-data.ts (ContactSheetSchema, the
+                     er-sheet element, injectSheet / readEmbeddedSheet; relative `.ts` imports, since the eval
+                     loads it in Node), main.tsx, sheet-page.tsx (a row per branch, a band per sweep, a cell per
+                     sample as wide as its widest diagram, each diagram a DiagramFigure with only its chapter's
+                     title above it)
   test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper, diagram-fixtures
 ```
 
-The build (`vite.config.ts`) inlines JS, CSS and fonts into
+The build (`vite.config.ts`, through `vite.inline.ts`, which the sheet's build shares) inlines JS, CSS and fonts into
 `build/report/shell.html`, puts `chrome/brand-mark.svg` in its head as a
 data-URI favicon, and writes `shell.stamp` beside it, a hash of the
 report's sources that `er` checks before each render and rebuilds on when it

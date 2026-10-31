@@ -1,0 +1,58 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  padding: 32px 24px 64px;
+  background: var(--er-background);
+  min-height: 100vh;
+}
+
+.brief {
+  max-width: var(--er-measure);
+}
+
+.branch {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 32px;
+  border-top: 1px solid var(--er-border);
+}
+
+.list {
+  margin: 0;
+  padding-left: 20px;
+}
+
+/*
+ * Samples side by side, each as wide as its widest diagram and the row
+ * scrolling: a diagram is drawn 1:1, and one squeezed into a fixed cell
+ * would scroll inside it, hiding the part a glance across samples needs.
+ */
+.band {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.cell {
+  flex: 0 0 auto;
+  min-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--er-border);
+  border-radius: 10px;
+  background: var(--er-card);
+}
+
+.failure {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+  color: var(--er-muted-foreground);
+}
