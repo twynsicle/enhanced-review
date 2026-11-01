@@ -24,10 +24,13 @@ describe('diagram styles', () => {
 
   it('leave whether to draw, and which kind, to the shared instructions', () => {
     // An early mechanism text spoke of the architecture overview, and a change
-    // that deserved a before-and-after was drawn as a map in every sample.
+    // that deserved a before-and-after was drawn as a map in every sample. A
+    // later one gave an inserted step as its example of a before-and-after, and
+    // every sample of a new lifecycle drew one beside the state machine.
     const section = diagramStyleSection('mechanism');
     expect(section).toContain('never whether one is drawn or which kind it is');
     expect(section).not.toContain('architecture overview');
+    expect(section).not.toContain('step inserted');
   });
 
   it('keep the files style to the change’s own files', () => {
