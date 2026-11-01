@@ -215,11 +215,20 @@ from the overview alone, says whether each mechanism is shown (yes, partly,
 no), and rates the overview:
 
 - **good**: a reader who has never seen the code answers the question from
-  the picture and its caption alone, and every mechanism is shown;
+  the picture and its caption alone, every mechanism is shown, and the work
+  can be followed from where it enters to where it ends;
 - **usable**: the question can be answered, but a mechanism is only partly
-  shown or missing, or the picture carries noise the reader must look past;
+  shown or missing, the work starts or stops somewhere in the middle, or the
+  picture carries noise the reader must look past;
 - **poor**: the question cannot be answered from it, or it shows something
   the change does not do.
+
+Beyond the question, the judge is told what made an overview easy to follow
+when they were first rated by eye: where the work comes in and goes out, the
+parts outside the change it connects to, each boundary crossing labelled with
+how it crosses (the route, the reply, the queue), parts grouped by area, and a
+path the change stops taking drawn as a removed edge. More parts and
+connections read as better, not worse, so long as each is on the path.
 
 Two judges by default, Opus and Sonnet (`--judge <model>`, repeatable), since
 the model that drew a diagram may favour its own work. Their answers go under

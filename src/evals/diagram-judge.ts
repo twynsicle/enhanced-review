@@ -44,8 +44,8 @@ export const JudgeMetaSchema = z.object({
 });
 export type JudgeMeta = z.infer<typeof JudgeMetaSchema>;
 
-export const RUBRIC = `- "good": a reader who has never seen the code answers the question from the picture and its caption alone, and every mechanism is shown.
-- "usable": the question can be answered, but a mechanism is only partly shown or missing, or the picture carries noise the reader has to look past.
+export const RUBRIC = `- "good": a reader who has never seen the code answers the question from the picture and its caption alone, every mechanism is shown, and the work can be followed from where it enters to where it ends.
+- "usable": the question can be answered, but a mechanism is only partly shown or missing, the work starts or stops somewhere in the middle, or the picture carries noise the reader has to look past.
 - "poor": the question cannot be answered from the picture, or it shows something the change does not do.`;
 
 export const JUDGE_SYSTEM_PROMPT = `You judge one diagram from a code review. The review explained a change to a reader who has never seen the code, and this diagram was its overview: the one picture meant to show the shape of the change and where it sits in the running system. You are given what the change really does, the question the overview should answer on its own, and the mechanisms it should show. You see the diagram as text, not as a picture; judge what it says, not how it would be laid out.
@@ -54,6 +54,15 @@ How to read the diagram:
 - Each node is a part, with its kind (code, data, external, actor), what the change did to it (added, modified, removed, unchanged) and, when it has one, the file or folder it lives in. A folder ends in "/".
 - Each edge is "from → to", with what passes along it and what the change did to it.
 - A "beforeAfter" diagram is one graph drawn twice: the before side is everything not added, the after side everything not removed.
+
+What makes an overview easy to follow, beyond answering the question:
+- where the work comes in: the client, operator, schedule, queue or route that sets it moving;
+- where it goes out: what it stores, the reply it sends, the job it hands on, the outside service it tells;
+- the parts outside the change it connects to, drawn and marked unchanged;
+- each crossing of a boundary labelled with how it crosses: the route and verb, the reply, the queue, table or event;
+- parts grouped by the area of the system they belong to;
+- a path the change stops taking drawn as a removed edge, even when both its ends remain.
+More parts and connections help, as long as each is on the path the change takes: do not mark a picture down for its size.
 
 Work in this order, and do not skip the first step:
 1. Answer the question in two or three sentences, using only the diagram, its title and its caption. Where the diagram does not say, write that it does not.
