@@ -164,7 +164,7 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
 | `npm run lint` / `format` / `format:check` | oxlint / Prettier                                                   |
 | `npm run check`                            | **The gate**: typecheck + report:build + test + lint + format:check |
 | `npm run eval:skims -- <cmd>`              | the skim eval: import a case, run a sweep, score one. Spends money  |
-| `npm run eval:diagrams -- <cmd>`           | the diagram eval: check a branch, sweep, score, the contact sheet   |
+| `npm run eval:diagrams -- <cmd>`           | the diagram eval: check a branch, sweep, score, sheet, judge, agree |
 
 `er` needs no environment of its own: the model runs as the engineer, with
 their own Claude credentials and user settings, plus the repository's own Claude

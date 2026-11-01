@@ -147,9 +147,9 @@ export function scoreReview(
     missed: (expect.overview !== null && overviewKind === null) || chapterKinds.length < min,
     diagrams,
     // A node grounded in a folder reaches every file under it.
-    reached: expect.mustReach.filter((path) =>
+    reached: expect.mustReach.filter((wanted) =>
       [...grounded].some(
-        (ground) => ground === path || (ground.endsWith('/') && path.startsWith(ground)),
+        (ground) => ground === wanted || (ground.endsWith('/') && wanted.startsWith(ground)),
       ),
     ),
     drops: findings.filter(

@@ -253,9 +253,15 @@ src/report/
   sheet/             the diagram eval's contact sheet, a second page with its own build (vite.sheet.config.ts →
                      build/sheet/sheet.html, never part of `er`'s report): sheet-data.ts (ContactSheetSchema, the
                      er-sheet element, injectSheet / readEmbeddedSheet; relative `.ts` imports, since the eval
-                     loads it in Node), main.tsx, sheet-page.tsx (a row per branch, a band per sweep, a cell per
-                     sample as wide as its widest diagram, each diagram a DiagramFigure with only its chapter's
-                     title above it)
+                     loads it in Node; RATINGS, the good / usable / poor scale, and RatingsFileSchema, the
+                     ratings.json the sheet downloads, both read by the eval's judge and agreement too),
+                     main.tsx, sheet-page.tsx (a row per branch, a band per sweep, a cell per sample as wide as
+                     its widest diagram, each diagram a DiagramFigure with only its chapter's title above it;
+                     under each overview the user's rating control, and each judge's rating and reason behind a
+                     "Show the judges" box off by default, so a picture is rated before a judge's verdict is
+                     read; "Download ratings" in the header), sheet-ratings.ts (`er-sheet-ratings`, persisted
+                     JSON: the user's ratings keyed by sweep stamp, branch and sample, so a sheet built again
+                     shows them; ratingsFile, those of the sheet's own sweeps as the download)
   test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper, diagram-fixtures
 ```
 

@@ -195,3 +195,52 @@ two sweeps, each row shows the earlier above the later. The page is written
 into the (later) sweep's folder, and each sample links to its whole review.
 It is drawn by the report's own diagram code, built from
 `vite.sheet.config.ts` each time.
+
+## Judging a sweep
+
+The sheet is the eye's verdict, one sweep at a time. A judge model gives a
+verdict a prompt change can be compared on without rating every picture
+again, once it is shown to agree with yours:
+
+```bash
+npm run eval:diagrams -- judge evals/diagrams/results/20261031-091500
+```
+
+Each judge reads each overview as text: its title, caption, nodes (label,
+kind, change, path, group) and edges, never the rendered picture, whose
+layout stays the sheet's. It is told what the change really does, the
+branch's `question` and its `mustName` mechanisms. It answers the question
+from the overview alone, says whether each mechanism is shown (yes, partly,
+no), and rates the overview:
+
+- **good**: a reader who has never seen the code answers the question from
+  the picture and its caption alone, and every mechanism is shown;
+- **usable**: the question can be answered, but a mechanism is only partly
+  shown or missing, or the picture carries noise the reader must look past;
+- **poor**: the question cannot be answered from it, or it shows something
+  the change does not do.
+
+Two judges by default, Opus and Sonnet (`--judge <model>`, repeatable), since
+the model that drew a diagram may favour its own work. Their answers go under
+`judgements/` in the sweep, replacing an earlier judging, and `score` then
+counts each judge's ratings per branch. Chapter diagrams are not judged: no
+branch says what its chapter picture should answer. A judging costs a few
+cents an overview.
+
+**Your ratings.** The sheet puts a good / usable / poor control under each
+overview. Rate before ticking "Show the judges", which reveals each judge's
+rating and reason. The ratings stay in the browser; "Download ratings" saves
+them as `ratings.json`, which goes into the sweep's folder (a sheet of two
+sweeps rates both, each by its stamp, so the one file serves both folders).
+Then:
+
+```bash
+npm run eval:diagrams -- agree evals/diagrams/results/20261031-091500
+```
+
+For you against each judge, and the judges against each other: how often they
+agree exactly, how often within one step, Cohen's kappa (raw agreement
+flatters a sweep that is mostly "good"), and every disagreement with the
+judge's reason. Quote a judge's ratings for a prompt change only once its
+agreement with yours is good; the reasons it gives where you differ are what
+to fix in the rubric.

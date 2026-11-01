@@ -5,6 +5,20 @@ import { writeFile } from 'node:fs/promises';
 import { fail, line, note } from '../cli/terminal.ts';
 import { DIAGRAM_CONTRIVED_DIR, listDiagramBranches } from './diagram-case.ts';
 import { contriveDiagramBranch, runTests, type ContrivedBranch } from './diagram-contrive.ts';
+import {
+  agreement,
+  formatAgreement,
+  judgeRatings,
+  judgeReasons,
+  readUserRatings,
+} from './diagram-agree.ts';
+import {
+  DEFAULT_JUDGES,
+  formatJudged,
+  overviews,
+  readJudgements,
+  runJudge,
+} from './diagram-judge.ts';
 import { runDiagramSweep } from './diagram-run.ts';
 import { formatBranchScore, formatDiagramOverall, scoreDiagramSweep } from './diagram-score.ts';
 import { writeContactSheet } from './diagram-sheet.ts';
@@ -35,7 +49,16 @@ export const USAGE = `usage:
       score.txt beside the sweep
   npm run eval:diagrams -- sheet <results folder> [<later results folder>]
       every diagram of a sweep, or of two one band above the other, on one page: sheet.html in the
-      (later) folder`;
+      (later) folder, with a good / usable / poor control under each overview and a button that
+      downloads your ratings as ratings.json, to save into the sweep's folder
+  npm run eval:diagrams -- judge <results folder> [--judge <model>]... [--parallel <n>]
+      each judge model (${DEFAULT_JUDGES.join(' and ')} unless --judge) rates every overview of the
+      sweep good, usable or poor against its branch's question and mechanisms, --parallel at once
+      (4); written under judgements/ in the sweep, replacing an earlier judging. Needs
+      ANTHROPIC_API_KEY; spends money
+  npm run eval:diagrams -- agree <results folder>
+      the judges' ratings against yours from the sweep's ratings.json, and against each other:
+      agreement, kappa, and every disagreement with the judge's reason`;
 
 async function main(argv: string[], root: string): Promise<number> {
   const [command, ...rest] = argv;
@@ -48,6 +71,14 @@ async function main(argv: string[], root: string): Promise<number> {
       const [folder, ...extra] = rest;
       if (!folder || extra.length > 0) throw new Error('score takes one results folder');
       await scoreCommand(path.resolve(folder), root);
+      return 0;
+    }
+    case 'judge':
+      return judgeCommand(rest, root);
+    case 'agree': {
+      const [folder, ...extra] = rest;
+      if (!folder || extra.length > 0) throw new Error('agree takes one results folder');
+      await agreeCommand(path.resolve(folder), root);
       return 0;
     }
     case 'sheet': {
@@ -125,11 +156,74 @@ async function runCommand(argv: string[], root: string): Promise<number> {
   return 0;
 }
 
+async function judgeCommand(argv: string[], root: string): Promise<number> {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    options: {
+      judge: { type: 'string', multiple: true },
+      parallel: { type: 'string', default: '4' },
+    },
+    allowPositionals: true,
+  });
+  const [folder, ...extra] = positionals;
+  if (!folder || extra.length > 0) throw new Error('judge takes one results folder');
+  requireApiKey();
+  const judges = values.judge ?? DEFAULT_JUDGES;
+  const sweep = path.resolve(folder);
+  const record = await runJudge(
+    {
+      folder: sweep,
+      work: overviews(await scoreDiagramSweep(sweep, root)),
+      judges,
+      parallel: positiveInteger(values.parallel, '--parallel'),
+    },
+    {
+      onJudged: (judge, branch, sample, meta) => {
+        const cost = meta.costUsd === null ? '' : `, $${meta.costUsd.toFixed(2)}`;
+        note(`${judge}: ${branch} sample ${String(sample)}${cost}`);
+      },
+    },
+  );
+  if (record.costUsd !== null) note(`judged for $${record.costUsd.toFixed(2)}`);
+  await scoreCommand(sweep, root);
+  return 0;
+}
+
+async function agreeCommand(folder: string, root: string): Promise<void> {
+  const scores = await scoreDiagramSweep(folder, root);
+  const judged = await readJudgements(folder, scores);
+  if (judged.length === 0) throw new Error(`${folder} has not been judged; run judge first`);
+  const user = await readUserRatings(folder);
+  const judges = [...new Set(judged.map((item) => item.judge))];
+  const lines: string[] = [];
+  for (const judge of judges) {
+    const result = agreement('you', user, judge, judgeRatings(judged, judge));
+    lines.push(...formatAgreement(result, judgeReasons(judged, judge)), '');
+  }
+  for (const [at, first] of judges.entries()) {
+    for (const second of judges.slice(at + 1)) {
+      lines.push(
+        ...formatAgreement(
+          agreement(first, judgeRatings(judged, first), second, judgeRatings(judged, second)),
+        ),
+        '',
+      );
+    }
+  }
+  for (const text of lines) line(text);
+}
+
 async function scoreCommand(folder: string, root: string): Promise<void> {
   const scores = await scoreDiagramSweep(folder, root);
+  const judged = await readJudgements(folder, scores);
   const lines = [
-    ...scores.flatMap((score) => [...formatBranchScore(score), '']),
+    ...scores.flatMap((score) => [
+      ...formatBranchScore(score),
+      ...formatJudged(score.name, judged).map((text) => `  ${text}`),
+      '',
+    ]),
     ...formatDiagramOverall(scores),
+    ...formatJudged(null, judged).map((text) => `  ${text}`),
   ];
   for (const text of lines) line(text);
   await writeFile(path.join(folder, 'score.txt'), `${lines.join('\n')}\n`);

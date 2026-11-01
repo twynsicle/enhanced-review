@@ -76,10 +76,13 @@ src/evals/
                    samples with every reason the model gave; spread, `mean (min–max)` across samples;
                    formatCaseScore / formatOverall, the latter pooling the cases sample by sample so the
                    spread is still across runs of one prompt
-  diagrams.ts      the bin, `npm run eval:diagrams -- <contrive|run|score|sheet>`, run from this repository's
-                   root: contrive, the base's tests, then each branch stood up, tested, stub-reviewed and
-                   sized; run, a sweep (requireApiKey first) then its score; score, the score again, written
-                   to score.txt; sheet, the contact sheet of one sweep or two
+  diagrams.ts      the bin, `npm run eval:diagrams -- <contrive|run|score|sheet|judge|agree>`, run from this
+                   repository's root: contrive, the base's tests, then each branch stood up, tested,
+                   stub-reviewed and sized; run, a sweep (requireApiKey first) then its score; score, the score
+                   again with each judge's ratings once the sweep is judged, written to score.txt; sheet, the
+                   contact sheet of one sweep or two; judge, the judges over the sweep's overviews
+                   (requireApiKey first) then the score; agree, the user's ratings against each judge's and
+                   the judges against each other
   diagram-case.ts  DiagramBranchSpecSchema, the shared spec plus `expect` (ExpectSchema: overview, the kinds
                    an overview may be or null for none; chapterDiagrams, a min–max count and the kinds, max 0
                    the control; mustName, the mechanisms the overview should name, prose for the eye and
@@ -107,9 +110,24 @@ src/evals/
                    diagram drops and a retry from findings.json; the one-line formatters (deserved,
                    sampleVerdict, sampleFigures) the bin and the sheet share; formatBranchScore and
                    formatDiagramOverall, the skim eval's `mean (min–max)` spread across samples
+  diagram-judge.ts the rubric judge: DEFAULT_JUDGES (Opus and Sonnet, since the drawing model may favour its
+                   own work); describeDiagram, an overview as text (a node a line with kind, change, path and
+                   group, an edge a line by its ends' labels), never the rendered picture; JUDGE_SYSTEM_PROMPT
+                   (answer the question from the picture first, then each mechanism yes / partly / no, then
+                   the RUBRIC's good / usable / poor with a reason, in one <diagram_judgement> block);
+                   buildJudgePrompt (the change's title and description, the question, the mechanisms, the
+                   overview); parseJudgement, strict as the skim answer is, anything short of a clean verdict
+                   a problem and no judgement; overviews, each scored sample's overview; runJudge, every
+                   judge × overview through runSdkLoop with no tools and one turn, under <sweep>/judgements/
+                   <model>/<branch>/sample-<n>.txt|.json with judgements.json, replacing an earlier judging;
+                   readJudgements, an unjudged sweep being none; formatJudged, each judge's counts
+  diagram-agree.ts whether a judge can stand in for the user: readUserRatings (the sweep's ratings.json, the
+                   sheet's download, filtered to the sweep's stamp), judgeRatings / judgeReasons, agreement
+                   (exact, within one step, Cohen's kappa — undefined when chance alone agrees on all — and
+                   each disagreement), formatAgreement with the judge's reason beside each
   diagram-sheet.ts writeContactSheet: one sweep or two scored, contactSheet (a row per branch with what it
-                   deserves, a band per sweep, each sample's verdict, figures, diagrams and its review.html as a
-                   link relative to the sheet), injected into the sheet page vite.sheet.config.ts builds on
+                   deserves, a band per sweep, each sample's verdict, figures, diagrams with each judge's
+                   verdict on the overview, and its review.html as a link relative to the sheet), injected into the sheet page vite.sheet.config.ts builds on
                    every call (vite's own build, loaded only then), written into the later sweep's folder
   diagram-contrive.ts contriveDiagramBranch: refuses a branch that gives itself away, stands it up over
                    packhouse, runs the service's own tests on the tree (runTests: `node --test` with the
@@ -129,7 +147,8 @@ evals/diagrams/
   contrived/<name>/ branch.json (the skim spec plus `expect`) and files/; one branch per picture, a control
                    that deserves none, and a mixed change — see docs/diagram-evals.md
   results/<stamp>/ one sweep — ignored by git: run.json (the model and diagram style with the rest), <branch>/sample-<n>.json (how er exited, cost,
-                   the failure) and <branch>/sample-<n>/ (the whole run folder), score.txt, sheet.html
+                   the failure) and <branch>/sample-<n>/ (the whole run folder), score.txt, sheet.html,
+                   judgements/ (the judges' answers) and ratings.json (the user's, saved from the sheet)
 ```
 
 - The skim categories the docs recommend are free text here, grouped as

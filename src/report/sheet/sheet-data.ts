@@ -19,6 +19,36 @@ const CLOSE = '</script>';
 /** The empty element as the sheet's `index.html` spells it. */
 export const SHEET_PLACEHOLDER = `${OPEN}${CLOSE}`;
 
+/**
+ * One scale for the user's ratings and the judges': good, usable or poor. It
+ * lives here because the sheet is where the user rates, and the eval's judge
+ * and agreement read the same scale and the file the sheet downloads.
+ */
+export const RATINGS = ['good', 'usable', 'poor'] as const;
+export const RatingSchema = z.enum(RATINGS);
+export type Rating = z.infer<typeof RatingSchema>;
+
+/** The user's ratings as the sheet downloads them: every sweep the sheet showed, each by its stamp. */
+export const RatingsFileSchema = z.object({
+  ratings: z.array(
+    z.object({
+      stamp: z.string(),
+      branch: z.string(),
+      sample: z.number().int().positive(),
+      rating: RatingSchema,
+    }),
+  ),
+});
+export type RatingsFile = z.infer<typeof RatingsFileSchema>;
+
+export const SheetJudgementSchema = z.object({
+  judge: z.string(),
+  /** null when the judge's answer held no clean judgement; the reason then says what was wrong. */
+  rating: RatingSchema.nullable(),
+  reason: z.string(),
+});
+export type SheetJudgement = z.infer<typeof SheetJudgementSchema>;
+
 export const SheetSampleSchema = z.object({
   sample: z.number().int().positive(),
   /** The sample's review.html relative to the sheet; null when er wrote none. */
@@ -35,6 +65,8 @@ export const SheetSampleSchema = z.object({
       /** `overview`, or the title of the chapter that carries it. */
       where: z.string(),
       diagram: DiagramSchema,
+      /** Each judge's verdict on an overview; empty for a chapter's diagram or an unjudged sweep. */
+      judgements: z.array(SheetJudgementSchema),
     }),
   ),
 });

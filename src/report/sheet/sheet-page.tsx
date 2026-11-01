@@ -1,8 +1,17 @@
-import { Anchor, Group, Stack, Text } from '@mantine/core';
+import { Anchor, Button, Checkbox, Group, Stack, Text } from '@mantine/core';
+import { useState } from 'react';
 import { Caption } from '@/report/chrome/caption';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
 import { token } from '@/report/theme/tokens';
-import type { ContactSheet, SheetBranch, SheetSample } from './sheet-data';
+import {
+  RATINGS,
+  type ContactSheet,
+  type Rating,
+  type SheetBranch,
+  type SheetJudgement,
+  type SheetSample,
+} from './sheet-data';
+import { ratingKey, ratingsFile, useSheetRatings } from './sheet-ratings';
 import classes from './sheet.module.css';
 
 /**
@@ -11,6 +20,10 @@ import classes from './sheet.module.css';
  * prose: the question it answers is whether a picture can be understood on
  * its own, so nothing else on the page may explain it. Two sweeps are two
  * bands in each row, the same samples one above the other.
+ *
+ * Each overview carries the user's rating, which the eval's judges are
+ * checked against, and the judges' own verdicts stay hidden until asked for,
+ * so the user rates a picture before reading what a judge made of it.
  */
 export function SheetPage({
   result,
@@ -24,7 +37,20 @@ export function SheetPage({
       </main>
     );
   }
-  const { sweeps, branches } = result.sheet;
+  return <Sheet sheet={result.sheet} />;
+}
+
+function Sheet({ sheet }: { sheet: ContactSheet }) {
+  const { sweeps, branches } = sheet;
+  const stamps = sweeps.map((sweep) => sweep.stamp);
+  const [showJudges, setShowJudges] = useState(false);
+  const ratings = useSheetRatings((state) => state.ratings);
+  const file = ratingsFile(ratings, stamps);
+  const judged = branches.some((branch) =>
+    branch.bands.some((band) =>
+      band.some((sample) => sample.diagrams.some((item) => item.judgements.length > 0)),
+    ),
+  );
   return (
     <main className={classes.page}>
       <header className={classes.brief}>
@@ -37,15 +63,50 @@ export function SheetPage({
             {sweep.summary}
           </Text>
         ))}
+        <Group gap={16} mt={12}>
+          <Button size="sm" disabled={file.ratings.length === 0} onClick={() => download(file)}>
+            Download ratings ({file.ratings.length})
+          </Button>
+          {judged && (
+            <Checkbox
+              label="Show the judges"
+              size="sm"
+              checked={showJudges}
+              onChange={(event) => setShowJudges(event.currentTarget.checked)}
+            />
+          )}
+        </Group>
+        <Text fz="xs" c="dimmed" mt={6}>
+          Save the download as ratings.json in each sweep's folder, then run agree on it.
+        </Text>
       </header>
       {branches.map((branch) => (
-        <BranchRow key={branch.name} branch={branch} stamps={sweeps.map((sweep) => sweep.stamp)} />
+        <BranchRow key={branch.name} branch={branch} stamps={stamps} showJudges={showJudges} />
       ))}
     </main>
   );
 }
 
-function BranchRow({ branch, stamps }: { branch: SheetBranch; stamps: string[] }) {
+function download(file: ReturnType<typeof ratingsFile>) {
+  const url = URL.createObjectURL(
+    new Blob([`${JSON.stringify(file, null, 2)}\n`], { type: 'application/json' }),
+  );
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'ratings.json';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function BranchRow({
+  branch,
+  stamps,
+  showJudges,
+}: {
+  branch: SheetBranch;
+  stamps: string[];
+  showJudges: boolean;
+}) {
   return (
     <section className={classes.branch} aria-label={branch.name}>
       <Stack gap={6} className={classes.brief}>
@@ -85,7 +146,12 @@ function BranchRow({ branch, stamps }: { branch: SheetBranch; stamps: string[] }
           {stamps.length > 1 && <Caption>{stamps[at]}</Caption>}
           <div className={classes.band}>
             {band.map((sample) => (
-              <SampleCell key={sample.sample} sample={sample} />
+              <SampleCell
+                key={sample.sample}
+                sample={sample}
+                overview={{ stamp: stamps[at]!, branch: branch.name, sample: sample.sample }}
+                showJudges={showJudges}
+              />
             ))}
           </div>
         </Stack>
@@ -94,7 +160,16 @@ function BranchRow({ branch, stamps }: { branch: SheetBranch; stamps: string[] }
   );
 }
 
-function SampleCell({ sample }: { sample: SheetSample }) {
+function SampleCell({
+  sample,
+  overview,
+  showJudges,
+}: {
+  sample: SheetSample;
+  /** Where this sample's overview is rated: its sweep, branch and sample. */
+  overview: { stamp: string; branch: string; sample: number };
+  showJudges: boolean;
+}) {
   return (
     <article className={classes.cell} aria-label={`sample ${String(sample.sample)}`}>
       <Stack gap={4}>
@@ -119,12 +194,68 @@ function SampleCell({ sample }: { sample: SheetSample }) {
           No diagrams.
         </Text>
       )}
-      {sample.diagrams.map(({ where, diagram }) => (
+      {sample.diagrams.map(({ where, diagram, judgements }) => (
         <Stack key={`${where}-${diagram.id}`} gap={6}>
           <Caption>{where}</Caption>
           <DiagramFigure diagram={diagram} />
+          {where === 'overview' && <RatingControl overview={overview} />}
+          {where === 'overview' && showJudges && <Judgements judgements={judgements} />}
         </Stack>
       ))}
     </article>
+  );
+}
+
+function RatingControl({
+  overview,
+}: {
+  overview: { stamp: string; branch: string; sample: number };
+}) {
+  const rating = useSheetRatings(
+    (state) => state.ratings[ratingKey(overview.stamp, overview.branch, overview.sample)]?.rating,
+  );
+  const rate = useSheetRatings((state) => state.rate);
+  return (
+    <Group gap={6} role="group" aria-label="Your rating">
+      <Text fz="xs" c="dimmed">
+        Your rating
+      </Text>
+      {RATINGS.map((choice: Rating) => (
+        <Button
+          key={choice}
+          size="xs"
+          variant={rating === choice ? 'filled' : 'default'}
+          aria-pressed={rating === choice}
+          onClick={() => rate(overview, rating === choice ? null : choice)}
+        >
+          {choice}
+        </Button>
+      ))}
+    </Group>
+  );
+}
+
+function Judgements({ judgements }: { judgements: SheetJudgement[] }) {
+  if (judgements.length === 0) {
+    return (
+      <Text fz="xs" c="dimmed">
+        Not judged.
+      </Text>
+    );
+  }
+  return (
+    <Stack gap={4}>
+      {judgements.map((item) => (
+        <Text key={item.judge} fz="xs">
+          <Text component="span" ff="monospace" fz="xs">
+            {item.judge}
+          </Text>{' '}
+          <Text component="span" fw={600} fz="xs">
+            {item.rating ?? 'unreadable'}
+          </Text>
+          : {item.reason}
+        </Text>
+      ))}
+    </Stack>
   );
 }

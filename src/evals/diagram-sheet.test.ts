@@ -2,7 +2,9 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { DiagramBranchSpec } from './diagram-case.ts';
 import type { DiagramSweep } from './diagram-run.ts';
-import type { BranchScore } from './diagram-score.ts';
+import type { Diagram } from '../review/diagram.ts';
+import type { JudgedOverview } from './diagram-judge.ts';
+import { scoreReview, type BranchScore } from './diagram-score.ts';
 import { contactSheet } from './diagram-sheet.ts';
 
 const spec = {
@@ -55,8 +57,21 @@ function sweep(stamp: string, costUsd: number) {
       ],
     },
   ];
-  return { folder: path.join('results', stamp), record, scores };
+  return { folder: path.join('results', stamp), record, scores, judged: [] };
 }
+
+const graph = (id: string, kind: 'architecture' | 'state'): Diagram => ({
+  id,
+  kind,
+  title: id,
+  caption: 'c',
+  direction: 'right',
+  nodes: [
+    { id: 'a', label: 'A', kind: 'code', change: 'added' },
+    { id: 'b', label: 'B', kind: 'code', change: 'unchanged' },
+  ],
+  edges: [],
+});
 
 describe('contactSheet', () => {
   it('puts each sweep in its own band, linking each sample’s review relative to the sheet', () => {
@@ -89,5 +104,52 @@ describe('contactSheet', () => {
       onTarget: false,
       verdict: 'missed  ·  overview none ✗  ·  chapters none',
     });
+  });
+
+  it('carries each judge’s verdict onto the overview it judged, and none onto a chapter’s diagram', () => {
+    const drawn = sweep('20261031-100000', 2);
+    const review = {
+      overviewDiagram: graph('map', 'architecture'),
+      chapters: [
+        {
+          id: 'c1',
+          title: 'Retry sweep',
+          headline: 'h',
+          insights: [],
+          diffChunks: [],
+          diagram: graph('life', 'state'),
+        },
+      ],
+    };
+    drawn.scores[0]!.samples[0]!.review = scoreReview(review, [], spec.expect);
+    const judged: JudgedOverview[] = [
+      {
+        judge: 'judge-a',
+        branch: 'retry-queue',
+        sample: 1,
+        parsed: {
+          judgement: { answer: 'x', mechanisms: ['yes'], rating: 'good', reason: 'Clear.' },
+          problems: [],
+        },
+      },
+      {
+        judge: 'judge-b',
+        branch: 'retry-queue',
+        sample: 1,
+        parsed: { judgement: null, problems: ['no block', 'no reason'] },
+      },
+    ];
+    const sheet = contactSheet([{ ...drawn, judged }], path.join('results', '20261031-100000'));
+    const diagrams = sheet.branches[0]?.bands[0]?.[0]?.diagrams ?? [];
+    expect(diagrams.map(({ where, judgements }) => [where, judgements])).toEqual([
+      [
+        'overview',
+        [
+          { judge: 'judge-a', rating: 'good', reason: 'Clear.' },
+          { judge: 'judge-b', rating: null, reason: 'no block; no reason' },
+        ],
+      ],
+      ['Retry sweep', []],
+    ]);
   });
 });

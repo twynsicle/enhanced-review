@@ -6,6 +6,7 @@ import {
   type SheetBranch,
   type SheetSample,
 } from '../report/sheet/sheet-data.ts';
+import { readJudgements, type JudgedOverview } from './diagram-judge.ts';
 import { diagramSampleFiles, readDiagramSweep, type DiagramSweep } from './diagram-run.ts';
 import {
   deserved,
@@ -34,11 +35,15 @@ export async function writeContactSheet(
     throw new Error('a contact sheet shows one sweep, or two side by side');
   }
   const sweeps = await Promise.all(
-    folders.map(async (folder) => ({
-      folder,
-      record: await readDiagramSweep(folder),
-      scores: await scoreDiagramSweep(folder, root),
-    })),
+    folders.map(async (folder) => {
+      const scores = await scoreDiagramSweep(folder, root);
+      return {
+        folder,
+        record: await readDiagramSweep(folder),
+        scores,
+        judged: await readJudgements(folder, scores),
+      };
+    }),
   );
   const out = folders.at(-1)!;
   const file =
@@ -52,7 +57,12 @@ export async function writeContactSheet(
 }
 
 export function contactSheet(
-  sweeps: readonly { folder: string; record: DiagramSweep; scores: BranchScore[] }[],
+  sweeps: readonly {
+    folder: string;
+    record: DiagramSweep;
+    scores: BranchScore[];
+    judged: readonly JudgedOverview[];
+  }[],
   sheetDir: string,
 ): ContactSheet {
   const names = [...new Set(sweeps.flatMap((sweep) => sweep.record.branches))];
@@ -68,7 +78,9 @@ export function contactSheet(
       bands: sweeps.map((sweep) => {
         const score = sweep.scores.find((item) => item.name === name);
         return score
-          ? score.samples.map((sample) => sheetSample(sweep.folder, score, sample, sheetDir))
+          ? score.samples.map((sample) =>
+              sheetSample(sweep.folder, score, sample, sheetDir, sweep.judged),
+            )
           : [];
       }),
     };
@@ -87,6 +99,7 @@ function sheetSample(
   score: BranchScore,
   sample: BranchScore['samples'][number],
   sheetDir: string,
+  judged: readonly JudgedOverview[],
 ): SheetSample {
   const run = diagramSampleFiles(folder, score.name, sample.sample).run;
   return {
@@ -99,7 +112,21 @@ function sheetSample(
     onTarget: sample.review?.onTarget ?? false,
     verdict: sampleVerdict(sample),
     figures: sampleFigures(sample, score.spec.expect.mustReach.length),
-    diagrams: sample.review?.diagrams.map(({ where, diagram }) => ({ where, diagram })) ?? [],
+    diagrams:
+      sample.review?.diagrams.map(({ where, diagram }) => ({
+        where,
+        diagram,
+        judgements:
+          where === 'overview'
+            ? judged
+                .filter((item) => item.branch === score.name && item.sample === sample.sample)
+                .map(({ judge, parsed }) => ({
+                  judge,
+                  rating: parsed.judgement?.rating ?? null,
+                  reason: parsed.judgement?.reason ?? parsed.problems.join('; '),
+                }))
+            : [],
+      })) ?? [],
   };
 }
 
