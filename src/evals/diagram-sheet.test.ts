@@ -45,6 +45,7 @@ function sweep(stamp: string, costUsd: number) {
             overview: { kind: null, ok: false },
             chapters: { kinds: [], ok: true },
             onTarget: false,
+            missed: true,
             diagrams: [],
             reached: [],
             drops: 0,
@@ -86,7 +87,7 @@ describe('contactSheet', () => {
     ]);
     expect(branch?.bands[0]?.[0]).toMatchObject({
       onTarget: false,
-      verdict: 'off  ·  overview none ✗  ·  chapters none',
+      verdict: 'missed  ·  overview none ✗  ·  chapters none',
     });
   });
 });

@@ -55,7 +55,7 @@ its tests, and dress it. Each branch shows one thing:
 | branch               | the picture wanted                        |
 | -------------------- | ----------------------------------------- |
 | `retry-queue`        | an architecture map, most of it unchanged |
-| `on-hold`            | a state machine                           |
+| `on-hold`            | a state machine, a map if it likes        |
 | `async-capture`      | three endings, as a sequence or otherwise |
 | `address-middleware` | a before-and-after of one path            |
 | `timestamps`         | nothing: the control                      |
@@ -155,7 +155,11 @@ npm run eval:diagrams -- score evals/diagrams/results/20261031-091500
 For each sample, whether it drew what the branch deserves: the overview
 present when deserved and absent when not, and of an allowed kind; the
 chapter diagrams within the range and of the allowed kinds. A sample is on
-target when both hold. Then, of what was drawn, as `mean (min–max)` across
+target when both hold, and **missed** when it drew fewer than deserved: no
+overview where one was due, or fewer chapter diagrams than the least. A
+missing diagram is the costlier error, so expectations are written wide
+enough that a second angle on the same thing still counts, and `missed one`
+is the figure to watch. Then, of what was drawn, as `mean (min–max)` across
 the samples:
 
 - **nodes** a diagram, a sequence's participants counting as nodes;

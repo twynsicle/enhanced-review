@@ -189,6 +189,7 @@ describe('scoreReview', () => {
       overview: { kind: 'architecture', ok: true },
       chapters: { kinds: ['sequence'], ok: true },
       onTarget: true,
+      missed: false,
       reached: ['src/worker/worker.ts'],
       drops: 0,
       retried: false,
@@ -200,17 +201,25 @@ describe('scoreReview', () => {
     expect(scoreReview(review(architecture, state), [], expectMap)).toMatchObject({
       chapters: { kinds: ['state'], ok: false },
       onTarget: false,
+      missed: false,
     });
     expect(scoreReview(review(architecture, sequence, sequence), [], expectMap).chapters.ok).toBe(
       false,
     );
   });
 
-  it('is off when a deserved overview is missing', () => {
+  it('has missed when a deserved overview, or the least of chapter diagrams, is not drawn', () => {
     expect(scoreReview(review(undefined), [], expectMap)).toMatchObject({
       overview: { kind: null, ok: false },
       onTarget: false,
+      missed: true,
     });
+    const atLeastOne = {
+      ...expectMap,
+      chapterDiagrams: { min: 1, max: 1, kinds: ['state' as const] },
+    };
+    expect(scoreReview(review(architecture), [], atLeastOne).missed).toBe(true);
+    expect(scoreReview(review(architecture, state, state), [], atLeastOne).missed).toBe(false);
   });
 
   it('holds the control to no diagram anywhere', () => {

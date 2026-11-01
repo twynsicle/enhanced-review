@@ -59,6 +59,8 @@ export interface SampleScore {
     overview: { kind: DiagramKind | null; ok: boolean };
     chapters: { kinds: DiagramKind[]; ok: boolean };
     onTarget: boolean;
+    /** Fewer diagrams than deserved: the error that costs a reader most, beside which an extra one is cheap. */
+    missed: boolean;
     diagrams: DiagramStats[];
     reached: string[];
     /** Whole diagrams and parts of them the parser dropped. */
@@ -142,6 +144,7 @@ export function scoreReview(
     overview: { kind: overviewKind, ok: overviewOk },
     chapters: { kinds: chapterKinds, ok: chaptersOk },
     onTarget: overviewOk && chaptersOk,
+    missed: (expect.overview !== null && overviewKind === null) || chapterKinds.length < min,
     diagrams,
     reached: expect.mustReach.filter((file) => grounded.has(file)),
     drops: findings.filter(
@@ -221,6 +224,7 @@ function figures(samples: readonly Reviewed[], mustReach: number): string[] {
     `on target ${percent(share(samples.filter((s) => s.review.onTarget).length, samples.length))}` +
       `  ·  overview right ${percent(share(samples.filter((s) => s.review.overview.ok).length, samples.length))}` +
       `  ·  chapters right ${percent(share(samples.filter((s) => s.review.chapters.ok).length, samples.length))}` +
+      `  ·  missed one ${percent(share(samples.filter((s) => s.review.missed).length, samples.length))}` +
       `  ·  diagrams ${spread(drawn, count)}`,
   ];
   const withDiagrams = stats.filter((list) => list.length > 0);
@@ -261,9 +265,9 @@ function figures(samples: readonly Reviewed[], mustReach: number): string[] {
 /** What a sample drew against what its branch deserved, in one line. */
 export function sampleVerdict(sample: SampleScore): string {
   if (sample.review === null) return `FAILED (er exited ${String(sample.meta.exitCode)})`;
-  const { overview, chapters, onTarget } = sample.review;
+  const { overview, chapters, onTarget, missed } = sample.review;
   return (
-    `${onTarget ? 'on target' : 'off'}` +
+    `${onTarget ? 'on target' : missed ? 'missed' : 'off'}` +
     `  ·  overview ${overview.kind ?? 'none'}${overview.ok ? '' : ' ✗'}` +
     `  ·  chapters ${chapters.kinds.length === 0 ? 'none' : chapters.kinds.join(', ')}${chapters.ok ? '' : ' ✗'}`
   );
