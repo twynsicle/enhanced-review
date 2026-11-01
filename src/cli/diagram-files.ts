@@ -5,11 +5,15 @@ import { treeEntries } from './context.ts';
 import type { Shell } from './git.ts';
 
 /**
- * The files a diagram names outside the change, held to the head commit. The
+ * The paths a diagram names outside the change, held to the head commit. The
  * parser lets an unchanged node name any plain path in the repository, since
- * the picture of a change is mostly the code around it; only git knows
- * whether that path is a file there. One that is not loses its filename and
- * keeps its node, as any other grounding the parser drops does.
+ * the picture of a change is mostly the code around it, and a folder, since a
+ * part of a running system is often several files; only git knows whether
+ * that path is a file or a folder there. A folder is written with a trailing
+ * "/", which is how the report tells it from a file, so a path that is one
+ * gets the slash whichever way the model wrote it. One that is neither loses
+ * its filename and keeps its node, as any other grounding the parser drops
+ * does.
  */
 export interface CheckedDiagramFiles {
   review: NarrativeReview;
@@ -34,35 +38,49 @@ export async function checkDiagramFiles(
   ];
   if (outside.length === 0) return { review, dropped: [] };
 
-  const tree = await treeEntries(shell, headSha, outside);
-  // A directory, a submodule or a path the agent saw only in its working tree
-  // is not a file the head commit holds.
-  const missing = new Set(outside.filter((filename) => tree.get(filename)?.type !== 'blob'));
-  if (missing.size === 0) return { review, dropped: [] };
+  const bare = (filename: string) => (filename.endsWith('/') ? filename.slice(0, -1) : filename);
+  // The listing is recursive, so a folder shows as the files under it, and a
+  // submodule or a path the agent saw only in its working tree as nothing.
+  const tree = await treeEntries(shell, headSha, [...new Set(outside.map(bare))]);
+  const resolve = (filename: string): string | undefined => {
+    const path = bare(filename);
+    if (tree.get(path)?.type === 'blob') return path;
+    const folder = `${path}/`;
+    return [...tree.keys()].some((key) => key.startsWith(folder)) ? folder : undefined;
+  };
+  const resolved = new Map(outside.map((filename) => [filename, resolve(filename)]));
+  if (outside.every((filename) => resolved.get(filename) === filename)) {
+    return { review, dropped: [] };
+  }
 
   const dropped: Finding[] = [];
   const check = (diagram: Diagram | undefined): Diagram | undefined => {
     if (!diagram) return diagram;
     const gone = new Set(
       groundedParts(diagram).flatMap((part) =>
-        part.filename && missing.has(part.filename) ? [part.filename] : [],
+        part.filename && resolved.has(part.filename) && resolved.get(part.filename) === undefined
+          ? [part.filename]
+          : [],
       ),
     );
-    if (gone.size === 0) return diagram;
-    dropped.push(
-      finding(
-        'diagram-part-dropped',
-        `Diagram ${diagram.id} dropped ${[...gone].join(', ')}, not ${gone.size > 1 ? 'files' : 'a file'} at the head commit.`,
-      ),
-    );
-    const clear = <T extends { filename?: string }>(part: T): T => {
-      if (!part.filename || !missing.has(part.filename)) return part;
+    if (gone.size > 0) {
+      dropped.push(
+        finding(
+          'diagram-part-dropped',
+          `Diagram ${diagram.id} dropped ${[...gone].join(', ')}, not ${gone.size > 1 ? 'files or folders' : 'a file or folder'} at the head commit.`,
+        ),
+      );
+    }
+    const settle = <T extends { filename?: string }>(part: T): T => {
+      if (!part.filename || !resolved.has(part.filename)) return part;
+      const path = resolved.get(part.filename);
+      if (path !== undefined) return { ...part, filename: path };
       const { filename: _gone, ...rest } = part;
       return rest as T;
     };
     return isGraphDiagram(diagram)
-      ? { ...diagram, nodes: diagram.nodes.map(clear) }
-      : { ...diagram, participants: diagram.participants.map(clear) };
+      ? { ...diagram, nodes: diagram.nodes.map(settle) }
+      : { ...diagram, participants: diagram.participants.map(settle) };
   };
 
   const overviewDiagram = check(review.overviewDiagram);

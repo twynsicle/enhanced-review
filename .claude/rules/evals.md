@@ -83,7 +83,8 @@ src/evals/
   diagram-case.ts  DiagramBranchSpecSchema, the shared spec plus `expect` (ExpectSchema: overview, the kinds
                    an overview may be or null for none; chapterDiagrams, a min–max count and the kinds, max 0
                    the control; mustName, the mechanisms the overview should name, prose for the eye and
-                   later a judge; mustReach, the untouched files a mechanism map should ground; question,
+                   later a judge; mustReach, the untouched files a mechanism map should ground, or a `/`-ended
+                   folder a part spanning several files should be grounded in whole; question,
                    what the overview alone should answer), kinds held to DiagramKindSchema; readDiagramSpec,
                    listDiagramBranches, packhouseRepo (the ModelRepo); GIVEAWAY and giveaways, the words
                    that would tell the model what a branch is for, found in the spec's prose or any file it
@@ -101,7 +102,8 @@ src/evals/
                    none deserved, chapter diagrams within min–max and of the allowed kinds, onTarget when
                    both), diagramStats per diagram (nodes — a sequence's participants — unchanged, identifier
                    labels by isIdentifierLabel's code-shaped-word test, labelled edges — every message of a
-                   sequence, nested groups included — and grounding filenames), mustReach files reached,
+                   sequence, nested groups included — and grounding filenames), mustReach paths reached (a
+                   folder grounding reaching every file under it), missed (fewer diagrams than deserved),
                    diagram drops and a retry from findings.json; the one-line formatters (deserved,
                    sampleVerdict, sampleFigures) the bin and the sheet share; formatBranchScore and
                    formatDiagramOverall, the skim eval's `mean (min–max)` spread across samples

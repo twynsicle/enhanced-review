@@ -201,7 +201,8 @@ function untouchedFile(
     drop(`the filename ${filename} on a node marked ${change}, which the change does not contain`);
     return {};
   }
-  if (!isRepositoryPath(filename)) {
+  // A folder, for a part that spans several files, is written with a trailing "/".
+  if (!isRepositoryPath(filename.endsWith('/') ? filename.slice(0, -1) : filename)) {
     drop(`the filename ${filename} on a node, which is not a path from the repository root`);
     return {};
   }

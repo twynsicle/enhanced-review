@@ -1,0 +1,21 @@
+{
+  "branch": "feat/shelfwise-status-feed",
+  "title": "Tell Shelfwise about every order status change as it happens",
+  "description": "The warehouse floor works from Shelfwise, and Shelfwise only learns what we know from the export it pulls at six each morning, so an order paid at nine is invisible to the pickers until tomorrow and one cancelled at noon is still picked. Now every change of an order's status goes to Shelfwise within seconds. Rather than adding a call beside each `transition` — order creation, the pack and ship jobs and both sweeps all move orders, and the next thing to move one would have to remember — `withStatusFeed` wraps the store the service runs on: `putOrder` reads the order's previous status, writes, and when the status differs (or the order is new) queues a `status` job carrying the order id, the new status and the time of the move. A write that leaves the status alone, like the refund reference the webhook records, queues nothing. The worker sends the job to Shelfwise's `/order-events` through `ShelfwiseWarehouse`; a failed send is retried once and then dropped like any other job, since the morning export still runs and catches up anything lost. The job carries the status rather than reading the order when it runs, because by then the order may have moved again, and Shelfwise keeps the latest move per order, so a retried event arriving after a later one changes nothing. Configuration is `SHELFWISE_URL`, `SHELFWISE_KEY` and `SHELFWISE_TIMEOUT_MS` (five seconds). The CLI opens its own store and is not fed; it moves no orders.",
+  "commit": {
+    "subject": "Feed every order status change to Shelfwise",
+    "body": "withStatusFeed wraps the store: a putOrder that changes an order's\nstatus queues a status job with the new status and the time of the move.\nThe worker sends it to Shelfwise's /order-events through\nShelfwiseWarehouse. Nothing that moves orders changes."
+  },
+  "removed": [],
+  "expect": {
+    "overview": { "kinds": ["architecture", "beforeAfter"] },
+    "chapterDiagrams": { "min": 0, "max": 2, "kinds": ["sequence", "architecture", "beforeAfter"] },
+    "mustName": [
+      "a store write that changes an order's status queues a status job",
+      "the worker sends that job to Shelfwise",
+      "order creation, the worker's jobs and the sweeps move orders and are not changed"
+    ],
+    "mustReach": ["src/worker/", "src/scheduler/sweeps.ts", "src/orders/create.ts", "src/store/store.ts"],
+    "question": "Which parts move an order, and how does each move reach the warehouse without any of them changing?"
+  }
+}

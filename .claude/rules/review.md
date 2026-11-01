@@ -71,7 +71,7 @@ src/review/
                      for them and the sidebar's ○/◐ are what one would look like
   diagram.ts         Diagram Zod schema — 4 kinds over 2 structures: architecture/state/beforeAfter share one
                      node/edge graph, sequence is its own; per-node/edge change marks, optional file+hunk
-                     grounding (a reviewed file, or on an unchanged node any file at the head commit, never on an
+                     grounding (a reviewed file, or on an unchanged node any file or `/`-ended folder at the head commit, never on an
                      external or actor), DIAGRAM_LIMITS, hasUniformChange
   review-meta.ts     ReviewMeta: the report's summary header, what kind of review it is (pr, branch or staged, so
                      the reader never guesses it from a ref's name), and the base and head commits the reader keys
@@ -219,7 +219,7 @@ src/review/
                      validates each diagram on its own
                      so a bad picture cannot fail the review; a node's filename and hunk ids checked against the
                      reviewed files and the hunks the prompt showed, except on an `unchanged` node, which may name
-                     a file outside the change as a plain repository path with no hunk ids — never one the change
+                     a file or a `/`-ended folder outside the change as a plain repository path with no hunk ids — never one the change
                      touches but does not review; a `data` node is grounded as `code` is, and `external` and
                      `actor` never are; whether an outside file exists is the parse stage's to check),
 ```

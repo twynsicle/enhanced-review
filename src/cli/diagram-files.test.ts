@@ -53,7 +53,8 @@ const map: Diagram = {
       change: 'unchanged',
       filename: 'src/worker/sweep.ts',
     },
-    { id: 'd', label: 'Worker folder', kind: 'code', change: 'unchanged', filename: 'src/worker' },
+    { id: 'd', label: 'Worker', kind: 'code', change: 'unchanged', filename: 'src/worker' },
+    { id: 'e', label: 'Billing', kind: 'code', change: 'unchanged', filename: 'src/billing/' },
   ],
   edges: [],
 };
@@ -104,7 +105,7 @@ function review(overviewDiagram: Diagram | undefined, diagram?: Diagram): Narrat
 }
 
 describe('diagram files held to the head commit', () => {
-  it('keeps a file the head commit has, and drops a path it does not or that is a folder', async () => {
+  it('keeps a file or a folder the head commit has, a folder with its slash, and drops any other path', async () => {
     const checked = await checkDiagramFiles(
       review(map, flow),
       head,
@@ -116,6 +117,7 @@ describe('diagram files held to the head commit', () => {
       'src/orders/create.ts',
       'src/worker/worker.ts',
       undefined,
+      'src/worker/',
       undefined,
     ]);
     const chapter = checked.review.chapters[0]?.diagram;
@@ -125,11 +127,11 @@ describe('diagram files held to the head commit', () => {
     expect(checked.dropped.map((f) => [f.code, f.message])).toEqual([
       [
         'diagram-part-dropped',
-        'Diagram map dropped src/worker/sweep.ts, src/worker, not files at the head commit.',
+        'Diagram map dropped src/worker/sweep.ts, src/billing/, not files or folders at the head commit.',
       ],
       [
         'diagram-part-dropped',
-        'Diagram flow dropped src/worker/sweep.ts, not a file at the head commit.',
+        'Diagram flow dropped src/worker/sweep.ts, not a file or folder at the head commit.',
       ],
     ]);
   });

@@ -228,6 +228,41 @@ describe('scoreReview', () => {
     expect(scoreReview(review(undefined, state), [], control).chapters.ok).toBe(false);
   });
 
+  it('reaches a file through a folder that holds it, and a folder only through itself', () => {
+    const wide = { ...expectMap, mustReach: ['src/store/store.ts', 'src/worker/', 'src/http/'] };
+    const folders: Diagram = {
+      ...architecture,
+      nodes: [
+        {
+          id: 'store',
+          label: 'Orders store',
+          kind: 'data',
+          change: 'unchanged',
+          filename: 'src/store/',
+        },
+        {
+          id: 'worker',
+          label: 'Worker',
+          kind: 'code',
+          change: 'unchanged',
+          filename: 'src/worker/',
+        },
+        {
+          id: 'route',
+          label: 'Order route',
+          kind: 'code',
+          change: 'unchanged',
+          filename: 'src/http/routes/orders.ts',
+        },
+      ],
+      edges: [],
+    };
+    expect(scoreReview(review(folders), [], wide).reached).toEqual([
+      'src/store/store.ts',
+      'src/worker/',
+    ]);
+  });
+
   it('counts what the parser dropped from diagrams and whether the answer needed a retry', () => {
     const findings: Finding[] = [
       { code: 'diagram-part-dropped', severity: 'note', message: 'a filename' },

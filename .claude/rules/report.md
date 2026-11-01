@@ -209,7 +209,7 @@ src/report/
                      (painters), node-box (the one box both painters draw a node or a participant as: its
                      label, the grounded path beneath it in the edge type and mono — pathLine leaves it out when
                      the label is the path or its file name, fitPath cuts it from the left — and the click, which
-                     opens only a file in DiagramFiles.reviewed, since an untouched file has nothing in the
+                     opens only a file in DiagramFiles.reviewed, since an untouched file or a folder has nothing in the
                      report to show), diagram-figure (the `data-bleed` figure: 1:1 with horizontal scroll,
                      legend, caption; `files`, the reviewed set and the reader's open), diagram-modal
                      (full-screen viewBox pan/zoom), diagram.module.css

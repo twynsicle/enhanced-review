@@ -132,7 +132,7 @@ describe('sanitizeDiagram', () => {
     expect(nodes[1]?.filename).toBeUndefined();
   });
 
-  it('grounds an unchanged node in a file outside the change, without hunk ids', () => {
+  it('grounds an unchanged node in a file or folder outside the change, without hunk ids', () => {
     const changed = groundingFor(buildDiffHunkIndex(DIFF).hunks, [
       'src/a.ts',
       'src/b.ts',
@@ -150,6 +150,8 @@ describe('sanitizeDiagram', () => {
           { id: 'b', label: 'Orders table', kind: 'data', filename: 'src/store/migrations/001.ts' },
           { id: 'c', label: 'Escapes', filename: '../outside.ts' },
           { id: 'd', label: 'Lockfile', filename: 'package-lock.json' },
+          { id: 'e', label: 'HTTP layer', filename: 'src/http/' },
+          { id: 'f', label: 'Root', filename: '/' },
         ],
       }),
       'd',
@@ -160,6 +162,8 @@ describe('sanitizeDiagram', () => {
       ['src/worker/worker.ts', undefined],
       ['src/store/migrations/001.ts', undefined],
       [undefined, undefined],
+      [undefined, undefined],
+      ['src/http/', undefined],
       [undefined, undefined],
     ]);
   });

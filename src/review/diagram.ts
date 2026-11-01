@@ -85,7 +85,8 @@ export const DiagramNodeSchema = z.object({
   group: DiagramId.optional(),
   /**
    * Grounding: a reviewed file, or on an `unchanged` node any file at the head
-   * commit, which only the parse stage can check. Never on `external` or `actor`.
+   * commit or a folder there written with a trailing "/", which only the parse
+   * stage can check. Never on `external` or `actor`.
    */
   filename: z.string().min(1).optional(),
   /** Hunk ids from the prompt catalog, matched against the chapter's chunks. */

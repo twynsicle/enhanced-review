@@ -60,6 +60,7 @@ its tests, and dress it. Each branch shows one thing:
 | `address-middleware` | a before-and-after of one path            |
 | `timestamps`         | nothing: the control                      |
 | `carrier-switch`     | one chapter's picture, the rest none      |
+| `status-feed`        | a map whose worker is one part, not three |
 
 The last two are what make "drawn when it helps" measurable: without them a
 prompt that draws on every change scores as well as one that draws when it
@@ -99,7 +100,10 @@ The skim eval's spec, plus `expect`, which the model never sees:
 - `mustName` is prose: the mechanisms the overview should name, for whoever
   reads the contact sheet and for a judge later. `mustReach` is the
   untouched files a mechanism map should ground, counted once a node may
-  reach outside the diff. `question` is what a reader should be able to
+  reach outside the diff, or a folder ending in `/` that a part spanning
+  several files should be grounded in whole; a node grounded in a folder
+  reaches every file under it, and a folder is reached only by itself or a
+  folder above it. `question` is what a reader should be able to
   answer from the overview alone.
 
 ## Checking a branch
@@ -130,8 +134,8 @@ in, `mechanism` otherwise. The style is recorded with the sweep and named on
 the contact sheet, so `--diagram-style files` sweeps the earlier style from
 the same code for a comparison. Each sample stands its branch up afresh and runs a
 whole `er review` there, so a sample costs what a review of the change costs:
-roughly a dollar on these branches, and a sweep of all six about fifteen
-dollars and ten minutes. Like the skim eval, it needs `ANTHROPIC_API_KEY` and
+roughly thirty cents on these branches, and a sweep of all seven, three
+samples each, about six dollars and eight minutes. Like the skim eval, it needs `ANTHROPIC_API_KEY` and
 refuses without it, so it spends the API credit a plan includes and never
 the plan's own allowance.
 
@@ -168,7 +172,7 @@ the samples:
 - **identifier labels**, the share of nodes named by a code-shaped word
   (`createOrder`, `RetryQueue`, a path) rather than by what they do;
 - **labelled edges**, the share of edges that say what passes along them;
-- **reached**, how many of the branch's `mustReach` files some node is
+- **reached**, how many of the branch's `mustReach` paths some node is
   grounded in;
 - **parser drops**, the parts of diagrams the parser had to remove, and how
   many answers needed a retry.

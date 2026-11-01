@@ -126,9 +126,10 @@ src/cli/
                    looked up in Maps, never as a plain object's keys, since a root file may be `constructor`
                    or `__proto__`
   diagram-files.ts checkDiagramFiles: every diagram filename that is not a changed file, held to the head
-                   commit with one ls-tree; a path that is not a blob there (missing, a folder, a submodule, a
-                   file the agent saw only in its working tree) leaves its node, which stays, in one
-                   `diagram-part-dropped` note per diagram; a review naming no such file reads no git
+                   commit with one recursive ls-tree; a blob stays a file, a path with files under it becomes a
+                   folder written with its trailing `/` however the model wrote it, and anything else (missing,
+                   a submodule, a file the agent saw only in its working tree) leaves its node, which stays, in
+                   one `diagram-part-dropped` note per diagram; a review naming no such path reads no git
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing its hunks as `read` (with a
                    body in each style asked for, naming its style when there are several, so the reader's switch
                    can be seen), one

@@ -20,6 +20,8 @@ describe('diagram styles', () => {
     expect(section).toContain('Name every node by its responsibility');
     expect(section).toContain('from anywhere in the repository');
     expect(section).toContain('only once you have read it');
+    expect(section).toContain('the folder that holds them, ending in "/"');
+    expect(section).toContain('never split it into a node per file');
   });
 
   it('leave whether to draw, and which kind, to the shared instructions', () => {

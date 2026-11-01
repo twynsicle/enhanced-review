@@ -287,11 +287,13 @@ review:
 A node can point at the file it lives in, drawn in small type beneath its
 name. A node the change touched points at a changed file, and may name the
 hunks too. In the `mechanism` style an unchanged node may point at any file
-in the repository, which says where that part lives. The parser drops a path
-that is not a plain path from the repository root, and the parse stage drops
-one the head commit does not hold, so a diagram names only files that are
-really there. Clicking a node opens its file only when the review carries it:
-an untouched file has nothing in the report to show. Like `--overview-style`,
+in the repository, which says where that part lives, or at a folder, written
+with a trailing `/`, for a part that spans several files. The parser drops a
+path that is not a plain path from the repository root, and the parse stage
+drops one the head commit does not hold, so a diagram names only files and
+folders that are really there. Clicking a node opens its file only when the
+review carries it: an untouched file or a folder has nothing in the report to
+show. Like `--overview-style`,
 it cannot be given with a `--from` past the prompt stage.
 
 The reader lays diagrams out with dagre and draws them as SVG,

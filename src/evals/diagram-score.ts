@@ -146,7 +146,12 @@ export function scoreReview(
     onTarget: overviewOk && chaptersOk,
     missed: (expect.overview !== null && overviewKind === null) || chapterKinds.length < min,
     diagrams,
-    reached: expect.mustReach.filter((file) => grounded.has(file)),
+    // A node grounded in a folder reaches every file under it.
+    reached: expect.mustReach.filter((path) =>
+      [...grounded].some(
+        (ground) => ground === path || (ground.endsWith('/') && path.startsWith(ground)),
+      ),
+    ),
     drops: findings.filter(
       (item) => item.code === 'diagram-dropped' || item.code === 'diagram-part-dropped',
     ).length,

@@ -31,7 +31,9 @@ export const DIAGRAM_RESULTS_DIR = 'evals/diagrams/results';
  * be; `chapterDiagrams` bounds how many chapters may carry one and of which
  * kinds, with `max: 0` the control. `mustName` is prose, for the eye on the
  * contact sheet and for a judge later; `mustReach` is the untouched files a
- * mechanism map should ground once a node may reach outside the diff;
+ * mechanism map should ground once a node may reach outside the diff, or a
+ * folder, written with a trailing "/", that a part spanning it should be
+ * grounded in whole;
  * `question` is what a reader should be able to answer from the overview
  * alone.
  */
