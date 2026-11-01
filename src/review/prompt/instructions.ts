@@ -225,7 +225,7 @@ A diagram is optional. Draw one wherever it does work the prose cannot, and leav
 "architecture", "state" and "beforeAfter" share one structure:
 
 {
-  "direction": "down | right",
+  "direction": "right | down — right unless the picture is one tall stack that reads top to bottom",
   "groups": [{ "id": "string", "label": "string" }],
   "nodes": [
     {
@@ -264,10 +264,11 @@ Rules for diagrams:
 - Include one only when it shows something the prose cannot: a shape, an ordering, a branch, a cycle, a boundary being crossed. A chapter that is a list of small edits gets none. A chapter whose subject is a flow, a lifecycle, an ordering, a branch or a boundary usually should have one.
 - Do not ration diagrams to one per review. A pull request large enough to need many chapters normally has several worth drawing: the shape of the whole change, plus a picture in each chapter that is about structure rather than detail. One diagram across a dozen chapters means chapters that had a picture in them were skipped. Giving every chapter one is the opposite failure, but the lesser one: when you are unsure whether a picture earns its place, draw it. A diagram that repeats another from a different angle, or reaches a little past its chapter, costs the reader a glance; a missing one costs them the picture.
 - Prefer diagrams that put branches, alternatives or parallel paths beside each other. A reviewer checks symmetry without being asked, so a picture that makes an asymmetry visible has done a reviewer's work for them.
+- When the change stops one part calling, sending to or handing work to another, draw that edge marked "removed", even when both parts remain. A path that no longer runs is part of what changed, and without its edge the reader cannot see it is gone.
 - The caption is what earns the diagram its place. If you cannot write a sentence saying what the picture shows that your text does not, omit the diagram.
 - What a node is, what it is called, how it is grounded and how far a picture reaches past the change are set by the Diagram Style section of the prompt. Follow it in every diagram.
 - Keep labels short: node and group labels at most ${String(DIAGRAM_LIMITS.labelChars)} characters, edge labels at most ${String(DIAGRAM_LIMITS.edgeLabelChars)}, sequence message labels at most ${String(DIAGRAM_LIMITS.messageChars)}, captions at most ${String(DIAGRAM_LIMITS.captionChars)}. A label that has become a sentence belongs in the caption or the chapter's body instead.
-- Prefer the smallest diagram that makes the point. For "architecture", "state" and "sequence", 6 to 15 nodes is usually right. A "beforeAfter" is normally smaller — four to eight nodes — because it draws one procedure rather than a system, and a small one is not a lesser diagram. Larger is allowed when the structure genuinely needs it, but every node costs the reader something.
+- Draw enough of the path to follow it: a reader follows work from where it starts far more easily than from its middle, so do not trim a picture down to the parts the diff touches. For "architecture", "state" and "sequence", 6 to 15 nodes is usually right, an overview toward the top of that. A "beforeAfter" draws one procedure rather than a system, usually six to ten nodes, from where the request enters to where it ends. Larger is allowed when the structure needs it; past about twenty, a picture is usually two.
 - Sequence groups may nest one level deep (a loop containing an alt) and no further.
 - In an "alt" group, the branch labels and the messages inside them must say what actually DIFFERS between the branches. Three branches that read the same defeat the reason for drawing them side by side: if one path retries with a backoff, one records a run and one returns immediately, that is what the labels have to show. A reviewer reads these against each other.
 - For "beforeAfter", draw a single graph and let the change marks split it: the before side is drawn from what existed before ("unchanged", "modified", "removed") and the after side from what exists now ("unchanged", "modified", "added"). A modified node appears on both sides, so mark it "modified" rather than adding it twice.
