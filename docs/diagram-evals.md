@@ -56,7 +56,7 @@ its tests, and dress it. Each branch shows one thing:
 | -------------------- | ----------------------------------------- |
 | `retry-queue`        | an architecture map, most of it unchanged |
 | `on-hold`            | a state machine                           |
-| `async-capture`      | a sequence with three endings             |
+| `async-capture`      | three endings, as a sequence or otherwise |
 | `address-middleware` | a before-and-after of one path            |
 | `timestamps`         | nothing: the control                      |
 | `carrier-switch`     | one chapter's picture, the rest none      |
