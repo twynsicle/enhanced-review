@@ -1,4 +1,4 @@
-import { Anchor, Button, Checkbox, Group, Stack, Text } from '@mantine/core';
+import { Anchor, Button, Checkbox, Group, Stack, Tabs, Text } from '@mantine/core';
 import { useState } from 'react';
 import { Caption } from '@/report/chrome/caption';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
@@ -11,15 +11,17 @@ import {
   type SheetJudgement,
   type SheetSample,
 } from './sheet-data';
-import { ratingKey, ratingsFile, useSheetRatings } from './sheet-ratings';
+import { ratingKey, ratingsFile, useSheetRatings, type RatedOverview } from './sheet-ratings';
 import classes from './sheet.module.css';
 
 /**
- * Every diagram of a sweep on one page, a row per branch and a column per
- * sample, beside what the branch deserves and with none of the chapter
- * prose: the question it answers is whether a picture can be understood on
- * its own, so nothing else on the page may explain it. Two sweeps are two
- * bands in each row, the same samples one above the other.
+ * Every diagram of a sweep on one page, a tab per branch and its samples
+ * down the page, beside what the branch deserves and with none of the
+ * chapter prose: the question it answers is whether a picture can be
+ * understood on its own, so nothing else on the page may explain it. Two
+ * sweeps are two runs of samples in each tab, the earlier first. Down rather
+ * than across: a row of samples, each as wide as its widest diagram,
+ * scrolled sideways away from the one being read.
  *
  * Each overview carries the user's rating, which the eval's judges are
  * checked against, and the judges' own verdicts stay hidden until asked for,
@@ -55,8 +57,9 @@ function Sheet({ sheet }: { sheet: ContactSheet }) {
     <main className={classes.page}>
       <header className={classes.brief}>
         <Caption tone="before">Diagram sweep</Caption>
-        {sweeps.map((sweep) => (
+        {sweeps.map((sweep, at) => (
           <Text key={sweep.stamp} fz="sm">
+            {sweeps.length > 1 && `${sweepName(at)}: `}
             <Text component="span" ff="monospace" fz="sm">
               {sweep.stamp}
             </Text>{' '}
@@ -80,11 +83,44 @@ function Sheet({ sheet }: { sheet: ContactSheet }) {
           Save the download as ratings.json in each sweep's folder, then run agree on it.
         </Text>
       </header>
-      {branches.map((branch) => (
-        <BranchRow key={branch.name} branch={branch} stamps={stamps} showJudges={showJudges} />
-      ))}
+      <Tabs defaultValue={branches[0]?.name ?? null} keepMounted={false}>
+        <Tabs.List aria-label="Branch" className={classes.tabs}>
+          {branches.map((branch) => (
+            <Tabs.Tab key={branch.name} value={branch.name}>
+              {branch.name}{' '}
+              <Text component="span" fz="xs" c="dimmed">
+                {ratedCount(branch, stamps, ratings)}
+              </Text>
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+        {branches.map((branch) => (
+          <Tabs.Panel key={branch.name} value={branch.name}>
+            <BranchPanel branch={branch} stamps={stamps} showJudges={showJudges} />
+          </Tabs.Panel>
+        ))}
+      </Tabs>
     </main>
   );
+}
+
+/** A sweep's name beside its stamp, when the sheet shows two. */
+const sweepName = (at: number) => (at === 0 ? 'Earlier sweep' : 'Later sweep');
+
+/** How many of a branch's overviews the user has rated, across every sweep shown. */
+function ratedCount(
+  branch: SheetBranch,
+  stamps: readonly string[],
+  ratings: Record<string, RatedOverview>,
+): string {
+  const keys = branch.bands.flatMap((band, at) =>
+    band.flatMap((sample) =>
+      sample.diagrams.some((item) => item.where === 'overview')
+        ? [ratingKey(stamps[at]!, branch.name, sample.sample)]
+        : [],
+    ),
+  );
+  return `${String(keys.filter((key) => key in ratings).length)}/${String(keys.length)} rated`;
 }
 
 function download(file: ReturnType<typeof ratingsFile>) {
@@ -98,7 +134,7 @@ function download(file: ReturnType<typeof ratingsFile>) {
   URL.revokeObjectURL(url);
 }
 
-function BranchRow({
+function BranchPanel({
   branch,
   stamps,
   showJudges,
@@ -109,9 +145,8 @@ function BranchRow({
 }) {
   return (
     <section className={classes.branch} aria-label={branch.name}>
-      <Stack gap={6} className={classes.brief}>
-        <Caption tone="before">{branch.name}</Caption>
-        <Text fz="lg" fw={600}>
+      <Stack gap={8} className={classes.brief}>
+        <Text component="h2" fz="xl" fw={600} m={0}>
           {branch.title}
         </Text>
         <Text fz="sm">Deserves {branch.deserves}.</Text>
@@ -142,25 +177,35 @@ function BranchRow({
         )}
       </Stack>
       {branch.bands.map((band, at) => (
-        <Stack key={stamps[at] ?? at} gap={8}>
-          {stamps.length > 1 && <Caption>{stamps[at]}</Caption>}
-          <div className={classes.band}>
-            {band.map((sample) => (
-              <SampleCell
-                key={sample.sample}
-                sample={sample}
-                overview={{ stamp: stamps[at]!, branch: branch.name, sample: sample.sample }}
-                showJudges={showJudges}
-              />
-            ))}
-          </div>
+        <Stack key={stamps[at] ?? at} gap={0}>
+          {stamps.length > 1 && (
+            <Text component="h3" fz="lg" fw={600} m={0} className={classes.sweep}>
+              {sweepName(at)}{' '}
+              <Text component="span" ff="monospace" fz="sm" c="dimmed">
+                {stamps[at]}
+              </Text>
+            </Text>
+          )}
+          {band.map((sample) => (
+            <SampleSection
+              key={sample.sample}
+              sample={sample}
+              overview={{ stamp: stamps[at]!, branch: branch.name, sample: sample.sample }}
+              showJudges={showJudges}
+            />
+          ))}
         </Stack>
       ))}
     </section>
   );
 }
 
-function SampleCell({
+/**
+ * One sample down the page: its heading and verdict, then its overview framed
+ * together with the user's rating, so the rating reads as the overview's
+ * alone, then its chapters' diagrams under a label of their own.
+ */
+function SampleSection({
   sample,
   overview,
   showJudges,
@@ -170,11 +215,15 @@ function SampleCell({
   overview: { stamp: string; branch: string; sample: number };
   showJudges: boolean;
 }) {
+  const drawn = sample.diagrams.find((item) => item.where === 'overview');
+  const chapters = sample.diagrams.filter((item) => item.where !== 'overview');
   return (
-    <article className={classes.cell} aria-label={`sample ${String(sample.sample)}`}>
-      <Stack gap={4}>
-        <Group justify="space-between" gap="sm">
-          <Caption>Sample {sample.sample}</Caption>
+    <article className={classes.sample} aria-label={`sample ${String(sample.sample)}`}>
+      <Stack gap={4} className={classes.brief}>
+        <Group gap="md" align="baseline">
+          <Text component="h4" fz="lg" fw={600} m={0}>
+            Sample {sample.sample}
+          </Text>
           {sample.href !== null && (
             <Anchor href={sample.href} fz="sm" target="_blank">
               Open the review
@@ -189,19 +238,35 @@ function SampleCell({
         </Text>
       </Stack>
       {sample.failure !== null && <pre className={classes.failure}>{sample.failure}</pre>}
-      {sample.failure === null && sample.diagrams.length === 0 && (
-        <Text fz="sm" c="dimmed">
-          No diagrams.
-        </Text>
-      )}
-      {sample.diagrams.map(({ where, diagram, judgements }) => (
-        <Stack key={`${where}-${diagram.id}`} gap={6}>
-          <Caption>{where}</Caption>
-          <DiagramFigure diagram={diagram} />
-          {where === 'overview' && <RatingControl overview={overview} />}
-          {where === 'overview' && showJudges && <Judgements judgements={judgements} />}
+      {sample.failure === null && (
+        <Stack gap={8}>
+          <Caption>Overview</Caption>
+          {drawn ? (
+            <div className={classes.overview}>
+              <DiagramFigure diagram={drawn.diagram} />
+              <RatingControl overview={overview} />
+              {showJudges && <Judgements judgements={drawn.judgements} />}
+            </div>
+          ) : (
+            <Text fz="sm" c="dimmed">
+              None drawn.
+            </Text>
+          )}
         </Stack>
-      ))}
+      )}
+      {chapters.length > 0 && (
+        <Stack gap={24}>
+          <Caption>Chapter diagrams</Caption>
+          {chapters.map(({ where, diagram }) => (
+            <Stack key={`${where}-${diagram.id}`} gap={8}>
+              <Text fz="sm" fw={600}>
+                {where}
+              </Text>
+              <DiagramFigure diagram={diagram} />
+            </Stack>
+          ))}
+        </Stack>
+      )}
     </article>
   );
 }

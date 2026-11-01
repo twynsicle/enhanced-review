@@ -11,12 +11,14 @@
   max-width: var(--er-measure);
 }
 
+.tabs {
+  margin-bottom: 32px;
+}
+
 .branch {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-top: 32px;
-  border-top: 1px solid var(--er-border);
 }
 
 .list {
@@ -24,25 +26,31 @@
   padding-left: 20px;
 }
 
-/*
- * Samples side by side, each as wide as its widest diagram and the row
- * scrolling: a diagram is drawn 1:1, and one squeezed into a fixed cell
- * would scroll inside it, hiding the part a glance across samples needs.
- */
-.band {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  overflow-x: auto;
-  padding-bottom: 8px;
+.sweep {
+  margin-top: 48px;
 }
 
-.cell {
-  flex: 0 0 auto;
-  min-width: 480px;
+.sample {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 40px;
+  padding-top: 32px;
+  border-top: 1px solid var(--er-border);
+}
+
+/*
+ * The overview and the user's rating of it in one frame, so the rating cannot
+ * be read as belonging to the chapter diagram below. Sized to the diagram,
+ * which is drawn 1:1, and scrolling only when one is wider than the page.
+ */
+.overview {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
   padding: 16px;
   border: 1px solid var(--er-border);
   border-radius: 10px;

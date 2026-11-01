@@ -186,12 +186,13 @@ npm run eval:diagrams -- sheet evals/diagrams/results/20261031-091500
 npm run eval:diagrams -- sheet evals/diagrams/results/20261030-221500 evals/diagrams/results/20261031-091500
 ```
 
-One page, a row per branch with what it deserves, the question its overview
+One page, a tab per branch with what it deserves, the question its overview
 should answer, the mechanisms it should name and the files it should reach;
-then each sample across, its verdict, its counts and every diagram it drew,
-with only the title of the chapter that carries it and none of the review's
-prose. The test is whether each picture can be understood on its own. Given
-two sweeps, each row shows the earlier above the later. The page is written
+then each sample down the page, its verdict, its counts, its overview framed
+with your rating of it, and its chapter diagrams after, each with only the
+title of the chapter that carries it and none of the review's prose. The test
+is whether each picture can be understood on its own. Given two sweeps, each
+tab shows the earlier's samples, then the later's. The page is written
 into the (later) sweep's folder, and each sample links to its whole review.
 It is drawn by the report's own diagram code, built from
 `vite.sheet.config.ts` each time.

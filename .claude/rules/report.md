@@ -255,9 +255,10 @@ src/report/
                      er-sheet element, injectSheet / readEmbeddedSheet; relative `.ts` imports, since the eval
                      loads it in Node; RATINGS, the good / usable / poor scale, and RatingsFileSchema, the
                      ratings.json the sheet downloads, both read by the eval's judge and agreement too),
-                     main.tsx, sheet-page.tsx (a row per branch, a band per sweep, a cell per sample as wide as
-                     its widest diagram, each diagram a DiagramFigure with only its chapter's title above it;
-                     under each overview the user's rating control, and each judge's rating and reason behind a
+                     main.tsx, sheet-page.tsx (a tab per branch with its rated count, each sweep's samples down
+                     the page, each diagram a DiagramFigure with only its chapter's title above it; the overview
+                     framed with the user's rating control inside, so the rating reads as the overview's alone,
+                     and each judge's rating and reason behind a
                      "Show the judges" box off by default, so a picture is rated before a judge's verdict is
                      read; "Download ratings" in the header), sheet-ratings.ts (`er-sheet-ratings`, persisted
                      JSON: the user's ratings keyed by sweep stamp, branch and sample, so a sheet built again

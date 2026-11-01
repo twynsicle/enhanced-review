@@ -66,8 +66,9 @@ describe('SheetPage', () => {
     useSheetRatings.setState({ ratings: {} });
   });
 
-  it('shows each branch with what it deserves, and each sample’s verdict, diagrams and review link', () => {
+  it('shows each branch under its tab with what it deserves, and each sample’s verdict, diagrams and review link', () => {
     render(<SheetPage result={{ ok: true, sheet }} />);
+    expect(screen.getByRole('tab', { name: 'retry-queue 0/1 rated' })).toBeTruthy();
     const row = screen.getByRole('region', { name: 'retry-queue' });
     expect(within(row).getByText('Where does a failed capture go?', { exact: false })).toBeTruthy();
     expect(within(row).getByText('src/worker/worker.ts')).toBeTruthy();
@@ -75,6 +76,7 @@ describe('SheetPage', () => {
     const first = within(row).getByRole('article', { name: 'sample 1' });
     expect(within(first).getByText(/chapters state/)).toBeTruthy();
     expect(within(first).getAllByRole('img')).toHaveLength(2);
+    expect(within(first).getByText('Retry sweep')).toBeTruthy();
     expect(within(first).getByRole('link', { name: 'Open the review' }).getAttribute('href')).toBe(
       'retry-queue/sample-1/review.html',
     );
@@ -93,6 +95,7 @@ describe('SheetPage', () => {
     fireEvent.click(usable);
     expect(usable.getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByRole('button', { name: 'Download ratings (1)' })).toBeEnabled();
+    expect(screen.getByRole('tab', { name: 'retry-queue 1/1 rated' })).toBeTruthy();
     expect(ratingsFile(useSheetRatings.getState().ratings, ['20261030-221500'])).toEqual({
       ratings: [{ stamp: '20261030-221500', branch: 'retry-queue', sample: 1, rating: 'usable' }],
     });
