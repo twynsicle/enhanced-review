@@ -35,12 +35,14 @@ import { spread } from './skim-score.ts';
  * it does, and how much of it the parser had to drop. Whether a picture is
  * any good is the contact sheet's question, answered by eye.
  *
- * And whether the prompt's own examples leaked into what was drawn. They are
- * there to show a shape, so a label that is an example word for word means
- * the example became a template, and a label carrying an example's word that
- * the change never uses has brought the example's domain into a picture of
- * another one. Both are counted against the examples the run was actually
- * given, read back from its prompt.md.
+ * And whether the prompt's examples leaked into what was drawn: a label or
+ * caption carrying an example's word that the change never uses has brought
+ * the example's domain into a picture of another. An example reused whole
+ * where it fits ("Request handlers" over a change's routes) is not counted;
+ * a generic name is the example doing its job. The examples are the ones the
+ * run was given, read back from its prompt.md. A word counted here is a
+ * candidate, not a verdict: the model may reach the same word on its own, and
+ * an earlier sweep with other examples says whether it did.
  */
 
 /** One diagram's counts. A sequence's participants are its nodes and its messages its edges. */
@@ -60,19 +62,15 @@ export interface DiagramStats {
   text: string[];
 }
 
-/** Diagram text that repeats the prompt's examples, each entry the label or caption as drawn. */
-export interface Echoes {
-  /** Holds a whole example phrase. */
-  copied: string[];
-  /** Holds a word of an example that neither the change's files nor its description use. */
-  foreign: string[];
-}
-
 export interface SampleScore {
   sample: number;
   meta: DiagramSample;
-  /** null when er wrote no review, or its prompt gave the diagrams no examples. */
-  echoes: Echoes | null;
+  /**
+   * The diagram text, each entry as drawn, holding a word of the prompt's
+   * examples that neither the change's files nor its description use. null
+   * when er wrote no review, or its prompt gave the diagrams no examples.
+   */
+  outOfPlace: string[] | null;
   /** null when er wrote no review; every other field is then empty. */
   review: {
     overview: { kind: DiagramKind | null; ok: boolean };
@@ -133,7 +131,7 @@ async function scoreSample(
 ): Promise<SampleScore> {
   const files = diagramSampleFiles(folder, name, sample);
   const meta = await readDiagramSample(files.meta);
-  if (meta.failure !== null) return { sample, meta, echoes: null, review: null };
+  if (meta.failure !== null) return { sample, meta, outOfPlace: null, review: null };
   const run = runFiles(files.run);
   await access(run.review);
   const review = scoreReview(await readReview(run), await readFindings(run), expect);
@@ -142,7 +140,7 @@ async function scoreSample(
   return {
     sample,
     meta,
-    echoes: examples === null ? null : findEchoes(text, examples, vocabulary),
+    outOfPlace: examples === null ? null : exampleWordsOutOfPlace(text, examples, vocabulary),
     review,
   };
 }
@@ -179,7 +177,7 @@ export function examplePhrases(prompt: string): string[] | null {
 }
 
 /**
- * One form for a word's inflections, so "Loans" echoes "Loan service" and a
+ * One form for a word's inflections, so "Loans" carries "Loan service" and a
  * label saying "refused" is at home in code that says "refuses". Crude, and
  * only ever compared with itself.
  */
@@ -192,12 +190,11 @@ function stem(word: string): string {
 // A shorter word is too common to say where it came from.
 const MIN_FOREIGN_WORD = 4;
 
-export function findEchoes(
+export function exampleWordsOutOfPlace(
   text: readonly string[],
   examples: readonly string[],
   vocabulary: ReadonlySet<string>,
-): Echoes {
-  const phrases = examples.map((example) => example.toLowerCase());
+): string[] {
   const known = new Set([...vocabulary].map(stem));
   const exampleWords = new Set(
     [...wordsOf(examples.join(' '))]
@@ -205,10 +202,7 @@ export function findEchoes(
       .map(stem)
       .filter((word) => !known.has(word)),
   );
-  return {
-    copied: text.filter((item) => phrases.some((phrase) => item.toLowerCase().includes(phrase))),
-    foreign: text.filter((item) => [...wordsOf(item)].some((word) => exampleWords.has(stem(word)))),
-  };
+  return text.filter((item) => [...wordsOf(item)].some((word) => exampleWords.has(stem(word))));
 }
 
 export function scoreReview(
@@ -376,22 +370,15 @@ function figures(samples: readonly Reviewed[], mustReach: number): string[] {
         )}`,
     );
   }
-  const echoed = samples.flatMap((s) => (s.echoes ? [s.echoes] : []));
-  if (echoed.length > 0) {
-    const copied = echoed.flatMap((e) => e.copied);
-    const foreign = echoed.flatMap((e) => e.foreign);
+  const checked = samples.flatMap((s) => (s.outOfPlace ? [s.outOfPlace] : []));
+  if (checked.length > 0) {
+    const all = checked.flat();
     lines.push(
-      `copied examples ${spread(
-        echoed.map((e) => e.copied.length),
+      `example words out of place ${spread(
+        checked.map((list) => list.length),
         count,
-      )}` +
-        `  ·  example words out of place ${spread(
-          echoed.map((e) => e.foreign.length),
-          count,
-        )}`,
+      )}` + (all.length > 0 ? `: ${tally(all)}` : ''),
     );
-    if (copied.length > 0) lines.push(`  copied: ${tally(copied)}`);
-    if (foreign.length > 0) lines.push(`  out of place: ${tally(foreign)}`);
   }
   const drops = samples.map((s) => s.review.drops);
   const retries = samples.filter((s) => s.review.retried).length;
@@ -441,11 +428,8 @@ export function sampleFigures(sample: SampleScore, mustReach: number): string {
     );
   }
   if (mustReach > 0) parts.push(`reached ${String(reached.length)} of ${String(mustReach)}`);
-  const { echoes } = sample;
-  if (echoes && echoes.copied.length > 0)
-    parts.push(`copied examples ${String(echoes.copied.length)}`);
-  if (echoes && echoes.foreign.length > 0)
-    parts.push(`example words out of place ${String(echoes.foreign.length)}`);
+  if (sample.outOfPlace && sample.outOfPlace.length > 0)
+    parts.push(`example words out of place ${String(sample.outOfPlace.length)}`);
   if (drops > 0) parts.push(`${String(drops)} parser drops`);
   if (retried) parts.push('retried');
   if (sample.meta.costUsd !== null) parts.push(`$${sample.meta.costUsd.toFixed(2)}`);

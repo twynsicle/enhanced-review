@@ -188,11 +188,16 @@ describe('runJudge', () => {
       {
         sample: 1,
         meta,
-        echoes: null,
+        outOfPlace: null,
         review: scoreReview({ overviewDiagram: map, chapters: [] }, [], spec.expect),
       },
-      { sample: 2, meta, echoes: null, review: scoreReview({ chapters: [] }, [], spec.expect) },
-      { sample: 3, meta: { ...meta, exitCode: 1, failure: 'boom' }, echoes: null, review: null },
+      { sample: 2, meta, outOfPlace: null, review: scoreReview({ chapters: [] }, [], spec.expect) },
+      {
+        sample: 3,
+        meta: { ...meta, exitCode: 1, failure: 'boom' },
+        outOfPlace: null,
+        review: null,
+      },
     ],
   };
 

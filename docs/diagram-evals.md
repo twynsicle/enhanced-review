@@ -176,15 +176,17 @@ the samples:
   grounded in;
 - **parser drops**, the parts of diagrams the parser had to remove, and how
   many answers needed a retry;
-- **copied examples**, the labels and captions that hold a whole quoted
-  example from the run's Diagram Style section, and **example words out of
-  place**, those holding a word of an example that neither the branch's files
-  nor its description use. Each is listed under the figures. The examples are
-  there to show a shape: a copied one is an example used as a template, and an
-  out-of-place word is the example's domain carried into a picture of another.
-  They are read from each sample's own `prompt.md`, so a sweep scores against
-  the examples it was given; one whose prompt has no Diagram Style section
-  shows neither.
+- **example words out of place**, the labels and captions holding a word of a
+  quoted example from the run's Diagram Style section that neither the
+  branch's files nor its description use, each listed: the example's domain
+  carried into a picture of another. An example reused whole where it fits,
+  "Request handlers" over a change's routes, is not counted. The examples are
+  read from each sample's own `prompt.md`, so a sweep is checked against the
+  ones it was given, and one whose prompt has no Diagram Style section shows
+  no figure. A word listed is a candidate: the model may reach it unprompted,
+  so look for it in a sweep run with other examples before blaming them.
+  "Address rules" is one, drawn in sweeps before and after the examples
+  changed.
 
 The figures are written to `score.txt` in the sweep's folder.
 
