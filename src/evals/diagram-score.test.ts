@@ -192,6 +192,16 @@ describe('exampleWordsOutOfPlace', () => {
     ).toEqual(['Overdue orders sweep', 'Loans']);
   });
 
+  it('lists a caption by the example word it holds', () => {
+    expect(
+      exampleWordsOutOfPlace(
+        ['Order service', 'A failed order now waits for the overdue check before it is retried.'],
+        examples,
+        vocabulary,
+      ),
+    ).toEqual(['…overdue…']);
+  });
+
   it('leaves an example reused whole where the change has its words', () => {
     expect(
       exampleWordsOutOfPlace(['Request handlers', 'Order service'], examples, vocabulary),

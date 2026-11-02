@@ -12,7 +12,7 @@
     "chapterDiagrams": { "min": 0, "max": 1, "kinds": ["sequence", "state"] },
     "mustName": [
       "a gateway error during capture queues a retry instead of failing the request",
-      "the scheduler drains due retries with backoff",
+      "the scheduler drains due retries",
       "a retry that succeeds continues into packing exactly as a fresh order does",
       "the order stays placed, where the abandoned sweep would still find it"
     ],

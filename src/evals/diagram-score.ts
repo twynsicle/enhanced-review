@@ -66,8 +66,9 @@ export interface SampleScore {
   sample: number;
   meta: DiagramSample;
   /**
-   * The diagram text, each entry as drawn, holding a word of the prompt's
-   * examples that neither the change's files nor its description use. null
+   * The diagram text holding a word of the prompt's examples that neither the
+   * change's files nor its description use: a label as drawn, a caption as
+   * that word. null
    * when er wrote no review, or its prompt gave the diagrams no examples.
    */
   outOfPlace: string[] | null;
@@ -189,6 +190,8 @@ function stem(word: string): string {
 
 // A shorter word is too common to say where it came from.
 const MIN_FOREIGN_WORD = 4;
+// Longer text is a caption, listed by the word that matched so the score line stays readable.
+const WHOLE_UP_TO = 40;
 
 export function exampleWordsOutOfPlace(
   text: readonly string[],
@@ -202,7 +205,11 @@ export function exampleWordsOutOfPlace(
       .map(stem)
       .filter((word) => !known.has(word)),
   );
-  return text.filter((item) => [...wordsOf(item)].some((word) => exampleWords.has(stem(word))));
+  return text.flatMap((item) => {
+    const word = [...wordsOf(item)].find((candidate) => exampleWords.has(stem(candidate)));
+    if (word === undefined) return [];
+    return [item.length <= WHOLE_UP_TO ? item : `…${word}…`];
+  });
 }
 
 export function scoreReview(

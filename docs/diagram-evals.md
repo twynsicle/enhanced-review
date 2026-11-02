@@ -85,8 +85,8 @@ The skim eval's spec, plus `expect`, which the model never sees:
   "removed": [],
   "expect": {
     "overview": { "kinds": ["architecture"] },
-    "chapterDiagrams": { "min": 0, "max": 1, "kinds": ["sequence"] },
-    "mustName": ["a capture failure enqueues a retry", "the scheduler drains retries with backoff"],
+    "chapterDiagrams": { "min": 0, "max": 1, "kinds": ["sequence", "state"] },
+    "mustName": ["a capture failure enqueues a retry", "the scheduler drains due retries"],
     "mustReach": ["src/payments/gateway.ts", "src/worker/worker.ts"],
     "question": "Where does a failed capture go now, and what still reads the order while it waits?"
   }
@@ -178,7 +178,8 @@ the samples:
   many answers needed a retry;
 - **example words out of place**, the labels and captions holding a word of a
   quoted example from the run's Diagram Style section that neither the
-  branch's files nor its description use, each listed: the example's domain
+  branch's files nor its description use, each listed, a caption by the word
+  alone ("…rules…"): the example's domain
   carried into a picture of another. An example reused whole where it fits,
   "Request handlers" over a change's routes, is not counted. The examples are
   read from each sample's own `prompt.md`, so a sweep is checked against the
