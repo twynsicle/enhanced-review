@@ -9,7 +9,7 @@ import type { NarrativeReview, OverviewStyles } from '../review/narrative.ts';
 import { DEFAULT_OVERVIEW_STYLE } from '../review/prompt/overview-styles.ts';
 import { DEFAULT_DIAGRAM_STYLE, type DiagramStyle } from '../review/prompt/diagram-styles.ts';
 import { splitPart } from '../review/prompt/split-hunks.ts';
-import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
+import { type ClaudeRunDeps, type ClaudeRunResult, type Effort, runClaude } from './claude-run.ts';
 import { gather, readContext, type RunContext } from './context.ts';
 import { Shell } from './git.ts';
 import { onInterrupt } from './interrupts.ts';
@@ -69,6 +69,7 @@ export interface ReviewOptions {
   /** Write a mechanical review instead of running a model. */
   stub: boolean;
   model: string;
+  effort: Effort;
   maxTurns: number;
   timeoutMs: number;
   from: Exclude<Stage, 'gather'> | null;
@@ -175,6 +176,7 @@ export async function review(
               cwd: worktree?.path ?? context.target.repoRoot,
               tree: worktree ? 'pr' : 'own',
               model: options.model,
+              effort: options.effort,
               maxTurns: options.maxTurns,
               timeoutMs: options.timeoutMs,
               grounding: groundingForRun(context, styles!),

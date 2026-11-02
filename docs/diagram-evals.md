@@ -128,8 +128,8 @@ npm run eval:diagrams -- run --branch on-hold --branch timestamps --samples 5
 ```
 
 Every branch, three samples each, three at once; `--branch` limits it,
-`--samples` and `--parallel` change the counts, `--model` picks the model,
-`er`'s default otherwise, and `--diagram-style` the style every review draws
+`--samples` and `--parallel` change the counts, `--model` picks the model and
+`--effort` its effort, `er`'s defaults otherwise, and `--diagram-style` the style every review draws
 in, `mechanism` otherwise. The style is recorded with the sweep and named on
 the contact sheet, so `--diagram-style files` sweeps the earlier style from
 the same code for a comparison. Each sample stands its branch up afresh and runs a

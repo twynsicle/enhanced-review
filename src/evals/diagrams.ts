@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { writeFile } from 'node:fs/promises';
+import { EFFORTS, type Effort } from '../cli/claude-run.ts';
 import { fail, line, note } from '../cli/terminal.ts';
 import { DIAGRAM_CONTRIVED_DIR, listDiagramBranches } from './diagram-case.ts';
 import { contriveDiagramBranch, runTests, type ContrivedBranch } from './diagram-contrive.ts';
@@ -38,10 +39,10 @@ export const USAGE = `usage:
   npm run eval:diagrams -- contrive <name>... | --all
       stand each branch under evals/diagrams/contrived up as a throwaway repository, run the order
       service's tests on it and a --stub review, and report the change's size; nothing is kept
-  npm run eval:diagrams -- run [--branch <name>]... [--samples <n>] [--model <name>] [--parallel <n>]
+  npm run eval:diagrams -- run [--branch <name>]... [--samples <n>] [--model <name>] [--effort <level>] [--parallel <n>]
                              [--diagram-style <mechanism|files>]
       a whole er review of every branch (or those named), --samples times each (3), --parallel at
-      once (3), with er's default model unless --model and in er's default diagram style
+      once (3), with er's default model and effort unless --model or --effort and in er's default diagram style
       (mechanism) unless --diagram-style; each run folder kept under
       evals/diagrams/results/<stamp>/, then scored. Needs ANTHROPIC_API_KEY; spends money
   npm run eval:diagrams -- score <results folder>
@@ -122,6 +123,7 @@ async function runCommand(argv: string[], root: string): Promise<number> {
       branch: { type: 'string', multiple: true },
       samples: { type: 'string', default: '3' },
       model: { type: 'string' },
+      effort: { type: 'string' },
       parallel: { type: 'string', default: '3' },
       'diagram-style': { type: 'string', default: DEFAULT_DIAGRAM_STYLE },
     },
@@ -129,6 +131,10 @@ async function runCommand(argv: string[], root: string): Promise<number> {
   const diagramStyle = values['diagram-style'];
   if (!isDiagramStyle(diagramStyle)) {
     throw new Error(`--diagram-style takes ${DIAGRAM_STYLES.join(' or ')}; not "${diagramStyle}"`);
+  }
+  const effort = values.effort ?? null;
+  if (effort !== null && !(EFFORTS as readonly string[]).includes(effort)) {
+    throw new Error(`--effort takes ${EFFORTS.join(', ')}; not "${effort}"`);
   }
   requireApiKey();
   const samples = positiveInteger(values.samples, '--samples');
@@ -141,7 +147,15 @@ async function runCommand(argv: string[], root: string): Promise<number> {
     `${String(branches.length * samples)} reviews in ${diagramStyle} style: ${String(branches.length)} branches × ${String(samples)} samples, ${String(parallel)} at once`,
   );
   const folder = await runDiagramSweep(
-    { root, model: values.model ?? null, diagramStyle, samples, branches, parallel },
+    {
+      root,
+      model: values.model ?? null,
+      effort: effort as Effort | null,
+      diagramStyle,
+      samples,
+      branches,
+      parallel,
+    },
     {
       onSample: (branch, sample, meta) => {
         const cost = meta.costUsd === null ? '' : `, $${meta.costUsd.toFixed(2)}`;

@@ -1,7 +1,7 @@
 import { createWriteStream, type WriteStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
-import type { Options } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel, Options } from '@anthropic-ai/claude-agent-sdk';
 import { howItEnded, runSdkLoop, type SdkQueryFn, type SdkUsage } from './sdk-loop.ts';
 import { MAX_VALIDATION_RETRIES, validationStopHook } from './validation-stop-hook.ts';
 import type { PromptGrounding } from '../review/prompt/diff-hunk-catalog.ts';
@@ -34,6 +34,22 @@ import type { RunFiles } from './run-folder.ts';
  * the run outright.
  */
 export const DEFAULT_MODEL = 'claude-sonnet-5-5[1m]';
+export const EFFORTS = [
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const satisfies readonly EffortLevel[];
+export type Effort = (typeof EFFORTS)[number];
+/**
+ * Set rather than left to the Claude Code the SDK bundles, whose default for
+ * a model moves between its versions, and moved once under a sweep: left to
+ * it, 2.1.316 had Sonnet 5.5 make two tool calls a review where 2.1.119 had
+ * made five, and the reviews read too little of the code around a change to
+ * draw it.
+ */
+export const DEFAULT_EFFORT: Effort = 'high';
 /**
  * Measured: an 88-file, 138-hunk review took 32 turns and 7m 36s. The turn
  * limit is set well above that because the cost of hitting it is not "try
@@ -61,6 +77,7 @@ export interface ClaudeRunOptions {
    */
   tree: 'own' | 'pr';
   model: string;
+  effort: Effort;
   maxTurns: number;
   timeoutMs: number;
   /** What the answer is held against before the model is allowed to stop. */
@@ -114,6 +131,7 @@ export async function runClaude(
     events.write(`${JSON.stringify({ ms: Math.round(performance.now() - started), ...fields })}\n`);
   };
 
+  event({ type: 'start', model: options.model, effort: options.effort });
   let characters = 0;
   // The run keeps its own copy of the answer: the Stop hook grades everything
   // the model has said, and a long narrative spans several assistant messages.
@@ -171,6 +189,7 @@ export async function runClaude(
         turns: result.turns,
         costUsd: result.costUsd,
         usage: result.usage,
+        models: result.models,
       });
     }
     // The SDK ends an aborted run either by throwing or by simply stopping.
@@ -212,6 +231,7 @@ function sdkOptions(
   return {
     cwd: options.cwd,
     model: options.model,
+    effort: options.effort,
     systemPrompt: system,
     tools: [...TOOLS],
     allowedTools: [...PRE_APPROVED],

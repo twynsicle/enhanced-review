@@ -73,6 +73,7 @@ const options = {
   cwd: 'C:/repo',
   tree: 'own' as const,
   model: 'test-model',
+  effort: 'high' as const,
   maxTurns: 5,
   timeoutMs: 60_000,
   grounding: groundingFor([]),
@@ -140,18 +141,36 @@ describe('the model run', () => {
     const query = fakeQuery([
       text('<narrative_review>{'),
       text('}</narrative_review>'),
-      result({ subtype: 'success', total_cost_usd: 0.42, num_turns: 7 }),
+      result({
+        subtype: 'success',
+        total_cost_usd: 0.42,
+        num_turns: 7,
+        modelUsage: {
+          'claude-sonnet-5-5': {
+            inputTokens: 1,
+            outputTokens: 2,
+            cacheReadInputTokens: 3,
+            cacheCreationInputTokens: 4,
+          },
+        },
+      }),
     ]);
 
     await expect(runClaude(run, options, { query })).resolves.toEqual({
       characters: 39,
-      usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: 4 },
       turns: 7,
       costUsd: 0.42,
       incomplete: null,
     });
     expect(readFileSync(run.raw, 'utf8')).toBe('<narrative_review>{}</narrative_review>');
-    expect(events().at(-1)).toMatchObject({ type: 'result', subtype: 'success', turns: 7 });
+    expect(events().at(0)).toMatchObject({ type: 'start', model: 'test-model', effort: 'high' });
+    expect(events().at(-1)).toMatchObject({
+      type: 'result',
+      subtype: 'success',
+      turns: 7,
+      models: ['claude-sonnet-5-5'],
+    });
   });
 
   it('reports each tool use as it happens, with what it was about and its turn', async () => {
@@ -189,6 +208,7 @@ describe('the model run', () => {
     expect(query.options()).toMatchObject({
       cwd: 'C:/repo',
       model: 'test-model',
+      effort: 'high',
       maxTurns: 5,
       systemPrompt: 'the instructions\n',
       settingSources: ['user', 'project', 'local'],

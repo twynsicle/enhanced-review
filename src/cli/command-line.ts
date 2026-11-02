@@ -1,5 +1,12 @@
 import { parseArgs } from 'node:util';
-import { DEFAULT_MAX_TURNS, DEFAULT_MODEL, DEFAULT_TIMEOUT_MINUTES } from './claude-run.ts';
+import {
+  DEFAULT_EFFORT,
+  DEFAULT_MAX_TURNS,
+  DEFAULT_MODEL,
+  DEFAULT_TIMEOUT_MINUTES,
+  EFFORTS,
+  type Effort,
+} from './claude-run.ts';
 import { reaches, RESUMABLE_STAGES, type ReviewOptions } from './review.ts';
 import { reviewerInstructions } from './reviewer-instructions.ts';
 import { OVERVIEW_STYLES, type OverviewStyle, type OverviewStyles } from '../review/narrative.ts';
@@ -22,6 +29,7 @@ export const USAGE = `Usage: er review [<pr-number> | --staged] [options]
 Options:
   --base <ref>         compare against <ref> instead (branch and PR reviews)
   --model <name>       review with <name> (default: ${DEFAULT_MODEL})
+  --effort <level>     how hard the model works: ${EFFORTS.join(', ')} (default: ${DEFAULT_EFFORT})
   --max-turns <n>      let the model take at most <n> turns (default: ${String(DEFAULT_MAX_TURNS)})
   --timeout <minutes>  give up on the model run after <minutes> (default: ${String(DEFAULT_TIMEOUT_MINUTES)})
   --instructions <text>
@@ -66,6 +74,7 @@ export function parseCommand(argv: string[], cwd: string): Command {
       staged: { type: 'boolean' },
       base: { type: 'string' },
       model: { type: 'string' },
+      effort: { type: 'string' },
       'max-turns': { type: 'string' },
       timeout: { type: 'string' },
       stub: { type: 'boolean' },
@@ -125,6 +134,7 @@ export function parseCommand(argv: string[], cwd: string): Command {
       cwd,
       stub: values.stub ?? false,
       model: values.model ?? DEFAULT_MODEL,
+      effort: effortFlag(values.effort),
       maxTurns: positiveNumber(values['max-turns'], '--max-turns', DEFAULT_MAX_TURNS),
       timeoutMs: positiveNumber(values.timeout, '--timeout', DEFAULT_TIMEOUT_MINUTES) * 60_000,
       from,
@@ -171,6 +181,14 @@ function overviewStylesFlag(value: string | undefined): OverviewStyles {
     if (!styles.includes(name)) styles.push(name);
   }
   return [styles[0]!, ...styles.slice(1)];
+}
+
+function effortFlag(value: string | undefined): Effort {
+  if (value === undefined) return DEFAULT_EFFORT;
+  if (!(EFFORTS as readonly string[]).includes(value)) {
+    throw new UsageError(`--effort takes ${EFFORTS.join(', ')}; not "${value}"`);
+  }
+  return value as Effort;
 }
 
 function diagramStyleFlag(value: string | undefined): DiagramStyle {

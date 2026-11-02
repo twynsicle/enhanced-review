@@ -4,6 +4,7 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { promisify } from 'node:util';
 import { z } from 'zod';
+import { EFFORTS, type Effort } from '../cli/claude-run.ts';
 import { mapLimit } from '../cli/git-runner.ts';
 import { hostEnv } from '../cli/host-env.ts';
 import { WARNED } from '../cli/review.ts';
@@ -28,13 +29,15 @@ import {
  * samples already paid for.
  *
  *   evals/diagrams/results/<stamp>/
- *     run.json                   model, diagram style, samples, branches and their digests, cost
+ *     run.json                   model, effort, diagram style, samples, branches and their digests, cost
  *     <branch>/sample-<n>.json   how er exited, what the run cost, why it failed
  *     <branch>/sample-<n>/       the run folder: review.json, findings.json, review.html, …
  */
 export const DiagramSweepSchema = z.object({
   /** null for er's default, so a sweep measures what a reviewer gets. */
   model: z.string().nullable(),
+  /** null for er's default, as with the model: whatever er chose when the sweep ran. */
+  effort: z.enum(EFFORTS).nullable(),
   /** Passed to every review, so two sweeps of the same code can compare the styles. */
   diagramStyle: DiagramStyleSchema,
   samples: z.number().int().positive(),
@@ -60,6 +63,7 @@ export type DiagramSample = z.infer<typeof DiagramSampleSchema>;
 export interface DiagramSweepOptions {
   root: string;
   model: string | null;
+  effort: Effort | null;
   diagramStyle: DiagramStyle;
   samples: number;
   branches: string[];
@@ -75,6 +79,7 @@ export interface ReviewOutcome {
 /** What every review of a sweep is asked for. */
 export interface ReviewRun {
   model: string | null;
+  effort: Effort | null;
   diagramStyle: DiagramStyle;
 }
 
@@ -107,6 +112,7 @@ export async function runDiagramSweep(
   );
   const record: DiagramSweep = {
     model: options.model,
+    effort: options.effort,
     diagramStyle: options.diagramStyle,
     samples: options.samples,
     branches: options.branches,
@@ -146,6 +152,7 @@ async function runSample(
     const started = performance.now();
     const outcome = await review(work, {
       model: options.model,
+      effort: options.effort,
       diagramStyle: options.diagramStyle,
     });
     const ms = Math.round(performance.now() - started);
@@ -214,6 +221,7 @@ async function erReview(cwd: string, run: ReviewRun): Promise<ReviewOutcome> {
     '--diagram-style',
     run.diagramStyle,
     ...(run.model ? ['--model', run.model] : []),
+    ...(run.effort ? ['--effort', run.effort] : []),
   ];
   try {
     const { stdout, stderr } = await execFileAsync(process.execPath, args, {

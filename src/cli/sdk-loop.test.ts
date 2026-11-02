@@ -56,6 +56,7 @@ describe('the shared SDK loop', () => {
           cacheReadTokens: 40_000,
           cacheWriteTokens: 12_000,
         },
+        models: ['claude-sonnet-5'],
       },
       sdkError: null,
       callbackError: null,

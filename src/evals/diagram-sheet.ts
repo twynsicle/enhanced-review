@@ -132,8 +132,9 @@ function sheetSample(
 
 function sweepSummary(record: DiagramSweep): string {
   const model = record.model ?? "er's default model";
+  const effort = record.effort === null ? '' : ` at ${record.effort} effort`;
   const cost = record.costUsd === null ? '' : `, $${record.costUsd.toFixed(2)}`;
-  return `${model}, ${record.diagramStyle} diagrams, ${String(record.branches.length)} branches × ${String(record.samples)} samples${cost}`;
+  return `${model}${effort}, ${record.diagramStyle} diagrams, ${String(record.branches.length)} branches × ${String(record.samples)} samples${cost}`;
 }
 
 /**

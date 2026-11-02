@@ -27,6 +27,7 @@ const meta = { exitCode: 0, ms: 1, costUsd: 0.5, turns: 3, failure: null };
 function sweep(stamp: string, costUsd: number) {
   const record: DiagramSweep = {
     model: null,
+    effort: null,
     diagramStyle: 'mechanism',
     samples: 1,
     branches: ['retry-queue'],

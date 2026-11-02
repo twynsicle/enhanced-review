@@ -78,6 +78,7 @@ describe('runDiagramSweep', () => {
       {
         root,
         model: null,
+        effort: null,
         diagramStyle: 'files',
         samples: 1,
         branches: ['good', 'bad'],
@@ -120,7 +121,15 @@ describe('runDiagramSweep', () => {
 describe('scoreDiagramSweep', () => {
   it('scores a failed sample as a failure, and refuses a sweep whose branch has changed since', async () => {
     const folder = await runDiagramSweep(
-      { root, model: null, diagramStyle: 'files', samples: 1, branches: ['bad'], parallel: 1 },
+      {
+        root,
+        model: null,
+        effort: null,
+        diagramStyle: 'files',
+        samples: 1,
+        branches: ['bad'],
+        parallel: 1,
+      },
       { review },
     );
     const [score] = await scoreDiagramSweep(folder, root);
@@ -132,7 +141,15 @@ describe('scoreDiagramSweep', () => {
 
   it('rescores without complaint when only the expectation changed', async () => {
     const folder = await runDiagramSweep(
-      { root, model: null, diagramStyle: 'files', samples: 1, branches: ['bad'], parallel: 1 },
+      {
+        root,
+        model: null,
+        effort: null,
+        diagramStyle: 'files',
+        samples: 1,
+        branches: ['bad'],
+        parallel: 1,
+      },
       { review },
     );
     const spec = path.join(root, DIAGRAM_CONTRIVED_DIR, 'bad', 'branch.json');

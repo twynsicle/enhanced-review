@@ -17,7 +17,8 @@ src/cli/
   er.ts            the bin (`npm link` puts it on PATH): parseCommand → review; usage errors reprint the usage;
                    the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
   command-line.ts  USAGE, UsageError and parseCommand, every flag checked before anything runs (no side
-                   effects but reading an --instructions-file, so the tests drive it directly):
+                   effects but reading an --instructions-file, so the tests drive it directly): --effort
+                   <level> becomes ReviewOptions.effort (one of EFFORTS, high by default);
                    --instructions or --instructions-file becomes ReviewOptions.instructions and
                    --overview-style <names> ReviewOptions.overviewStyles (one or more of OVERVIEW_STYLES,
                    comma-separated, in the order named and each once; `all`, alone or in the list, adds every
@@ -26,8 +27,8 @@ src/cli/
                    with a --from past prompt, which writes no new prompt; --split-hunks <lines> becomes
                    ReviewOptions.splitLines, refused with any --from, since hunks are numbered at gather
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
-                   --keep-worktree, --model, --max-turns, --timeout, --allow-large, --instructions, --overview-style
-                   (named on the prompt stage line unless it is narrative alone), --diagram-style (named there
+                   --keep-worktree, --model, --effort, --max-turns, --timeout, --allow-large, --instructions,
+                   --overview-style (named on the prompt stage line unless it is narrative alone), --diagram-style (named there
                    unless it is the default); the run and parse stages hold the answer to the overview styles
                    readRunStyles reads back off styles.json once, never the command line, handed to writeStubRun, the run's grounding and parseRun; past 300 reviewed files a model run is
                    refused (a fresh one inside gather, before any blob is read; a resumed one before the run),
@@ -93,15 +94,17 @@ src/cli/
                    engineer's own instructions when given; the dirty paths
                    under Where You Are, with a line asking for no excerpt from them
   claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl
-                   (tool uses, refusals, blocked stops, and a result event carrying turns, cost and the token
-                   usage); validationStopHook registered on Stop over the run's own copy of the answer,
+                   (a start event with the model and effort asked for, tool uses, refusals, blocked stops, and a
+                   result event carrying turns, cost, the token usage and the models the SDK reports it used);
+                   the effort always set (DEFAULT_EFFORT, high, or --effort), never left to the bundled Claude
+                   Code, whose default for a model moves between its versions; validationStopHook registered on Stop over the run's own copy of the answer,
                    so a disqualified one costs a turn rather than a second run, and each refusal is a `blocked`
                    event and a terminal note, and a hook that throws is a `hook-error` event and a warning rather
                    than a stranded run; the engineer's user settings, plus the working tree's
                    project/local settings only when it is their own checkout (never a PR's worktree), read-only tools, the engineer's environment inherited by the subprocess; the SDK is imported
                    only when a run happens
   sdk-loop.ts      the SDK message loop: text, tool uses and the result out — subtype, turns, cost and token
-                   usage, cost counted even when the run ran out of turns — nothing thrown; howItEnded, the one
+                   usage and the models used, cost counted even when the run ran out of turns — nothing thrown; howItEnded, the one
                    reading of a result
   validation-stop-hook.ts
                    the retry, as a Stop hook: validates the text accumulated so far and refuses the stop up to

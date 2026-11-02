@@ -92,6 +92,7 @@ What you have staged, against `HEAD` — a review before the commit.
 | ---------------------------- | ------------ | ---------------------------------------------------------------------------------------------- |
 | `--base <ref>`               | branch, PR   | compare against `<ref>` instead of the PR's base or the default branch                         |
 | `--model <name>`             | every review | review with `<name>` (default: `claude-sonnet-5-5[1m]`)                                        |
+| `--effort <level>`           | every review | how hard the model works: `low`, `medium`, `high`, `xhigh` or `max` (default: `high`)          |
 | `--max-turns <n>`            | every review | let the model take at most `<n>` turns (default: `120`)                                        |
 | `--timeout <minutes>`        | every review | give up on the model run after `<minutes>` (default: `15`)                                     |
 | `--instructions <text>`      | every review | add your own guidance to the prompt — what to focus on, what to explain — see below            |
@@ -260,8 +261,12 @@ not on the list, is refused with a message saying what it may run instead.
 Refusals are recorded in `events.jsonl` and reported as one warning when the
 review finishes; a review is never failed by one.
 
-`--model`, `--max-turns` and `--timeout` override the defaults it runs with —
-see [Every option](#every-option). The run also sets
+`--model`, `--effort`, `--max-turns` and `--timeout` override the defaults it
+runs with — see [Every option](#every-option). The effort is always set, never
+left to the Claude Code the SDK bundles: its default for a model has changed
+between its versions, and with it how much of the code around a change a
+review reads. `events.jsonl` opens with the model and effort the run asked
+for, and its result event names the models the SDK reports it used. The run also sets
 `CLAUDE_CODE_MAX_OUTPUT_TOKENS` to 128,000 unless your environment already
 sets it: the review arrives as one response, and Claude Code's 32,000 default
 is too small for a large change or for several overview styles at once.

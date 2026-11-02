@@ -16,6 +16,14 @@ describe('the command line', () => {
     expect(options.overviewStyles).toEqual(['narrative']);
   });
 
+  it('runs the model at high effort unless told otherwise', () => {
+    expect(reviewOptions([]).effort).toBe('high');
+    expect(reviewOptions(['--effort', 'xhigh']).effort).toBe('xhigh');
+    expect(() => reviewOptions(['--effort', 'extreme'])).toThrow(
+      '--effort takes low, medium, high, xhigh, max; not "extreme"',
+    );
+  });
+
   it('draws diagrams in the mechanism style unless told otherwise', () => {
     expect(reviewOptions([]).diagramStyle).toBe('mechanism');
     expect(reviewOptions(['--diagram-style', 'files']).diagramStyle).toBe('files');

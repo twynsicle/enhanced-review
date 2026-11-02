@@ -59,6 +59,7 @@ const options = (overrides: Partial<ReviewOptions> = {}): ReviewOptions => ({
   cwd: repo.work,
   stub: true,
   model: 'test-model',
+  effort: 'high',
   maxTurns: 5,
   timeoutMs: 60_000,
   from: null,

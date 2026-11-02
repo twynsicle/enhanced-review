@@ -148,7 +148,7 @@ evals/diagrams/
                    externals, a store, a queue and worker, a scheduler, HTTP and an ops CLI, no dependencies
   contrived/<name>/ branch.json (the skim spec plus `expect`) and files/; one branch per picture, a control
                    that deserves none, and a mixed change — see docs/diagram-evals.md
-  results/<stamp>/ one sweep — ignored by git: run.json (the model and diagram style with the rest), <branch>/sample-<n>.json (how er exited, cost,
+  results/<stamp>/ one sweep — ignored by git: run.json (the model, effort and diagram style with the rest), <branch>/sample-<n>.json (how er exited, cost,
                    the failure) and <branch>/sample-<n>/ (the whole run folder), score.txt, sheet.html,
                    judgements/ (the judges' answers) and ratings.json (the user's, saved from the sheet)
 ```
