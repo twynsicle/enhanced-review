@@ -175,7 +175,16 @@ the samples:
 - **reached**, how many of the branch's `mustReach` paths some node is
   grounded in;
 - **parser drops**, the parts of diagrams the parser had to remove, and how
-  many answers needed a retry.
+  many answers needed a retry;
+- **copied examples**, the labels and captions that hold a whole quoted
+  example from the run's Diagram Style section, and **example words out of
+  place**, those holding a word of an example that neither the branch's files
+  nor its description use. Each is listed under the figures. The examples are
+  there to show a shape: a copied one is an example used as a template, and an
+  out-of-place word is the example's domain carried into a picture of another.
+  They are read from each sample's own `prompt.md`, so a sweep scores against
+  the examples it was given; one whose prompt has no Diagram Style section
+  shows neither.
 
 The figures are written to `score.txt` in the sweep's folder.
 

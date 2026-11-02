@@ -1,4 +1,4 @@
-import { access } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { readFindings, readReview } from '../cli/parse.ts';
 import { runFiles } from '../cli/run-folder.ts';
@@ -34,6 +34,13 @@ import { spread } from './skim-score.ts';
  * around the change, how much is named by an identifier rather than by what
  * it does, and how much of it the parser had to drop. Whether a picture is
  * any good is the contact sheet's question, answered by eye.
+ *
+ * And whether the prompt's own examples leaked into what was drawn. They are
+ * there to show a shape, so a label that is an example word for word means
+ * the example became a template, and a label carrying an example's word that
+ * the change never uses has brought the example's domain into a picture of
+ * another one. Both are counted against the examples the run was actually
+ * given, read back from its prompt.md.
  */
 
 /** One diagram's counts. A sequence's participants are its nodes and its messages its edges. */
@@ -49,11 +56,23 @@ export interface DiagramStats {
   labelledEdges: number;
   /** Every node's grounding path, for the files a mechanism map should reach. */
   filenames: string[];
+  /** Every piece of text the diagram shows: title, caption and labels. */
+  text: string[];
+}
+
+/** Diagram text that repeats the prompt's examples, each entry the label or caption as drawn. */
+export interface Echoes {
+  /** Holds a whole example phrase. */
+  copied: string[];
+  /** Holds a word of an example that neither the change's files nor its description use. */
+  foreign: string[];
 }
 
 export interface SampleScore {
   sample: number;
   meta: DiagramSample;
+  /** null when er wrote no review, or its prompt gave the diagrams no examples. */
+  echoes: Echoes | null;
   /** null when er wrote no review; every other field is then empty. */
   review: {
     overview: { kind: DiagramKind | null; ok: boolean };
@@ -87,11 +106,18 @@ export async function scoreDiagramSweep(folder: string, root: string): Promise<B
     );
   }
   const scores: BranchScore[] = [];
+  const base = await treeText(path.join(root, DIAGRAM_CONTRIVED_DIR, 'base'));
   for (const name of sweep.branches) {
-    const spec = await readDiagramSpec(path.join(root, DIAGRAM_CONTRIVED_DIR, name));
+    const specDir = path.join(root, DIAGRAM_CONTRIVED_DIR, name);
+    const spec = await readDiagramSpec(specDir);
+    const { title, description, commit } = spec;
+    const files = await treeText(path.join(specDir, 'files'));
+    const vocabulary = wordsOf(
+      [base, files, title, description, commit.subject, commit.body].join('\n'),
+    );
     const samples: SampleScore[] = [];
     for (let sample = 1; sample <= sweep.samples; sample += 1) {
-      samples.push(await scoreSample(folder, name, sample, spec.expect));
+      samples.push(await scoreSample(folder, name, sample, spec.expect, vocabulary));
     }
     scores.push({ name, spec, samples });
   }
@@ -103,16 +129,85 @@ async function scoreSample(
   name: string,
   sample: number,
   expect: Expect,
+  vocabulary: ReadonlySet<string>,
 ): Promise<SampleScore> {
   const files = diagramSampleFiles(folder, name, sample);
   const meta = await readDiagramSample(files.meta);
-  if (meta.failure !== null) return { sample, meta, review: null };
+  if (meta.failure !== null) return { sample, meta, echoes: null, review: null };
   const run = runFiles(files.run);
   await access(run.review);
+  const review = scoreReview(await readReview(run), await readFindings(run), expect);
+  const examples = examplePhrases(await readFile(run.prompt, 'utf8'));
+  const text = review.diagrams.flatMap((stats) => stats.text);
   return {
     sample,
     meta,
-    review: scoreReview(await readReview(run), await readFindings(run), expect),
+    echoes: examples === null ? null : findEchoes(text, examples, vocabulary),
+    review,
+  };
+}
+
+/** Every file under a directory, read as text and joined. */
+async function treeText(dir: string): Promise<string> {
+  const entries = await readdir(dir, { recursive: true, withFileTypes: true });
+  const texts = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => readFile(path.join(entry.parentPath, entry.name), 'utf8')),
+  );
+  return texts.join('\n');
+}
+
+/** The words of a text, lowercased, a camelCase name split into its words. */
+function wordsOf(text: string): Set<string> {
+  const spaced = text.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+  return new Set(spaced.match(/[a-z]+/g) ?? []);
+}
+
+/**
+ * The quoted phrases of the prompt's Diagram Style section: the examples the
+ * run's diagrams were shown. A quoted single word is a field or a value of the
+ * schema rather than an example, so only phrases count. null when the prompt
+ * has no such section.
+ */
+export function examplePhrases(prompt: string): string[] | null {
+  const section = /^## Diagram Style\n([^]*?)(?=^## |(?![^]))/m.exec(prompt);
+  if (!section) return null;
+  return [...section[1]!.matchAll(/"([^"\n]+)"/g)]
+    .map((match) => match[1]!)
+    .filter((phrase) => /\s/.test(phrase));
+}
+
+/**
+ * One form for a word's inflections, so "Loans" echoes "Loan service" and a
+ * label saying "refused" is at home in code that says "refuses". Crude, and
+ * only ever compared with itself.
+ */
+function stem(word: string): string {
+  return word
+    .replace(/(?:ing|ed|es|s)$/, (ending, at: number) => (at >= 3 ? '' : ending))
+    .replace(/e$/, '');
+}
+
+// A shorter word is too common to say where it came from.
+const MIN_FOREIGN_WORD = 4;
+
+export function findEchoes(
+  text: readonly string[],
+  examples: readonly string[],
+  vocabulary: ReadonlySet<string>,
+): Echoes {
+  const phrases = examples.map((example) => example.toLowerCase());
+  const known = new Set([...vocabulary].map(stem));
+  const exampleWords = new Set(
+    [...wordsOf(examples.join(' '))]
+      .filter((word) => word.length >= MIN_FOREIGN_WORD)
+      .map(stem)
+      .filter((word) => !known.has(word)),
+  );
+  return {
+    copied: text.filter((item) => phrases.some((phrase) => item.toLowerCase().includes(phrase))),
+    foreign: text.filter((item) => [...wordsOf(item)].some((word) => exampleWords.has(stem(word)))),
   };
 }
 
@@ -171,6 +266,13 @@ export function diagramStats(where: string, diagram: Diagram): DiagramStats {
       edges: diagram.edges.length,
       labelledEdges: diagram.edges.filter((edge) => edge.label !== undefined).length,
       filenames: diagram.nodes.flatMap((node) => (node.filename ? [node.filename] : [])),
+      text: [
+        diagram.title,
+        diagram.caption,
+        ...diagram.nodes.map((node) => node.label),
+        ...(diagram.groups ?? []).map((group) => group.label),
+        ...diagram.edges.flatMap((edge) => (edge.label ? [edge.label] : [])),
+      ],
     };
   }
   const messages = messagesOf(diagram.steps);
@@ -184,7 +286,28 @@ export function diagramStats(where: string, diagram: Diagram): DiagramStats {
     edges: messages.length,
     labelledEdges: messages.length,
     filenames: diagram.participants.flatMap((p) => (p.filename ? [p.filename] : [])),
+    text: [
+      diagram.title,
+      diagram.caption,
+      ...diagram.participants.map((p) => p.label),
+      ...messages.map((message) => message.label),
+      ...groupLabelsOf(diagram.steps),
+    ],
   };
+}
+
+function groupLabelsOf(steps: readonly Step[]): string[] {
+  return steps.flatMap((step): string[] =>
+    step.type === 'message'
+      ? []
+      : [
+          ...(step.label ? [step.label] : []),
+          ...step.branches.flatMap((branch) => [
+            ...(branch.label ? [branch.label] : []),
+            ...groupLabelsOf(branch.steps),
+          ]),
+        ],
+  );
 }
 
 type Step = SequenceStep | SequenceMessage | SequenceLeafGroup;
@@ -253,6 +376,23 @@ function figures(samples: readonly Reviewed[], mustReach: number): string[] {
         )}`,
     );
   }
+  const echoed = samples.flatMap((s) => (s.echoes ? [s.echoes] : []));
+  if (echoed.length > 0) {
+    const copied = echoed.flatMap((e) => e.copied);
+    const foreign = echoed.flatMap((e) => e.foreign);
+    lines.push(
+      `copied examples ${spread(
+        echoed.map((e) => e.copied.length),
+        count,
+      )}` +
+        `  ·  example words out of place ${spread(
+          echoed.map((e) => e.foreign.length),
+          count,
+        )}`,
+    );
+    if (copied.length > 0) lines.push(`  copied: ${tally(copied)}`);
+    if (foreign.length > 0) lines.push(`  out of place: ${tally(foreign)}`);
+  }
   const drops = samples.map((s) => s.review.drops);
   const retries = samples.filter((s) => s.review.retried).length;
   lines.push(
@@ -265,6 +405,15 @@ function figures(samples: readonly Reviewed[], mustReach: number): string[] {
       `parser drops ${spread(drops, count)}  ·  retried ${String(retries)} of ${String(samples.length)}`,
   );
   return lines;
+}
+
+/** Each distinct entry quoted once, with how often it came up. */
+function tally(items: readonly string[]): string {
+  const counts = new Map<string, number>();
+  for (const item of items) counts.set(item, (counts.get(item) ?? 0) + 1);
+  return [...counts]
+    .map(([item, times]) => (times > 1 ? `"${item}" ×${String(times)}` : `"${item}"`))
+    .join(', ');
 }
 
 /** What a sample drew against what its branch deserved, in one line. */
@@ -292,6 +441,11 @@ export function sampleFigures(sample: SampleScore, mustReach: number): string {
     );
   }
   if (mustReach > 0) parts.push(`reached ${String(reached.length)} of ${String(mustReach)}`);
+  const { echoes } = sample;
+  if (echoes && echoes.copied.length > 0)
+    parts.push(`copied examples ${String(echoes.copied.length)}`);
+  if (echoes && echoes.foreign.length > 0)
+    parts.push(`example words out of place ${String(echoes.foreign.length)}`);
   if (drops > 0) parts.push(`${String(drops)} parser drops`);
   if (retried) parts.push('retried');
   if (sample.meta.costUsd !== null) parts.push(`$${sample.meta.costUsd.toFixed(2)}`);

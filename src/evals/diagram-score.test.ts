@@ -5,6 +5,8 @@ import type { Expect } from './diagram-case.ts';
 import {
   deserved,
   diagramStats,
+  examplePhrases,
+  findEchoes,
   isIdentifierLabel,
   sampleFigures,
   sampleVerdict,
@@ -157,6 +159,50 @@ describe('isIdentifierLabel', () => {
   });
 });
 
+describe('examplePhrases', () => {
+  it('reads the quoted phrases of the Diagram Style section and nothing else', () => {
+    const prompt = [
+      '## Overview Style',
+      'Write it as "a short story".',
+      '## Diagram Style',
+      'Name a node "Loan service" or "Loans table"; mark it "unchanged".',
+      'Group them ("Request handlers").',
+      '## Pull Request',
+      'Title: "Not an example either"',
+    ].join('\n');
+    expect(examplePhrases(prompt)).toEqual(['Loan service', 'Loans table', 'Request handlers']);
+  });
+
+  it('is null for a prompt with no Diagram Style section', () => {
+    expect(examplePhrases('## Pull Request\nTitle: "Retry a capture"')).toBeNull();
+  });
+});
+
+describe('findEchoes', () => {
+  const examples = ['Loan service', 'Overdue reminder job', 'Request handlers'];
+  const vocabulary = new Set(['request', 'handler', 'service', 'order', 'reminder']);
+
+  it('counts a label holding a whole example, and one holding an example word the change never uses', () => {
+    expect(
+      findEchoes(
+        ['Request handlers', 'Order service', 'Overdue orders sweep', 'Reminder email', 'Loans'],
+        examples,
+        vocabulary,
+      ),
+    ).toEqual({
+      copied: ['Request handlers'],
+      foreign: ['Overdue orders sweep', 'Loans'],
+    });
+  });
+
+  it('finds nothing in labels drawn from the change itself', () => {
+    expect(findEchoes(['Order service', 'Request handler'], examples, vocabulary)).toEqual({
+      copied: [],
+      foreign: [],
+    });
+  });
+});
+
 describe('diagramStats', () => {
   it('counts a graph’s nodes, unchanged nodes, identifier labels, labelled edges and grounding', () => {
     expect(diagramStats('overview', architecture)).toMatchObject({
@@ -289,15 +335,17 @@ describe('the one-line formatters', () => {
     const sample: SampleScore = {
       sample: 1,
       meta,
+      echoes: { copied: ['Request handlers'], foreign: [] },
       review: scoreReview(review(architecture, state), [], expectMap),
     };
     expect(sampleVerdict(sample)).toBe('off  ·  overview architecture  ·  chapters state ✗');
     expect(sampleFigures(sample, 2)).toBe(
-      '6 nodes  ·  unchanged 67%  ·  identifier labels 33%  ·  labelled edges 67%  ·  reached 1 of 2  ·  $0.94',
+      '6 nodes  ·  unchanged 67%  ·  identifier labels 33%  ·  labelled edges 67%  ·  reached 1 of 2  ·  copied examples 1  ·  $0.94',
     );
     const failed: SampleScore = {
       sample: 2,
       meta: { ...meta, exitCode: 1, failure: 'boom' },
+      echoes: null,
       review: null,
     };
     expect(sampleVerdict(failed)).toBe('FAILED (er exited 1)');

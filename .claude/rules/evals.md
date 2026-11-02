@@ -105,9 +105,11 @@ src/evals/
                    none deserved, chapter diagrams within min–max and of the allowed kinds, onTarget when
                    both), diagramStats per diagram (nodes — a sequence's participants — unchanged, identifier
                    labels by isIdentifierLabel's code-shaped-word test, labelled edges — every message of a
-                   sequence, nested groups included — and grounding filenames), mustReach paths reached (a
-                   folder grounding reaching every file under it), missed (fewer diagrams than deserved),
-                   diagram drops and a retry from findings.json; the one-line formatters (deserved,
+                   sequence, nested groups included — grounding filenames and every text it shows), mustReach
+                   paths reached (a folder grounding reaching every file under it), missed (fewer diagrams
+                   than deserved), diagram drops and a retry from findings.json; findEchoes, the diagram text
+                   that copies a quoted example of the run's own prompt.md (examplePhrases) or carries an
+                   example's word the branch's files and description never use, words stemmed; the one-line formatters (deserved,
                    sampleVerdict, sampleFigures) the bin and the sheet share; formatBranchScore and
                    formatDiagramOverall, the skim eval's `mean (min–max)` spread across samples
   diagram-judge.ts the rubric judge: DEFAULT_JUDGES (Opus and Sonnet, since the drawing model may favour its
