@@ -51,7 +51,7 @@ src/
                        where a run happens), palette (token contrast, type scale, one label), diagram-colour
                        (SVG takes token() only), comment-paths (a repo path named in a comment still exists —
                        see Comments), monaco-version (the Monaco the reader loads is the one it is typechecked
-                       against)
+                       against), eval-vocabulary (the review prompt names nothing from an eval case)
   evals/               the evals, run by hand and never in the gate: skims (how well the model tiers hunks, on
                        labelled cases; `npm run eval:skims`) and diagrams (whether it draws the diagram a change
                        deserves, on branches written for it; `npm run eval:diagrams`); each runs the model as

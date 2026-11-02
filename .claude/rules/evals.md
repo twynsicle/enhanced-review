@@ -143,6 +143,7 @@ evals/skims/
   contrived/<name>/ branch.json (branch, title, description, commit, removed paths) and files/, the files the
                    branch changes or adds, whole; one branch per kind of skim, with traps — see docs/skim-evals.md
   results/<stamp>/ one sweep's answers and summary.json — ignored by git
+  vocabulary.json  stockline's names and domain nouns, for the eval-vocabulary guardrail
 evals/diagrams/
   contrived/base/  packhouse, the order service every diagram branch starts from: wide and shallow, three
                    externals, a store, a queue and worker, a scheduler, HTTP and an ops CLI, no dependencies
@@ -151,6 +152,7 @@ evals/diagrams/
   results/<stamp>/ one sweep — ignored by git: run.json (the model, effort and diagram style with the rest), <branch>/sample-<n>.json (how er exited, cost,
                    the failure) and <branch>/sample-<n>/ (the whole run folder), score.txt, sheet.html,
                    judgements/ (the judges' answers) and ratings.json (the user's, saved from the sheet)
+  vocabulary.json  packhouse's names and domain nouns, for the eval-vocabulary guardrail
 ```
 
 - The skim categories the docs recommend are free text here, grouped as
@@ -161,3 +163,11 @@ evals/diagrams/
   helps. The diagram eval runs whole reviews for the opposite reason:
   whether a diagram is drawn at all is decided while the model chapters the
   change.
+- The review prompt is never written against the cases. Its examples come
+  from a domain no eval uses, and a miss a sweep shows is fixed by a rule
+  that would hold for a change outside the eval set, in none of the case's
+  words, or left alone. The `eval-vocabulary` guardrail catches the case's
+  paths, exported names, routes and the nouns in each `vocabulary.json`; a
+  rule shaped to one case has no word to catch. A model system a new eval
+  adds gets its own `vocabulary.json`, and its eval directory goes in the
+  guardrail's `EVALS`.

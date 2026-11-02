@@ -229,3 +229,11 @@ samples. They are where to look: a category that keeps appearing there is a
 rule the instructions state badly, or do not state, or one that should become
 a hint the tool proves rather than a judgement it asks for, the way whitespace
 and imports already are.
+
+## Changing the rules from a sweep
+
+The tiering rules are never written against the cases: a miss is fixed by a
+rule that would hold for a change outside the eval set, or left alone. The
+`eval-vocabulary` guardrail fails the gate when the review prompt names a
+path, an exported name or a route from a contrived branch, or a word from
+`evals/skims/vocabulary.json`. `docs/diagram-evals.md` says more.

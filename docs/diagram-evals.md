@@ -264,3 +264,18 @@ answers whether what it shows is right and complete. So your ratings are where
 the drawing instructions and the rubric learn what a readable overview looks
 like, not the standard the judges are held to. Where you differ, the judge's
 reason says what the picture got wrong, and yours what made it hard to read.
+
+## Changing the prompt from a sweep
+
+A sweep is only a measure while the prompt is not written against its
+branches. When one shows a miss, say the fix as a rule that would hold for a
+change you could name outside packhouse, in none of the branch's words: its
+parts, its routes, its mechanisms. If the only rule that fixes it names what
+the branch does, as "a backoff names its steps" would, leave the miss alone.
+The prompt's examples come from a domain no eval uses.
+
+The `eval-vocabulary` guardrail fails the gate when the review prompt names a
+path, an exported name or a route from a contrived branch, or a word from
+`evals/diagrams/vocabulary.json`. Add a noun there when a branch brings one in
+that extraction cannot see. A rule shaped to one branch has no word to catch,
+so that part is on whoever writes the rule.

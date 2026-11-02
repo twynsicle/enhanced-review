@@ -1,0 +1,4 @@
+{
+  "names": ["packhouse", "Cardflow", "Northpost", "Shelfwise"],
+  "nouns": ["orders", "capture", "gateway", "sweep", "parcel", "carrier", "shipment", "packing", "refund", "storefront"]
+}
