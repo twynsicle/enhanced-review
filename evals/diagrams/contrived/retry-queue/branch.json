@@ -9,7 +9,7 @@
   "removed": [],
   "expect": {
     "overview": { "kinds": ["architecture"] },
-    "chapterDiagrams": { "min": 0, "max": 1, "kinds": ["sequence"] },
+    "chapterDiagrams": { "min": 0, "max": 1, "kinds": ["sequence", "state"] },
     "mustName": [
       "a gateway error during capture queues a retry instead of failing the request",
       "the scheduler drains due retries with backoff",
