@@ -222,7 +222,11 @@ describe('the model run', () => {
     await runClaude(run, options, { query });
     const canUseTool = query.options().canUseTool!;
     const ask = (tool: string, input: Record<string, unknown>) =>
-      canUseTool(tool, input, { signal: AbortSignal.abort(), toolUseID: 'tool-1' });
+      canUseTool(tool, input, {
+        signal: AbortSignal.abort(),
+        toolUseID: 'tool-1',
+        requestId: 'request-1',
+      });
 
     await expect(ask('Bash', { command: 'git blame src/cli/er.ts' })).resolves.toMatchObject({
       behavior: 'allow',
@@ -247,6 +251,7 @@ describe('the model run', () => {
           {
             signal: AbortSignal.abort(),
             toolUseID: 'tool-1',
+            requestId: 'request-1',
           },
         );
       return (async function* () {
