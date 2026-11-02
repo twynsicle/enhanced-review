@@ -120,8 +120,10 @@ src/evals/
                    a problem and no judgement; overviews, each scored sample's overview; runJudge, every
                    judge × overview through runSdkLoop with no tools and one turn, under <sweep>/judgements/
                    <model>/<branch>/sample-<n>.txt|.json with judgements.json, replacing an earlier judging;
-                   readJudgements, an unjudged sweep being none; formatJudged, each judge's counts
-  diagram-agree.ts whether a judge can stand in for the user: readUserRatings (the sweep's ratings.json, the
+                   readJudgements, an unjudged sweep being none; formatJudged, each judge's counts and the
+                   share of mechanisms it found shown, partly shown and missing
+  diagram-agree.ts the judges against each other, the check on the measure, and against the user, who rates how
+                   an overview reads rather than whether it is right: readUserRatings (the sweep's ratings.json, the
                    sheet's download, filtered to the sweep's stamp), judgeRatings / judgeReasons, agreement
                    (exact, within one step, Cohen's kappa — undefined when chance alone agrees on all — and
                    each disagreement), formatAgreement with the judge's reason beside each

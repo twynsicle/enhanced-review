@@ -199,9 +199,11 @@ It is drawn by the report's own diagram code, built from
 
 ## Judging a sweep
 
-The sheet is the eye's verdict, one sweep at a time. A judge model gives a
-verdict a prompt change can be compared on without rating every picture
-again, once it is shown to agree with yours:
+The judges are the sweep's measure of whether an overview is right. Each is
+told what the change really does, the question its overview should answer and
+the mechanisms it should show, and checks the picture against them, which
+someone reading the sheet without the code cannot. A prompt change is compared
+on their verdicts:
 
 ```bash
 npm run eval:diagrams -- judge evals/diagrams/results/20261031-091500
@@ -251,6 +253,14 @@ npm run eval:diagrams -- agree evals/diagrams/results/20261031-091500
 For you against each judge, and the judges against each other: how often they
 agree exactly, how often within one step, Cohen's kappa (raw agreement
 flatters a sweep that is mostly "good"), and every disagreement with the
-judge's reason. Quote a judge's ratings for a prompt change only once its
-agreement with yours is good; the reasons it gives where you differ are what
-to fix in the rubric.
+judge's reason.
+
+The two judges against each other is the check on the measure: where they
+split, read both reasons before trusting either. You against a judge is not
+expected to agree closely, because the two of you rate different things. Rated
+on the sheet, without the code, yours answers "could I read this, and come away
+understanding the change better", taking what it shows as right; the judge's
+answers whether what it shows is right and complete. So your ratings are where
+the drawing instructions and the rubric learn what a readable overview looks
+like, not the standard the judges are held to. Where you differ, the judge's
+reason says what the picture got wrong, and yours what made it hard to read.

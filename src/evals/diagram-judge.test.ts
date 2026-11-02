@@ -222,8 +222,8 @@ describe('runJudge', () => {
       ['judge-b', 1, 'usable'],
     ]);
     expect(formatJudged('retry', judged)).toEqual([
-      'judged by judge-a: good 0  ·  usable 1  ·  poor 0',
-      'judged by judge-b: good 0  ·  usable 1  ·  poor 0',
+      'judged by judge-a: good 0  ·  usable 1  ·  poor 0  ·  mechanisms yes 50% partly 50% no 0%',
+      'judged by judge-b: good 0  ·  usable 1  ·  poor 0  ·  mechanisms yes 50% partly 50% no 0%',
     ]);
   });
 

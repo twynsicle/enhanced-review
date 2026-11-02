@@ -346,9 +346,15 @@ export function formatJudged(branch: string | null, judged: readonly JudgedOverv
     const count = (rating: Rating) =>
       mine.filter((item) => item.parsed.judgement?.rating === rating).length;
     const unread = mine.filter((item) => item.parsed.judgement === null).length;
+    const shown = mine.flatMap((item) => item.parsed.judgement?.mechanisms ?? []);
+    const share = (verdict: Shown) =>
+      `${String(Math.round((100 * shown.filter((item) => item === verdict).length) / shown.length))}%`;
     return (
       `judged by ${judge}: ${RATINGS.map((rating) => `${rating} ${String(count(rating))}`).join('  ·  ')}` +
-      (unread > 0 ? `  ·  unreadable ${String(unread)}` : '')
+      (unread > 0 ? `  ·  unreadable ${String(unread)}` : '') +
+      (shown.length > 0
+        ? `  ·  mechanisms ${SHOWN.map((verdict) => `${verdict} ${share(verdict)}`).join(' ')}`
+        : '')
     );
   });
 }
