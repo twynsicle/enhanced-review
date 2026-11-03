@@ -62,9 +62,9 @@ export const DEFAULT_EFFORT: Effort = 'high';
 export const DEFAULT_MAX_TURNS = 120;
 export const DEFAULT_TIMEOUT_MINUTES = 15;
 
-/** Read-only. Read, Glob and Grep run without asking; Bash is gated. */
+/** Read-only. Read, Glob and Grep are allowed outright; Bash is gated. */
 const TOOLS = ['Read', 'Glob', 'Grep', 'Bash'] as const;
-const PRE_APPROVED = ['Read', 'Glob', 'Grep'] as const;
+const READ_TOOLS: ReadonlySet<string> = new Set(['Read', 'Glob', 'Grep']);
 
 export type QueryFn = SdkQueryFn;
 
@@ -234,7 +234,6 @@ function sdkOptions(
     effort: options.effort,
     systemPrompt: system,
     tools: [...TOOLS],
-    allowedTools: [...PRE_APPROVED],
     canUseTool: (tool, input) => {
       const decision = permission(tool, input, options.cwd);
       if (decision.behavior === 'deny') callbacks.onDeny(tool, input, decision.message);
@@ -265,8 +264,9 @@ type Permission =
   | { behavior: 'allow'; updatedInput: Record<string, unknown> }
   | { behavior: 'deny'; message: string };
 
-/** Read, Glob and Grep never reach this; Bash does, and only reads get through. */
+/** Read, Glob and Grep pass; Bash only when every command in it is a read. */
 function permission(tool: string, input: Record<string, unknown>, cwd: string): Permission {
+  if (READ_TOOLS.has(tool)) return { behavior: 'allow', updatedInput: input };
   if (tool !== 'Bash') {
     return { behavior: 'deny', message: `er reviews are read-only; ${tool} is not available.` };
   }

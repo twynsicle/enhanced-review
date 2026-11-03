@@ -185,9 +185,9 @@ src/cli/
   from cache — that share, not the size of the prompt, is what explains a
   bill. `--stub` replaces it; `--from parse` skips it entirely,
   which is how a report is rebuilt from a `raw.txt` that is already there.
-- `Read`, `Glob` and `Grep` are pre-approved; `Bash` is deliberately left out
-  of `allowedTools` so every command goes through `bash-gate.ts` in the
-  `canUseTool` callback. A refused command comes back to the agent as a tool
+- There is no `allowedTools`: the SDK warns that a bare entry shadows
+  `canUseTool`. Every tool call reaches `canUseTool`, which allows `Read`,
+  `Glob` and `Grep` and sends every `Bash` command through `bash-gate.ts`. A refused command comes back to the agent as a tool
   result saying what it may run instead, not as a failed review — but it costs
   a turn, so each refusal is a `denied` event in `events.jsonl` and the parse
   stage turns them into one warning. A gate that keeps refusing reasonable
