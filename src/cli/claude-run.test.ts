@@ -212,7 +212,6 @@ describe('the model run', () => {
       maxTurns: 5,
       systemPrompt: 'the instructions\n',
       settingSources: ['user', 'project', 'local'],
-      allowedTools: ['Read', 'Glob', 'Grep'],
       tools: ['Read', 'Glob', 'Grep', 'Bash'],
     });
   });
@@ -248,6 +247,9 @@ describe('the model run', () => {
         requestId: 'request-1',
       });
 
+    for (const tool of ['Read', 'Glob', 'Grep']) {
+      await expect(ask(tool, { pattern: 'x' })).resolves.toMatchObject({ behavior: 'allow' });
+    }
     await expect(ask('Bash', { command: 'git blame src/cli/er.ts' })).resolves.toMatchObject({
       behavior: 'allow',
     });
