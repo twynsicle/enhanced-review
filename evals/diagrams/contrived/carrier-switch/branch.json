@@ -1,0 +1,21 @@
+{
+  "branch": "feat/northpost-for-domestic-parcels",
+  "title": "Book domestic parcels with Northpost, chosen by destination country",
+  "description": "Parcelnet's domestic rate has been the wrong side of Northpost's for a year, and most of what we ship stays in the country, so domestic parcels now go to Northpost and Parcelnet keeps the rest. `src/shipping/northpost.ts` is the second adapter behind the same `Carrier` interface; a carrier now says how far it reaches, and `chooseCarrier` in `choose.ts` picks the one for the order's country against `HOME_COUNTRY` (default `GB`). The `ship` handler takes the list of carriers and the home country and chooses when it books, so an order's carrier is decided by its address at the moment of booking and nothing earlier needs to know. A destination no configured carrier reaches fails the job with a `CarrierError`, for the retry and the stuck sweep to pick up, rather than booking with whichever carrier is there; a home-country parcel is deliberately not handed to Parcelnet as a fallback, since that rate is the one we are moving off. `NORTHPOST_URL` and `NORTHPOST_TIMEOUT_MS` join the config, and the Parcelnet settings lose their generic `carrier*` names now that there are two. The shipment record already carried the carrier's name, so the shipped email and the stored booking need nothing new; the booking log line now says which carrier took it.",
+  "commit": {
+    "subject": "Add Northpost and choose the carrier by destination",
+    "body": "Northpost books parcels for HOME_COUNTRY (default GB), Parcelnet the rest.\nA carrier states its reach; chooseCarrier picks by the order's country and\nthrows a CarrierError when nothing configured goes there. The ship handler\ntakes the carriers and the home country and chooses at booking time.\nNORTHPOST_URL and NORTHPOST_TIMEOUT_MS added; carrier* config renamed."
+  },
+  "removed": [],
+  "expect": {
+    "overview": { "kinds": ["architecture", "beforeAfter"] },
+    "chapterDiagrams": { "min": 0, "max": 1, "kinds": ["architecture", "beforeAfter"] },
+    "mustName": [
+      "the ship handler now chooses a carrier per order by destination country",
+      "Northpost serves the home country and Parcelnet the rest, both behind the one Carrier interface",
+      "a destination no carrier serves fails the ship job rather than booking the wrong one"
+    ],
+    "mustReach": ["src/worker/worker.ts", "src/scheduler/sweeps.ts", "src/store/store.ts"],
+    "question": "Which part decides the carrier now, and what do the two carriers share?"
+  }
+}

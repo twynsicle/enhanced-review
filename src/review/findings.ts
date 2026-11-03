@@ -49,6 +49,8 @@ const SEVERITY_BY_CODE = {
   'style-missing': 'fatal',
   /** A body under a style the run did not ask for, or a lone `body` no one style could claim. */
   'body-style-dropped': 'fatal',
+  /** A passage holds a field besides its lede and bodies, such as a diagram nested inside it. */
+  'prose-field-stray': 'fatal',
   /** A hunk the prompt showed that no chapter cites. */
   'hunk-uncited': 'fatal',
   /** The run ended on anything but a clean success (max turns, an SDK error). */

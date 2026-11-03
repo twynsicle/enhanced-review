@@ -206,8 +206,13 @@ src/report/
                      drawn half of), change-style (change → token; nodes are outlined,
                      never filled), graph-layout (dagre, compound + multigraph; beforeAfter splits into two panels
                      off the change marks), sequence-layout (hand-rolled columns × rows), graph-svg / sequence-svg
-                     (painters), diagram-figure (the `data-bleed` figure: 1:1 with horizontal scroll, legend,
-                     caption), diagram-modal (full-screen viewBox pan/zoom), diagram.module.css
+                     (painters), node-box (the one box both painters draw a node or a participant as: its
+                     label, the grounded path beneath it in the edge type and mono — pathLine leaves it out when
+                     the label is the path or its file name, fitPath cuts it from the left — and the click, which
+                     opens only a file in DiagramFiles.reviewed, since an untouched file or a folder has nothing in the
+                     report to show), diagram-figure (the `data-bleed` figure: 1:1 with horizontal scroll,
+                     legend, caption; `files`, the reviewed set and the reader's open), diagram-modal
+                     (full-screen viewBox pan/zoom), diagram.module.css
   stores/            Zustand, persisted, each hydrating from localStorage as it loads: layout-width.ts (`er-layout`,
                      full ⇄ wide; followLayoutWidth keeps `--review-max-width` on `<html>`), diff-view.ts
                      (`er-diff-view`, split ⇄ unified), diff-wrap.ts (`er-diff-wrap`, off ⇄ on, on by default, spelled the way
@@ -245,10 +250,23 @@ src/report/
                      css-variables.ts (--er-* and --er-hljs-* vars), color-scheme.ts, theme.css (base + .hljs-* rules),
                      oklch.ts (oklch → linear sRGB: the arithmetic the palette guardrail checks contrast and gamut
                      with)
+  sheet/             the diagram eval's contact sheet, a second page with its own build (vite.sheet.config.ts →
+                     build/sheet/sheet.html, never part of `er`'s report): sheet-data.ts (ContactSheetSchema, the
+                     er-sheet element, injectSheet / readEmbeddedSheet; relative `.ts` imports, since the eval
+                     loads it in Node; RATINGS, the good / usable / poor scale, and RatingsFileSchema, the
+                     ratings.json the sheet downloads, both read by the eval's judge and agreement too),
+                     main.tsx, sheet-page.tsx (a tab per branch with its rated count, each sweep's samples down
+                     the page, each diagram a DiagramFigure with only its chapter's title above it; the overview
+                     framed with the user's rating control inside, so the rating reads as the overview's alone,
+                     and each judge's rating and reason behind a
+                     "Show the judges" box off by default, so a picture is rated before a judge's verdict is
+                     read; "Download ratings" in the header), sheet-ratings.ts (`er-sheet-ratings`, persisted
+                     JSON: the user's ratings keyed by sweep stamp, branch and sample, so a sheet built again
+                     shows them; ratingsFile, those of the sheet's own sweeps as the download)
   test/              setup.ts (jest-dom, matchMedia/ResizeObserver stubs), render helper, diagram-fixtures
 ```
 
-The build (`vite.config.ts`) inlines JS, CSS and fonts into
+The build (`vite.config.ts`, through `vite.inline.ts`, which the sheet's build shares) inlines JS, CSS and fonts into
 `build/report/shell.html`, puts `chrome/brand-mark.svg` in its head as a
 data-URI favicon, and writes `shell.stamp` beside it, a hash of the
 report's sources that `er` checks before each render and rebuilds on when it

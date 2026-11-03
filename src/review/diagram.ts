@@ -83,7 +83,11 @@ export const DiagramNodeSchema = z.object({
   change: DiagramChangeSchema.default('unchanged'),
   /** Id of a group in the same diagram; cleared at parse time if it is not. */
   group: DiagramId.optional(),
-  /** Grounding: a path from the PR's changed-file list. `code` nodes only. */
+  /**
+   * Grounding: a reviewed file, or on an `unchanged` node any file at the head
+   * commit or a folder there written with a trailing "/", which only the parse
+   * stage can check. Never on `external` or `actor`.
+   */
   filename: z.string().min(1).optional(),
   /** Hunk ids from the prompt catalog, matched against the chapter's chunks. */
   hunkIds: z.array(z.string()).max(DIAGRAM_LIMITS.hunkIds).optional(),

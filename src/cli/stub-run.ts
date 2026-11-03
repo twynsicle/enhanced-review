@@ -25,6 +25,7 @@ const STUB_RESULT = JSON.stringify({
   turns: 0,
   costUsd: null,
   usage: null,
+  models: [],
 });
 
 /**

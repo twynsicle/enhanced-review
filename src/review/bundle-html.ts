@@ -23,7 +23,12 @@ export const BUNDLE_PLACEHOLDER = `${OPEN}${CLOSE}`;
 const LESS_THAN_ESCAPE = '\\u003c';
 
 export function serializeBundle(bundle: ReviewBundle): string {
-  return JSON.stringify(bundle).replaceAll('<', LESS_THAN_ESCAPE);
+  return serializeJson(bundle);
+}
+
+/** Any JSON made safe to sit inside a script element, as the bundle is. */
+export function serializeJson(value: unknown): string {
+  return JSON.stringify(value).replaceAll('<', LESS_THAN_ESCAPE);
 }
 
 /** Fills the placeholder, which must appear exactly once. */

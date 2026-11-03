@@ -7,15 +7,16 @@ import { MAX_VALIDATION_RETRIES } from './validation-stop-hook.ts';
 import type { Finding } from '../review/findings.ts';
 import type { NarrativeReview, OverviewStyles } from '../review/narrative.ts';
 import { DEFAULT_OVERVIEW_STYLE } from '../review/prompt/overview-styles.ts';
+import { DEFAULT_DIAGRAM_STYLE, type DiagramStyle } from '../review/prompt/diagram-styles.ts';
 import { splitPart } from '../review/prompt/split-hunks.ts';
-import { type ClaudeRunDeps, type ClaudeRunResult, runClaude } from './claude-run.ts';
+import { type ClaudeRunDeps, type ClaudeRunResult, type Effort, runClaude } from './claude-run.ts';
 import { gather, readContext, type RunContext } from './context.ts';
 import { Shell } from './git.ts';
 import { onInterrupt } from './interrupts.ts';
 import { groundingForRun, parseRun, readFindings, readReview } from './parse.ts';
 import { openFile } from './platform.ts';
 import { startProgress } from './progress.ts';
-import { readOverviewStyles, writePrompt } from './prompt.ts';
+import { readRunStyles, writePrompt } from './prompt.ts';
 import { HOST_RENDER_DEPS, renderRun, type RenderDeps } from './render.ts';
 import { createRunFolder, latestRunFolder, reportFileName, type RunFiles } from './run-folder.ts';
 import { writeStubRun } from './stub-run.ts';
@@ -68,6 +69,7 @@ export interface ReviewOptions {
   /** Write a mechanical review instead of running a model. */
   stub: boolean;
   model: string;
+  effort: Effort;
   maxTurns: number;
   timeoutMs: number;
   from: Exclude<Stage, 'gather'> | null;
@@ -83,6 +85,8 @@ export interface ReviewOptions {
   splitLines: number;
   /** How the overview's and the chapters' bodies are written, written into the prompt; several to compare. */
   overviewStyles: OverviewStyles;
+  /** How the review's diagrams are drawn, written into the prompt. */
+  diagramStyle: DiagramStyle;
 }
 
 export interface ReviewDeps {
@@ -112,23 +116,28 @@ export async function review(
 
   if (runs('prompt')) {
     const started = performance.now();
-    const prompt = await writePrompt(context, run, options.instructions, options.overviewStyles);
+    const prompt = await writePrompt(context, run, options.instructions, {
+      overview: options.overviewStyles,
+      diagrams: options.diagramStyle,
+    });
     const yours = options.instructions === null ? '' : ' with yours';
     const asked = options.overviewStyles;
     const style =
       asked.length === 1 && asked[0] === DEFAULT_OVERVIEW_STYLE
         ? ''
         : `; ${asked.join(', ')} overview ${asked.length === 1 ? 'style' : 'styles'}`;
+    const diagrams =
+      options.diagramStyle === DEFAULT_DIAGRAM_STYLE ? '' : `; ${options.diagramStyle} diagrams`;
     stage(
       'prompt',
-      `~${tokens(prompt)} tokens${yours}, plus the review instructions${style}`,
+      `~${tokens(prompt)} tokens${yours}, plus the review instructions${style}${diagrams}`,
       performance.now() - started,
     );
   }
 
   // Read back off the run folder rather than taken from the flag, so a resumed
   // run is held to the styles its prompt asked for.
-  const styles = runs('parse') ? await readOverviewStyles(run) : null;
+  const styles = runs('parse') ? (await readRunStyles(run)).overview : null;
 
   if (runs('run')) {
     if (limits) {
@@ -167,6 +176,7 @@ export async function review(
               cwd: worktree?.path ?? context.target.repoRoot,
               tree: worktree ? 'pr' : 'own',
               model: options.model,
+              effort: options.effort,
               maxTurns: options.maxTurns,
               timeoutMs: options.timeoutMs,
               grounding: groundingForRun(context, styles!),

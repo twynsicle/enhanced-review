@@ -19,6 +19,7 @@ import { ContextExcerptCard } from '@/report/reader/context-excerpt';
 import { useReviewFiles } from '@/report/reader/file-source';
 import { InlineDiffChunk } from '@/report/reader/inline-diff-chunk';
 import { DiagramFigure } from '@/report/diagram/diagram-figure';
+import type { DiagramFiles } from '@/report/diagram/node-box';
 import { InsightCallout } from '@/report/reader/insight-callout';
 import { MarkdownText } from '@/report/reader/markdown-text';
 import { OverviewStyleTabs } from '@/report/reader/overview-style-tabs';
@@ -106,7 +107,7 @@ export function ChapterCard({
   meta,
   chapterIndex,
   judgementCalls,
-  onSelectFile,
+  diagramFiles,
   footer,
 }: {
   chapter: NarrativeChapter;
@@ -124,8 +125,8 @@ export function ChapterCard({
    * belongs to a decision and is anchored to a file rather than to a chapter.
    */
   judgementCalls?: ReadonlyMap<string, JudgementCall[]>;
-  /** Threaded down so a grounded diagram node can open its file. */
-  onSelectFile?: (filename: string) => void;
+  /** Threaded down so a node grounded in a reviewed file can open it. */
+  diagramFiles?: DiagramFiles;
   /** Drawn after everything else: where the reader goes next. */
   footer?: ReactNode;
 }) {
@@ -195,7 +196,10 @@ export function ChapterCard({
        * same reason a diff does.
        */}
       {chapter.diagram && (
-        <DiagramFigure diagram={chapter.diagram} {...(onSelectFile ? { onSelectFile } : {})} />
+        <DiagramFigure
+          diagram={chapter.diagram}
+          {...(diagramFiles ? { files: diagramFiles } : {})}
+        />
       )}
 
       {/*

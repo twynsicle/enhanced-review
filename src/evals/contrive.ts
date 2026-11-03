@@ -5,33 +5,24 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 import { hostEnv } from '../cli/host-env.ts';
-import { latestRunFolder } from '../cli/run-folder.ts';
-import { slugify } from '../cli/targets.ts';
-import { importCase } from './skim-import.ts';
-import type { CaseFiles } from './skim-case.ts';
 
 /**
- * A contrived case: a change written to show one kind of skim several times
- * over, beside ordinary read hunks and at least one trap that looks like the
- * kind but is not. Real pull requests carry each kind only as often as it
- * happens to occur, so a rule about a kind can only be measured on a change
- * made for it.
+ * A contrived change: a branch written to show one thing, laid over a model
+ * system kept in this repository, so that a rule can be measured on a change
+ * made to exercise it rather than on whatever a real pull request happened
+ * to carry. Each eval keeps its own model system and its own branches:
  *
- *   evals/skims/contrived/
- *     base/            one small service, the tree every branch starts from
+ *   evals/<eval>/contrived/
+ *     base/                the model system, the tree every branch starts from
  *     <name>/branch.json   the branch, its title and description, the commit
  *     <name>/files/        the files the branch changes or adds, whole
  *
- * Building one stands the base up as a repository in the temp directory with
- * a bare origin, commits the branch over it, runs `er review --stub` there
- * (no model, so every seeded tier is `read`) and imports the run as a case.
- * The repository is thrown away; the case is what is kept, and the source
- * here is how it is made again. The description goes into the case as a pull
- * request's would, since the model reads it, and nothing in it may say what
- * the branch is for.
+ * Standing one up puts the base in a temp directory as `main` of a working
+ * clone with a bare origin, commits the branch over it, and hands the tree to
+ * the caller for as long as it needs it. The repository is thrown away; the
+ * source here is how it is made again. The description goes to the model as
+ * a pull request's would, so nothing in it may say what the branch is for.
  */
-export const CONTRIVED_DIR = 'evals/skims/contrived';
-
 export const BranchSpecSchema = z.object({
   branch: z.string().min(1),
   title: z.string().min(1),
@@ -42,28 +33,34 @@ export const BranchSpecSchema = z.object({
 });
 export type BranchSpec = z.infer<typeof BranchSpecSchema>;
 
+/** The model system a set of branches is laid over. */
+export interface ModelRepo {
+  /** The base tree. */
+  base: string;
+  /** The working clone's directory name, which the model sees as the repository's. */
+  name: string;
+  /** The one commit the base is imported as. */
+  importSubject: string;
+  /** A fixed author and date, so two builds of one branch make the same commits. */
+  author: { name: string; email: string; date: string };
+}
+
 const execFileAsync = promisify(execFile);
 
-/** A fixed author, so two builds of one branch make the same commits. */
-const IDENTITY = {
-  GIT_AUTHOR_NAME: 'Mara Lindqvist',
-  GIT_AUTHOR_EMAIL: 'mara@stockline.example',
-  GIT_COMMITTER_NAME: 'Mara Lindqvist',
-  GIT_COMMITTER_EMAIL: 'mara@stockline.example',
-  GIT_AUTHOR_DATE: '2024-06-03T09:12:00Z',
-  GIT_COMMITTER_DATE: '2024-06-03T09:12:00Z',
-};
-
 export async function readBranchSpec(specDir: string): Promise<BranchSpec> {
-  const file = path.join(specDir, 'branch.json');
-  const parsed = BranchSpecSchema.safeParse(JSON.parse(await readFile(file, 'utf8')));
+  return parseBranchSpec(path.join(specDir, 'branch.json'), BranchSpecSchema);
+}
+
+/** `branch.json` under a spec directory, through whichever spec schema the eval keeps. */
+export async function parseBranchSpec<T>(file: string, schema: z.ZodType<T>): Promise<T> {
+  const parsed = schema.safeParse(JSON.parse(await readFile(file, 'utf8')));
   if (!parsed.success) throw new Error(`${file} is not a branch spec: ${parsed.error.message}`);
   return parsed.data;
 }
 
-/** Every contrived branch under the root, by name. */
-export async function listContrived(root: string): Promise<string[]> {
-  const entries = await readdir(path.join(root, CONTRIVED_DIR), { withFileTypes: true });
+/** Every branch under a contrived directory, by name, the base left out. */
+export async function listBranches(contrivedDir: string): Promise<string[]> {
+  const entries = await readdir(contrivedDir, { withFileTypes: true });
   return entries
     .filter((entry) => entry.isDirectory() && entry.name !== 'base')
     .map((entry) => entry.name)
@@ -78,69 +75,70 @@ export async function layBranch(specDir: string, spec: BranchSpec, work: string)
   }
 }
 
-export interface ContriveDeps {
-  /** Runs `er review --stub --no-open` in a repository; the real one spawns the bin. */
-  stubReview?: (cwd: string) => Promise<void>;
-}
-
-export async function contriveCase(
-  name: string,
-  root: string,
-  deps: ContriveDeps = {},
-): Promise<CaseFiles> {
-  const specDir = path.join(root, CONTRIVED_DIR, name);
-  const spec = await readBranchSpec(specDir);
-  const temp = await mkdtemp(path.join(tmpdir(), `er-contrived-${name}-`));
+/**
+ * The branch stood up in a throwaway repository for the length of `run`, and
+ * removed after it however `run` ends.
+ */
+export async function withContrivedBranch<T>(
+  repo: ModelRepo,
+  specDir: string,
+  spec: BranchSpec,
+  run: (work: string) => Promise<T>,
+): Promise<T> {
+  const temp = await mkdtemp(path.join(tmpdir(), `er-contrived-${path.basename(specDir)}-`));
   try {
-    const work = await standUpRepo(temp, path.join(root, CONTRIVED_DIR, 'base'));
-    await git(work, 'switch', '--quiet', '-c', spec.branch);
+    const work = await standUpRepo(temp, repo);
+    await git(work, repo, 'switch', '--quiet', '-c', spec.branch);
     await layBranch(specDir, spec, work);
-    await git(work, 'add', '--all');
-    await git(work, 'commit', '--quiet', '-m', spec.commit.subject, '-m', spec.commit.body);
-
-    await (deps.stubReview ?? stubReview)(work);
-    const run = await latestRunFolder(work, `branch-${slugify(spec.branch)}`);
-    if (!run) throw new Error(`no run folder after the stub review of ${spec.branch}`);
-    return await importCase(run.folder, name, root, {
-      title: spec.title,
-      description: spec.description,
-      folder: `${CONTRIVED_DIR}/${name}`,
-    });
+    await git(work, repo, 'add', '--all');
+    await git(work, repo, 'commit', '--quiet', '-m', spec.commit.subject, '-m', spec.commit.body);
+    return await run(work);
   } finally {
-    await rm(temp, { recursive: true, force: true });
+    // On Windows the folder can stay locked for a moment after er and the git
+    // it spawned exit, and an EBUSY here once ended a whole sweep.
+    await rm(temp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 }
 
 /** The base tree as `main` of a working clone with a bare origin, origin's HEAD set. */
-async function standUpRepo(temp: string, base: string): Promise<string> {
+async function standUpRepo(temp: string, repo: ModelRepo): Promise<string> {
   const origin = path.join(temp, 'origin.git');
-  const work = path.join(temp, 'stockline');
-  await git(temp, 'init', '--quiet', '--bare', '--initial-branch=main', origin);
-  await git(temp, 'init', '--quiet', '--initial-branch=main', work);
+  const work = path.join(temp, repo.name);
+  await git(temp, repo, 'init', '--quiet', '--bare', '--initial-branch=main', origin);
+  await git(temp, repo, 'init', '--quiet', '--initial-branch=main', work);
   for (const [key, value] of [
     ['commit.gpgsign', 'false'],
     ['core.autocrlf', 'false'],
     ['core.safecrlf', 'false'],
   ] as const) {
-    await git(work, 'config', key, value);
+    await git(work, repo, 'config', key, value);
   }
-  await git(work, 'remote', 'add', 'origin', origin);
-  await cp(base, work, { recursive: true });
-  await git(work, 'add', '--all');
-  await git(work, 'commit', '--quiet', '-m', 'Import the stock sync service');
-  await git(work, 'push', '--quiet', 'origin', 'main');
+  await git(work, repo, 'remote', 'add', 'origin', origin);
+  await cp(repo.base, work, { recursive: true });
+  await git(work, repo, 'add', '--all');
+  await git(work, repo, 'commit', '--quiet', '-m', repo.importSubject);
+  await git(work, repo, 'push', '--quiet', 'origin', 'main');
   // A branch review measures from origin's default branch, which a clone
   // records and a fresh `remote add` does not.
-  await git(work, 'remote', 'set-head', 'origin', 'main');
+  await git(work, repo, 'remote', 'set-head', 'origin', 'main');
   return work;
 }
 
-async function git(cwd: string, ...args: string[]): Promise<void> {
-  await execFileAsync('git', args, { cwd, env: { ...hostEnv(), ...IDENTITY } });
+async function git(cwd: string, repo: ModelRepo, ...args: string[]): Promise<void> {
+  const { name, email, date } = repo.author;
+  const identity = {
+    GIT_AUTHOR_NAME: name,
+    GIT_AUTHOR_EMAIL: email,
+    GIT_COMMITTER_NAME: name,
+    GIT_COMMITTER_EMAIL: email,
+    GIT_AUTHOR_DATE: date,
+    GIT_COMMITTER_DATE: date,
+  };
+  await execFileAsync('git', args, { cwd, env: { ...hostEnv(), ...identity } });
 }
 
 /** `er review --stub --no-open` through this checkout's bin, in `cwd`. */
-async function stubReview(cwd: string): Promise<void> {
+export async function stubReview(cwd: string): Promise<void> {
   const bin = path.join(path.dirname(import.meta.dirname), 'cli', 'er.ts');
   await execFileAsync(process.execPath, [bin, 'review', '--stub', '--no-open'], {
     cwd,

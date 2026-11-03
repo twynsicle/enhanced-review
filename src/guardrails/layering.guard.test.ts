@@ -16,7 +16,7 @@ import {
  *   cli    → cli, review
  *   report → report, review
  *   review → review
- *   evals  → evals, cli, review
+ *   evals  → evals, cli, review, report
  *
  * `review` is the shape of a review and the rules that judge one, read by the
  * CLI in Node and by the report in the browser, so it may import neither side
@@ -24,13 +24,15 @@ import {
  * UI package. The report ships to the browser as one file, so it may not
  * import Node or the SDK either. Only the report renders, so only the report
  * imports React, Mantine or the icons. `evals` drives the review's own prompt
- * through the CLI's run plumbing, so it may import both; nothing imports it.
+ * through the CLI's run plumbing, so it may import both, and fills the
+ * report's contact sheet page, so it may import that page's data shape; nothing
+ * imports it.
  */
 const ALLOWED: Record<'cli' | 'report' | 'review' | 'evals', Area[]> = {
   cli: ['cli', 'review'],
   report: ['report', 'review'],
   review: ['review'],
-  evals: ['evals', 'cli', 'review'],
+  evals: ['evals', 'cli', 'review', 'report'],
 };
 
 const UI_PACKAGES = /^(react|react-dom|@mantine\/|@tabler\/|@monaco-editor\/|zustand)/;

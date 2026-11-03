@@ -8,8 +8,12 @@ import {
 import {
   cutFrom,
   DIAGRAM_TYPE,
+  estimateMonoWidth,
   estimateTextWidth,
   fitCaption,
+  fitPath,
+  PATH_HEIGHT,
+  pathLine,
   widestLine,
   wrapLabel,
 } from './text-metrics';
@@ -73,6 +77,8 @@ export interface LaidOutNode {
   change: DiagramChange;
   kind: DiagramNodeKind;
   filename?: string;
+  /** The path drawn beneath the label, fitted to the box; see `pathLine`. */
+  path?: string;
   hunkIds?: string[];
   note?: string;
   /** The synthetic entry dot on a state machine, drawn as a filled circle. */
@@ -123,25 +129,32 @@ export interface GraphLayout {
 interface NodeBox {
   lines: string[];
   fullLabel?: string;
+  path?: string;
   width: number;
   height: number;
 }
 
-function measureNode(label: string): NodeBox {
+function measureNode(label: string, filename: string | undefined): NodeBox {
   const { size, lineHeight } = DIAGRAM_TYPE.node;
   const inner = NODE_MAX_W - NODE_PAD_X * 2;
   const single = estimateTextWidth(label, size);
   const lines = single <= inner ? [label] : wrapLabel(label, inner, size, NODE_MAX_LINES);
+  const fullPath = pathLine(label, filename);
+  const pathWidth =
+    fullPath !== undefined ? estimateMonoWidth(fullPath, DIAGRAM_TYPE.edge.size) : 0;
   const width = Math.min(
     NODE_MAX_W,
-    Math.max(NODE_MIN_W, Math.ceil(widestLine(lines, size)) + NODE_PAD_X * 2),
+    Math.max(NODE_MIN_W, Math.ceil(Math.max(widestLine(lines, size), pathWidth)) + NODE_PAD_X * 2),
   );
   const fullLabel = cutFrom(label, lines);
   return {
     lines,
     ...(fullLabel !== undefined ? { fullLabel } : {}),
+    ...(fullPath !== undefined
+      ? { path: fitPath(fullPath, DIAGRAM_TYPE.edge.size, width - NODE_PAD_X * 2) }
+      : {}),
     width,
-    height: lines.length * lineHeight + NODE_PAD_Y * 2,
+    height: lines.length * lineHeight + (fullPath !== undefined ? PATH_HEIGHT : 0) + NODE_PAD_Y * 2,
   };
 }
 
@@ -194,7 +207,7 @@ function layoutPanel(
 
   const boxes = new Map<string, NodeBox>();
   for (const node of nodes) {
-    const box = measureNode(node.label);
+    const box = measureNode(node.label, node.filename);
     boxes.set(node.id, box);
     graph.setNode(node.id, { width: box.width, height: box.height });
     if (node.group !== undefined && usedGroups.has(node.group)) {
@@ -263,6 +276,7 @@ function layoutPanel(
       change: node.change,
       kind: node.kind,
       ...(node.filename !== undefined ? { filename: node.filename } : {}),
+      ...(box.path !== undefined ? { path: box.path } : {}),
       ...(node.hunkIds !== undefined ? { hunkIds: node.hunkIds } : {}),
       ...(node.note !== undefined ? { note: node.note } : {}),
     };

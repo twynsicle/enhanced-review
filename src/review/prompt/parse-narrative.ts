@@ -1,4 +1,5 @@
 import { plural } from '../plural.ts';
+import { isRepositoryPath } from './repository-path.ts';
 import { asRead, judgementCallOwner, mergeCitations } from '../coverage.ts';
 import {
   excerptsDropped,
@@ -299,6 +300,8 @@ function reportTierRepairs(
   }
 }
 
+const PROSE_FIELDS = new Set(['lede', 'bodies', 'body']);
+
 /**
  * The overview's `{ lede, bodies }` passage. Nothing written is `undefined`
  * rather than a passage of empty strings, so the caller can tell "no prose"
@@ -331,6 +334,14 @@ function sanitizeProse(
     return { lede: only };
   }
   if (!isRecord(raw)) return nothing();
+  // A field nested here, an overview diagram written inside the summary say,
+  // would vanish with nothing to show for it; failing names it for the retry.
+  for (const key of Object.keys(raw).filter((field) => !PROSE_FIELDS.has(field))) {
+    log.add(
+      'prose-field-stray',
+      `${whose} holds "${key}", a field it does not take: it holds a lede and bodies, and every other field of the review sits beside it at the top level.`,
+    );
+  }
   const lede = typeof raw['lede'] === 'string' ? raw['lede'].trim() : '';
   const bodies = sanitizeBodies(raw, whose, styles, log);
   if (lede.length > 0) return { lede, ...(bodies ? { bodies } : {}) };
@@ -661,20 +672,6 @@ function raiseJudgedHunks(
 
 function isLineNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1;
-}
-
-/**
- * A path as git names a file from the repository root. Anything else — an
- * absolute path, a `..`, a Windows separator — is not a file this review can
- * show, and handed to git as a pathspec it would fail the parse stage rather
- * than the one excerpt.
- */
-function isRepositoryPath(filename: string): boolean {
-  return (
-    !filename.includes(BACKSLASH) &&
-    !/^[A-Za-z]:/.test(filename) &&
-    filename.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
-  );
 }
 
 /** An excerpt as a finding names it: its path and span, as far as it gave them. */
@@ -1137,23 +1134,89 @@ function tagPositions(text: string, tag: string): number[] {
   return found;
 }
 
-interface Block {
-  value: unknown;
-  /** Whether escaping stray quotes is what made it parse. */
-  repaired: boolean;
-}
+type Block =
+  | {
+      value: unknown;
+      /** Whether escaping stray quotes is what made it parse. */
+      repaired: boolean;
+    }
+  | {
+      /** Why the body is not JSON, worded for the model that has to write it again. */
+      unreadable: string;
+    };
 
 /** One block's JSON, with one repair attempt. */
-function parseBlock(body: string): Block | null {
+function parseBlock(body: string): Block {
   try {
     return { value: JSON.parse(body), repaired: false };
-  } catch {
+  } catch (error) {
     try {
       return { value: JSON.parse(escapeStrayQuotes(body)), repaired: true };
     } catch {
-      return null;
+      return { unreadable: whyUnreadable(body, error) };
     }
   }
+}
+
+/**
+ * What is wrong with JSON that would not parse. "Not valid JSON" alone sends a
+ * model back to write the same block again: one review's four answers each
+ * left its outermost object unclosed, and only the last character was wrong.
+ * So brackets still open at the end are named with what closes them, when
+ * closing them is all the body needs, and any other error comes with the text
+ * around it.
+ */
+function whyUnreadable(body: string, error: unknown): string {
+  if (body === '') return 'it is empty';
+  const open = openAtEnd(body);
+  if (open !== null && open.length > 0) {
+    const closers = open
+      .toReversed()
+      .map((bracket) => (bracket === '{' ? '}' : ']'))
+      .join('');
+    if (parses(body + closers)) {
+      return `it ends with ${plural(open.length, 'bracket')} still open; it needs ${closers} at the end`;
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  const at = /position (\d+)/.exec(message);
+  if (!at) return message;
+  const position = Number(at[1]);
+  const near = body.slice(Math.max(0, position - 40), position + 20);
+  return `${message}, near ${JSON.stringify(near)}`;
+}
+
+function parses(json: string): boolean {
+  try {
+    JSON.parse(json);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The brackets left open when the body ends, outermost first, or null when a
+ * bracket closes something it does not match or a string never ends: then the
+ * fault is somewhere other than the end.
+ */
+function openAtEnd(body: string): string[] | null {
+  const stack: string[] = [];
+  let inString = false;
+  for (let i = 0; i < body.length; i += 1) {
+    const char = body[i]!;
+    if (inString) {
+      if (char === BACKSLASH) i += 1;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === '{' || char === '[') stack.push(char);
+    else if (char === '}' || char === ']') {
+      if (stack.pop() !== (char === '}' ? '{' : '[')) return null;
+    }
+  }
+  return inString ? null : stack;
 }
 
 /**
@@ -1193,10 +1256,10 @@ function isAnswer(value: unknown): boolean {
  * opening tag paired with the last closing tag after it, so the reason a
  * person is given is drawn from the block the model most likely meant.
  */
-function usableBlock(text: string): { block: Block | null } | null {
+function usableBlock(text: string): { block: Block } | null {
   const opens = tagPositions(text, START_TAG);
   const closes = tagPositions(text, END_TAG);
-  let fallback: { block: Block | null } | null = null;
+  let fallback: { block: Block } | null = null;
 
   for (let i = opens.length - 1; i >= 0; i -= 1) {
     const from = opens[i]! + START_TAG.length;
@@ -1204,7 +1267,7 @@ function usableBlock(text: string): { block: Block | null } | null {
     if (ends.length === 0) continue;
     for (let j = ends.length - 1; j >= 0; j -= 1) {
       const parsed = parseBlock(text.slice(from, ends[j]!).trim());
-      if (parsed && isAnswer(parsed.value)) return { block: parsed };
+      if ('value' in parsed && isAnswer(parsed.value)) return { block: parsed };
     }
     fallback ??= { block: parseBlock(text.slice(from, ends.at(-1)!).trim()) };
   }
@@ -1220,8 +1283,11 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
   }
 
   const block = found.block;
-  if (!block) {
-    log.add('answer-unparseable', 'The <narrative_review> block is not valid JSON.');
+  if ('unreadable' in block) {
+    log.add(
+      'answer-unparseable',
+      `The <narrative_review> block is not valid JSON: ${block.unreadable}.`,
+    );
     return fail(log);
   }
   if (block.repaired) {
@@ -1282,7 +1348,9 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
   const empty = reportEmptyChapters(chapters, grounding, log);
   const headless = reportHeadlessChapters(chapters, log);
   const unstyled = reportMissingStyles(overviewSummary, chapters, styles, log);
-  const misfiled = log.findings.some((item) => item.code === 'body-style-dropped');
+  const misfiled = log.findings.some(
+    (item) => item.code === 'body-style-dropped' || item.code === 'prose-field-stray',
+  );
   if (empty || headless || unstyled || misfiled) return fail(log);
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment'], log);

@@ -5,7 +5,7 @@ import { parseArgs } from 'node:util';
 import { DEFAULT_MODEL } from '../cli/claude-run.ts';
 import { fail, line, note } from '../cli/terminal.ts';
 import { caseFiles, catalogDigest, listCases, readCase } from './skim-case.ts';
-import { contriveCase, listContrived } from './contrive.ts';
+import { contriveCase, listContrived } from './skim-contrive.ts';
 import { defaultCaseName, importCase, recutCase } from './skim-import.ts';
 import { readRunAnswer } from './skim-review.ts';
 import { readSweep, requireApiKey, runSweep, sweepFiles } from './skim-run.ts';

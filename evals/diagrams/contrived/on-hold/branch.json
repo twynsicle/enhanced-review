@@ -1,0 +1,21 @@
+{
+  "branch": "feat/hold-undeliverable-orders",
+  "title": "Hold a paid order whose address the carrier cannot deliver to, until the desk releases it",
+  "description": "Parcelnet will not take a parcel to a PO box in the US or France, and has no route into the Channel Islands, the Isle of Man, Alaska, Hawaii or the French overseas departments. Today such an order is paid, packed, and bounced at booking, where it sits in `packing` until the stuck sweep gives up on it and the desk hears about it from the customer. Refusing the address at validation was tried and loses the sale, when the desk settles most of these with one email once the customer has paid, so the check now runs after the capture: `checkDeliverable` in address.ts holds a small table of the PO-box countries and the postcode districts the carrier does not serve, and a paid order that fails it moves to a new `on_hold` status with the reason in the log and no pack job queued; the confirmation still goes out. The desk works the list from `packhouse stuck`, which now shows every held order with how long it has waited, and `packhouse release <id>` queues the pack job once the address is settled; the pack job takes the order from `on_hold` to `packing` the same way it takes a paid one, so the worker is untouched. Release takes the desk's word for the address, since the carrier has the last say at booking anyway and an order it refuses turns up in `stuck` as before. An order nobody releases in a week is cancelled by the abandoned sweep alongside the placed-but-unpaid ones; it was paid, so the sweep logs it as a warning and the desk refunds it in Cardflow by hand, the refund notice landing on the order as it does today. `TRANSITIONS` gains `paid → on_hold` and `on_hold → packing | cancelled`; the HTTP layer, queue, store and gateway are unchanged.",
+  "commit": {
+    "subject": "Hold paid orders with an undeliverable address",
+    "body": "A new on_hold status, entered from paid when checkDeliverable refuses the\naddress (PO box in US/FR, or a postcode district the carrier has no route\ninto) and left by `packhouse release <id>`, which queues the pack job, or by\nthe abandoned sweep after a week, which cancels. `stuck` lists held orders."
+  },
+  "removed": [],
+  "expect": {
+    "overview": { "kinds": ["architecture", "beforeAfter"] },
+    "chapterDiagrams": { "min": 1, "max": 2, "kinds": ["state", "beforeAfter"] },
+    "mustName": [
+      "a paid order whose address fails the deliverability check waits in on_hold instead of going to packing",
+      "the desk releases it to packing from the CLI",
+      "the abandoned sweep cancels one held for a week"
+    ],
+    "mustReach": ["src/worker/pack.ts", "src/queue/queue.ts"],
+    "question": "How does an order get into on_hold, and what are the two ways out?"
+  }
+}

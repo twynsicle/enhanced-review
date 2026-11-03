@@ -22,6 +22,8 @@ export interface SdkRunResult {
   /** Every result carries this, including a run that ran out of turns. */
   costUsd: number | null;
   usage: SdkUsage;
+  /** The models the run used, as the SDK reports them: a run can call more than one. */
+  models: string[];
 }
 
 /**
@@ -135,6 +137,7 @@ export async function runSdkLoop(
           // A run that ran out of turns still charged for the ones it took.
           costUsd: message.total_cost_usd,
           usage: totalUsage(message.modelUsage),
+          models: Object.keys(message.modelUsage ?? {}),
         };
       } else if (message.type === 'system') {
         callbacks.onSystem?.(message.subtype);

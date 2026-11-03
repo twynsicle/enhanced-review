@@ -17,18 +17,20 @@ src/cli/
   er.ts            the bin (`npm link` puts it on PATH): parseCommand → review; usage errors reprint the usage;
                    the only SIGINT/SIGTERM handlers (run interrupts.ts cleanups, exit 130/143)
   command-line.ts  USAGE, UsageError and parseCommand, every flag checked before anything runs (no side
-                   effects but reading an --instructions-file, so the tests drive it directly):
+                   effects but reading an --instructions-file, so the tests drive it directly): --effort
+                   <level> becomes ReviewOptions.effort (one of EFFORTS, high by default);
                    --instructions or --instructions-file becomes ReviewOptions.instructions and
                    --overview-style <names> ReviewOptions.overviewStyles (one or more of OVERVIEW_STYLES,
                    comma-separated, in the order named and each once; `all`, alone or in the list, adds every
-                   style not already named), each refused
+                   style not already named) and --diagram-style <name> ReviewOptions.diagramStyle (one of
+                   DIAGRAM_STYLES, mechanism by default), each refused
                    with a --from past prompt, which writes no new prompt; --split-hunks <lines> becomes
                    ReviewOptions.splitLines, refused with any --from, since hunks are numbered at gather
   review.ts        the review command: target, then gather → prompt → run → parse → render; --stub, --from, --no-open,
-                   --keep-worktree, --model, --max-turns, --timeout, --allow-large, --instructions, --overview-style
-                   (named on the prompt stage line unless it is narrative alone); the run and parse stages hold
-                   the answer to the styles readOverviewStyles reads back off styles.json once, never the
-                   command line, handed to writeStubRun, the run's grounding and parseRun; past 300 reviewed files a model run is
+                   --keep-worktree, --model, --effort, --max-turns, --timeout, --allow-large, --instructions,
+                   --overview-style (named on the prompt stage line unless it is narrative alone), --diagram-style (named there
+                   unless it is the default); the run and parse stages hold the answer to the overview styles
+                   readRunStyles reads back off styles.json once, never the command line, handed to writeStubRun, the run's grounding and parseRun; past 300 reviewed files a model run is
                    refused (a fresh one inside gather, before any blob is read; a resumed one before the run),
                    past 50 it warns, and --stub is held to neither; prints each warning finding after the parse
                    line and returns WARNED (2) when there was one — --from render reads them back with
@@ -79,26 +81,30 @@ src/cli/
                    one diff file carrying every reviewed file's annotated patch (a patch holding two file sections
                    where the list paired one fails the stage), its line count carried as
                    `diffLines` so the prompt can ask the agent to Read it in one call; pr.md
-  prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md + styles.json (the overview
-                   styles asked for, which readOverviewStyles reads back for the run and parse stages, refusing a
-                   run folder without one or with anything but a list of styles in it): header, description,
+  prompt.ts        system.md (NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE) + prompt.md + styles.json
+                   (RunStylesSchema, `{ overview, diagrams }`: the overview styles and the diagram style asked
+                   for, which readRunStyles reads back for the run and parse stages, refusing a run folder
+                   without one or with anything else in it): header, description,
                    commits, where the agent is, Files Changed, Not Reviewed, the hunk table (each hunk's proven
                    facts after it as hints: `[whitespace only]`, `[imports only]`, `[moved from <path>, N%]`; the
                    parser settles the tier of a whitespace-only or imports-only hunk itself), and where the diff
-                   file is, with its length, then the overview style's section (none for narrative, and never
+                   file is, with its length, then the overview style's section (none for narrative), then the
+                   diagram style's (every run has one; neither is ever
                    in system.md, which stays the same on every run so it is read from cache), then the
                    engineer's own instructions when given; the dirty paths
                    under Where You Are, with a line asking for no excerpt from them
   claude-run.ts    the run stage: the Agent SDK in the working directory → raw.txt as it streams + events.jsonl
-                   (tool uses, refusals, blocked stops, and a result event carrying turns, cost and the token
-                   usage); validationStopHook registered on Stop over the run's own copy of the answer,
+                   (a start event with the model and effort asked for, tool uses, refusals, blocked stops, and a
+                   result event carrying turns, cost, the token usage and the models the SDK reports it used);
+                   the effort always set (DEFAULT_EFFORT, high, or --effort), never left to the bundled Claude
+                   Code, whose default for a model moves between its versions; validationStopHook registered on Stop over the run's own copy of the answer,
                    so a disqualified one costs a turn rather than a second run, and each refusal is a `blocked`
                    event and a terminal note, and a hook that throws is a `hook-error` event and a warning rather
                    than a stranded run; the engineer's user settings, plus the working tree's
                    project/local settings only when it is their own checkout (never a PR's worktree), read-only tools, the engineer's environment inherited by the subprocess; the SDK is imported
                    only when a run happens
   sdk-loop.ts      the SDK message loop: text, tool uses and the result out — subtype, turns, cost and token
-                   usage, cost counted even when the run ran out of turns — nothing thrown; howItEnded, the one
+                   usage and the models used, cost counted even when the run ran out of turns — nothing thrown; howItEnded, the one
                    reading of a result
   validation-stop-hook.ts
                    the retry, as a Stop hook: validates the text accumulated so far and refuses the stop up to
@@ -122,6 +128,11 @@ src/cli/
                    refusing one missing or half-written); a review with no excerpts reads no git; paths are
                    looked up in Maps, never as a plain object's keys, since a root file may be `constructor`
                    or `__proto__`
+  diagram-files.ts checkDiagramFiles: every diagram filename that is not a changed file, held to the head
+                   commit with one recursive ls-tree; a blob stays a file, a path with files under it becomes a
+                   folder written with its trailing `/` however the model wrote it, and anything else (missing,
+                   a submodule, a file the agent saw only in its working tree) leaves its node, which stays, in
+                   one `diagram-part-dropped` note per diagram; a review naming no such path reads no git
   stub-run.ts      --stub: raw.txt with one chapter per reviewed file citing its hunks as `read` (with a
                    body in each style asked for, naming its style when there are several, so the reader's switch
                    can be seen), one
@@ -134,7 +145,8 @@ src/cli/
   parse.ts         raw.txt → validateReview (the same verdict the Stop hook uses) → review.json + findings.json
                    + excerpts.json, files taken from context, each carrying its share of the hunk catalog; the
                    grounding's `changed` is every file in context, skipped ones too; the excerpts are held to
-                   the head commit through the repository's Shell (excerpts.ts), the last git this run reads; what the run itself cost
+                   the head commit through the repository's Shell (excerpts.ts), and so are the files a diagram
+                   names outside the change (diagram-files.ts), the last git this run reads; what the run itself cost
                    is read back off events.jsonl rather than passed down, so --from parse reports the same
                    findings without paying for the model again: refusals → one `commands-refused` warning, a
                    result that is missing or not a clean success → a fatal `run-stopped-early`, blocked stops →

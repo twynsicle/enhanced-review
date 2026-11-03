@@ -91,7 +91,7 @@ export function requireApiKey(): void {
   const key = hostEnv().ANTHROPIC_API_KEY;
   if (typeof key === 'string' && key.trim() !== '') return;
   throw new Error(
-    'ANTHROPIC_API_KEY is not set. The skim eval runs many samples and spends only API credit, ' +
+    'ANTHROPIC_API_KEY is not set. An eval sweep runs many samples and spends only API credit, ' +
       'never a plan sign-in: create a key in the Console organisation linked to your plan ' +
       '(platform.claude.com/settings/billing) and export it for this shell.',
   );

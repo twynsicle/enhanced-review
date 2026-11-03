@@ -5,6 +5,16 @@ import type { Diagram } from '@/review/diagram';
 import { REAL_ARCHITECTURE, REAL_SEQUENCE, REAL_STATE } from '@/report/test/diagram-fixtures';
 import { render } from '@/report/test/render';
 import { DiagramFigure } from './diagram-figure';
+import type { DiagramFiles } from './node-box';
+
+const groundedFiles = (REAL_ARCHITECTURE.kind === 'sequence' ? [] : REAL_ARCHITECTURE.nodes)
+  .map((node) => node.filename)
+  .filter((filename) => filename !== undefined);
+
+/** Every file the fixture's nodes name, as a review that changed them all would carry. */
+function opener(open = vi.fn(), reviewed: readonly string[] = groundedFiles): DiagramFiles {
+  return { reviewed: new Set(reviewed), open };
+}
 
 describe('DiagramFigure', () => {
   it('names the figure by its title and caption, for anyone who cannot see it', () => {
@@ -33,19 +43,54 @@ describe('DiagramFigure', () => {
   });
 
   it('opens the file behind a grounded node, and offers nothing on one without', () => {
-    const onSelectFile = vi.fn();
-    render(<DiagramFigure diagram={REAL_ARCHITECTURE} onSelectFile={onSelectFile} />);
-
-    const buttons = screen.getAllByRole('button');
-    const grounded = REAL_ARCHITECTURE.kind === 'sequence' ? [] : REAL_ARCHITECTURE.nodes;
-    const groundedCount = grounded.filter((node) => node.filename !== undefined).length;
+    render(<DiagramFigure diagram={REAL_ARCHITECTURE} files={opener()} />);
     // The expand control is a button too.
-    expect(buttons.length).toBe(groundedCount + 1);
+    expect(screen.getAllByRole('button').length).toBe(groundedFiles.length + 1);
+  });
+
+  it('opens only a file the review carries, and draws every grounded path under its label', () => {
+    const [changed, untouched] = groundedFiles;
+    render(
+      <DiagramFigure diagram={REAL_ARCHITECTURE} files={opener(vi.fn(), [changed as string])} />,
+    );
+    const nodes = screen.getAllByRole('button').filter((el) => el.tagName.toLowerCase() === 'g');
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.getAttribute('aria-label')).toContain(changed);
+    // An untouched file opens nothing, but still says where the part lives.
+    expect(screen.getByText(untouched as string)).toBeInTheDocument();
+  });
+
+  it('draws no path under a label that already names the file', () => {
+    const named: Diagram = {
+      ...REAL_ARCHITECTURE,
+      kind: 'architecture',
+      direction: 'down',
+      nodes: [
+        {
+          id: 'a',
+          label: 'worker.ts',
+          kind: 'code',
+          change: 'modified',
+          filename: 'src/worker.ts',
+        },
+        {
+          id: 'b',
+          label: 'Retry sweep',
+          kind: 'code',
+          change: 'unchanged',
+          filename: 'src/sweep.ts',
+        },
+      ],
+      edges: [{ from: 'a', to: 'b', change: 'added' }],
+    };
+    render(<DiagramFigure diagram={named} />);
+    expect(screen.queryByText('src/worker.ts')).not.toBeInTheDocument();
+    expect(screen.getByText('src/sweep.ts')).toBeInTheDocument();
   });
 
   it('calls back with the node file when a grounded node is activated', async () => {
     const onSelectFile = vi.fn();
-    render(<DiagramFigure diagram={REAL_ARCHITECTURE} onSelectFile={onSelectFile} />);
+    render(<DiagramFigure diagram={REAL_ARCHITECTURE} files={opener(onSelectFile)} />);
     const node = screen.getAllByRole('button').find((el) => el.tagName.toLowerCase() === 'g');
     expect(node).toBeDefined();
     await userEvent.click(node as Element);
@@ -100,7 +145,7 @@ describe('DiagramFigure', () => {
     });
     try {
       const onSelectFile = vi.fn();
-      render(<DiagramFigure diagram={REAL_ARCHITECTURE} onSelectFile={onSelectFile} />);
+      render(<DiagramFigure diagram={REAL_ARCHITECTURE} files={opener(onSelectFile)} />);
       await userEvent.click(screen.getByRole('button', { name: /expand diagram/i }));
       const dialog = await screen.findByRole('dialog');
 

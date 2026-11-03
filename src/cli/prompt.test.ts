@@ -6,7 +6,8 @@ import { LOCAL_WORKING_TREE, NARRATIVE_SYSTEM_PROMPT } from '../review/prompt/in
 import { OVERVIEW_STYLES } from '../review/narrative.ts';
 import { OVERVIEW_STYLE_TEXT } from '../review/prompt/overview-styles.ts';
 import type { RunContext } from './context.ts';
-import { buildPrompt, readOverviewStyles, writePrompt } from './prompt.ts';
+import { diagramStyleSection } from '../review/prompt/diagram-styles.ts';
+import { buildPrompt, readRunStyles, writePrompt, type RunStyles } from './prompt.ts';
 import { runFiles, type RunFiles } from './run-folder.ts';
 
 let run: RunFiles;
@@ -77,9 +78,15 @@ function context(overrides: Partial<RunContext> = {}): RunContext {
   };
 }
 
+/** The styles a run asks for by default, with the overview's given. */
+const asked = (overview: RunStyles['overview'] = ['narrative']): RunStyles => ({
+  overview,
+  diagrams: 'mechanism',
+});
+
 describe('the local prompt', () => {
   it('delivers a PR with its header, files, hunks and where the diff file is', () => {
-    const prompt = buildPrompt(context(), run, null, ['narrative']);
+    const prompt = buildPrompt(context(), run, null, asked());
 
     expect(prompt).toMatch(/^# Pull Request #7: Add a login form\n/);
     expect(prompt).toContain('**Author**: octo');
@@ -118,7 +125,7 @@ describe('the local prompt', () => {
       }),
       run,
       null,
-      ['narrative'],
+      asked(),
     );
     const line = (id: string) => prompt.split('\n').find((row) => row.startsWith(`  ${id}  `));
 
@@ -135,7 +142,7 @@ describe('the local prompt', () => {
       context({ meta: { ...context().meta, description: long } }),
       run,
       null,
-      ['narrative'],
+      asked(),
     );
     expect(prompt).not.toContain(long);
     expect(prompt).toContain(`read it in \`${run.pr.replaceAll('\\', '/')}\``);
@@ -163,7 +170,7 @@ describe('the local prompt', () => {
       },
       run,
       null,
-      ['narrative'],
+      asked(),
     );
 
     expect(prompt).toMatch(/^# Branch: feat\/login\n/);
@@ -179,10 +186,10 @@ describe('the local prompt', () => {
 
   it('ends with the reviewer’s instructions, framed as theirs rather than the author’s', () => {
     const instructions = ['Look hard at the session handling.', 'Skip the CSS.'].join('\n');
-    const prompt = buildPrompt(context(), run, instructions, ['narrative']);
+    const prompt = buildPrompt(context(), run, instructions, asked());
 
     const [before, section] = prompt.split('## Reviewer’s Instructions');
-    expect(before).toMatch(/code around it\.\n\n$/);
+    expect(before!.endsWith(`${diagramStyleSection('mechanism')}\n\n`)).toBe(true);
     expect(section).toContain('It comes from them, not from the change’s author.');
     expect(section).toMatch(
       /still holds\.\n\nLook hard at the session handling\.\nSkip the CSS\.\n$/,
@@ -190,16 +197,17 @@ describe('the local prompt', () => {
   });
 
   it('has no reviewer’s section without instructions', () => {
-    expect(buildPrompt(context(), run, null, ['narrative'])).not.toContain(
-      'Reviewer’s Instructions',
-    );
+    expect(buildPrompt(context(), run, null, asked())).not.toContain('Reviewer’s Instructions');
   });
 
   it('writes a chosen overview style as its own section, before the reviewer’s instructions', () => {
-    const prompt = buildPrompt(context(), run, 'Skip the CSS.', ['five-whys']);
+    const prompt = buildPrompt(context(), run, 'Skip the CSS.', asked(['five-whys']));
 
     const [before, after] = prompt.split('## Overview Style: five-whys\n');
     expect(before).toMatch(/code around it\.\n\n$/);
+    expect(after!.indexOf('## Diagram Style')).toBeLessThan(
+      after!.indexOf('## Reviewer’s Instructions'),
+    );
     expect(after).toContain('This replaces what your system prompt says a body holds.');
     expect(after).toContain(OVERVIEW_STYLE_TEXT['five-whys']);
     expect(after!.indexOf(OVERVIEW_STYLE_TEXT['five-whys']!)).toBeLessThan(
@@ -208,40 +216,58 @@ describe('the local prompt', () => {
   });
 
   it('adds nothing for the narrative style, which is the system prompt’s own', () => {
-    const prompt = buildPrompt(context(), run, null, ['narrative']);
+    const prompt = buildPrompt(context(), run, null, asked());
     expect(prompt).not.toContain('Overview Style');
-    expect(prompt).toMatch(/code around it\.\n$/);
+    expect(prompt).toMatch(/code around it\.\n\n## Diagram Style\n/);
   });
 
   it('leaves the shared system prompt the same whatever the style', async () => {
     for (const style of OVERVIEW_STYLES) {
-      await writePrompt(context(), run, null, [style]);
+      await writePrompt(context(), run, null, asked([style]));
       expect(readFileSync(run.system, 'utf8')).toBe(NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
     }
   });
 
   it('writes the shared instructions and the local paragraph beside the prompt', async () => {
-    const user = await writePrompt(context(), run, null, ['narrative']);
+    const user = await writePrompt(context(), run, null, asked());
     expect(readFileSync(run.system, 'utf8')).toBe(NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
     expect(readFileSync(run.prompt, 'utf8')).toBe(user);
   });
 
   it('records the styles it asked for, for the stages after it to read back', async () => {
-    await writePrompt(context(), run, null, ['plain', 'tldr']);
-    await expect(readOverviewStyles(run)).resolves.toEqual(['plain', 'tldr']);
+    await writePrompt(context(), run, null, { overview: ['plain', 'tldr'], diagrams: 'files' });
+    await expect(readRunStyles(run)).resolves.toEqual({
+      overview: ['plain', 'tldr'],
+      diagrams: 'files',
+    });
+  });
+
+  it('asks for the run’s diagram style in the prompt, never in the shared instructions', async () => {
+    for (const diagrams of ['mechanism', 'files'] as const) {
+      const user = await writePrompt(context(), run, null, { overview: ['narrative'], diagrams });
+      expect(user).toContain('## Diagram Style');
+      expect(user).toContain(`in the ${diagrams} style`);
+      expect(readFileSync(run.system, 'utf8')).toBe(NARRATIVE_SYSTEM_PROMPT + LOCAL_WORKING_TREE);
+    }
   });
 
   it('refuses to guess the styles of a run whose prompt never recorded them', async () => {
-    await expect(readOverviewStyles(runFiles(path.join(run.folder, 'elsewhere')))).rejects.toThrow(
+    await expect(readRunStyles(runFiles(path.join(run.folder, 'elsewhere')))).rejects.toThrow(
       /no styles\.json in .*; run from the prompt stage/,
     );
   });
 
-  it('names the file when what it holds is not a list of styles, JSON or not', async () => {
-    for (const text of ['["narrative"', '["haiku"]', '[]']) {
+  it('names the file when what it holds is not the run’s styles, JSON or not', async () => {
+    for (const text of [
+      '{"overview":["narrative"]',
+      '["narrative"]',
+      '{"overview":["haiku"],"diagrams":"files"}',
+      '{"overview":[],"diagrams":"files"}',
+      '{"overview":["narrative"],"diagrams":"sketch"}',
+    ]) {
       writeFileSync(run.styles, text);
-      await expect(readOverviewStyles(run)).rejects.toThrow(
-        `${run.styles} does not name the overview styles`,
+      await expect(readRunStyles(run)).rejects.toThrow(
+        `${run.styles} does not name the overview styles and the diagram style`,
       );
     }
   });

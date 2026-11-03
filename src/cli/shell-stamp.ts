@@ -15,6 +15,7 @@ const SOURCES = [
   'src/report',
   'src/review',
   'vite.config.ts',
+  'vite.inline.ts',
   'postcss.config.cjs',
   'tsconfig.json',
   'package-lock.json',

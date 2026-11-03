@@ -12,6 +12,7 @@ import {
 } from '../diagram.ts';
 import type { FindingLog } from '../findings.ts';
 import type { PromptGrounding } from './diff-hunk-catalog.ts';
+import { isRepositoryPath } from './repository-path.ts';
 
 /**
  * Turns whatever the model put in a `diagram` field into a `Diagram`, or into
@@ -131,21 +132,30 @@ interface NodeGrounding {
 }
 
 /**
- * A node's link into the change. The filename is checked against the file
- * list, and the hunk ids against the hunks the prompt showed: both are lists
- * the model could not have invented, and they are not the same list — a file
- * the prompt showed no hunks for is still a file, and its node keeps the page
- * it links to while losing the hunks it cannot name.
+ * A node's link into the repository. A filename the change reviews is
+ * checked against the file list and its hunk ids against the hunks the
+ * prompt showed: both are lists the model could not have invented, and they
+ * are not the same list — a file the prompt showed no hunks for is still a
+ * file, and its node keeps the page it links to while losing the hunks it
+ * cannot name.
+ *
+ * Any other filename may only ground an `unchanged` node: the untouched part
+ * of the system a mechanism map draws around the change. It carries no hunk
+ * ids, since its file has none, and only its shape is judged here: a plain
+ * path from the repository root, not a file the change touches. Whether it
+ * is a file at the head commit is the parse stage's to check, as it is for
+ * an excerpt, since only git knows.
  */
 function resolveNodeGrounding(
   raw: Rec,
   kind: DiagramNodeKind,
+  change: DiagramChange,
   grounding: PromptGrounding | undefined,
   drop: DropPart,
 ): NodeGrounding {
-  // Only code has a path. A table, a service or a person does not, and asking
-  // for one is asking the model to make one up.
-  if (kind !== 'code') {
+  // A service or a person has no file, and asking for one is asking the model
+  // to make one up. A table or a queue is defined somewhere, so data may.
+  if (kind === 'external' || kind === 'actor') {
     if (arrived(raw['filename'])) {
       drop(`the filename on a node of kind ${kind}, which links to no file`);
     }
@@ -156,14 +166,16 @@ function resolveNodeGrounding(
     // A filename that arrived as a number, or as nothing but space, leaves the
     // node exactly as unlinked as one that never arrived — but the model meant
     // to name a file here, so the reader of the findings is told that it did.
-    if (arrived(raw['filename'])) drop('a filename on a code node that was not a usable path');
+    if (arrived(raw['filename'])) drop(`a filename on a ${kind} node that was not a usable path`);
     if (list(raw['hunkIds']).length > 0) drop('the hunk ids on a node that named no file');
     return {};
   }
-  if (!grounding?.filenames.has(filename)) {
-    drop(`the filename ${filename} on a node, which the change does not contain`);
+  if (grounding === undefined) {
+    drop(`the filename ${filename} on a node, with no change to hold it against`);
     return {};
   }
+  if (!grounding.filenames.has(filename))
+    return untouchedFile(raw, filename, change, grounding, drop);
 
   const resolved = new Set<string>();
   for (const id of list(raw['hunkIds'])) {
@@ -176,6 +188,35 @@ function resolveNodeGrounding(
   const hunkIds = capped([...resolved], DIAGRAM_LIMITS.hunkIds, 'hunk ids', drop);
 
   return hunkIds.length > 0 ? { filename, hunkIds } : { filename };
+}
+
+function untouchedFile(
+  raw: Rec,
+  filename: string,
+  change: DiagramChange,
+  grounding: PromptGrounding,
+  drop: DropPart,
+): NodeGrounding {
+  if (change !== 'unchanged') {
+    drop(`the filename ${filename} on a node marked ${change}, which the change does not contain`);
+    return {};
+  }
+  // A folder, for a part that spans several files, is written with a trailing "/".
+  const bare = filename.endsWith('/') ? filename.slice(0, -1) : filename;
+  if (!isRepositoryPath(bare)) {
+    drop(`the filename ${filename} on a node, which is not a path from the repository root`);
+    return {};
+  }
+  // Held without its slash too: git finds the file either way, and the parse
+  // stage would ground the node in it.
+  if (grounding.changed.has(bare)) {
+    drop(`the filename ${filename} on a node, a file the change touches but does not review`);
+    return {};
+  }
+  if (list(raw['hunkIds']).length > 0) {
+    drop(`the hunk ids on the node for ${filename}, a file the change does not touch`);
+  }
+  return { filename };
 }
 
 function sanitizeGraph(
@@ -234,15 +275,16 @@ function sanitizeGraph(
       const initial = kind === 'state' && node['initial'] === true && !initialTaken;
       if (initial) initialTaken = true;
       const note = clamp(node['note'], DIAGRAM_LIMITS.noteChars, 'note', drop);
+      const change = toChange(node['change'], whose, drop);
 
       return [
         {
           id,
           label,
           kind: nodeKind,
-          change: toChange(node['change'], whose, drop),
+          change,
           ...(group !== undefined && groupIds.has(group) ? { group } : {}),
-          ...resolveNodeGrounding(node, nodeKind, grounding, drop),
+          ...resolveNodeGrounding(node, nodeKind, change, grounding, drop),
           ...(initial ? { initial: true } : {}),
           ...(note !== undefined ? { note } : {}),
         },
@@ -417,13 +459,14 @@ function sanitizeSequence(raw: Rec, grounding: PromptGrounding | undefined, drop
       seen.add(id);
       const whose = `participant ${id}`;
       const kind = toNodeKind(participant['kind'], whose, drop);
+      const change = toChange(participant['change'], whose, drop);
       return [
         {
           id,
           label,
           kind,
-          change: toChange(participant['change'], whose, drop),
-          ...resolveNodeGrounding(participant, kind, grounding, drop),
+          change,
+          ...resolveNodeGrounding(participant, kind, change, grounding, drop),
         },
       ];
     }),

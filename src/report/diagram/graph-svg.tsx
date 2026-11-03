@@ -9,8 +9,8 @@ import {
   type LaidOutNode,
   type Point,
 } from './graph-layout';
+import { NodeBox, type DiagramFiles } from './node-box';
 import { DIAGRAM_TYPE } from './text-metrics';
-import classes from './diagram.module.css';
 
 /**
  * Paints a laid-out graph. Nodes are outlined rather than filled — see
@@ -85,11 +85,11 @@ function EdgeShape({ edge, uniform }: { edge: LaidOutEdge; uniform: boolean }) {
 function NodeShape({
   node,
   uniform,
-  onSelectFile,
+  files,
 }: {
   node: LaidOutNode;
   uniform: boolean;
-  onSelectFile?: (filename: string) => void;
+  files?: DiagramFiles;
 }) {
   const style = changeStyle(node.change, uniform);
 
@@ -104,61 +104,8 @@ function NodeShape({
     );
   }
 
-  const clickable = node.filename !== undefined && onSelectFile !== undefined;
-  const { lineHeight } = DIAGRAM_TYPE.node;
-  const firstY = node.y + node.height / 2 - ((node.lines.length - 1) * lineHeight) / 2;
-  const marks = [style.text, node.filename].filter(Boolean).join(', ');
-  const spoken = node.fullLabel ?? node.lines.join(' ');
-
   return (
-    <g
-      className={clickable ? classes.clickable : undefined}
-      role={clickable ? 'button' : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      aria-label={clickable ? `${spoken} — ${marks}` : undefined}
-      onClick={clickable ? () => onSelectFile(node.filename as string) : undefined}
-      onKeyDown={
-        clickable
-          ? (event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                onSelectFile(node.filename as string);
-              }
-            }
-          : undefined
-      }
-    >
-      {/*
-       * The label in full for a pointer, since the box could only hold part of
-       * it. A node named after a file is where this matters: two files in one
-       * diagram can differ only in the part that was cut, which leaves the
-       * diagram drawing the comparison and unable to say which side is which.
-       */}
-      {node.fullLabel !== undefined && <title>{node.fullLabel}</title>}
-      <rect
-        x={node.x}
-        y={node.y}
-        width={node.width}
-        height={node.height}
-        rx={node.kind === 'data' ? 12 : 6}
-        fill={token('card')}
-        stroke={token(style.stroke)}
-        strokeWidth={node.change === 'unchanged' ? 1 : 1.75}
-        strokeDasharray={style.dashed ? '5 4' : undefined}
-      />
-      {node.lines.map((line, index) => (
-        <text
-          key={index}
-          x={node.x + node.width / 2}
-          y={firstY + index * lineHeight}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fontSize={DIAGRAM_TYPE.node.size}
-          fill={token(style.label)}
-        >
-          {line}
-        </text>
-      ))}
+    <NodeBox part={node} uniform={uniform} {...(files ? { files } : {})}>
       {style.marker !== null && (
         <text
           x={node.x + node.width - 6}
@@ -173,17 +120,11 @@ function NodeShape({
           {style.marker}
         </text>
       )}
-    </g>
+    </NodeBox>
   );
 }
 
-export function GraphSvg({
-  layout,
-  onSelectFile,
-}: {
-  layout: GraphLayout;
-  onSelectFile?: (filename: string) => void;
-}) {
+export function GraphSvg({ layout, files }: { layout: GraphLayout; files?: DiagramFiles }) {
   return (
     <>
       {layout.panels.map((panel, panelIndex) => (
@@ -238,7 +179,7 @@ export function GraphSvg({
               key={node.id}
               node={node}
               uniform={layout.uniform}
-              {...(onSelectFile ? { onSelectFile } : {})}
+              {...(files ? { files } : {})}
             />
           ))}
         </g>

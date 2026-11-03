@@ -7,7 +7,7 @@ import {
   REAL_STATE,
 } from '@/report/test/diagram-fixtures';
 import { GROUP_LABEL_INSET, INITIAL_NODE_ID, layoutGraph } from './graph-layout';
-import { estimateCaptionWidth } from './text-metrics';
+import { DIAGRAM_TYPE, estimateCaptionWidth, estimateMonoWidth, PATH_HEIGHT } from './text-metrics';
 
 function asGraph(diagram: typeof REAL_ARCHITECTURE): GraphDiagram {
   if (!isGraphDiagram(diagram)) throw new Error('fixture is not a graph diagram');
@@ -24,6 +24,36 @@ const beforeAfter = asGraph(HAND_BEFORE_AFTER);
 const realBeforeAfter = asGraph(REAL_BEFORE_AFTER);
 
 describe('layoutGraph', () => {
+  it('makes room for a grounded node’s path, cutting a long one from the left', () => {
+    const long = 'src/fulfilment/packing/workers/stations/assignment/packing-station-worker.ts';
+    const layout = layoutGraph({
+      ...architecture,
+      kind: 'architecture',
+      groups: [],
+      nodes: [
+        { id: 'a', label: 'Packing worker', kind: 'code', change: 'unchanged' },
+        {
+          id: 'b',
+          label: 'Packing worker',
+          kind: 'code',
+          change: 'unchanged',
+          filename: 'src/w.ts',
+        },
+        { id: 'c', label: 'w.ts', kind: 'code', change: 'unchanged', filename: 'src/w.ts' },
+        { id: 'd', label: 'Station', kind: 'code', change: 'unchanged', filename: long },
+      ],
+      edges: [],
+    });
+    const [plain, grounded, named, cut] = layout.panels[0]?.nodes ?? [];
+    expect(grounded?.path).toBe('src/w.ts');
+    expect(grounded?.height).toBe((plain?.height ?? 0) + PATH_HEIGHT);
+    expect(named?.path).toBeUndefined();
+    expect(cut?.path).toMatch(/^….*\/packing-station-worker\.ts$/);
+    expect(estimateMonoWidth(cut?.path ?? '', DIAGRAM_TYPE.edge.size)).toBeLessThanOrEqual(
+      (cut?.width ?? 0) - 28,
+    );
+  });
+
   it('places every node inside the reported canvas', () => {
     const layout = layoutGraph(architecture);
     expect(layout.width).toBeGreaterThan(0);

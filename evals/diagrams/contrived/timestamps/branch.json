@@ -1,0 +1,21 @@
+{
+  "branch": "chore/timestamps-on-records-and-logs",
+  "title": "Record when shipments and migrations change, and stamp every order log line",
+  "description": "Housekeeping on what the records and the log say about time. A shipment now carries `updatedAt` beside `bookedAt`, so a shipment row reads like an order row, and the migrations table records `ranAt` for each migration it has applied. Every log line that names an order now carries the order's `status` and the `at` it was last written, so a line can be read against the store without going to it; the worker's failure lines name the order id outright. `packhouse show` prints the order's shipment beside it, `packhouse stuck` prints when each order last changed, and the confirmation email says the date the order was placed. No flow changes; the sweep and webhook tests check the stamps.",
+  "commit": {
+    "subject": "Timestamp shipments, migrations and the order log lines",
+    "body": "Shipment.updatedAt beside bookedAt; ranAt on each applied migration;\nstatus and at on every log line that names an order; the shipment in\npackhouse show and the last change in packhouse stuck; the order date\nin the confirmation email."
+  },
+  "removed": [],
+  "expect": {
+    "overview": null,
+    "chapterDiagrams": {
+      "min": 0,
+      "max": 0,
+      "kinds": []
+    },
+    "mustName": [],
+    "mustReach": [],
+    "question": "Is there anything here a picture would show that the file list does not?"
+  }
+}

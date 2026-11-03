@@ -39,6 +39,8 @@ docs before writing code against them; heed deprecation notices.
 
 ```
 vite.config.ts         the report: src/report/ → one build/report/shell.html, all inlined but Monaco
+vite.sheet.config.ts   the diagram eval's contact sheet: src/report/sheet/ → build/sheet/sheet.html
+vite.inline.ts         the plugin both builds share, folding the JS and CSS into the one page
 src/
   cli/                 `er`, the local review CLI: the package `bin`, put on PATH by `npm link`;
                        runs in the repo under review. Node only
@@ -49,21 +51,28 @@ src/
                        where a run happens), palette (token contrast, type scale, one label), diagram-colour
                        (SVG takes token() only), comment-paths (a repo path named in a comment still exists —
                        see Comments), monaco-version (the Monaco the reader loads is the one it is typechecked
-                       against)
-  evals/               the skim eval: how well the model tiers hunks, on labelled cases. `npm run eval:skims`;
-                       runs the model as the CLI does, by hand, never in the gate
+                       against), eval-vocabulary (the review prompt names nothing from an eval case)
+  evals/               the evals, run by hand and never in the gate: skims (how well the model tiers hunks, on
+                       labelled cases; `npm run eval:skims`) and diagrams (whether it draws the diagram a change
+                       deserves, on branches written for it; `npm run eval:diagrams`); each runs the model as
+                       the CLI does
   test/                git-repo.ts (a throwaway repository with a bare origin, for tests that drive real git)
 evals/skims/           the skim eval's cases and the contrived branches some are built from (committed), and
                        its results (ignored)
+evals/diagrams/        the diagram eval's model system and the branches over it (committed), and its results
+                       (ignored)
 docs/usage.md          running `er`: prerequisites, targets, every option, cost, where it writes
 docs/skim-evals.md     the skim eval: making a case, labelling it, running a sweep, reading the score
+docs/diagram-evals.md  the diagram eval: the model system, writing a branch and what it deserves, a sweep, its score
+                       and its contact sheet
 .github/workflows/ci.yml  npm ci → npm run check
 .claude/rules/         area detail, loaded when you open a file in that area (see below)
 .claude/skills/        workflows loaded on demand (see below)
 ```
 
 Layering (enforced by `src/guardrails`): `cli → review`, `report → review`,
-`evals → cli, review`, and `review` imports nothing outside itself. `review` runs in Node and in the
+`evals → cli, review, report` (the report only for the contact sheet's data
+shape), and `review` imports nothing outside itself. `review` runs in Node and in the
 browser, so it may not import a `node:` builtin, the Claude SDK or a UI
 package; `report` ships to the browser and may not import Node or the SDK
 either. Only `src/report/` imports React, Mantine or the icons.
@@ -83,8 +92,8 @@ directly.
 - `design-system.md` — type scale, the one label, the reading measure, page
   width, colour tokens and contrast. Loads for the report's components, CSS,
   the theme and the colour guardrails.
-- `evals.md` — file-by-file map of `src/evals/`, the skim eval. Loads for
-  `src/evals/**` and `evals/**`.
+- `evals.md` — file-by-file map of `src/evals/`, the skim and diagram evals.
+  Loads for `src/evals/**` and `evals/**`.
 
 Skills in `.claude/skills/`, loaded when the task calls for them:
 
@@ -155,6 +164,7 @@ Skills in `.claude/skills/`, loaded when the task calls for them:
 | `npm run lint` / `format` / `format:check` | oxlint / Prettier                                                   |
 | `npm run check`                            | **The gate**: typecheck + report:build + test + lint + format:check |
 | `npm run eval:skims -- <cmd>`              | the skim eval: import a case, run a sweep, score one. Spends money  |
+| `npm run eval:diagrams -- <cmd>`           | the diagram eval: check a branch, sweep, score, sheet, judge, agree |
 
 `er` needs no environment of its own: the model runs as the engineer, with
 their own Claude credentials and user settings, plus the repository's own Claude

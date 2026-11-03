@@ -115,12 +115,12 @@ describe('sanitizeDiagram', () => {
     expect(nodes[1]?.group).toBeUndefined();
   });
 
-  it('clears a filename the diff does not contain, keeping the node', () => {
+  it('clears a filename the diff does not contain from a node the change touched, keeping the node', () => {
     const result = diagramFrom(
       graph({
         nodes: [
-          { id: 'a', label: 'A', filename: 'src/a.ts' },
-          { id: 'b', label: 'B', filename: 'src/invented.ts' },
+          { id: 'a', label: 'A', change: 'added', filename: 'src/a.ts' },
+          { id: 'b', label: 'B', change: 'modified', filename: 'src/invented.ts' },
         ],
       }),
       'd',
@@ -130,6 +130,44 @@ describe('sanitizeDiagram', () => {
     expect(nodes).toHaveLength(2);
     expect(nodes[0]?.filename).toBe('src/a.ts');
     expect(nodes[1]?.filename).toBeUndefined();
+  });
+
+  it('grounds an unchanged node in a file or folder outside the change, without hunk ids', () => {
+    const changed = groundingFor(buildDiffHunkIndex(DIFF).hunks, [
+      'src/a.ts',
+      'src/b.ts',
+      'package-lock.json',
+    ]);
+    const result = diagramFrom(
+      graph({
+        nodes: [
+          {
+            id: 'a',
+            label: 'Packing worker',
+            filename: 'src/worker/worker.ts',
+            hunkIds: ['H0001'],
+          },
+          { id: 'b', label: 'Orders table', kind: 'data', filename: 'src/store/migrations/001.ts' },
+          { id: 'c', label: 'Escapes', filename: '../outside.ts' },
+          { id: 'd', label: 'Lockfile', filename: 'package-lock.json' },
+          { id: 'e', label: 'HTTP layer', filename: 'src/http/' },
+          { id: 'f', label: 'Root', filename: '/' },
+          { id: 'g', label: 'Lockfile again', filename: 'package-lock.json/' },
+        ],
+      }),
+      'd',
+      { ...changed, filenames: new Set(['src/a.ts', 'src/b.ts']) },
+    );
+    const nodes = result && isGraphDiagram(result) ? result.nodes : [];
+    expect(nodes.map((node) => [node.filename, node.hunkIds])).toEqual([
+      ['src/worker/worker.ts', undefined],
+      ['src/store/migrations/001.ts', undefined],
+      [undefined, undefined],
+      [undefined, undefined],
+      ['src/http/', undefined],
+      [undefined, undefined],
+      [undefined, undefined],
+    ]);
   });
 
   it('keeps the filename of a file whose hunks the prompt never showed', () => {
@@ -167,11 +205,30 @@ describe('sanitizeDiagram', () => {
     expect(nodes[0]?.hunkIds).toEqual(['H0001']);
   });
 
-  it('ignores grounding on nodes that are not code', () => {
+  it('grounds a data node as it does code, and ignores grounding on a service or a person', () => {
+    const data = diagramFrom(
+      graph({
+        nodes: [
+          { id: 'a', label: 'Retry queue', kind: 'data', filename: 'src/a.ts', hunkIds: ['H0001'] },
+          { id: 'b', label: 'B' },
+        ],
+      }),
+      'd',
+      grounding,
+    );
+    const dataNodes = data && isGraphDiagram(data) ? data.nodes : [];
+    expect(dataNodes[0]).toMatchObject({ filename: 'src/a.ts', hunkIds: ['H0001'] });
+
     const result = diagramFrom(
       graph({
         nodes: [
-          { id: 'a', label: 'Postgres', kind: 'data', filename: 'src/a.ts', hunkIds: ['H0001'] },
+          {
+            id: 'a',
+            label: 'Postgres',
+            kind: 'external',
+            filename: 'src/a.ts',
+            hunkIds: ['H0001'],
+          },
           { id: 'b', label: 'B' },
         ],
       }),
@@ -362,7 +419,7 @@ describe('what a diagram repair records', () => {
       codes(
         graph({
           nodes: [
-            { id: 'a', label: 'A', filename: 'src/ghost.ts' },
+            { id: 'a', label: 'A', change: 'added', filename: 'src/ghost.ts' },
             { id: 'b', label: 'B', filename: 'src/a.ts', hunkIds: ['H0003', 'H9999'] },
           ],
         }),

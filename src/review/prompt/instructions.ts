@@ -225,7 +225,7 @@ A diagram is optional. Draw one wherever it does work the prose cannot, and leav
 "architecture", "state" and "beforeAfter" share one structure:
 
 {
-  "direction": "down | right",
+  "direction": "right | down — right unless the picture is one tall stack that reads top to bottom",
   "groups": [{ "id": "string", "label": "string" }],
   "nodes": [
     {
@@ -234,8 +234,8 @@ A diagram is optional. Draw one wherever it does work the prose cannot, and leav
       "kind": "code | data | external | actor",
       "change": "added | removed | modified | unchanged",
       "group": "string — id of one of the groups above (optional)",
-      "filename": "string — a path from Files Changed. Only on 'code' nodes (optional)",
-      "hunkIds": ["string — ids from Changed Hunks belonging to that same file (optional)"],
+      "filename": "string — the file this node lives in, as the Diagram Style section of the prompt allows. Never on 'external' or 'actor' nodes (optional)",
+      "hunkIds": ["string — ids from Changed Hunks belonging to that same file, when it is a changed file (optional)"],
       "initial": "boolean — the entry state. State machines only, at most one per diagram",
       "note": "string — a short aside (optional)"
     }
@@ -256,24 +256,25 @@ A diagram is optional. Draw one wherever it does work the prose cannot, and leav
 Choosing a kind — reach for the one that answers the question a reviewer actually has:
 - "architecture": the map. What parts exist, how they connect, and where this PR attached to what was already there. Right when the change adds or rewires a component rather than only altering behaviour inside one. Use "groups" for layers or boundaries. Most nodes will be "unchanged", and that is the point: the few that are not are what a reviewer must look at.
 - "beforeAfter": one procedure, ordering or structure that the PR rearranged. Right whenever the point is that an existing path now does something different — a step inserted into a sequence, a call rerouted, an order swapped, a check moved or removed. If a chapter has you writing "previously X, now Y", or "instead of", or "no longer", that chapter wants a "beforeAfter". It is the easiest of the four to overlook, because what changed is the arrangement rather than any one part, and it is drawn from a single graph rather than two.
-- "state": a lifecycle with named states and the transitions between them. Right when the PR introduces or changes a status column, a lease, a retry policy, or anything with a fixed vocabulary of states.
+- "state": a lifecycle with named states and the transitions between them. Right when the PR introduces or changes a status column, a lease, a retry policy, or anything with a fixed vocabulary of states. Above all when more than one part can move the same record, such as a callback and a timeout, or a scheduled job and an operator: draw which part makes each move, and what happens to one that arrives after another part has already moved the record.
 - "sequence": what happens in what order between several participants, especially when one call can end several different ways. Right when ordering, timing or branching is the thing to check.
 
 Rules for diagrams:
-- A diagram here describes a CHANGE, not a system. Mark every node and edge with what this PR did to it. A diagram in which nothing is added, removed or modified is documentation rather than review, and should not be included at all.
+- A diagram here is about a CHANGE. Mark every node and edge with what this PR did to it, the parts it left alone as "unchanged". A diagram in which nothing is added, removed or modified is documentation rather than review, and should not be included at all.
 - Include one only when it shows something the prose cannot: a shape, an ordering, a branch, a cycle, a boundary being crossed. A chapter that is a list of small edits gets none. A chapter whose subject is a flow, a lifecycle, an ordering, a branch or a boundary usually should have one.
-- Do not ration diagrams to one per review. A pull request large enough to need many chapters normally has several worth drawing: the shape of the whole change, plus a picture in each chapter that is about structure rather than detail. One diagram across a dozen chapters means chapters that had a picture in them were skipped. Giving every chapter one is the opposite failure, and just as bad.
+- Do not ration diagrams to one per review. A pull request large enough to need many chapters normally has several worth drawing: the shape of the whole change, plus a picture in each chapter that is about structure rather than detail. One diagram across a dozen chapters means chapters that had a picture in them were skipped. Giving every chapter one is the opposite failure, but the lesser one: when you are unsure whether a picture earns its place, draw it. A diagram that repeats another from a different angle, or reaches a little past its chapter, costs the reader a glance; a missing one costs them the picture.
 - Prefer diagrams that put branches, alternatives or parallel paths beside each other. A reviewer checks symmetry without being asked, so a picture that makes an asymmetry visible has done a reviewer's work for them.
+- When the change stops one part calling, sending to or handing work to another, draw that edge marked "removed", even when both parts remain. A path that no longer runs is part of what changed, and without its edge the reader cannot see it is gone.
 - The caption is what earns the diagram its place. If you cannot write a sentence saying what the picture shows that your text does not, omit the diagram.
-- Ground what you can. A "code" node may carry a "filename" from the Files Changed list and "hunkIds" from the Changed Hunks list for that same file. A node that is not code — a database table, an external service, a person — must not carry a filename. Never invent a path or an id.
+- What a node is, what it is called, how it is grounded and how far a picture reaches past the change are set by the Diagram Style section of the prompt. Follow it in every diagram.
 - Keep labels short: node and group labels at most ${String(DIAGRAM_LIMITS.labelChars)} characters, edge labels at most ${String(DIAGRAM_LIMITS.edgeLabelChars)}, sequence message labels at most ${String(DIAGRAM_LIMITS.messageChars)}, captions at most ${String(DIAGRAM_LIMITS.captionChars)}. A label that has become a sentence belongs in the caption or the chapter's body instead.
-- Prefer the smallest diagram that makes the point. For "architecture", "state" and "sequence", 6 to 15 nodes is usually right. A "beforeAfter" is normally smaller — four to eight nodes — because it draws one procedure rather than a system, and a small one is not a lesser diagram. Larger is allowed when the structure genuinely needs it, but every node costs the reader something.
+- Draw enough of the path to follow it: a reader follows work from where it starts far more easily than from its middle, so do not trim a picture down to the parts the diff touches. For "architecture", "state" and "sequence", 6 to 15 nodes is usually right, an overview toward the top of that. A "beforeAfter" draws one procedure rather than a system, usually six to ten nodes, from where the request enters to where it ends. Larger is allowed when the structure needs it; past about twenty, a picture is usually two.
 - Sequence groups may nest one level deep (a loop containing an alt) and no further.
 - In an "alt" group, the branch labels and the messages inside them must say what actually DIFFERS between the branches. Three branches that read the same defeat the reason for drawing them side by side: if one path retries with a backoff, one records a run and one returns immediately, that is what the labels have to show. A reviewer reads these against each other.
 - For "beforeAfter", draw a single graph and let the change marks split it: the before side is drawn from what existed before ("unchanged", "modified", "removed") and the after side from what exists now ("unchanged", "modified", "added"). A modified node appears on both sides, so mark it "modified" rather than adding it twice.
 - "overviewDiagram" is the map of the change, not your best picture. Its kind must be "architecture" or "beforeAfter". It answers "what is the shape of this pull request, and where does it touch the system", so its nodes should span the change rather than detail one part of it. A lifecycle, a single flow, or one subsystem's internals belongs to a chapter however good a picture it makes. If nothing at that altitude is worth drawing, omit "overviewDiagram" rather than promoting a narrower diagram into it.
+- An overview that shows where a flow ends has not drawn the flow. A chapter whose subject is one flow's order, its guards, its retries, what happens when it runs twice, or two parts that can each move the same record still gets its own picture, even when the overview names every ending.
 - A small pull request usually supports no diagram at all. The test is the subject, not the size: three files that rearrange a boot sequence are worth a picture; forty that add one field each are not.
-- Draw only what the diff and the PR description support. Where the description explains a flow, a lifecycle, a rollout or a decision, that is the best material for a diagram — but do not invent structure you cannot see in either.
 - Output ONLY the <narrative_review> JSON tags — no other text.`;
 
 /** Appended to the instructions: the engineer's own repository, a diff file on disk. */

@@ -94,3 +94,8 @@
 .modalSvg[data-panning='true'] {
   cursor: grabbing;
 }
+
+/* Every path in the reader is mono. */
+.path {
+  font-family: var(--mantine-font-family-monospace);
+}
