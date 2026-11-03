@@ -97,8 +97,9 @@ describe('withContrivedBranch', () => {
         'A\tsrc/new.ts',
         'D\tsrc/old.ts',
       ]);
-      expect(git(work, 'log', '-1', '--format=%an <%ae> %aI').trim()).toBe(
-        'A. Author <a@tiny.example> 2024-01-02T03:04:05+00:00',
+      // As seconds: git versions differ on writing UTC as "Z" or "+00:00".
+      expect(git(work, 'log', '-1', '--format=%an <%ae> %at').trim()).toBe(
+        `A. Author <a@tiny.example> ${String(Date.parse('2024-01-02T03:04:05Z') / 1000)}`,
       );
       return 'done';
     });
