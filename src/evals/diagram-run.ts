@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import { EFFORTS, type Effort } from '../cli/claude-run.ts';
 import { mapLimit } from '../cli/git-runner.ts';
+import { readEvents } from '../cli/parse.ts';
 import { hostEnv } from '../cli/host-env.ts';
 import { WARNED } from '../cli/review.ts';
 import { latestRunFolder, runStamp } from '../cli/run-folder.ts';
@@ -191,14 +192,8 @@ async function runResult(
   } catch {
     return null;
   }
-  for (const text of log.split('\n').toReversed()) {
-    if (!text.trim()) continue;
-    const parsed = ResultEventSchema.safeParse(JSON.parse(text));
-    if (parsed.success) {
-      return { costUsd: parsed.data.costUsd ?? null, turns: parsed.data.turns ?? null };
-    }
-  }
-  return null;
+  const result = readEvents(log, ResultEventSchema).at(-1);
+  return result ? { costUsd: result.costUsd ?? null, turns: result.turns ?? null } : null;
 }
 
 function tail(output: string): string {

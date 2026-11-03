@@ -19,8 +19,8 @@ import {
  * Proves a diagram branch is a change an engineer could have opened: stood
  * up over the order service, its tests pass on the tree, a stub review runs,
  * and the change is a size a reviewer would meet. Nothing is kept — the
- * branch is the case — so this is what `contrive` has to show for itself,
- * and what a sweep repeats before it spends money on a branch.
+ * branch is the case — so this is what `contrive` has to show for itself.
+ * A sweep does not repeat it: run `contrive` after editing a branch.
  */
 export interface ChangeSize {
   files: number;
@@ -68,9 +68,14 @@ export async function contriveDiagramBranch(
 export function changeSize(context: RunContext, diff: string): ChangeSize {
   let added = 0;
   let removed = 0;
+  // Counted inside hunks only: a removed "-- comment" is "--- comment" in the
+  // diff, which outside a hunk would be a file header.
+  let inHunk = false;
   for (const line of diff.split('\n')) {
-    if (line.startsWith('+') && !line.startsWith('+++')) added += 1;
-    else if (line.startsWith('-') && !line.startsWith('---')) removed += 1;
+    if (line.startsWith('diff --git ')) inHunk = false;
+    else if (line.startsWith('@@')) inHunk = true;
+    else if (inHunk && line.startsWith('+')) added += 1;
+    else if (inHunk && line.startsWith('-')) removed += 1;
   }
   return {
     files: context.files.filter((file) => !file.skipped).length,

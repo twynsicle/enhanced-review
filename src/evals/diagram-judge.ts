@@ -15,8 +15,9 @@ import type { BranchScore } from './diagram-score.ts';
  * the rendered picture, whose layout is the eye's to judge on the contact
  * sheet — and rates it against the branch's question and mechanisms. Two
  * judge models by default, since the model that drew a diagram may favour
- * its own work. A judge's ratings are worth quoting only once they agree with
- * the user's own, which `diagram-agree.ts` measures.
+ * its own work. The judges are the eval's measure of whether an overview is
+ * right about the change; the user's ratings, which `diagram-agree.ts` sets
+ * beside theirs, say whether it reads well.
  *
  *   <sweep>/judgements/
  *     judgements.json                     the judges, when they ran, what they cost
@@ -274,11 +275,14 @@ export async function runJudge(options: JudgeOptions, deps: JudgeDeps = {}): Pro
         persistSession: false,
       },
     });
-    if (outcome.sdkError) throw outcome.sdkError;
     const meta: JudgeMeta = {
       ms: Math.round(performance.now() - started),
       costUsd: outcome.result?.costUsd ?? null,
-      ended: howItEnded(outcome.result),
+      // A failed query loses that one verdict, read back as unreadable, rather
+      // than the whole judging and every answer already paid for.
+      ended: outcome.sdkError
+        ? `SDK error: ${outcome.sdkError.message}`
+        : howItEnded(outcome.result),
     };
     await Promise.all([
       writeFile(files.text, outcome.raw),

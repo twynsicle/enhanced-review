@@ -152,6 +152,7 @@ describe('sanitizeDiagram', () => {
           { id: 'd', label: 'Lockfile', filename: 'package-lock.json' },
           { id: 'e', label: 'HTTP layer', filename: 'src/http/' },
           { id: 'f', label: 'Root', filename: '/' },
+          { id: 'g', label: 'Lockfile again', filename: 'package-lock.json/' },
         ],
       }),
       'd',
@@ -164,6 +165,7 @@ describe('sanitizeDiagram', () => {
       [undefined, undefined],
       [undefined, undefined],
       ['src/http/', undefined],
+      [undefined, undefined],
       [undefined, undefined],
     ]);
   });

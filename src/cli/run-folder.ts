@@ -21,7 +21,7 @@ export interface RunFiles {
   pr: string;
   system: string;
   prompt: string;
-  /** The overview styles the prompt asked for, which the run and parse stages hold the answer to. */
+  /** The overview and diagram styles the prompt asked for; the run and parse stages hold the answer to the overview's. */
   styles: string;
   raw: string;
   /** One line per SDK message from a model run: tools used, how it ended. */

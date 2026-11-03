@@ -202,11 +202,14 @@ function untouchedFile(
     return {};
   }
   // A folder, for a part that spans several files, is written with a trailing "/".
-  if (!isRepositoryPath(filename.endsWith('/') ? filename.slice(0, -1) : filename)) {
+  const bare = filename.endsWith('/') ? filename.slice(0, -1) : filename;
+  if (!isRepositoryPath(bare)) {
     drop(`the filename ${filename} on a node, which is not a path from the repository root`);
     return {};
   }
-  if (grounding.changed.has(filename)) {
+  // Held without its slash too: git finds the file either way, and the parse
+  // stage would ground the node in it.
+  if (grounding.changed.has(bare)) {
     drop(`the filename ${filename} on a node, a file the change touches but does not review`);
     return {};
   }

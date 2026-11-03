@@ -122,6 +122,7 @@ src/evals/
                    a problem and no judgement; overviews, each scored sample's overview; runJudge, every
                    judge × overview through runSdkLoop with no tools and one turn, under <sweep>/judgements/
                    <model>/<branch>/sample-<n>.txt|.json with judgements.json, replacing an earlier judging;
+                   a query that fails with an SDK error is that one verdict unreadable, its error in the .json;
                    readJudgements, an unjudged sweep being none; formatJudged, each judge's counts and the
                    share of mechanisms it found shown, partly shown and missing
   diagram-agree.ts the judges against each other, the check on the measure, and against the user, who rates how

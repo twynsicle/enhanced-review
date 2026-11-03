@@ -134,19 +134,21 @@ const RunEventSchema = z.object({
 type RunEvent = z.infer<typeof RunEventSchema>;
 
 /**
- * A line of the event log, or nothing. A run killed mid-write leaves a
- * half-written last line, which is not worth failing a review over — the
- * findings it would have carried are about the run, and a run that was killed
- * has the bigger problem already.
+ * The lines of an event log that hold `schema`, the rest skipped. A run
+ * killed mid-write leaves a half-written last line, which is not worth
+ * failing a review over — the findings it would have carried are about the
+ * run, and a run that was killed has the bigger problem already.
  */
-function readEvent(line: string): RunEvent[] {
-  if (line === '') return [];
-  try {
-    const parsed = RunEventSchema.safeParse(JSON.parse(line) as unknown);
-    return parsed.success ? [parsed.data] : [];
-  } catch {
-    return [];
-  }
+export function readEvents<T>(log: string, schema: z.ZodType<T>): T[] {
+  return log.split('\n').flatMap((line) => {
+    if (line === '') return [];
+    try {
+      const parsed = schema.safeParse(JSON.parse(line) as unknown);
+      return parsed.success ? [parsed.data] : [];
+    } catch {
+      return [];
+    }
+  });
 }
 
 /**
@@ -176,7 +178,7 @@ async function runFindings(run: RunFiles): Promise<Finding[]> {
     ];
   }
 
-  const events = log.split('\n').flatMap(readEvent);
+  const events: RunEvent[] = readEvents(log, RunEventSchema);
 
   const findings: Finding[] = [];
   const denied = events.filter((event) => event.type === 'denied').length;

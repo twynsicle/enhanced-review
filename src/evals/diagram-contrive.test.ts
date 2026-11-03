@@ -20,11 +20,13 @@ const diff = [
   '-gone',
   '+here',
   '+and here',
+  '--- a removed SQL comment',
+  '+++counter',
   '',
 ].join('\n');
 
 describe('changeSize', () => {
   it('counts the reviewed files, the hunks, and the diff’s own added and removed lines', () => {
-    expect(changeSize(context, diff)).toEqual({ files: 2, hunks: 3, added: 2, removed: 1 });
+    expect(changeSize(context, diff)).toEqual({ files: 2, hunks: 3, added: 3, removed: 2 });
   });
 });

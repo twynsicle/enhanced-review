@@ -300,6 +300,8 @@ function reportTierRepairs(
   }
 }
 
+const PROSE_FIELDS = new Set(['lede', 'bodies', 'body']);
+
 /**
  * The overview's `{ lede, bodies }` passage. Nothing written is `undefined`
  * rather than a passage of empty strings, so the caller can tell "no prose"
@@ -311,8 +313,6 @@ function reportTierRepairs(
  * with an older stored shape: an overview dropped for arriving in the wrong
  * field fails the review, over a sentence the model did write.
  */
-const PROSE_FIELDS = new Set(['lede', 'bodies', 'body']);
-
 function sanitizeProse(
   raw: unknown,
   whose: string,
@@ -336,7 +336,7 @@ function sanitizeProse(
   if (!isRecord(raw)) return nothing();
   // A field nested here, an overview diagram written inside the summary say,
   // would vanish with nothing to show for it; failing names it for the retry.
-  for (const key of Object.keys(raw).filter((key) => !PROSE_FIELDS.has(key))) {
+  for (const key of Object.keys(raw).filter((field) => !PROSE_FIELDS.has(field))) {
     log.add(
       'prose-field-stray',
       `${whose} holds "${key}", a field it does not take: it holds a lede and bodies, and every other field of the review sits beside it at the top level.`,
@@ -1170,8 +1170,8 @@ function whyUnreadable(body: string, error: unknown): string {
   if (body === '') return 'it is empty';
   const open = openAtEnd(body);
   if (open !== null && open.length > 0) {
-    const closers = [...open]
-      .reverse()
+    const closers = open
+      .toReversed()
       .map((bracket) => (bracket === '{' ? '}' : ']'))
       .join('');
     if (parses(body + closers)) {

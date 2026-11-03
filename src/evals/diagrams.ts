@@ -194,7 +194,8 @@ async function judgeCommand(argv: string[], root: string): Promise<number> {
     {
       onJudged: (judge, branch, sample, meta) => {
         const cost = meta.costUsd === null ? '' : `, $${meta.costUsd.toFixed(2)}`;
-        note(`${judge}: ${branch} sample ${String(sample)}${cost}`);
+        const ended = meta.ended === null ? '' : `, ended: ${meta.ended}`;
+        note(`${judge}: ${branch} sample ${String(sample)}${cost}${ended}`);
       },
     },
   );

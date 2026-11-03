@@ -131,7 +131,9 @@ function download(file: ReturnType<typeof ratingsFile>) {
   link.href = url;
   link.download = 'ratings.json';
   link.click();
-  URL.revokeObjectURL(url);
+  // Revoked straight after the click, the URL can be gone before a browser
+  // starts the download.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function BranchPanel({

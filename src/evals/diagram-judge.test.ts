@@ -254,6 +254,27 @@ describe('runJudge', () => {
     );
   });
 
+  it('counts a failed query as one unreadable verdict and finishes the judging', async () => {
+    const failing: SdkQueryFn = () =>
+      (async function* () {
+        await Promise.resolve();
+        yield* [] as SDKMessage[];
+        throw new Error('overloaded');
+      })();
+    const record = await runJudge(
+      { folder, work: overviews([score]), judges: ['judge-a'], parallel: 1 },
+      { query: failing },
+    );
+    expect(record.finishedAt).not.toBeNull();
+    const meta = JSON.parse(
+      readFileSync(judgementFiles(folder, 'judge-a', 'retry', 1).meta, 'utf8'),
+    ) as { ended: string };
+    expect(meta.ended).toBe('SDK error: overloaded');
+    expect(formatJudged(null, await readJudgements(folder, [score]))).toEqual([
+      'judged by judge-a: good 0  ·  usable 0  ·  poor 0  ·  unreadable 1',
+    ]);
+  });
+
   it('refuses a judge that is not a model name, before asking anything', async () => {
     const query = fakeQuery(judgement(clean));
     await expect(
