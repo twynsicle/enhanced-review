@@ -311,6 +311,8 @@ function reportTierRepairs(
  * with an older stored shape: an overview dropped for arriving in the wrong
  * field fails the review, over a sentence the model did write.
  */
+const PROSE_FIELDS = new Set(['lede', 'bodies', 'body']);
+
 function sanitizeProse(
   raw: unknown,
   whose: string,
@@ -332,6 +334,14 @@ function sanitizeProse(
     return { lede: only };
   }
   if (!isRecord(raw)) return nothing();
+  // A field nested here, an overview diagram written inside the summary say,
+  // would vanish with nothing to show for it; failing names it for the retry.
+  for (const key of Object.keys(raw).filter((key) => !PROSE_FIELDS.has(key))) {
+    log.add(
+      'prose-field-stray',
+      `${whose} holds "${key}", a field it does not take: it holds a lede and bodies, and every other field of the review sits beside it at the top level.`,
+    );
+  }
   const lede = typeof raw['lede'] === 'string' ? raw['lede'].trim() : '';
   const bodies = sanitizeBodies(raw, whose, styles, log);
   if (lede.length > 0) return { lede, ...(bodies ? { bodies } : {}) };
@@ -1338,7 +1348,9 @@ export function parseNarrativeReview(text: string, grounding?: PromptGrounding):
   const empty = reportEmptyChapters(chapters, grounding, log);
   const headless = reportHeadlessChapters(chapters, log);
   const unstyled = reportMissingStyles(overviewSummary, chapters, styles, log);
-  const misfiled = log.findings.some((item) => item.code === 'body-style-dropped');
+  const misfiled = log.findings.some(
+    (item) => item.code === 'body-style-dropped' || item.code === 'prose-field-stray',
+  );
   if (empty || headless || unstyled || misfiled) return fail(log);
 
   const riskAssessment = sanitizeRiskAssessment(parsed['riskAssessment'], log);

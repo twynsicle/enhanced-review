@@ -186,7 +186,9 @@ src/review/
                      `body` taken as the one style's when one was asked for (`prose-promoted`); a body under
                      another key, or a lone `body` beside several styles, is a fatal `body-style-dropped` naming
                      the keys asked for; a passage with a body in some styles asked for but not all is a fatal
-                     `style-missing`, one per passage, so a comparison between styles is like for like; a chapter with no headline (absent,
+                     `style-missing`, one per passage, so a comparison between styles is like for like; any
+                     other field in the passage is a fatal `prose-field-stray` naming it, since a field nested
+                     there (an overview diagram, say) would otherwise vanish unrecorded; a chapter with no headline (absent,
                      blank or not a string) is a fatal `chapter-no-headline`, every such chapter named before the
                      review fails, so one retry mends them all — never a heading made up from the title; a
                      headline past MAX_HEADLINE_WORDS (the prompt's

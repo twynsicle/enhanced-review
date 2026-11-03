@@ -929,6 +929,22 @@ describe('what a repair records', () => {
     expect(codes(bodyOnly)).toEqual(['prose-promoted']);
   });
 
+  it('fails an overview holding a field it does not take, naming it for the retry', () => {
+    const result = parseNarrativeReview(
+      wrap({
+        prTitle: 't',
+        overviewSummary: { lede: 'a lede', overviewDiagram: { id: 'nested' } },
+        chapters: [
+          { id: 'c', title: 'C', insights: [], diffChunks: [cite('src/a.ts', ['H0001'])] },
+        ],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(fatalFindings(result.findings).map((f) => f.message)).toEqual([
+      'The overview summary holds "overviewDiagram", a field it does not take: it holds a lede and bodies, and every other field of the review sits beside it at the top level.',
+    ]);
+  });
+
   it('names every chapter with no headline in one go, so one retry can mend them all', () => {
     const result = parse([
       { id: 'c', title: 'C', headline: '', diffChunks: [cite('src/a.ts', ['H0001'])] },
